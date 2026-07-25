@@ -91,8 +91,11 @@ Event — только `TickPassed{playerOffline:true}`).
 поддерживает short-circuit фаз. Чтобы для одного `<Action>Requested` ровно
 одно правило было владельцем авторитетного исхода (§12.3), validation gate
 эмитит pass-through event: `ActionValidated` (для move) или `GiveValidated`
-(для give). Правило `simulation.duration_check` (фаза Validation) —
-единственный владелец `MoveRequested`/`GiveRequested`: эмитит
+(для give) — пока два типа, по числу действий игрока; конвенция на будущее:
+`<Action>Validated` per action-kind, владелец `duration_check` переводит
+Request→Validated, downstream rule слушает Validated. Правило
+`simulation.duration_check` (фаза Validation) — единственный владелец
+`MoveRequested`/`GiveRequested`: эмитит
 `ActionValidated`/`GiveValidated` (pass, несёт `originalPayload` вниз по
 pipeline) или `ActionRejected{reason:"insufficient_time"}` (fail —
 `lastActionTick === event.timestamp`). Downstream rules (`physics.movement`,
@@ -293,6 +296,11 @@ LLM в условиях — жёсткое ограничение §5.8 (рав�
 
 Не реализовывать на этом шаге: магию, NPC, Consequences, Situations,
 Observations, Biography, Economy, LLM.
+
+> **NB:** этот список относился к Iteration 0 (MVP-0). К итогам Iteration 8
+> все перечисленные v2-блоки — Consequences, Situations, Observations,
+> Biography, Heat (вместо магии), Player Strategy — реализованы; см. статус
+> выше. Economy и LLM остаются за рамками v2 (§11 ARCHITECTURE.md).
 
 ## Pull Request Codex
 

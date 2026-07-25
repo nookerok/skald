@@ -1,6 +1,11 @@
 # Living World — Architecture
 
-Сводный документ всех решений, согласованных в ходе обсуждения. Версия: после уточнений по Consequences / Situations / Observations / Authority Hierarchy / детерминированности / Projection Purity.
+Сводный документ всех решений, согласованных в ходе обсуждения. Версия: после
+уточнений по Consequences / Situations / Observations / Authority Hierarchy /
+детерминированности / Projection Purity + backfill решений Iterations 4-8
+(situations.end, heat law, relations, player strategy, validation gate,
+idempotency). **Статус (по итогам Iteration 8):** v2 архитектура завершена,
+18 рабочих правил, 215 тестов.
 
 ## Инварианты конституции (не подлежат нарушению)
 
@@ -259,14 +264,24 @@ forest_fire.spread слушает TickPassed → TreeBurned, SmokeSpread,
 RainStarted → forest_fire.spread.condition == false → правило ничего не делает
 ```
 
-**Открытый вопрос (не решён, требует решения до реализации Situations):** где хранится состояние активности Situation и кто его проверяет?
+**Открытый вопрос (решён в Iteration 4):** где хранится состояние активности Situation и кто её проверяет?
 
-Поскольку Rule обязано оставаться чистой функцией `(Event, ReadonlyWorld) → Event[]`, состояние активности не может быть флагом на самом правиле вне World. Рассматриваются два варианта:
+Принято решение (а): активные Situations — часть World Projection
+(`world.activeSituations: Map<situationId, ActiveSituation>`). Правило
+`forest_fire.spread` при получении `TickPassed` само проверяет
+`world.activeSituations.has("forest_fire")` и возвращает `[]`, если условие
+не выполнено. Вся логика остаётся внутри Rule — не нарушает границу
+"infra ≠ gameplay". RuleEngine не фильтрует — он не место игровых решений.
 
-- **(а) рекомендуемый:** активные Situations — часть World Projection (`world.activeSituations: Set<string>`). Правило `forest_fire.spread` при получении `TickPassed` само проверяет `world.activeSituations.has("forest_fire")` и возвращает `[]`, если условие не выполнено. Вся логика остаётся внутри Rule — не нарушает границу "infra ≠ gameplay".
-- **(б) альтернативный:** RuleEngine фильтрует, какие правила вообще получают событие, на основе реестра активных Situations. Это превращает RuleEngine в место принятия игровых решений — потенциальное нарушение границы infra/gameplay.
-
-Решение по (а) vs (б) должно быть зафиксировано в AGENTS.md одной строкой до того, как Codex начнёт реализовывать первую Situation.
+**Завершение Situation (зафиксировано в Iteration 4):** duration-based,
+переиспользует паттерн `consequences.expire`. `SituationStarted` несёт
+`{ startedAt, duration }`; правило `situations.end` на `TickPassed` эмитит
+`SituationEnded` для всех `startedAt + duration ≤ now`, Projector удаляет
+запись из `activeSituations`. **Никаких внешних «магических» `RainStarted` без
+источника** — выше в примере `RainStarted` приведён как старый иллюстративный
+пример, в реализации Iteration 4 не используется. Симметрия с Consequences
+(§5.1): оба долгоживущих объекта завершаются детерминированной проверкой
+`expiresAt` на `TickPassed`, не внешним «прекратителем».
 
 ### 5.5 Экономика — не Engine, а набор правил
 
@@ -281,6 +296,13 @@ BridgeDestroyed → WoodDemandUp
 ### 5.6 Магия → World Law
 
 Понятие "магия" исключается из архитектуры полностью. Вместо `Intent → Magic Rule` используется `Intent → World Law`. Пример: закон `heat` применим и к костру, и к солнцу, и к лаве, и к собственному телу — это один и тот же закон, а не набор заклинаний.
+
+**Реализация (зафиксировано в Iteration 6):** первый физический закон
+`heat.spread` на `TickPassed` — статические `HeatSourcePlaced` (bootstrap),
+`HeatRadiated` распространяет интенсивность к соседним клеткам (intensity ÷ 2
+на расстоянии 1). Клеточное `heatMap` в Projection, выводимо из
+`HeatRadiated` событий. Без Spell/Mana/Cooldown — чистая физика. Один law
+будет применим к лаве, телу, контексту — без дублирования.
 
 ### 5.7 Мир без игрока — Situations как процессы, а не NPC-симуляция
 
@@ -308,6 +330,20 @@ PlayerOffline + player.strategy содержит:
 Оба конца правила — и условие (`danger_nearby`, `is_night`, `gold < threshold`), и действие (`return_home`, `work_as_blacksmith`) — берутся из **заранее зарегистрированного конечного набора** предикатов и действий, а не формулируются свободно. Условие оценивается детерминированным Rule на основе World Projection (Observations, Relations, Consequences), а не LLM-суждением в моменте.
 
 **Жёсткое ограничение (не подлежит расширению без пересмотра конституции):** оценка условий политики не делегируется LLM. Если "опасно ли сейчас" или "стоит ли работать кузнецом" решает LLM на лету, а не заранее заданный предикат над Projection — это прямое нарушение запрета `NPC.decide()` (§3), применённого к персонажу игрока. LLM может только описывать результат (Narrative), но не выбирать действие.
+
+**Реализация (зафиксировано в Iteration 8):** стратегия хранится в
+`world.player.strategy` (массив `StrategyEntry`), выводима из `StrategySet`
+event (bootstrap) — обновляется только заменой всей стратегии (MVP, не
+append). Предикаты — детерминированные функции `(ReadonlyWorld) => boolean`,
+действия — функции, возвращающие intent (`move`/`give`/`idle`); оба набора
+compile-time registered в `packages/world/src/strategy-registry.ts`
+(конечный, не расширяется в runtime). Rule `player.strategy` на
+`TickPassed{playerOffline:true}` итерирует strategy, для первого
+сработавшего предиката генерирует `MoveRequested`/`GiveRequested` — которые
+проходят через полный pipeline (validation gate → physics → consequence).
+`PlayerOffline` детектируется через `TickPassed.payload.playerOffline`
+(infra input, не projection state). REPL meta-команды `wait` / `advance N`
+продвигают время без player command, эмитят `TickPassed{playerOffline:true}`.
 
 ### 5.9 Биография — граф причинности, а не журнал
 
@@ -344,6 +380,15 @@ Player → Guild: trust 40, respect 10, fear 0
 HelpGuild → Trust +5
 StealGuild → Trust -20
 ```
+
+**Реализация (зафиксировано в Iteration 6):** `RelationEdge {from, to, kind,
+value}` в Projection (`Map<"${from}>${to}:${kind}", RelationEdge>`),
+изменяется `RelationChanged{from, to, kind, delta}`. Команда игрока `give
+<relation_kind> to <target_id>` (`GiveCommand` из `IntentParser`, контракт
+зафиксирован в Iteration 6: 4 слова, без fuzzy) → `GiveRequested` →
+validation gate → `GiveValidated` → правило `relations.give` →
+`RelationChanged{player→target:+1}`. Без `RelationshipManager` — только
+рёбра как Projection-данные и событие-мутатор.
 
 ---
 
