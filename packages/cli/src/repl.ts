@@ -1,5 +1,5 @@
 import * as readline from "node:readline";
-import { createApp, runCommand, runTick } from "./index.js";
+import { createApp, runCommand, runTick, printNarrative } from "./index.js";
 import type { DomainEvent } from "@skald/event-bus";
 
 function formatEvent(e: DomainEvent): string {
@@ -49,6 +49,18 @@ function main(): void {
       } else {
         process.stdout.write("Usage: advance <N> (1-100)\n");
       }
+      rl.prompt();
+      return;
+    }
+
+    if (trimmed.startsWith("narrate")) {
+      const rest = trimmed.slice(7).trim();
+      let sinceTick: number | undefined;
+      if (rest.startsWith("since ")) {
+        sinceTick = parseInt(rest.slice(6).trim(), 10);
+        if (isNaN(sinceTick)) sinceTick = undefined;
+      }
+      process.stdout.write(printNarrative(app, sinceTick));
       rl.prompt();
       return;
     }

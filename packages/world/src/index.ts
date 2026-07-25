@@ -40,3 +40,12 @@ export type {
   BiographyGraph,
   CausalChainStep,
 } from "./biography.js";
+export {
+  formatEvent,
+  formatWorldState,
+  buildNarrative,
+} from "./narrative.js";
+export type {
+  NarrativeEntry,
+  NarrativeSnapshot,
+} from "./narrative.js";

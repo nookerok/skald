@@ -19,6 +19,7 @@ import {
   commitBootstrap,
   commandEventId,
   buildBiographyGraph,
+  buildNarrative,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 
@@ -134,4 +135,16 @@ export function runTick(
   };
   const { committed } = app.engine.process(tickEvent);
   return { events: committed };
+}
+
+export function printNarrative(app: App, sinceTick?: number): string {
+  const events = app.bus.query();
+  const world = app.projection.getSnapshot();
+  const opts = sinceTick !== undefined ? { sinceTick } : undefined;
+  const snapshot = buildNarrative(events, world, opts);
+  let s = `--- Narrative (world.time=${snapshot.worldTime}, player at ${JSON.stringify(snapshot.playerPosition)}) ---\n`;
+  for (const entry of snapshot.entries) {
+    s += `  [${entry.kind}] (T=${entry.timestamp}) ${entry.text}\n`;
+  }
+  return s;
 }

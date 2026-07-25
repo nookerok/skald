@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createApp, runCommand, runTick } from "@skald/cli";
-import { WorldProjector } from "@skald/world";
+import { createApp, runCommand, runTick, printNarrative } from "@skald/cli";
+import { WorldProjector, buildNarrative } from "@skald/world";
 
 describe("Integration — 5 rules wired end-to-end", () => {
   it("move north (success) → risk_taken=1, other observations undefined", () => {
@@ -338,5 +338,34 @@ describe("Integration — player strategy (offline)", () => {
     expect(rebuilt.getSnapshot().player).toEqual(live.player);
     expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
     expect(rebuilt.getSnapshot().strategy.length).toBe(live.strategy.length);
+  });
+});
+
+describe("Integration — narrative (read-side, no LLM)", () => {
+  it("buildNarrative produces entries for real events", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1, "key-1");
+    runTick(app, 2, "tick-offline-1", true);
+
+    const events = app.bus.query();
+    const world = app.projection.getSnapshot();
+    const snapshot = buildNarrative(events, world);
+
+    expect(snapshot.entries.length).toBeGreaterThan(0);
+    expect(snapshot.entries.some((e) => e.text.includes("перемещаешься"))).toBe(true);
+    expect(snapshot.worldTime).toBe(2);
+
+    const eventsAfter = app.bus.query();
+    expect(eventsAfter).toEqual(events);
+  });
+
+  it("printNarrative returns non-empty string with header", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1, "key-1");
+
+    const text = printNarrative(app);
+    expect(typeof text).toBe("string");
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toContain("--- Narrative");
   });
 });
