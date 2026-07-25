@@ -540,3 +540,49 @@ describe("WorldProjector — lastActionTick", () => {
     expect(clone.getSnapshot().lastActionTick).toBe(10);
   });
 });
+
+describe("WorldProjector — strategy", () => {
+  it("StrategySet sets the player strategy", () => {
+    const p = new WorldProjector();
+    p.apply(e("StrategySet", "ss-1", { entries: [{ condition: "always", action: "move_south" }] }, 0));
+
+    expect(p.getSnapshot().strategy).toHaveLength(1);
+    expect(p.getSnapshot().strategy[0]!.condition).toBe("always");
+    expect(p.getSnapshot().strategy[0]!.action).toBe("move_south");
+  });
+
+  it("second StrategySet replaces (not append)", () => {
+    const p = new WorldProjector();
+    p.apply(e("StrategySet", "ss-1", { entries: [{ condition: "always", action: "move_south" }] }, 0));
+    p.apply(e("StrategySet", "ss-2", { entries: [{ condition: "never", action: "idle" }] }, 1));
+
+    expect(p.getSnapshot().strategy).toHaveLength(1);
+    expect(p.getSnapshot().strategy[0]!.condition).toBe("never");
+  });
+});
+
+describe("WorldProjector — purity with strategy", () => {
+  it("bootstrap includes strategy → rebuild equals original", () => {
+    const events: DomainEvent[] = [
+      ...bootstrapWorldEvents(),
+    ];
+
+    const original = rebuildProjection(events);
+    const rebuilt = rebuildProjection(events);
+
+    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
+    expect(rebuilt.getSnapshot().strategy.length).toBe(3);
+  });
+});
+
+describe("WorldProjector — clone with strategy", () => {
+  it("clone copies strategy independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("StrategySet", "ss-1", { entries: [{ condition: "always", action: "move_south" }] }, 0));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("StrategySet", "ss-2", { entries: [{ condition: "never", action: "idle" }] }, 1));
+
+    expect(p.getSnapshot().strategy[0]!.condition).toBe("always");
+    expect(clone.getSnapshot().strategy[0]!.condition).toBe("never");
+  });
+});

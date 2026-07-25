@@ -14,16 +14,48 @@ function main(): void {
     prompt: "> ",
   });
 
-  process.stdout.write("Living World MVP-0. Commands: move north/south/east/west. Ctrl-D to quit.\n");
+  process.stdout.write("Living World MVP-0. Commands: move north/south/east/west, wait/advance N. Ctrl-D to quit.\n");
   process.stdout.write(`Player at ${JSON.stringify(app.projection.getSnapshot().player)}\n`);
   rl.prompt();
 
   let tick = app.projection.getSnapshot().time;
 
   rl.on("line", (line: string) => {
+    const trimmed = line.trim().toLowerCase();
+
+    // Meta-commands: wait / advance N
+    if (trimmed === "wait") {
+      const ts = tick + 1;
+      const tickResult = runTick(app, ts, `tick-offline-${ts}`, true);
+      tick = ts;
+      process.stdout.write(`Tick ${ts} (offline):\n`);
+      for (const e of tickResult.events) process.stdout.write(formatEvent(e) + "\n");
+      rl.prompt();
+      return;
+    }
+
+    if (trimmed.startsWith("advance ")) {
+      const n = parseInt(trimmed.slice(8), 10);
+      if (!isNaN(n) && n > 0 && n <= 100) {
+        for (let i = 0; i < n; i++) {
+          const ts = tick + 1;
+          const tickResult = runTick(app, ts, `tick-offline-${ts}`, true);
+          tick = ts;
+          if (tickResult.events.length > 0) {
+            process.stdout.write(`Tick ${ts} (offline):\n`);
+            for (const e of tickResult.events) process.stdout.write(formatEvent(e) + "\n");
+          }
+        }
+      } else {
+        process.stdout.write("Usage: advance <N> (1-100)\n");
+      }
+      rl.prompt();
+      return;
+    }
+
     const timestamp = tick + 1;
     const correlationId = `cmd-${timestamp}`;
-    const idempotencyKey = `key-${timestamp}-${line.trim().toLowerCase()}`;
+    const idempotencyKey = `key-${timestamp}-${trimmed}`;
     const result = runCommand(app, line, correlationId, timestamp, idempotencyKey);
 
     if ("type" in result && result.type === "ParseError") {

@@ -48,6 +48,21 @@ export function bootstrapWorldEvents(): DomainEvent[] {
     correlationId: "boot",
     causationId: "boot#PlayerSpawned",
   });
+  events.push({
+    eventId: "boot#StrategySet",
+    type: "StrategySet",
+    schemaVersion: 1,
+    payload: {
+      entries: [
+        { condition: "danger_nearby", action: "move_south" },
+        { condition: "heat_at_player", action: "move_north" },
+        { condition: "always", action: "give_help_to_guild" },
+      ],
+    },
+    timestamp: 0,
+    correlationId: "boot",
+    causationId: "boot#PlayerSpawned",
+  });
   return events;
 }
 

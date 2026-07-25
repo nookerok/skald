@@ -24,6 +24,7 @@ export const EventType = {
   ActionValidated: "ActionValidated",
   GiveValidated: "GiveValidated",
   ActionCompleted: "ActionCompleted",
+  StrategySet: "StrategySet",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

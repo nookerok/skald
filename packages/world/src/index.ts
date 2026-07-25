@@ -24,12 +24,16 @@ export {
 export { giveRule } from "./rules/relations.js";
 export { heatSpread } from "./rules/heat.js";
 export { durationCheck } from "./rules/duration-check.js";
+export { playerStrategy } from "./rules/player-strategy.js";
+export { PREDICATES, ACTIONS } from "./strategy-registry.js";
+export type { PredicateFn, ActionFn, ActionIntent } from "./strategy-registry.js";
 export type {
   Consequence,
   FiredConsequence,
   ActiveSituation,
   RelationEdge,
   HeatSource,
+  StrategyEntry,
 } from "./projection.js";
 export type {
   BiographyNode,

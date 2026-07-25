@@ -14,6 +14,7 @@ import {
   giveRule,
   heatSpread,
   durationCheck,
+  playerStrategy,
   handleCommand,
   commitBootstrap,
   commandEventId,
@@ -52,6 +53,7 @@ export function createApp(): App {
   registry.register(end);
   registry.register(giveRule);
   registry.register(heatSpread);
+  registry.register(playerStrategy);
   const engine = new RuleEngine(registry, projection, bus);
 
   commitBootstrap(bus, (e) => projection.apply(e));
@@ -115,12 +117,17 @@ export function printBiography(app: App, correlationId?: string): string {
   return s;
 }
 
-export function runTick(app: App, timestamp: number, correlationId: string): TickOutcome {
+export function runTick(
+  app: App,
+  timestamp: number,
+  correlationId: string,
+  playerOffline = false,
+): TickOutcome {
   const tickEvent: DomainEvent = {
     eventId: commandEventId(correlationId, "TickPassed"),
     type: "TickPassed",
     schemaVersion: 1,
-    payload: { delta: 1 },
+    payload: { delta: 1, playerOffline },
     timestamp,
     correlationId,
     causationId: null,

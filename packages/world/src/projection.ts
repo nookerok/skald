@@ -32,6 +32,11 @@ export interface RelationEdge {
   readonly value: number;
 }
 
+export interface StrategyEntry {
+  readonly condition: string;
+  readonly action: string;
+}
+
 export interface HeatSource {
   readonly id: string;
   readonly x: number;
@@ -56,6 +61,7 @@ export interface ReadonlyWorld {
   readonly heatSources: ReadonlyMap<string, HeatSource>;
   readonly heatMap: ReadonlyMap<string, number>;
   readonly lastActionTick: number;
+  readonly strategy: readonly StrategyEntry[];
   readonly eventNumber: number;
   readonly time: number;
 }
@@ -72,6 +78,7 @@ export interface WorldState {
   heatSources: Map<string, HeatSource>;
   heatMap: Map<string, number>;
   lastActionTick: number;
+  strategy: StrategyEntry[];
   eventNumber: number;
   time: number;
 }
@@ -89,6 +96,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     heatSources: state.heatSources,
     heatMap: state.heatMap,
     lastActionTick: state.lastActionTick,
+    strategy: state.strategy,
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;
@@ -110,6 +118,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       heatSources: new Map<string, HeatSource>(),
       heatMap: new Map<string, number>(),
       lastActionTick: 0,
+      strategy: [],
       eventNumber: 0,
       time: 0,
     };
@@ -210,6 +219,10 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.heatMap.set(key, (s.heatMap.get(key) ?? 0) + p.delta);
         break;
       }
+      case "StrategySet": {
+        s.strategy = (event.payload as { entries: StrategyEntry[] }).entries;
+        break;
+      }
       default:
         break;
     }
@@ -229,6 +242,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       heatSources: new Map(this.state.heatSources),
       heatMap: new Map(this.state.heatMap),
       lastActionTick: this.state.lastActionTick,
+      strategy: [...this.state.strategy],
       eventNumber: this.state.eventNumber,
       time: this.state.time,
     };

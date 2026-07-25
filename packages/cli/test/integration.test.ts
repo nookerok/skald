@@ -296,3 +296,47 @@ describe("Integration — time budget and idempotency", () => {
     expect(rebuilt.getSnapshot().lastActionTick).toBe(live.lastActionTick);
   });
 });
+
+describe("Integration — player strategy (offline)", () => {
+  it("offline tick with default strategy triggers give_help_to_guild", () => {
+    const app = createApp();
+    // Default strategy: danger_nearby (no audacity yet) → give_help_to_guild (always)
+    const tick = runTick(app, 1, "tick-offline-1", true);
+    const types = tick.events.map((e) => e.type);
+
+    // strategy matches "always" → give_help_to_guild → GiveRequested → GiveValidated → RelationChanged
+    expect(types).toContain("GiveRequested");
+    expect(types).toContain("GiveValidated");
+    expect(types).toContain("RelationChanged");
+
+    const edge = app.projection.getSnapshot().relations.get("player>guild:help");
+    expect(edge).toBeDefined();
+    expect(edge!.value).toBe(1);
+  });
+
+  it("live tick (playerOffline=false) does NOT trigger strategy", () => {
+    const app = createApp();
+    const tick = runTick(app, 1, "tick-1", false);
+    const types = tick.events.map((e) => e.type);
+
+    // No GiveRequested/MoveRequested from strategy
+    expect(types).not.toContain("GiveRequested");
+    expect(types).not.toContain("MoveRequested");
+  });
+
+  it("purity: replay with strategy = live", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1, "key-1");
+    runTick(app, 2, "tick-offline-1", true);
+    runCommand(app, "give help to guild", "cmd-2", 3, "key-2");
+    runTick(app, 4, "tick-offline-2", true);
+
+    const live = app.projection.getSnapshot();
+    const rebuilt = new WorldProjector();
+    for (const e of app.bus.query()) rebuilt.apply(e);
+
+    expect(rebuilt.getSnapshot().player).toEqual(live.player);
+    expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
+    expect(rebuilt.getSnapshot().strategy.length).toBe(live.strategy.length);
+  });
+});
