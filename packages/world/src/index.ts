@@ -15,4 +15,19 @@ export {
 } from "./rules/observations.js";
 export { repercussion, expire, fire } from "./rules/consequences.js";
 export { start, forestFireSpread, end } from "./rules/situations.js";
-export type { Consequence, FiredConsequence, ActiveSituation } from "./projection.js";
+export {
+  buildBiographyGraph,
+  findCausalChain,
+  findDescendants,
+  findCrossReference,
+} from "./biography.js";
+export type {
+  Consequence,
+  FiredConsequence,
+  ActiveSituation,
+} from "./projection.js";
+export type {
+  BiographyNode,
+  BiographyGraph,
+  CausalChainStep,
+} from "./biography.js";

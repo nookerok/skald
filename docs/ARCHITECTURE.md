@@ -329,6 +329,8 @@ SavedVillage → MayorTrust+20 → GuildInvitation
 
 Считается одной из ключевых отличительных black-box фич проекта (наряду с Consequences и адаптацией мира — см. §7).
 
+**Известное ограничение (зафиксировано по итогам Iteration 5):** `causationId`-граф разрывается на границе top-level транзакций: `TickPassed` — отдельная транзакция с `causationId === null`, новой `correlationId = "tick-X"`, поэтому causational цепочка от `MoveRequested` до `AudacityTriggered` не может быть восстановлена только через `causationId`. Пересечение границ транзакций требует payload-based linking (`findCrossReference` в biography-утилите), где связь идёт через совпадающие значения в payload (напр. `ConsequenceCreated{id}` ↔ `ConsequenceExpired{id}`). Это не баг, а свойство architecтуры: `TickPassed` — полностью независимая транзакция, её содержимое не является потомком ни одной команды. Для Narrative-слоя это значит, что биография строится как композит `causationId`-графа + `correlationId`-группировки + payload cross-references.
+
 ### 5.10 Временная шкала — представление, не данные
 
 Timeline не хранится отдельно. Строится запросом к Event Log по диапазону времени и представляется Narrative/LLM-слоем в читаемом виде. Данные не дублируются.
