@@ -49,3 +49,11 @@ export type {
   NarrativeEntry,
   NarrativeSnapshot,
 } from "./narrative.js";
+export { narrateLLM } from "./narrative-llm.js";
+export type { NarrativeLLMResult } from "./narrative-llm.js";
+export { ModelRouter } from "./llm/router.js";
+export { chatOnce, shouldFallback } from "./llm/http.js";
+export { classifyPayload, scanForSecrets, enforceDataPolicy } from "./llm/data-policy.js";
+export { loadHealth, saveHealth, checkModel, classifyModelError } from "./llm/health.js";
+export { LLM_CONFIG } from "./llm/config.js";
+export type * from "./llm/types.js";

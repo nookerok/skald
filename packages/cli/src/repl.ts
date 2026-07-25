@@ -1,5 +1,5 @@
 import * as readline from "node:readline";
-import { createApp, runCommand, runTick, printNarrative } from "./index.js";
+import { createApp, runCommand, runTick, printNarrative, printNarrativeLLM } from "./index.js";
 import type { DomainEvent } from "@skald/event-bus";
 
 function formatEvent(e: DomainEvent): string {
@@ -59,6 +59,17 @@ function main(): void {
       if (rest.startsWith("since ")) {
         sinceTick = parseInt(rest.slice(6).trim(), 10);
         if (isNaN(sinceTick)) sinceTick = undefined;
+      }
+      if (rest.startsWith("llm")) {
+        const sinceLLM = rest.replace(/^llm\s*/, "").replace(/^since\s+/, "");
+        const n = parseInt(sinceLLM, 10);
+        const sinceArg = isNaN(n) ? undefined : n;
+        process.stdout.write("Generating narrative...\n");
+        printNarrativeLLM(app, sinceArg).then((text) => {
+          process.stdout.write(text);
+          rl.prompt();
+        });
+        return;
       }
       process.stdout.write(printNarrative(app, sinceTick));
       rl.prompt();

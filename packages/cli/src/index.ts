@@ -20,6 +20,8 @@ import {
   commandEventId,
   buildBiographyGraph,
   buildNarrative,
+  narrateLLM,
+  ModelRouter,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 
@@ -35,6 +37,7 @@ export interface App {
   engine: RuleEngine<ReturnType<WorldProjector["getSnapshot"]>>;
   projection: WorldProjector;
   processedKeys: Set<string>;
+  router: ModelRouter | null;
 }
 
 export function createApp(): App {
@@ -59,7 +62,10 @@ export function createApp(): App {
 
   commitBootstrap(bus, (e) => projection.apply(e));
 
-  return { bus, registry, engine, projection, processedKeys: new Set() };
+  const routerApiKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
+  const router = routerApiKey ? new ModelRouter({ apiKey: routerApiKey, healthCachePath: "packages/cli/llm-health.json" }) : null;
+
+  return { bus, registry, engine, projection, processedKeys: new Set(), router };
 }
 
 export interface CommandOutcome {
@@ -135,6 +141,19 @@ export function runTick(
   };
   const { committed } = app.engine.process(tickEvent);
   return { events: committed };
+}
+
+export async function printNarrativeLLM(app: App, sinceTick?: number): Promise<string> {
+  const events = app.bus.query();
+  const world = app.projection.getSnapshot();
+  const opts = sinceTick !== undefined ? { sinceTick } : undefined;
+  const snapshot = buildNarrative(events, world, opts);
+  const result = await narrateLLM(snapshot, app.router);
+  let header = `--- Narrative LLM (world.time=${snapshot.worldTime}) ---\n`;
+  if (result.usedFallback) {
+    header += `[fallback: ${result.fallbackReason}]\n`;
+  }
+  return header + result.text + "\n";
 }
 
 export function printNarrative(app: App, sinceTick?: number): string {

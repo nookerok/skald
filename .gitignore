@@ -3,3 +3,7 @@ dist/
 *.tsbuildinfo
 coverage/
 .DS_Store
+.env
+packages/cli/llm-health.json
+packages/cli/llm-usage.jsonl
+*.llm-cache.json
