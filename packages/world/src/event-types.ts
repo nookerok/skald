@@ -16,6 +16,10 @@ export const EventType = {
   SituationEnded: "SituationEnded",
   ForestFireStarted: "ForestFireStarted",
   TreeBurned: "TreeBurned",
+  GiveRequested: "GiveRequested",
+  RelationChanged: "RelationChanged",
+  HeatSourcePlaced: "HeatSourcePlaced",
+  HeatRadiated: "HeatRadiated",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

@@ -39,6 +39,15 @@ export function bootstrapWorldEvents(): DomainEvent[] {
       causationId: "boot#PlayerSpawned",
     });
   });
+  events.push({
+    eventId: `boot#HeatSourcePlaced#${WALLS.length}`,
+    type: "HeatSourcePlaced",
+    schemaVersion: 1,
+    payload: { x: 1, y: 1, intensity: 10 },
+    timestamp: 0,
+    correlationId: "boot",
+    causationId: "boot#PlayerSpawned",
+  });
   return events;
 }
 

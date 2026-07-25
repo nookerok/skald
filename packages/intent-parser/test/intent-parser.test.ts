@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCommand, type MoveCommand, type ParseError } from "@skald/intent-parser";
+import { parseCommand, type MoveCommand, type GiveCommand, type ParseError } from "@skald/intent-parser";
 
 describe("parseCommand", () => {
   it("parses all four directions", () => {
@@ -51,5 +51,46 @@ describe("parseCommand", () => {
   it("returns ParseError for extra arguments", () => {
     const result = parseCommand("move north now") as ParseError;
     expect(result.type).toBe("ParseError");
+  });
+
+  it("parses give help to guild", () => {
+    const result = parseCommand("give help to guild") as GiveCommand;
+    expect(result).toEqual({ type: "GiveCommand", relation: "help", target: "guild" });
+  });
+
+  it("parses give respect to merchant", () => {
+    const result = parseCommand("give respect to merchant") as GiveCommand;
+    expect(result).toEqual({ type: "GiveCommand", relation: "respect", target: "merchant" });
+  });
+
+  it("parses give fear to dragon", () => {
+    const result = parseCommand("give fear to dragon") as GiveCommand;
+    expect(result).toEqual({ type: "GiveCommand", relation: "fear", target: "dragon" });
+  });
+
+  it.each([
+    "GIVE HELP TO GUILD",
+    "  give  help  to  guild  ",
+  ])("is case-insensitive and trims whitespace for give: %j", (input) => {
+    const result = parseCommand(input) as GiveCommand;
+    expect(result).toEqual({ type: "GiveCommand", relation: "help", target: "guild" });
+  });
+
+  it("returns ParseError for unknown relation", () => {
+    const result = parseCommand("give energy to guild") as ParseError;
+    expect(result.type).toBe("ParseError");
+    expect(result.reason).toContain("unknown relation");
+  });
+
+  it("returns ParseError when 'to' is missing", () => {
+    const result = parseCommand("give help guild") as ParseError;
+    expect(result.type).toBe("ParseError");
+    expect(result.reason).toContain("unknown command");
+  });
+
+  it("returns ParseError for empty target", () => {
+    const result = parseCommand("give help to") as ParseError;
+    expect(result.type).toBe("ParseError");
+    expect(result.reason).toContain("unknown command");
   });
 });

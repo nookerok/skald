@@ -305,3 +305,76 @@ describe("Integration — situations (12 rules)", () => {
     expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
   });
 });
+
+describe("Integration — relations (give)", () => {
+  it("give help → GiveRequested → RelationChanged, edge created", () => {
+    const app = createApp();
+    const result = runCommand(app, "give help to guild", "cmd-1", 1);
+    expect("type" in result && result.type === "ParseError").toBe(false);
+    const outcome = result as { events: { type: string }[] };
+    expect(outcome.events.map((e) => e.type)).toEqual(["GiveRequested", "RelationChanged"]);
+
+    const edge = app.projection.getSnapshot().relations.get("player>guild:help");
+    expect(edge).toBeDefined();
+    expect(edge!.value).toBe(1);
+  });
+
+  it("two gives accumulate edge value", () => {
+    const app = createApp();
+    runCommand(app, "give help to guild", "cmd-1", 1);
+    runCommand(app, "give help to guild", "cmd-2", 2);
+    expect(app.projection.getSnapshot().relations.get("player>guild:help")!.value).toBe(2);
+  });
+});
+
+describe("Integration — heat", () => {
+  it("tick radiates heat from bootstrap source", () => {
+    const app = createApp();
+    // Bootstrap includes a HeatSourcePlaced at {1,1} intensity 10
+    const tick = runTick(app, 1, "tick-1");
+
+    const heatRadiated = tick.events.filter((e) => e.type === "HeatRadiated");
+    expect(heatRadiated).toHaveLength(5);
+
+    const hm = app.projection.getSnapshot().heatMap;
+    expect(hm.get("1,1")).toBe(10);
+    expect(hm.get("2,1")).toBe(5);
+    expect(hm.get("0,1")).toBe(5);
+    expect(hm.get("1,2")).toBe(5);
+    expect(hm.get("1,0")).toBe(5);
+  });
+
+  it("heat accumulates over multiple ticks", () => {
+    const app = createApp();
+    runTick(app, 1, "tick-1");
+    runTick(app, 2, "tick-2");
+    runTick(app, 3, "tick-3");
+
+    const hm = app.projection.getSnapshot().heatMap;
+    // Each tick: center +10, 4 neighbors +5 each
+    expect(hm.get("1,1")).toBe(30);
+    expect(hm.get("2,1")).toBe(15);
+  });
+});
+
+describe("Integration — mixed systems purity", () => {
+  it("give + heat + existing → replay = live", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1);
+    runTick(app, 2, "tick-2");
+    runCommand(app, "give help to guild", "cmd-3", 3);
+    runTick(app, 4, "tick-4");
+
+    const live = app.projection.getSnapshot();
+    const rebuilt = new WorldProjector();
+    for (const e of app.bus.query()) rebuilt.apply(e);
+
+    expect(rebuilt.getSnapshot().player).toEqual(live.player);
+    expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
+    expect(rebuilt.getSnapshot().relations.get("player>guild:help")!.value).toBe(
+      live.relations.get("player>guild:help")!.value,
+    );
+    expect(rebuilt.getSnapshot().heatMap.get("1,1")).toBe(live.heatMap.get("1,1"));
+    expect(rebuilt.getSnapshot().heatSources.size).toBe(live.heatSources.size);
+  });
+});

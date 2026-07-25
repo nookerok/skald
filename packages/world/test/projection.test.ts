@@ -416,3 +416,85 @@ describe("WorldProjector — clone with situations", () => {
     expect(clone.getSnapshot().burnedTrees).toBe(2);
   });
 });
+
+describe("WorldProjector — relations", () => {
+  it("RelationChanged creates or updates an edge", () => {
+    const p = new WorldProjector();
+    p.apply(e("RelationChanged", "rc-1", { from: "player", to: "guild", kind: "help", delta: 1 }, 1));
+
+    const r = p.getSnapshot().relations.get("player>guild:help");
+    expect(r).toBeDefined();
+    expect(r!.value).toBe(1);
+
+    p.apply(e("RelationChanged", "rc-2", { from: "player", to: "guild", kind: "help", delta: 1 }, 2));
+    expect(p.getSnapshot().relations.get("player>guild:help")!.value).toBe(2);
+  });
+
+  it("RelationChanged delta that zeros value removes the edge", () => {
+    const p = new WorldProjector();
+    p.apply(e("RelationChanged", "rc-1", { from: "player", to: "guild", kind: "help", delta: 2 }, 1));
+    p.apply(e("RelationChanged", "rc-2", { from: "player", to: "guild", kind: "help", delta: -2 }, 2));
+
+    expect(p.getSnapshot().relations.has("player>guild:help")).toBe(false);
+  });
+});
+
+describe("WorldProjector — heat", () => {
+  it("HeatSourcePlaced adds a heat source", () => {
+    const p = new WorldProjector();
+    p.apply(e("HeatSourcePlaced", "hp-1", { x: 1, y: 1, intensity: 10 }, 0));
+
+    const hs = p.getSnapshot().heatSources.get("1,1");
+    expect(hs).toBeDefined();
+    expect(hs!.intensity).toBe(10);
+  });
+
+  it("HeatRadiated accumulates in heatMap", () => {
+    const p = new WorldProjector();
+    p.apply(e("HeatRadiated", "hr-1", { x: 1, y: 1, delta: 10 }, 1));
+    expect(p.getSnapshot().heatMap.get("1,1")).toBe(10);
+    p.apply(e("HeatRadiated", "hr-2", { x: 1, y: 1, delta: 5 }, 2));
+    expect(p.getSnapshot().heatMap.get("1,1")).toBe(15);
+  });
+});
+
+describe("WorldProjector — purity with relations and heat", () => {
+  it("bootstrap with heat source + give + tick → rebuild equals original", () => {
+    const events: DomainEvent[] = [
+      ...bootstrapWorldEvents(),
+      e("RelationChanged", "rc-1", { from: "player", to: "guild", kind: "help", delta: 1 }, 1),
+      e("TickPassed", "t-1", { delta: 1 }, 1),
+      e("HeatRadiated", "hr-1", { x: 1, y: 1, delta: 10 }, 1),
+      e("HeatRadiated", "hr-2", { x: 2, y: 1, delta: 5 }, 1),
+    ];
+
+    const original = rebuildProjection(events);
+    const rebuilt = rebuildProjection(events);
+
+    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
+    expect(rebuilt.getSnapshot().relations.get("player>guild:help")!.value).toBe(1);
+    expect(rebuilt.getSnapshot().heatMap.get("1,1")).toBe(10);
+    expect(rebuilt.getSnapshot().heatSources.size).toBe(1);
+  });
+});
+
+describe("WorldProjector — clone with relations and heat", () => {
+  it("clone copies relations independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("RelationChanged", "rc-1", { from: "player", to: "guild", kind: "help", delta: 1 }, 1));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("RelationChanged", "rc-2", { from: "player", to: "guild", kind: "help", delta: 1 }, 2));
+
+    expect(p.getSnapshot().relations.get("player>guild:help")!.value).toBe(1);
+    expect(clone.getSnapshot().relations.get("player>guild:help")!.value).toBe(2);
+  });
+
+  it("clone copies heatSources independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("HeatSourcePlaced", "hp-1", { x: 1, y: 1, intensity: 10 }, 0));
+    const clone = p.clone() as WorldProjector;
+    const sourceClone = clone.getSnapshot().heatSources.get("1,1");
+    expect(sourceClone).toBeDefined();
+    expect(sourceClone!.intensity).toBe(10);
+  });
+});

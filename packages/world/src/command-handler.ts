@@ -39,11 +39,22 @@ export function handleCommand(
     };
   }
 
+  if (command.type === "GiveCommand") {
+    const eventId = commandEventId(correlationId, "GiveRequested");
+    return {
+      ...base,
+      eventId,
+      type: "GiveRequested",
+      payload: { relation: command.relation, target: command.target },
+    };
+  }
+
+  const _exhaustive: never = command;
   const eventId = commandEventId(correlationId, "CommandRejected");
   return {
     ...base,
     eventId,
     type: "CommandRejected",
-    payload: { reason: `unknown command type: ${command.type}` },
+    payload: { reason: `unknown command type: ${(_exhaustive as PlayerCommand).type}` },
   };
 }

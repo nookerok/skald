@@ -21,10 +21,14 @@ export {
   findDescendants,
   findCrossReference,
 } from "./biography.js";
+export { giveRule } from "./rules/relations.js";
+export { heatSpread } from "./rules/heat.js";
 export type {
   Consequence,
   FiredConsequence,
   ActiveSituation,
+  RelationEdge,
+  HeatSource,
 } from "./projection.js";
 export type {
   BiographyNode,

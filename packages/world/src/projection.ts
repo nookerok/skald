@@ -25,6 +25,25 @@ export interface ActiveSituation {
   readonly data: Readonly<Record<string, unknown>>;
 }
 
+export interface RelationEdge {
+  readonly from: string;
+  readonly to: string;
+  readonly kind: string;
+  readonly value: number;
+}
+
+export interface HeatSource {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly intensity: number;
+  readonly placedAt: number;
+}
+
+export function relationKey(from: string, to: string, kind: string): string {
+  return `${from}>${to}:${kind}`;
+}
+
 export interface ReadonlyWorld {
   readonly player: { readonly x: number; readonly y: number };
   readonly walls: ReadonlySet<string>;
@@ -33,6 +52,9 @@ export interface ReadonlyWorld {
   readonly firedConsequences: ReadonlyMap<string, FiredConsequence>;
   readonly activeSituations: ReadonlyMap<string, ActiveSituation>;
   readonly burnedTrees: number;
+  readonly relations: ReadonlyMap<string, RelationEdge>;
+  readonly heatSources: ReadonlyMap<string, HeatSource>;
+  readonly heatMap: ReadonlyMap<string, number>;
   readonly eventNumber: number;
   readonly time: number;
 }
@@ -45,6 +67,9 @@ export interface WorldState {
   firedConsequences: Map<string, FiredConsequence>;
   activeSituations: Map<string, ActiveSituation>;
   burnedTrees: number;
+  relations: Map<string, RelationEdge>;
+  heatSources: Map<string, HeatSource>;
+  heatMap: Map<string, number>;
   eventNumber: number;
   time: number;
 }
@@ -58,6 +83,9 @@ function freeze(state: WorldState): ReadonlyWorld {
     firedConsequences: state.firedConsequences,
     activeSituations: state.activeSituations,
     burnedTrees: state.burnedTrees,
+    relations: state.relations,
+    heatSources: state.heatSources,
+    heatMap: state.heatMap,
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;
@@ -75,6 +103,9 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       firedConsequences: new Map<string, FiredConsequence>(),
       activeSituations: new Map<string, ActiveSituation>(),
       burnedTrees: 0,
+      relations: new Map<string, RelationEdge>(),
+      heatSources: new Map<string, HeatSource>(),
+      heatMap: new Map<string, number>(),
       eventNumber: 0,
       time: 0,
     };
@@ -139,6 +170,36 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.burnedTrees++;
         break;
       }
+      case "RelationChanged": {
+        const p = event.payload as { from: string; to: string; kind: string; delta: number };
+        const key = relationKey(p.from, p.to, p.kind);
+        const existing = s.relations.get(key);
+        const newValue = existing ? existing.value + p.delta : p.delta;
+        if (newValue === 0) {
+          s.relations.delete(key);
+        } else {
+          s.relations.set(key, { from: p.from, to: p.to, kind: p.kind, value: newValue });
+        }
+        break;
+      }
+      case "HeatSourcePlaced": {
+        const p = event.payload as { x: number; y: number; intensity: number };
+        const key = wallKey(p.x, p.y);
+        s.heatSources.set(key, {
+          id: event.eventId,
+          x: p.x,
+          y: p.y,
+          intensity: p.intensity,
+          placedAt: event.timestamp,
+        });
+        break;
+      }
+      case "HeatRadiated": {
+        const p = event.payload as { x: number; y: number; delta: number };
+        const key = wallKey(p.x, p.y);
+        s.heatMap.set(key, (s.heatMap.get(key) ?? 0) + p.delta);
+        break;
+      }
       default:
         break;
     }
@@ -154,6 +215,9 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       firedConsequences: new Map(this.state.firedConsequences),
       activeSituations: new Map(this.state.activeSituations),
       burnedTrees: this.state.burnedTrees,
+      relations: new Map(this.state.relations),
+      heatSources: new Map(this.state.heatSources),
+      heatMap: new Map(this.state.heatMap),
       eventNumber: this.state.eventNumber,
       time: this.state.time,
     };

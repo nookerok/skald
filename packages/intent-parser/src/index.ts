@@ -11,13 +11,20 @@
  */
 
 export type Direction = "north" | "south" | "east" | "west";
+export type RelationKind = "help" | "respect" | "fear";
 
 export interface MoveCommand {
   type: "MoveCommand";
   direction: Direction;
 }
 
-export type PlayerCommand = MoveCommand;
+export interface GiveCommand {
+  type: "GiveCommand";
+  relation: RelationKind;
+  target: string;
+}
+
+export type PlayerCommand = MoveCommand | GiveCommand;
 
 export interface ParseError {
   type: "ParseError";
@@ -34,10 +41,8 @@ const DIRECTIONS: ReadonlySet<Direction> = new Set([
   "west",
 ]);
 
-/**
- * Parse user input into a PlayerCommand or a ParseError.
- * Recognises only `move north|south|east|west` (case-insensitive).
- */
+const RELATIONS: ReadonlySet<RelationKind> = new Set(["help", "respect", "fear"]);
+
 export function parseCommand(input: string): ParseResult {
   const trimmed = input.trim().toLowerCase();
   if (trimmed.length === 0) {
@@ -45,25 +50,35 @@ export function parseCommand(input: string): ParseResult {
   }
 
   const parts = trimmed.split(/\s+/);
-  if (parts.length !== 2 || parts[0] !== "move") {
-    return {
-      type: "ParseError",
-      reason: `unknown command: ${JSON.stringify(input)}`,
-      input,
-    };
+
+  if (parts[0] === "move") {
+    if (parts.length !== 2) {
+      return { type: "ParseError", reason: `unknown command: ${JSON.stringify(input)}`, input };
+    }
+    if (!DIRECTIONS.has(parts[1] as Direction)) {
+      return { type: "ParseError", reason: `unknown direction: ${JSON.stringify(parts[1])}`, input };
+    }
+    return { type: "MoveCommand", direction: parts[1] as Direction };
   }
 
-  const direction = parts[1]!;
-  if (!DIRECTIONS.has(direction as Direction)) {
-    return {
-      type: "ParseError",
-      reason: `unknown direction: ${JSON.stringify(parts[1])}`,
-      input,
-    };
+  if (parts[0] === "give") {
+    if (parts.length !== 4 || parts[2] !== "to") {
+      return { type: "ParseError", reason: `unknown command: ${JSON.stringify(input)}`, input };
+    }
+    const relation = parts[1]!;
+    if (!RELATIONS.has(relation as RelationKind)) {
+      return { type: "ParseError", reason: `unknown relation: ${JSON.stringify(relation)}`, input };
+    }
+    const target = parts[3]!.trim();
+    if (target.length === 0) {
+      return { type: "ParseError", reason: "empty target", input };
+    }
+    return { type: "GiveCommand", relation: relation as RelationKind, target };
   }
 
   return {
-    type: "MoveCommand",
-    direction: direction as Direction,
+    type: "ParseError",
+    reason: `unknown command: ${JSON.stringify(input)}`,
+    input,
   };
 }

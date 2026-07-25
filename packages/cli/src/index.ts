@@ -11,6 +11,8 @@ import {
   start,
   forestFireSpread,
   end,
+  giveRule,
+  heatSpread,
   handleCommand,
   commitBootstrap,
   commandEventId,
@@ -39,6 +41,8 @@ export function createApp(): App {
   registry.register(start);
   registry.register(forestFireSpread);
   registry.register(end);
+  registry.register(giveRule);
+  registry.register(heatSpread);
   const engine = new RuleEngine(registry, projection, bus);
 
   commitBootstrap(bus, (e) => projection.apply(e));
