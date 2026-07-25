@@ -10,7 +10,8 @@ export {
   wallCaution,
   edgeAwareness,
   impatience,
+  worldReactionFear,
   observationRules,
 } from "./rules/observations.js";
-export { repercussion, expire } from "./rules/consequences.js";
-export type { Consequence } from "./projection.js";
+export { repercussion, expire, fire } from "./rules/consequences.js";
+export type { Consequence, FiredConsequence } from "./projection.js";

@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
-import type { ReadonlyWorld, Consequence } from "@skald/world";
-import { repercussion, expire } from "@skald/world";
+import type { ReadonlyWorld, Consequence, FiredConsequence } from "@skald/world";
+import { repercussion, expire, fire, worldReactionFear } from "@skald/world";
 
 function world(opts?: {
   observations?: Record<string, number>;
   consequences?: Consequence[];
+  firedConsequences?: FiredConsequence[];
 }): ReadonlyWorld {
   const obs = new Map<string, number>();
   if (opts?.observations) {
@@ -15,14 +16,19 @@ function world(opts?: {
   if (opts?.consequences) {
     for (const c of opts.consequences) cons.set(c.id, c);
   }
+  const fired = new Map<string, FiredConsequence>();
+  if (opts?.firedConsequences) {
+    for (const f of opts.firedConsequences) fired.set(f.consequenceId, f);
+  }
   return Object.freeze({
     player: Object.freeze({ x: 0, y: 0 }),
     walls: new Set<string>(),
     observations: obs,
     consequences: cons,
+    firedConsequences: fired,
     eventNumber: 0,
     time: 0,
-  }) as ReadonlyWorld;
+  }) as unknown as ReadonlyWorld;
 }
 
 function evt(
@@ -159,5 +165,96 @@ describe("consequences.expire", () => {
     const w = world({ consequences: [active] });
     expire.handle(event, w);
     expect(w.consequences.size).toBe(1);
+  });
+});
+
+describe("consequences.fire", () => {
+  const audConsequence: Consequence = {
+    id: "aud@1", type: "audacity", severity: 2, createdAt: 5, expiresAt: 10, data: {},
+  };
+  const otherConsequence: Consequence = {
+    id: "other@1", type: "other_type", severity: 1, createdAt: 5, expiresAt: 10, data: {},
+  };
+
+  it("fires ConsequenceFired + AudacityTriggered for audacity type", () => {
+    const event = evt("ConsequenceExpired", "ce-1", { id: "aud@1" }, 10);
+    const w = world({ consequences: [audConsequence] });
+
+    const out = fire.handle(event, w);
+
+    expect(out).toHaveLength(2);
+
+    // First event: ConsequenceFired (index 0)
+    expect(out[0]!.type).toBe("ConsequenceFired");
+    expect(out[0]!.payload).toEqual({
+      consequenceId: "aud@1",
+      consequenceType: "audacity",
+      firedAt: 10,
+    });
+    expect(out[0]!.causationId).toBe("ce-1");
+    expect(out[0]!.eventId).toBe("ce-1>ConsequenceFired#0");
+
+    // Second event: AudacityTriggered (index 1)
+    expect(out[1]!.type).toBe("AudacityTriggered");
+    expect(out[1]!.payload).toEqual({ target: "player", severity: 2 });
+    expect(out[1]!.causationId).toBe("ce-1");
+    expect(out[1]!.eventId).toBe("ce-1>AudacityTriggered#1");
+  });
+
+  it("returns [] for unknown consequence id", () => {
+    const event = evt("ConsequenceExpired", "ce-1", { id: "unknown" }, 10);
+    const w = world({ consequences: [audConsequence] });
+    expect(fire.handle(event, w)).toEqual([]);
+  });
+
+  it("emits only ConsequenceFired (no AudacityTriggered) for non-audacity type", () => {
+    const event = evt("ConsequenceExpired", "ce-1", { id: "other@1" }, 10);
+    const w = world({ consequences: [otherConsequence] });
+
+    const out = fire.handle(event, w);
+
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe("ConsequenceFired");
+    expect(out[0]!.payload).toEqual({
+      consequenceId: "other@1",
+      consequenceType: "other_type",
+      firedAt: 10,
+    });
+  });
+
+  it("does not mutate the world", () => {
+    const event = evt("ConsequenceExpired", "ce-1", { id: "aud@1" }, 10);
+    const w = world({ consequences: [audConsequence] });
+    fire.handle(event, w);
+    expect(w.consequences.size).toBe(1);
+    expect(w.firedConsequences.size).toBe(0);
+  });
+});
+
+describe("observations.world_reaction_fear", () => {
+  it("produces ObservationUpdated with delta = severity", () => {
+    const event = evt("AudacityTriggered", "at-1", { target: "player", severity: 2 }, 10);
+    const w = world();
+
+    const out = worldReactionFear.handle(event, w);
+
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe("ObservationUpdated");
+    expect(out[0]!.payload).toEqual({ key: "world_reaction_fear", delta: 2 });
+    expect(out[0]!.causationId).toBe("at-1");
+  });
+
+  it("handles severity 5", () => {
+    const event = evt("AudacityTriggered", "at-2", { target: "player", severity: 5 }, 10);
+    const w = world();
+    const out = worldReactionFear.handle(event, w);
+    expect(out[0]!.payload).toEqual({ key: "world_reaction_fear", delta: 5 });
+  });
+
+  it("does not mutate the world", () => {
+    const event = evt("AudacityTriggered", "at-1", { target: "player", severity: 2 }, 10);
+    const w = world();
+    worldReactionFear.handle(event, w);
+    expect(w.observations.size).toBe(0);
   });
 });

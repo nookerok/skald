@@ -63,9 +63,21 @@ export const impatience: Rule<ReadonlyWorld> = {
   },
 };
 
+export const worldReactionFear: Rule<ReadonlyWorld> = {
+  id: "observations.world_reaction_fear",
+  phase: "consequence",
+  listens: ["AudacityTriggered"],
+  produces: ["ObservationUpdated"],
+  handle: (event: DomainEvent, _world: ReadonlyWorld): DomainEvent[] => {
+    const { severity } = event.payload as { severity: number };
+    return [obsEvent(event, "world_reaction_fear", severity)];
+  },
+};
+
 export const observationRules: Rule<ReadonlyWorld>[] = [
   riskTaker,
   wallCaution,
   edgeAwareness,
   impatience,
+  worldReactionFear,
 ];

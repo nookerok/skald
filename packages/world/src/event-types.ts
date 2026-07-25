@@ -10,6 +10,8 @@ export const EventType = {
   TickPassed: "TickPassed",
   ConsequenceCreated: "ConsequenceCreated",
   ConsequenceExpired: "ConsequenceExpired",
+  ConsequenceFired: "ConsequenceFired",
+  AudacityTriggered: "AudacityTriggered",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

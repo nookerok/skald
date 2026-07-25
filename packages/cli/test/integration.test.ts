@@ -146,3 +146,62 @@ describe("Integration — consequences (7 rules)", () => {
     );
   });
 });
+
+describe("Integration — consequences fire (9 rules)", () => {
+  it("Full lifecycle: create → expire → fire → effect", () => {
+    const app = createApp();
+    // 3 moves to create audacity consequence
+    runCommand(app, "move north", "cmd-1", 1);
+    runCommand(app, "move north", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-3", 3);
+
+    const consAfterCreate = app.projection.getSnapshot().consequences;
+    expect(consAfterCreate.size).toBe(1);
+    const cId = [...consAfterCreate.keys()][0]!;
+
+    // Tick through to expire (expiresAt = 8)
+    for (let t = 4; t <= 7; t++) {
+      runTick(app, t, `tick-${t}`);
+    }
+
+    // Tick 8: expire → fire → AudacityTriggered
+    const tick8 = runTick(app, 8, "tick-8");
+    const tick8Types = tick8.events.map((e) => e.type);
+    expect(tick8Types).toContain("ConsequenceExpired");
+    expect(tick8Types).toContain("ConsequenceFired");
+    expect(tick8Types).toContain("AudacityTriggered");
+
+    const snapshot = app.projection.getSnapshot();
+    // Consequence removed
+    expect(snapshot.consequences.size).toBe(0);
+    // Fired recorded
+    expect(snapshot.firedConsequences.has(cId)).toBe(true);
+    // Observation from world_reaction_fear
+    expect(snapshot.observations.get("world_reaction_fear")).toBe(1);
+  });
+
+  it("Snapshot consistency replay: full lifecycle replay = live", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1);
+    runCommand(app, "move north", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-3", 3);
+    for (let t = 4; t <= 8; t++) {
+      runTick(app, t, `tick-${t}`);
+    }
+
+    const live = app.projection.getSnapshot();
+    const rebuilt = new WorldProjector();
+    for (const e of app.bus.query()) rebuilt.apply(e);
+
+    expect(rebuilt.getSnapshot().player).toEqual(live.player);
+    expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
+    expect(rebuilt.getSnapshot().time).toBe(live.time);
+    expect(rebuilt.getSnapshot().consequences).toEqual(live.consequences);
+    expect([...rebuilt.getSnapshot().firedConsequences.entries()]).toEqual(
+      [...live.firedConsequences.entries()],
+    );
+    expect(rebuilt.getSnapshot().observations.get("world_reaction_fear")).toBe(
+      live.observations.get("world_reaction_fear"),
+    );
+  });
+});

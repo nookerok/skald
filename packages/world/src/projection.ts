@@ -11,11 +11,18 @@ export interface Consequence {
   readonly data: Readonly<Record<string, unknown>>;
 }
 
+export interface FiredConsequence {
+  readonly consequenceId: string;
+  readonly consequenceType: string;
+  readonly firedAt: number;
+}
+
 export interface ReadonlyWorld {
   readonly player: { readonly x: number; readonly y: number };
   readonly walls: ReadonlySet<string>;
   readonly observations: ReadonlyMap<string, number>;
   readonly consequences: ReadonlyMap<string, Consequence>;
+  readonly firedConsequences: ReadonlyMap<string, FiredConsequence>;
   readonly eventNumber: number;
   readonly time: number;
 }
@@ -25,6 +32,7 @@ export interface WorldState {
   walls: Set<string>;
   observations: Map<string, number>;
   consequences: Map<string, Consequence>;
+  firedConsequences: Map<string, FiredConsequence>;
   eventNumber: number;
   time: number;
 }
@@ -35,6 +43,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     walls: state.walls,
     observations: state.observations,
     consequences: state.consequences,
+    firedConsequences: state.firedConsequences,
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;
@@ -49,6 +58,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       walls: new Set<string>(),
       observations: new Map<string, number>(),
       consequences: new Map<string, Consequence>(),
+      firedConsequences: new Map<string, FiredConsequence>(),
       eventNumber: 0,
       time: 0,
     };
@@ -94,6 +104,11 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.consequences.delete(id);
         break;
       }
+      case "ConsequenceFired": {
+        const f = event.payload as FiredConsequence;
+        s.firedConsequences.set(f.consequenceId, f);
+        break;
+      }
       default:
         break;
     }
@@ -106,6 +121,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       walls: new Set(this.state.walls),
       observations: new Map(this.state.observations),
       consequences: new Map(this.state.consequences),
+      firedConsequences: new Map(this.state.firedConsequences),
       eventNumber: this.state.eventNumber,
       time: this.state.time,
     };

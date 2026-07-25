@@ -177,6 +177,42 @@ describe("WorldProjector — consequences", () => {
     expect(p.getSnapshot().time).toBe(10);
     expect(p.getSnapshot().consequences.size).toBe(0);
   });
+
+  it("ConsequenceFired adds a firedConsequence record", () => {
+    const p = new WorldProjector();
+    p.apply(e("ConsequenceFired", "cf-1", {
+      consequenceId: "aud@1", consequenceType: "audacity", firedAt: 10,
+    }, 10));
+
+    const f = p.getSnapshot().firedConsequences.get("aud@1");
+    expect(f).toBeDefined();
+    expect(f!.consequenceType).toBe("audacity");
+    expect(f!.firedAt).toBe(10);
+  });
+
+  it("AudacityTriggered is no-op for state but increments eventNumber/time", () => {
+    const p = new WorldProjector();
+    p.apply(e("AudacityTriggered", "at-1", { target: "player", severity: 1 }, 7));
+
+    expect(p.getSnapshot().eventNumber).toBe(1);
+    expect(p.getSnapshot().time).toBe(7);
+    expect(p.getSnapshot().consequences.size).toBe(0);
+    expect(p.getSnapshot().firedConsequences.size).toBe(0);
+  });
+
+  it("ConsequenceExpired after ConsequenceFired: consequence removed but fired record persists", () => {
+    const p = new WorldProjector();
+    p.apply(e("ConsequenceCreated", "c-1", {
+      id: "aud@1", type: "audacity", severity: 1, createdAt: 5, expiresAt: 10, data: {},
+    }, 5));
+    p.apply(e("ConsequenceFired", "cf-1", {
+      consequenceId: "aud@1", consequenceType: "audacity", firedAt: 10,
+    }, 10));
+    p.apply(e("ConsequenceExpired", "ce-1", { id: "aud@1" }, 10));
+
+    expect(p.getSnapshot().consequences.has("aud@1")).toBe(false);
+    expect(p.getSnapshot().firedConsequences.has("aud@1")).toBe(true);
+  });
 });
 
 describe("WorldProjector — Projection Purity with consequences", () => {
@@ -215,6 +251,41 @@ describe("WorldProjector — Projection Purity with consequences", () => {
   });
 });
 
+describe("WorldProjector — Projection Purity with fired consequences", () => {
+  it("purity holds: full lifecycle including fire and effect", () => {
+    const events: DomainEvent[] = [
+      ...bootstrapWorldEvents(),
+      e("MovementSucceeded", "mv-1", { x: 0, y: 1 }, 1),
+      e("ObservationUpdated", "o-1", { key: "risk_taken", delta: 1 }, 1),
+      e("MovementSucceeded", "mv-2", { x: 1, y: 1 }, 2),
+      e("ObservationUpdated", "o-2", { key: "risk_taken", delta: 1 }, 2),
+      e("MovementSucceeded", "mv-3", { x: 1, y: 2 }, 3),
+      e("ObservationUpdated", "o-3", { key: "risk_taken", delta: 1 }, 3),
+      e("ConsequenceCreated", "cc-1", {
+        id: "aud@cmd-3", type: "audacity", severity: 1, createdAt: 3, expiresAt: 8, data: { threshold: 3 },
+      }, 3),
+      e("TickPassed", "t-1", { delta: 1 }, 3),
+      e("TickPassed", "t-2", { delta: 1 }, 4),
+      e("TickPassed", "t-3", { delta: 1 }, 5),
+      e("TickPassed", "t-4", { delta: 1 }, 6),
+      e("TickPassed", "t-5", { delta: 1 }, 7),
+      e("ConsequenceExpired", "ce-1", { id: "aud@cmd-3" }, 8),
+      e("ConsequenceFired", "cf-1", {
+        consequenceId: "aud@cmd-3", consequenceType: "audacity", firedAt: 8,
+      }, 8),
+      e("AudacityTriggered", "at-1", { target: "player", severity: 1 }, 8),
+      e("ObservationUpdated", "o-4", { key: "world_reaction_fear", delta: 1 }, 8),
+    ];
+
+    const original = rebuildProjection(events);
+    const rebuilt = rebuildProjection(events);
+
+    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
+    expect(rebuilt.getSnapshot().consequences.size).toBe(0);
+    expect(rebuilt.getSnapshot().firedConsequences.has("aud@cmd-3")).toBe(true);
+  });
+});
+
 describe("WorldProjector — clone", () => {
   it("clone copies observations independently", () => {
     const p = new WorldProjector();
@@ -236,5 +307,19 @@ describe("WorldProjector — clone", () => {
 
     expect(p.getSnapshot().consequences.size).toBe(1);
     expect(clone.getSnapshot().consequences.size).toBe(0);
+  });
+
+  it("clone copies firedConsequences independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("ConsequenceFired", "cf-1", {
+      consequenceId: "aud@1", consequenceType: "audacity", firedAt: 10,
+    }, 10));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("ConsequenceFired", "cf-2", {
+      consequenceId: "aud@2", consequenceType: "other", firedAt: 11,
+    }, 11));
+
+    expect(p.getSnapshot().firedConsequences.size).toBe(1);
+    expect(clone.getSnapshot().firedConsequences.size).toBe(2);
   });
 });

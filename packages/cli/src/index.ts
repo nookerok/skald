@@ -7,6 +7,7 @@ import {
   observationRules,
   repercussion,
   expire,
+  fire,
   handleCommand,
   commitBootstrap,
   commandEventId,
@@ -30,6 +31,7 @@ export function createApp(): App {
   }
   registry.register(repercussion);
   registry.register(expire);
+  registry.register(fire);
   const engine = new RuleEngine(registry, projection, bus);
 
   commitBootstrap(bus, (e) => projection.apply(e));

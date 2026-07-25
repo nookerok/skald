@@ -69,3 +69,45 @@ export const expire: Rule<ReadonlyWorld> = {
     return expired;
   },
 };
+
+export const fire: Rule<ReadonlyWorld> = {
+  id: "consequences.fire",
+  phase: "consequence",
+  listens: ["ConsequenceExpired"],
+  produces: ["ConsequenceFired", "AudacityTriggered"],
+  handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
+    const { id } = event.payload as { id: string };
+    const consequence = world.consequences.get(id);
+    if (!consequence) return [];
+
+    const events: DomainEvent[] = [];
+
+    events.push({
+      eventId: ruleEventId(event.eventId, "ConsequenceFired", 0),
+      type: "ConsequenceFired",
+      schemaVersion: 1,
+      payload: {
+        consequenceId: id,
+        consequenceType: consequence.type,
+        firedAt: event.timestamp,
+      },
+      timestamp: event.timestamp,
+      correlationId: event.correlationId,
+      causationId: event.eventId,
+    });
+
+    if (consequence.type === "audacity") {
+      events.push({
+        eventId: ruleEventId(event.eventId, "AudacityTriggered", 1),
+        type: "AudacityTriggered",
+        schemaVersion: 1,
+        payload: { target: "player", severity: consequence.severity },
+        timestamp: event.timestamp,
+        correlationId: event.correlationId,
+        causationId: event.eventId,
+      });
+    }
+
+    return events;
+  },
+};
