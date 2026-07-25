@@ -14,4 +14,5 @@ export {
   observationRules,
 } from "./rules/observations.js";
 export { repercussion, expire, fire } from "./rules/consequences.js";
-export type { Consequence, FiredConsequence } from "./projection.js";
+export { start, forestFireSpread, end } from "./rules/situations.js";
+export type { Consequence, FiredConsequence, ActiveSituation } from "./projection.js";

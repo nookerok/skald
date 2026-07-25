@@ -323,3 +323,96 @@ describe("WorldProjector — clone", () => {
     expect(clone.getSnapshot().firedConsequences.size).toBe(2);
   });
 });
+
+describe("WorldProjector — situations", () => {
+  it("SituationStarted adds an active situation", () => {
+    const p = new WorldProjector();
+    p.apply(e("SituationStarted", "s-1", {
+      situationId: "forest_fire", type: "forest_fire", startedAt: 5, duration: 8, data: {},
+    }, 5));
+
+    const s = p.getSnapshot().activeSituations.get("forest_fire");
+    expect(s).toBeDefined();
+    expect(s!.type).toBe("forest_fire");
+    expect(s!.duration).toBe(8);
+  });
+
+  it("SituationEnded removes an active situation", () => {
+    const p = new WorldProjector();
+    p.apply(e("SituationStarted", "s-1", {
+      situationId: "forest_fire", type: "forest_fire", startedAt: 5, duration: 8, data: {},
+    }, 5));
+    p.apply(e("SituationEnded", "s-2", { situationId: "forest_fire" }, 13));
+
+    expect(p.getSnapshot().activeSituations.has("forest_fire")).toBe(false);
+  });
+
+  it("TreeBurned increments burnedTrees", () => {
+    const p = new WorldProjector();
+    p.apply(e("TreeBurned", "t-1", { burnedAt: 5, treeIndex: 0 }, 5));
+    expect(p.getSnapshot().burnedTrees).toBe(1);
+    p.apply(e("TreeBurned", "t-2", { burnedAt: 7, treeIndex: 1 }, 7));
+    expect(p.getSnapshot().burnedTrees).toBe(2);
+  });
+
+  it("ForestFireStarted is no-op for state but increments eventNumber/time", () => {
+    const p = new WorldProjector();
+    p.apply(e("ForestFireStarted", "ff-1", { startedAt: 5 }, 5));
+
+    expect(p.getSnapshot().eventNumber).toBe(1);
+    expect(p.getSnapshot().time).toBe(5);
+    expect(p.getSnapshot().activeSituations.size).toBe(0);
+  });
+});
+
+describe("WorldProjector — Projection Purity with situations", () => {
+  it("purity holds: full lifecycle with situation, spread, and end", () => {
+    const events: DomainEvent[] = [
+      ...bootstrapWorldEvents(),
+      e("SituationStarted", "s-1", {
+        situationId: "forest_fire", type: "forest_fire", startedAt: 5, duration: 8, data: {},
+      }, 5),
+      e("TickPassed", "t-1", { delta: 1 }, 5),
+      e("TreeBurned", "tb-1", { burnedAt: 5, treeIndex: 0 }, 5),
+      e("TickPassed", "t-2", { delta: 1 }, 6),
+      e("TickPassed", "t-3", { delta: 1 }, 7),
+      e("TreeBurned", "tb-2", { burnedAt: 7, treeIndex: 1 }, 7),
+      e("TickPassed", "t-4", { delta: 1 }, 8),
+      e("TickPassed", "t-5", { delta: 1 }, 9),
+      e("TickPassed", "t-6", { delta: 1 }, 10),
+      e("TreeBurned", "tb-3", { burnedAt: 10, treeIndex: 2 }, 10),
+      e("SituationEnded", "se-1", { situationId: "forest_fire" }, 13),
+    ];
+
+    const original = rebuildProjection(events);
+    const rebuilt = rebuildProjection(events);
+
+    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
+    expect(rebuilt.getSnapshot().activeSituations.size).toBe(0);
+    expect(rebuilt.getSnapshot().burnedTrees).toBe(3);
+  });
+});
+
+describe("WorldProjector — clone with situations", () => {
+  it("clone copies activeSituations independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("SituationStarted", "s-1", {
+      situationId: "forest_fire", type: "forest_fire", startedAt: 5, duration: 8, data: {},
+    }, 5));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("SituationEnded", "s-2", { situationId: "forest_fire" }, 13));
+
+    expect(p.getSnapshot().activeSituations.size).toBe(1);
+    expect(clone.getSnapshot().activeSituations.size).toBe(0);
+  });
+
+  it("clone copies burnedTrees independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("TreeBurned", "tb-1", { burnedAt: 5, treeIndex: 0 }, 5));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("TreeBurned", "tb-2", { burnedAt: 6, treeIndex: 1 }, 6));
+
+    expect(p.getSnapshot().burnedTrees).toBe(1);
+    expect(clone.getSnapshot().burnedTrees).toBe(2);
+  });
+});

@@ -205,3 +205,103 @@ describe("Integration — consequences fire (9 rules)", () => {
     );
   });
 });
+
+// ---- Helpers for situation tests ----
+
+function runMoves(app: ReturnType<typeof createApp>, count: number, startTs: number): number {
+  let ts = startTs;
+  for (let i = 0; i < count; i++) {
+    runCommand(app, "move north", `cmd-${ts}`, ts);
+    ts++;
+  }
+  return ts;
+}
+
+function runTicks(app: ReturnType<typeof createApp>, count: number, startTs: number): number {
+  let ts = startTs;
+  for (let i = 0; i < count; i++) {
+    runTick(app, ts, `tick-${ts}`);
+    ts++;
+  }
+  return ts;
+}
+
+describe("Integration — situations (12 rules)", () => {
+  it("Forest fire starts after 2 world_reaction_fear triggers", () => {
+    const app = createApp();
+
+    // Round 1: 3 move north → create 1st audacity (expiresAt=8) → expire + fire → world_reaction_fear=1
+    let ts = 1;
+    ts = runMoves(app, 3, ts); // risk_taken=3, audacity at ts=3 expiresAt=8
+    ts = runTicks(app, 5, ts); // ticks 4-8 → at 8: expire+fire → world_reaction_fear=1
+
+    // 1st move of round 2 at ts=9: risk_taken=4 → new audacity (expiresAt=14) since old one expired
+    ts = runMoves(app, 1, ts); // ts=10
+
+    // Now run ticks: at tick 14, the 2nd audacity expires → fire → world_reaction_fear=2
+    ts = runTicks(app, 5, ts); // ticks 10-14
+    // At tick 14: expire+fire → situations.start fires
+
+    const s = app.projection.getSnapshot().activeSituations.get("forest_fire");
+    expect(s).toBeDefined();
+    expect(s!.startedAt).toBe(14);
+    expect(s!.duration).toBe(8);
+
+    expect(app.projection.getSnapshot().observations.get("world_reaction_fear")).toBe(2);
+  });
+
+  it("Forest fire spreads over time and ends after duration", () => {
+    const app = createApp();
+
+    // Trigger forest fire: round 1 + 1st move of round 2 → 2nd audacity expires at 14
+    let ts = 1;
+    ts = runMoves(app, 3, ts);
+    ts = runTicks(app, 5, ts);
+    ts = runMoves(app, 1, ts);
+    ts = runTicks(app, 5, ts); // ts=15, situation started at 14 (endsAt=22)
+    // After tick 14: situation active with startedAt=14, duration=8 (endsAt=22)
+
+    expect(app.projection.getSnapshot().activeSituations.has("forest_fire")).toBe(true);
+
+    // At tick 14 (inside runTicks above): elapsed=0, expected=1, burnedTrees=0 → burn
+    // Tick 15: elapsed=1, expected=1, burnedTrees=1 → no more
+    // Tick 16: elapsed=2, expected=2, burnedTrees=1 → 2nd burn
+    // and so on...
+
+    let prevBurned = app.projection.getSnapshot().burnedTrees;
+    ts = runTicks(app, 3, ts); // ticks 15, 16, 17
+    const burnDelta = app.projection.getSnapshot().burnedTrees - prevBurned;
+    expect(burnDelta).toBeGreaterThanOrEqual(1);
+
+    // endsAt = 14 + 8 = 22
+    const s = app.projection.getSnapshot().activeSituations.get("forest_fire")!;
+    expect(s.startedAt + s.duration).toBe(22);
+  });
+
+  it("Full lifecycle: fire → spread → end, replay = live", () => {
+    const app = createApp();
+
+    let ts = 1;
+    ts = runMoves(app, 3, ts);
+    ts = runTicks(app, 5, ts);
+    ts = runMoves(app, 1, ts);
+    ts = runTicks(app, 5, ts); // ts=15, situation started at 14
+
+    // Run ticks until after end (startedAt 14 + 8 = 22)
+    ts = runTicks(app, 8, ts); // ticks 15-22
+
+    expect(app.projection.getSnapshot().activeSituations.size).toBe(0);
+
+    const live = app.projection.getSnapshot();
+    const rebuilt = new WorldProjector();
+    for (const e of app.bus.query()) rebuilt.apply(e);
+
+    expect(rebuilt.getSnapshot().activeSituations).toEqual(live.activeSituations);
+    expect(rebuilt.getSnapshot().burnedTrees).toBe(live.burnedTrees);
+    expect(rebuilt.getSnapshot().observations.get("world_reaction_fear")).toBe(
+      live.observations.get("world_reaction_fear"),
+    );
+    expect(rebuilt.getSnapshot().player).toEqual(live.player);
+    expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
+  });
+});

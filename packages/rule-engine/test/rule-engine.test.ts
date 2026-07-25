@@ -305,3 +305,52 @@ describe("RuleEngine — multi-event emission in one rule call", () => {
     expect(bus.size()).toBe(4);
   });
 });
+
+describe("RuleEngine — multiple rules on same event with different produces (§12.3)", () => {
+  it("three rules on TickPassed each emit disjoint types, all committed", () => {
+    const bus = new EventBus();
+    const projection = new CountStore({ count: 0, eventNumber: 0 });
+    const registry = new RuleRegistry<TestWorld>();
+
+    const alpha: Rule<TestWorld> = {
+      id: "test.alpha",
+      phase: "consequence",
+      listens: ["Tick"],
+      produces: ["AlphaEvent"],
+      handle: (event) =>
+        [evt("AlphaEvent", `${event.eventId}>a`, {}, event.eventId)],
+    };
+    const beta: Rule<TestWorld> = {
+      id: "test.beta",
+      phase: "consequence",
+      listens: ["Tick"],
+      produces: ["BetaEvent"],
+      handle: (event) =>
+        [evt("BetaEvent", `${event.eventId}>b`, {}, event.eventId)],
+    };
+    const gamma: Rule<TestWorld> = {
+      id: "test.gamma",
+      phase: "consequence",
+      listens: ["Tick"],
+      produces: ["GammaEvent"],
+      handle: (event) =>
+        [evt("GammaEvent", `${event.eventId}>g`, {}, event.eventId)],
+    };
+    registry.register(alpha);
+    registry.register(beta);
+    registry.register(gamma);
+
+    const engine = new RuleEngine(registry, projection, bus);
+
+    const result = engine.process(evt("Tick", "tick-1", { delta: 1 }));
+
+    expect(result.committed.map((e) => e.type)).toEqual([
+      "Tick",
+      "AlphaEvent",
+      "BetaEvent",
+      "GammaEvent",
+    ]);
+    expect(projection.getSnapshot().eventNumber).toBe(4);
+    expect(bus.size()).toBe(4);
+  });
+});

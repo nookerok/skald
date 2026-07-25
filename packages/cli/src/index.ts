@@ -8,6 +8,9 @@ import {
   repercussion,
   expire,
   fire,
+  start,
+  forestFireSpread,
+  end,
   handleCommand,
   commitBootstrap,
   commandEventId,
@@ -32,6 +35,9 @@ export function createApp(): App {
   registry.register(repercussion);
   registry.register(expire);
   registry.register(fire);
+  registry.register(start);
+  registry.register(forestFireSpread);
+  registry.register(end);
   const engine = new RuleEngine(registry, projection, bus);
 
   commitBootstrap(bus, (e) => projection.apply(e));

@@ -17,12 +17,22 @@ export interface FiredConsequence {
   readonly firedAt: number;
 }
 
+export interface ActiveSituation {
+  readonly situationId: string;
+  readonly type: string;
+  readonly startedAt: number;
+  readonly duration: number;
+  readonly data: Readonly<Record<string, unknown>>;
+}
+
 export interface ReadonlyWorld {
   readonly player: { readonly x: number; readonly y: number };
   readonly walls: ReadonlySet<string>;
   readonly observations: ReadonlyMap<string, number>;
   readonly consequences: ReadonlyMap<string, Consequence>;
   readonly firedConsequences: ReadonlyMap<string, FiredConsequence>;
+  readonly activeSituations: ReadonlyMap<string, ActiveSituation>;
+  readonly burnedTrees: number;
   readonly eventNumber: number;
   readonly time: number;
 }
@@ -33,6 +43,8 @@ export interface WorldState {
   observations: Map<string, number>;
   consequences: Map<string, Consequence>;
   firedConsequences: Map<string, FiredConsequence>;
+  activeSituations: Map<string, ActiveSituation>;
+  burnedTrees: number;
   eventNumber: number;
   time: number;
 }
@@ -44,6 +56,8 @@ function freeze(state: WorldState): ReadonlyWorld {
     observations: state.observations,
     consequences: state.consequences,
     firedConsequences: state.firedConsequences,
+    activeSituations: state.activeSituations,
+    burnedTrees: state.burnedTrees,
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;
@@ -59,6 +73,8 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       observations: new Map<string, number>(),
       consequences: new Map<string, Consequence>(),
       firedConsequences: new Map<string, FiredConsequence>(),
+      activeSituations: new Map<string, ActiveSituation>(),
+      burnedTrees: 0,
       eventNumber: 0,
       time: 0,
     };
@@ -109,6 +125,20 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.firedConsequences.set(f.consequenceId, f);
         break;
       }
+      case "SituationStarted": {
+        const p = event.payload as ActiveSituation;
+        s.activeSituations.set(p.situationId, p);
+        break;
+      }
+      case "SituationEnded": {
+        const { situationId } = event.payload as { situationId: string };
+        s.activeSituations.delete(situationId);
+        break;
+      }
+      case "TreeBurned": {
+        s.burnedTrees++;
+        break;
+      }
       default:
         break;
     }
@@ -122,6 +152,8 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       observations: new Map(this.state.observations),
       consequences: new Map(this.state.consequences),
       firedConsequences: new Map(this.state.firedConsequences),
+      activeSituations: new Map(this.state.activeSituations),
+      burnedTrees: this.state.burnedTrees,
       eventNumber: this.state.eventNumber,
       time: this.state.time,
     };

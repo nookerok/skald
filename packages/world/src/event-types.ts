@@ -12,6 +12,10 @@ export const EventType = {
   ConsequenceExpired: "ConsequenceExpired",
   ConsequenceFired: "ConsequenceFired",
   AudacityTriggered: "AudacityTriggered",
+  SituationStarted: "SituationStarted",
+  SituationEnded: "SituationEnded",
+  ForestFireStarted: "ForestFireStarted",
+  TreeBurned: "TreeBurned",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
