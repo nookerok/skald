@@ -68,7 +68,7 @@ Consequences, Situations, Observations, Biography, Read Models — всё это
 
 ```
 Player
-  → PlayerCommand (не сохраняется; например MoveCommand)
+  → PlayerCommand (не сохраняется; например MoveCommand, GiveCommand)
   → Command Handler (infra, НЕ Rule; без доступа к World;
      только структурная валидация — известный тип, обязательные поля)
       ├─ невалидна → CommandRejected (Domain Event)
@@ -79,6 +79,26 @@ Player
   → World Projection (обновляется одним snapshot-update после каждого Event)
   → Narrative (только описывает, не влияет на мир)
 ```
+
+**Команды игрока (v2):** `move <direction>` (MoveCommand) и
+`give <relation> to <target>` (GiveCommand, контракт зафиксирован в
+Iteration 6: синтаксис `give help|respect|fear to <target_id>`, 4 слова,
+`IntentParser` не делает fuzzy matching). `wait` / `advance N` — REPL
+meta-команды, продвигающие время без player command (не PlayerCommand, не
+Event — только `TickPassed{playerOffline:true}`).
+
+**Validation gate (зафиксировано в Iteration 7):** текущий RuleEngine не
+поддерживает short-circuit фаз. Чтобы для одного `<Action>Requested` ровно
+одно правило было владельцем авторитетного исхода (§12.3), validation gate
+эмитит pass-through event: `ActionValidated` (для move) или `GiveValidated`
+(для give). Правило `simulation.duration_check` (фаза Validation) —
+единственный владелец `MoveRequested`/`GiveRequested`: эмитит
+`ActionValidated`/`GiveValidated` (pass, несёт `originalPayload` вниз по
+pipeline) или `ActionRejected{reason:"insufficient_time"}` (fail —
+`lastActionTick === event.timestamp`). Downstream rules (`physics.movement`,
+`relations.give`) слушают validated-event, а не Requested-event. Таким
+образом ровно один авторитетный исход на каждый event в цепочке, без
+engine-level short-circuit.
 
 Правила фаз:
 - Фаза определяет только порядок обработки, не даёт Rule'ам знать друг о
@@ -115,6 +135,13 @@ read-only-потребителей (CLI-printer, будущий Narrative Adapte
 всех событий (например, лог для отладки) — использовать
 `EventBus.subscribeAll(handler)` (wildcard-подписка на все закоммиченные
 события), а не переиспользовать канал `WorldProjector`.
+
+**Идемпотентность (зафиксировано в Iteration 7, §9.5):** каждая внешняя
+команда несёт клиентский `idempotencyKey`; входная граница (CLI/API)
+проверяет наличие ключа перед обработкой и игнорирует дубликат. Это
+infra-фича в `cli/` (`IdempotencyCache`), НЕ Rule, НЕ Event — не путать с
+`ActionRejected` (игровой отказ) или `CommandRejected` (структурная
+ошибка).
 
 ## Event envelope
 
@@ -164,8 +191,29 @@ RuleRegistry.register({
   `consequences.expire` на `TickPassed`, эмитящее `ConsequenceExpired`
 - Observations — счётчики (`risk_taken`, `mercy`, ...), обновляются через
   `ObservationUpdated`, интерпретация — задача Narrative, не World
-- Situations — активные/неактивные помечаются в `world.activeSituations`;
-  сам Rule проверяет своё присутствие там при получении `TickPassed`
+- Situations — активные/неактивные помечаются в `world.activeSituations`
+  (`Map<situationId, ActiveSituation>`); сам Rule проверяет своё присутствие
+  там при получении `TickPassed` (решение §10 вопроса №2: вариант (а) —
+  проверка внутри Rule, RuleEngine не фильтрует). Завершение Situation —
+  duration-based: `SituationStarted` несёт `{ startedAt, duration }`;
+  правило `situations.end` на `TickPassed` эмитит `SituationEnded` для всех
+  `startedAt + duration ≤ now` — **переиспользование паттерна
+  `consequences.expire`**, не внешний «магический» `RainStarted` без
+  источника (зафиксировано в Iteration 4).
+- Heat — `heatSources` (статические источники) и `heatMap` (накопленное
+  тепло по клеткам) в Projection; закон `heat.spread` на `TickPassed`
+  эмитит `HeatRadiated` — единый физический закон (§5.6 Magic → World Law),
+  не магия; применим к костру, лаве, телу — один и тот же law.
+- Relations — рёбра `player→target: {kind, value}` в Projection (`Map`);
+  изменяются через `RelationChanged{from, to, kind, delta}`; без
+  `RelationshipManager` (§5.11).
+- `player.strategy` — декларативная таблица `условие → действие` (массив
+  `StrategyEntry`); выводима из `StrategySet` event (bootstrap); предикаты и
+  действия — compile-time registered в `packages/world/src/strategy-registry.ts`
+  (конечный набор, не расширяется в runtime).
+- `lastActionTick` — целое, обновляется на `MovementSucceeded`/
+  `MovementBlocked`/`RelationChanged`; используется
+  `simulation.duration_check` (§5.12).
 - `eventNumber` (техническая версия) отдельно от `world.time` (игровое время)
 
 Read Models (`Player`, `Economy`, `Village` и т.п.) могут быть
@@ -179,12 +227,18 @@ Read Models (`Player`, `Economy`, `Village` и т.п.) могут быть
 в payload.
 
 **Tick Policy (зафиксировано в Iteration 2):** 1 ход = 1 тик. Granularity —
-целочисленный ход. `TickPassed` payload: `{ delta: 1 }`. Продвигается
-инфраструктурой (Clock в `cli/`), не PlayerCommand, не Rule. `world.time`
-растёт на `delta` за каждый `TickPassed`. TickPassed — Domain Event
-(обрабатывается RuleEngine, влияет на Projection). Аналогично
+целочисленный ход. `TickPassed` payload: `{ delta: 1, playerOffline?: boolean }`.
+Продвигается инфраструктурой (Clock в `cli/`), не PlayerCommand, не Rule.
+`world.time` растёт на `delta` за каждый `TickPassed`. TickPassed — Domain
+Event (обрабатывается RuleEngine, влияет на Projection). Аналогично
 `RandomNumberGenerated` (§9.1) — это infra-pushed Domain Event, а не
 PlayerCommand.
+
+`playerOffline: true` в payload `TickPassed` помечает тик как «без player
+command» (продвигается REPL meta-командой `wait` / `advance N`). Это input
+data в payload события, не projection state — не нарушает Projection Purity.
+Rules, реагирующие на офлайн-режим (напр. `player.strategy`), читают это поле
+из `event.payload`, не из `world`.
 
 ## Parser
 
@@ -202,7 +256,26 @@ NLP/LLM-парсера.
 оценивает условия в моменте ("опасно ли сейчас") — только детерминированный
 Rule над Projection.
 
+**Реализация (зафиксировано в Iteration 8):** стратегия хранится в
+`world.player.strategy` (массив `StrategyEntry`), выводима из `StrategySet`
+event (bootstrap). Предикаты — функции `(ReadonlyWorld) => boolean`,
+действия — функции, возвращающие intent (`move`/`give`/`idle`); оба набора
+compile-time registered в `packages/world/src/strategy-registry.ts`
+(конечный, не расширяется в runtime). Rule `player.strategy` на
+`TickPassed{playerOffline:true}` итерирует strategy, для первого
+сработавшего предиката генерирует `MoveRequested`/`GiveRequested` — которые
+проходят через полный pipeline (validation → physics → consequence). НИКАКОЙ
+LLM в условиях — жёсткое ограничение §5.8 (равносильно запрету `NPC.decide()`).
+
 ## MVP-0 — единственная задача первой итерации
+
+> **Статус (по итогам Iteration 8):** v2 архитектура завершена. 18 рабочих
+> правил, 215 тестов. Все сознательно отложенные v2-блоки (§5 ARCHITECTURE.md)
+> реализованы: Consequences (Iter 2-3), Biography (Iter 5), Situations
+> (Iter 4), Heat Law (Iter 6), Relations (Iter 6), Time Budget (Iter 7),
+> Idempotency (Iter 7), Player Strategy (Iter 8). v3+ направления (Runtime
+> Rule Synthesis, распределённый RuleEngine, Narrative Adapter с LLM,
+> Biography pruning) сознательно отложены (ARCHITECTURE.md §11).
 
 Цель: не игра, не магия, не NPC — рабочий цикл событий целиком.
 
