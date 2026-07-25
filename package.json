@@ -1,0 +1,23 @@
+{
+  "name": "skald",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/event-bus",
+    "packages/intent-parser",
+    "packages/rule-engine",
+    "packages/world",
+    "packages/cli"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9",
+    "@types/node": "^22.10.0"
+  }
+}

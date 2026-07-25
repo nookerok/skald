@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": false,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@skald/event-bus": ["./packages/event-bus/src/index.ts"],
+      "@skald/intent-parser": ["./packages/intent-parser/src/index.ts"],
+      "@skald/rule-engine": ["./packages/rule-engine/src/index.ts"],
+      "@skald/world": ["./packages/world/src/index.ts"],
+      "@skald/cli": ["./packages/cli/src/index.ts"]
+    }
+  }
+}
