@@ -20,6 +20,10 @@ export const EventType = {
   RelationChanged: "RelationChanged",
   HeatSourcePlaced: "HeatSourcePlaced",
   HeatRadiated: "HeatRadiated",
+  ActionRejected: "ActionRejected",
+  ActionValidated: "ActionValidated",
+  GiveValidated: "GiveValidated",
+  ActionCompleted: "ActionCompleted",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

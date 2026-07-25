@@ -55,6 +55,7 @@ export interface ReadonlyWorld {
   readonly relations: ReadonlyMap<string, RelationEdge>;
   readonly heatSources: ReadonlyMap<string, HeatSource>;
   readonly heatMap: ReadonlyMap<string, number>;
+  readonly lastActionTick: number;
   readonly eventNumber: number;
   readonly time: number;
 }
@@ -70,6 +71,7 @@ export interface WorldState {
   relations: Map<string, RelationEdge>;
   heatSources: Map<string, HeatSource>;
   heatMap: Map<string, number>;
+  lastActionTick: number;
   eventNumber: number;
   time: number;
 }
@@ -86,6 +88,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     relations: state.relations,
     heatSources: state.heatSources,
     heatMap: state.heatMap,
+    lastActionTick: state.lastActionTick,
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;
@@ -106,6 +109,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       relations: new Map<string, RelationEdge>(),
       heatSources: new Map<string, HeatSource>(),
       heatMap: new Map<string, number>(),
+      lastActionTick: 0,
       eventNumber: 0,
       time: 0,
     };
@@ -134,6 +138,11 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       case "MovementSucceeded": {
         const p = event.payload as { x: number; y: number };
         s.player = { x: p.x, y: p.y };
+        s.lastActionTick = event.timestamp;
+        break;
+      }
+      case "MovementBlocked": {
+        s.lastActionTick = event.timestamp;
         break;
       }
       case "ObservationUpdated": {
@@ -172,6 +181,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       }
       case "RelationChanged": {
         const p = event.payload as { from: string; to: string; kind: string; delta: number };
+        s.lastActionTick = event.timestamp;
         const key = relationKey(p.from, p.to, p.kind);
         const existing = s.relations.get(key);
         const newValue = existing ? existing.value + p.delta : p.delta;
@@ -218,6 +228,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       relations: new Map(this.state.relations),
       heatSources: new Map(this.state.heatSources),
       heatMap: new Map(this.state.heatMap),
+      lastActionTick: this.state.lastActionTick,
       eventNumber: this.state.eventNumber,
       time: this.state.time,
     };

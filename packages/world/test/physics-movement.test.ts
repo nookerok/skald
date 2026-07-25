@@ -1,43 +1,52 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import { physicsMovement } from "@skald/world";
-import type { ReadonlyWorld, Consequence } from "@skald/world";
+import type { ReadonlyWorld } from "@skald/world";
 
 function worldWith(
   player: { x: number; y: number },
   walls: string[] = [],
-  eventNumber = 0,
-  time = 1,
 ): ReadonlyWorld {
   return Object.freeze({
     player: Object.freeze({ ...player }),
     walls: new Set(walls),
-    observations: new Map(),
-    consequences: new Map<string, Consequence>(),
-    eventNumber,
-    time,
+    observations: new Map<string, number>(),
+    consequences: new Map(),
+    firedConsequences: new Map(),
+    activeSituations: new Map(),
+    burnedTrees: 0,
+    relations: new Map(),
+    heatSources: new Map(),
+    heatMap: new Map(),
+    lastActionTick: 0,
+    eventNumber: 0,
+    time: 0,
   }) as unknown as ReadonlyWorld;
 }
 
-function moveRequested(
+function actionValidated(
   eventId: string,
   direction: string,
   timestamp = 1,
 ): DomainEvent {
   return {
     eventId,
-    type: "MoveRequested",
+    type: "ActionValidated",
     schemaVersion: 1,
-    payload: { direction },
+    payload: {
+      actionType: "MoveRequested",
+      originalEventId: `${eventId}-orig`,
+      originalPayload: { direction },
+    },
     timestamp,
     correlationId: "cmd-1",
-    causationId: null,
+    causationId: `${eventId}-orig`,
   };
 }
 
-describe("physics.movement", () => {
+describe("physics.movement (via ActionValidated gate)", () => {
   it("emits MovementSucceeded with correct coordinates when no wall and within bounds", () => {
-    const event = moveRequested("start-1", "north");
+    const event = actionValidated("start-1", "north");
     const world = worldWith({ x: 0, y: 0 });
 
     const out = physicsMovement.handle(event, world);
@@ -53,7 +62,7 @@ describe("physics.movement", () => {
   });
 
   it("emits MovementBlocked with reason 'wall' when destination is a wall", () => {
-    const event = moveRequested("start-2", "east");
+    const event = actionValidated("start-2", "east");
     const world = worldWith({ x: 0, y: 0 }, ["1,0"]);
 
     const out = physicsMovement.handle(event, world);
@@ -67,7 +76,7 @@ describe("physics.movement", () => {
   });
 
   it("emits MovementBlocked with reason 'boundary' when moving north at y=4", () => {
-    const event = moveRequested("start-3", "north");
+    const event = actionValidated("start-3", "north");
     const world = worldWith({ x: 0, y: 4 });
 
     const out = physicsMovement.handle(event, world);
@@ -79,7 +88,7 @@ describe("physics.movement", () => {
   });
 
   it("emits MovementBlocked with reason 'boundary' when moving east at x=4", () => {
-    const event = moveRequested("start-4", "east");
+    const event = actionValidated("start-4", "east");
     const world = worldWith({ x: 4, y: 0 });
 
     const out = physicsMovement.handle(event, world);
@@ -90,7 +99,7 @@ describe("physics.movement", () => {
   });
 
   it("emits MovementBlocked with reason 'boundary' when moving south at y=0", () => {
-    const event = moveRequested("start-5", "south");
+    const event = actionValidated("start-5", "south");
     const world = worldWith({ x: 0, y: 0 });
 
     const out = physicsMovement.handle(event, world);
@@ -101,7 +110,7 @@ describe("physics.movement", () => {
   });
 
   it("emits MovementBlocked with reason 'boundary' when moving west at x=0", () => {
-    const event = moveRequested("start-6", "west");
+    const event = actionValidated("start-6", "west");
     const world = worldWith({ x: 0, y: 0 });
 
     const out = physicsMovement.handle(event, world);
@@ -112,7 +121,7 @@ describe("physics.movement", () => {
   });
 
   it("emits exactly one event — never both Succeeded and Blocked", () => {
-    const event = moveRequested("start-7", "north");
+    const event = actionValidated("start-7", "north");
     const withWall = worldWith({ x: 2, y: -1 }, ["2,0"]);
     const withoutWall = worldWith({ x: 2, y: -1 });
     const atBoundary = worldWith({ x: 0, y: 4 });
@@ -123,7 +132,7 @@ describe("physics.movement", () => {
   });
 
   it("does not mutate the world (player position unchanged)", () => {
-    const event = moveRequested("start-8", "east");
+    const event = actionValidated("start-8", "east");
     const world = worldWith({ x: 0, y: 0 }, ["1,0"]);
 
     physicsMovement.handle(event, world);
@@ -139,7 +148,7 @@ describe("physics.movement", () => {
       ["west", { x: 1, y: 1 }, { x: 0, y: 1 }],
     ];
     for (const [dir, from, expected] of cases) {
-      const event = moveRequested(`e-${dir}`, dir);
+      const event = actionValidated(`e-${dir}`, dir);
       const world = worldWith(from);
       const [produced] = physicsMovement.handle(event, world);
       expect(produced!.type).toBe("MovementSucceeded");

@@ -23,10 +23,13 @@ function main(): void {
   rl.on("line", (line: string) => {
     const timestamp = tick + 1;
     const correlationId = `cmd-${timestamp}`;
-    const result = runCommand(app, line, correlationId, timestamp);
+    const idempotencyKey = `key-${timestamp}-${line.trim().toLowerCase()}`;
+    const result = runCommand(app, line, correlationId, timestamp, idempotencyKey);
 
     if ("type" in result && result.type === "ParseError") {
       process.stdout.write(`Parse error: ${result.reason}\n`);
+    } else if ("type" in result && result.type === "IdempotencyReject") {
+      process.stdout.write("Duplicate command ignored.\n");
     } else {
       const outcome = result as { events: DomainEvent[]; position: { x: number; y: number } };
       tick = timestamp;

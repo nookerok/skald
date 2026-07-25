@@ -23,6 +23,7 @@ export {
 } from "./biography.js";
 export { giveRule } from "./rules/relations.js";
 export { heatSpread } from "./rules/heat.js";
+export { durationCheck } from "./rules/duration-check.js";
 export type {
   Consequence,
   FiredConsequence,

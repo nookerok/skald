@@ -13,6 +13,7 @@ import {
   end,
   giveRule,
   heatSpread,
+  durationCheck,
   handleCommand,
   commitBootstrap,
   commandEventId,
@@ -20,17 +21,25 @@ import {
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 
+export interface IdempotencyReject {
+  type: "IdempotencyReject";
+  reason: string;
+  idempotencyKey: string;
+}
+
 export interface App {
   bus: EventBus;
   registry: RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>;
   engine: RuleEngine<ReturnType<WorldProjector["getSnapshot"]>>;
   projection: WorldProjector;
+  processedKeys: Set<string>;
 }
 
 export function createApp(): App {
   const bus = new EventBus();
   const projection = new WorldProjector();
   const registry = new RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>();
+  registry.register(durationCheck);
   registry.register(physicsMovement);
   for (const rule of observationRules) {
     registry.register(rule);
@@ -47,7 +56,7 @@ export function createApp(): App {
 
   commitBootstrap(bus, (e) => projection.apply(e));
 
-  return { bus, registry, engine, projection };
+  return { bus, registry, engine, projection, processedKeys: new Set() };
 }
 
 export interface CommandOutcome {
@@ -60,9 +69,16 @@ export function runCommand(
   input: string,
   correlationId: string,
   timestamp: number,
-): CommandOutcome | ParseResult {
+  idempotencyKey: string,
+): CommandOutcome | ParseResult | IdempotencyReject {
+  if (app.processedKeys.has(idempotencyKey)) {
+    return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
+  }
+
   const parsed = parseCommand(input);
   if (parsed.type === "ParseError") return parsed;
+
+  app.processedKeys.add(idempotencyKey);
 
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
   const { committed } = app.engine.process(firstEvent);

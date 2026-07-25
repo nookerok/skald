@@ -15,18 +15,31 @@ function world(): ReadonlyWorld {
     relations: new Map(),
     heatSources: new Map(),
     heatMap: new Map(),
+    lastActionTick: 0,
     eventNumber: 0,
     time: 0,
   }) as unknown as ReadonlyWorld;
 }
 
-function evt(type: string, eventId: string, payload: unknown = {}, timestamp = 1): DomainEvent {
-  return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: "cmd-1", causationId: null };
+function giveValidated(eventId: string, relation: string, target: string, timestamp = 1): DomainEvent {
+  return {
+    eventId,
+    type: "GiveValidated",
+    schemaVersion: 1,
+    payload: {
+      actionType: "GiveRequested",
+      originalEventId: `${eventId}-orig`,
+      originalPayload: { relation, target },
+    },
+    timestamp,
+    correlationId: "cmd-1",
+    causationId: `${eventId}-orig`,
+  };
 }
 
-describe("relations.give", () => {
+describe("relations.give (via GiveValidated gate)", () => {
   it("produces RelationChanged with delta 1 for help", () => {
-    const event = evt("GiveRequested", "g-1", { relation: "help", target: "guild" });
+    const event = giveValidated("g-1", "help", "guild");
     const out = giveRule.handle(event, world());
 
     expect(out).toHaveLength(1);
@@ -37,19 +50,19 @@ describe("relations.give", () => {
   });
 
   it("produces RelationChanged for respect", () => {
-    const event = evt("GiveRequested", "g-2", { relation: "respect", target: "merchant" });
+    const event = giveValidated("g-2", "respect", "merchant");
     const out = giveRule.handle(event, world());
     expect(out[0]!.payload).toEqual({ from: "player", to: "merchant", kind: "respect", delta: 1 });
   });
 
   it("produces RelationChanged for fear", () => {
-    const event = evt("GiveRequested", "g-3", { relation: "fear", target: "dragon" });
+    const event = giveValidated("g-3", "fear", "dragon");
     const out = giveRule.handle(event, world());
     expect(out[0]!.payload).toEqual({ from: "player", to: "dragon", kind: "fear", delta: 1 });
   });
 
   it("does not mutate the world", () => {
-    const event = evt("GiveRequested", "g-1", { relation: "help", target: "guild" });
+    const event = giveValidated("g-1", "help", "guild");
     const w = world();
     giveRule.handle(event, w);
     expect(w.relations.size).toBe(0);

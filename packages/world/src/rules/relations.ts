@@ -6,10 +6,10 @@ import { ruleEventId } from "../ids.js";
 export const giveRule: Rule<ReadonlyWorld> = {
   id: "relations.give",
   phase: "consequence",
-  listens: ["GiveRequested"],
+  listens: ["GiveValidated"],
   produces: ["RelationChanged"],
   handle: (event: DomainEvent, _world: ReadonlyWorld): DomainEvent[] => {
-    const { relation, target } = event.payload as { relation: string; target: string };
+    const { relation, target } = (event.payload as { originalPayload: { relation: string; target: string } }).originalPayload;
     return [
       {
         eventId: ruleEventId(event.eventId, "RelationChanged", 0),

@@ -7,10 +7,11 @@ import { ruleEventId } from "../ids.js";
 export const physicsMovement: Rule<ReadonlyWorld> = {
   id: "physics.movement",
   phase: "physics",
-  listens: ["MoveRequested"],
+  listens: ["ActionValidated"],
   produces: ["MovementSucceeded", "MovementBlocked"],
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
-    const { direction } = event.payload as { direction: string };
+    const originalPayload = (event.payload as { originalPayload: { direction: string } }).originalPayload;
+    const { direction } = originalPayload;
     const from = world.player;
     const dest = computeDestination(from.x, from.y, direction as never);
 

@@ -498,3 +498,45 @@ describe("WorldProjector — clone with relations and heat", () => {
     expect(sourceClone!.intensity).toBe(10);
   });
 });
+
+describe("WorldProjector — lastActionTick", () => {
+  it("MovementSucceeded updates lastActionTick", () => {
+    const p = new WorldProjector();
+    p.apply(e("MovementSucceeded", "m-1", { x: 0, y: 1 }, 5));
+    expect(p.getSnapshot().lastActionTick).toBe(5);
+  });
+
+  it("MovementBlocked updates lastActionTick", () => {
+    const p = new WorldProjector();
+    p.apply(e("MovementBlocked", "b-1", { reason: "wall" }, 7));
+    expect(p.getSnapshot().lastActionTick).toBe(7);
+  });
+
+  it("RelationChanged updates lastActionTick", () => {
+    const p = new WorldProjector();
+    p.apply(e("RelationChanged", "rc-1", { from: "player", to: "guild", kind: "help", delta: 1 }, 9));
+    expect(p.getSnapshot().lastActionTick).toBe(9);
+  });
+
+  it("ActionRejected does NOT update lastActionTick", () => {
+    const p = new WorldProjector();
+    p.apply(e("ActionRejected", "ar-1", { reason: "insufficient_time" }, 5));
+    expect(p.getSnapshot().lastActionTick).toBe(0);
+  });
+
+  it("ActionValidated does NOT update lastActionTick", () => {
+    const p = new WorldProjector();
+    p.apply(e("ActionValidated", "av-1", { actionType: "MoveRequested", originalEventId: "m-1" }, 5));
+    expect(p.getSnapshot().lastActionTick).toBe(0);
+  });
+
+  it("clone copies lastActionTick independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("MovementSucceeded", "m-1", { x: 0, y: 1 }, 5));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("MovementSucceeded", "m-2", { x: 1, y: 1 }, 10));
+
+    expect(p.getSnapshot().lastActionTick).toBe(5);
+    expect(clone.getSnapshot().lastActionTick).toBe(10);
+  });
+});

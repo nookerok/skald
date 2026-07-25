@@ -3,15 +3,17 @@ import { createApp, runCommand } from "@skald/cli";
 import { WorldProjector } from "@skald/world";
 
 describe("CLI — thin end-to-end wiring", () => {
-  it("move north (unobstructed) → MoveRequested → MovementSucceeded, position advances", () => {
+  it("move north (unobstructed) → ActionValidated → MovementSucceeded, position advances", () => {
     const app = createApp();
-    const result = runCommand(app, "move north", "cmd-1", 1);
+    const result = runCommand(app, "move north", "cmd-1", 1, "key-1");
 
     expect("type" in result && result.type === "ParseError").toBe(false);
+    expect("type" in result && result.type === "IdempotencyReject").toBe(false);
     const outcome = result as { events: { type: string }[]; position: { x: number; y: number } };
 
     expect(outcome.events.map((e) => e.type)).toEqual([
       "MoveRequested",
+      "ActionValidated",
       "MovementSucceeded",
       "ObservationUpdated",
     ]);
@@ -20,10 +22,10 @@ describe("CLI — thin end-to-end wiring", () => {
 
   it("move east into the wall at (2,0) from (1,0) → MovementBlocked, position stays", () => {
     const app = createApp();
-    let result = runCommand(app, "move east", "cmd-1", 1);
+    let result = runCommand(app, "move east", "cmd-1", 1, "key-1");
     expect((result as { position: { x: number; y: number } }).position).toEqual({ x: 1, y: 0 });
 
-    result = runCommand(app, "move east", "cmd-2", 2);
+    result = runCommand(app, "move east", "cmd-2", 2, "key-2");
     const outcome = result as {
       events: { type: string }[];
       position: { x: number; y: number };
@@ -31,6 +33,7 @@ describe("CLI — thin end-to-end wiring", () => {
 
     expect(outcome.events.map((e) => e.type)).toEqual([
       "MoveRequested",
+      "ActionValidated",
       "MovementBlocked",
       "ObservationUpdated",
     ]);
@@ -40,7 +43,7 @@ describe("CLI — thin end-to-end wiring", () => {
   it("garbage input → ParseError, projection and log untouched", () => {
     const app = createApp();
     const before = app.bus.size();
-    const result = runCommand(app, "dance wildly", "cmd-1", 1);
+    const result = runCommand(app, "dance wildly", "cmd-1", 1, "key-1");
 
     expect("type" in result && result.type === "ParseError").toBe(true);
     expect(app.bus.size()).toBe(before);
@@ -48,8 +51,8 @@ describe("CLI — thin end-to-end wiring", () => {
 
   it("canonical log replay reproduces the live projection (wiring preserves purity)", () => {
     const app = createApp();
-    runCommand(app, "move north", "cmd-1", 1);
-    runCommand(app, "move east", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-1", 1, "key-1");
+    runCommand(app, "move east", "cmd-2", 2, "key-2");
 
     const live = app.projection.getSnapshot();
     const rebuilt = new WorldProjector();
