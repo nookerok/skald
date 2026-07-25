@@ -432,7 +432,7 @@ Rule обязано быть полностью детерминированны
 TimeAdvanced / TickPassed / DayEnded / SeasonChanged
 ```
 
-**Определение Tick — Tick Policy: TBD.** Это сознательно не решено сейчас, а не забыто (см. §11, Исследовательские вопросы). Зафиксировано: Tick — игровая, а не астрономическая единица (не секунда реального времени), продвигается явно через CLI/инфраструктурный Clock, добавляющий `TickPassed` с дельтой игрового времени в payload. Rules никогда не читают реальное время — только `world.time`. Точная гранулярность (ход/минута/час) и вопрос "сколько Tick проходит за одно действие игрока" должны быть решены до реализации первой Tick-based Situation, не раньше.
+**Определение Tick — Tick Policy (зафиксировано в Iteration 2):** 1 ход = 1 тик. Granularity — целочисленный ход. `TickPassed` payload: `{ delta: 1 }`. Продвигается инфраструктурой (Clock в `cli/`), не PlayerCommand, не Rule. `world.time` растёт на `delta` за каждый `TickPassed`. TickPassed — Domain Event (обрабатывается RuleEngine, влияет на Projection). Аналогично `RandomNumberGenerated` (§9.1) — это infra-pushed Domain Event, а не PlayerCommand. См. AGENTS.md «Time» для зафиксированного решения.
 
 ### 9.3 Domain Event vs Infrastructure Event
 

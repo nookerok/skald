@@ -176,9 +176,15 @@ Read Models (`Player`, `Economy`, `Village` и т.п.) могут быть
 
 Нет системных часов внутри Rules. Время — только через события
 (`TickPassed`, `DayEnded`, `SeasonChanged`) с явной дельтой игрового времени
-в payload. **Tick Policy: TBD** — гранулярность (ход/минута/час) сознательно
-не определена, фиксируется до реализации первой Tick-based Situation, не
-раньше.
+в payload.
+
+**Tick Policy (зафиксировано в Iteration 2):** 1 ход = 1 тик. Granularity —
+целочисленный ход. `TickPassed` payload: `{ delta: 1 }`. Продвигается
+инфраструктурой (Clock в `cli/`), не PlayerCommand, не Rule. `world.time`
+растёт на `delta` за каждый `TickPassed`. TickPassed — Domain Event
+(обрабатывается RuleEngine, влияет на Projection). Аналогично
+`RandomNumberGenerated` (§9.1) — это infra-pushed Domain Event, а не
+PlayerCommand.
 
 ## Parser
 

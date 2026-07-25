@@ -270,3 +270,38 @@ describe("RuleEngine — multi-rule same-phase independence (§12.3 + §9.10)", 
     expect(bus.size()).toBe(4);
   });
 });
+
+describe("RuleEngine — multi-event emission in one rule call", () => {
+  it("a rule can emit multiple events from one TickPassed-like event, all committed", () => {
+    const bus = new EventBus();
+    const projection = new CountStore({ count: 0, eventNumber: 0 });
+    const registry = new RuleRegistry<TestWorld>();
+
+    const multi: Rule<TestWorld> = {
+      id: "test.multi",
+      phase: "consequence",
+      listens: ["Tick"],
+      produces: ["Count"],
+      handle: (event) => [
+        evt("Count", `${event.eventId}>c-0`, { amount: 1 }, event.eventId),
+        evt("Count", `${event.eventId}>c-1`, { amount: 2 }, event.eventId),
+        evt("Count", `${event.eventId}>c-2`, { amount: 3 }, event.eventId),
+      ],
+    };
+    registry.register(multi);
+
+    const engine = new RuleEngine(registry, projection, bus);
+
+    const result = engine.process(evt("Tick", "tick-1", { delta: 1 }));
+
+    expect(result.committed.map((e) => e.type)).toEqual([
+      "Tick",
+      "Count",
+      "Count",
+      "Count",
+    ]);
+    expect(projection.getSnapshot().count).toBe(6);
+    expect(projection.getSnapshot().eventNumber).toBe(4);
+    expect(bus.size()).toBe(4);
+  });
+});

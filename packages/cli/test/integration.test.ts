@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createApp, runCommand } from "@skald/cli";
+import { createApp, runCommand, runTick } from "@skald/cli";
 import { WorldProjector } from "@skald/world";
 
 describe("Integration — 5 rules wired end-to-end", () => {
@@ -44,17 +44,7 @@ describe("Integration — 5 rules wired end-to-end", () => {
   });
 
   it("impatience fires on CommandRejected via direct handleCommand call", () => {
-    // The parser intercepts garbage before the Command Handler, so we test
-    // the observation rule directly: a structurally-invalid PlayerCommand
-    // that passes parseCommand but hits handleCommand.
-    // We skip the parser and call handleCommand with an unknown command type
-    // through runCommand's internal pathway — which always uses parseCommand.
-    // Instead, use the observation rule's unit test (observations.test.ts).
-    // Here we verify the wiring: createApp registers impatience rule.
     const app = createApp();
-    // Mimic: a command that passes parser but fails handler is impossible
-    // in the current setup since parser only produces MoveCommand.
-    // The rule still exists and is registered — verify via projection.
     expect(app.projection.getSnapshot().observations.get("impatience")).toBeUndefined();
   });
 
@@ -74,6 +64,85 @@ describe("Integration — 5 rules wired end-to-end", () => {
     expect(rebuilt.getSnapshot().walls).toEqual(live.walls);
     expect([...rebuilt.getSnapshot().observations.entries()]).toEqual(
       [...live.observations.entries()],
+    );
+  });
+});
+
+describe("Integration — consequences (7 rules)", () => {
+  it("ConsequenceCreated at threshold: 3 move north → risk_taken=3 → audacity created", () => {
+    const app = createApp();
+    // move north x3 from (0,0): each succeeds
+    runCommand(app, "move north", "cmd-1", 1);
+    runCommand(app, "move north", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-3", 3);
+
+    const obs = app.projection.getSnapshot().observations;
+    expect(obs.get("risk_taken")).toBe(3);
+
+    const cons = app.projection.getSnapshot().consequences;
+    expect(cons.size).toBe(1);
+    const c = cons.get("audacity@cmd-3");
+    expect(c).toBeDefined();
+    expect(c!.type).toBe("audacity");
+    expect(c!.expiresAt).toBe(8); // timestamp=3 + 5
+  });
+
+  it("Consequence expires after enough ticks", () => {
+    const app = createApp();
+    // 3 moves to create consequence
+    runCommand(app, "move north", "cmd-1", 1);
+    runCommand(app, "move north", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-3", 3);
+
+    expect(app.projection.getSnapshot().consequences.size).toBe(1);
+
+    // runTick at 4, 5, 6, 7, 8 — tick 8 should expire it (expiresAt=8)
+    for (let t = 4; t <= 7; t++) {
+      runTick(app, t, `tick-${t}`);
+      expect(app.projection.getSnapshot().consequences.size).toBe(1);
+    }
+
+    // tick 8 expires the consequence
+    const tick8 = runTick(app, 8, "tick-8");
+    expect(app.projection.getSnapshot().consequences.size).toBe(0);
+    const types = tick8.events.map((e) => e.type);
+    expect(types).toContain("ConsequenceExpired");
+  });
+
+  it("Dedup: after audacity created, 4th move does not create a second", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1);
+    runCommand(app, "move north", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-3", 3);
+    expect(app.projection.getSnapshot().consequences.size).toBe(1);
+
+    // 4th move: risk_taken becomes 4, but audacity already exists
+    runCommand(app, "move north", "cmd-4", 4);
+    expect(app.projection.getSnapshot().consequences.size).toBe(1);
+  });
+
+  it("Wiring purity with consequences: replay = live", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1);
+    runCommand(app, "move north", "cmd-2", 2);
+    runCommand(app, "move north", "cmd-3", 3);
+    for (let t = 4; t <= 8; t++) {
+      runTick(app, t, `tick-${t}`);
+    }
+
+    const live = app.projection.getSnapshot();
+    const rebuilt = new WorldProjector();
+    for (const e of app.bus.query()) rebuilt.apply(e);
+
+    expect(rebuilt.getSnapshot().player).toEqual(live.player);
+    expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
+    expect(rebuilt.getSnapshot().time).toBe(live.time);
+    expect(rebuilt.getSnapshot().walls).toEqual(live.walls);
+    expect([...rebuilt.getSnapshot().observations.entries()]).toEqual(
+      [...live.observations.entries()],
+    );
+    expect([...rebuilt.getSnapshot().consequences.entries()]).toEqual(
+      [...live.consequences.entries()],
     );
   });
 });

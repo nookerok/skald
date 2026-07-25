@@ -5,8 +5,11 @@ import {
   WorldProjector,
   physicsMovement,
   observationRules,
+  repercussion,
+  expire,
   handleCommand,
   commitBootstrap,
+  commandEventId,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 
@@ -17,11 +20,6 @@ export interface App {
   projection: WorldProjector;
 }
 
-/**
- * Composition root: wire EventBus, RuleRegistry (registers physics.wall_block),
- * RuleEngine, WorldProjector, and commit the bootstrap batch (player + walls)
- * into the canonical log + projection.
- */
 export function createApp(): App {
   const bus = new EventBus();
   const projection = new WorldProjector();
@@ -30,6 +28,8 @@ export function createApp(): App {
   for (const rule of observationRules) {
     registry.register(rule);
   }
+  registry.register(repercussion);
+  registry.register(expire);
   const engine = new RuleEngine(registry, projection, bus);
 
   commitBootstrap(bus, (e) => projection.apply(e));
@@ -42,14 +42,6 @@ export interface CommandOutcome {
   position: { x: number; y: number };
 }
 
-/**
- * Run one top-level player command end-to-end:
- *   parse → Command Handler → RuleEngine → committed events.
- *
- * `timestamp` is the current world.time (integer tick counter for MVP-0,
- * advanced once per processed command by the caller — the REPL — never
- * Date.now()). `correlationId` is generated per call.
- */
 export function runCommand(
   app: App,
   input: string,
@@ -65,4 +57,22 @@ export function runCommand(
     events: committed,
     position: { ...app.projection.getSnapshot().player },
   };
+}
+
+export interface TickOutcome {
+  events: DomainEvent[];
+}
+
+export function runTick(app: App, timestamp: number, correlationId: string): TickOutcome {
+  const tickEvent: DomainEvent = {
+    eventId: commandEventId(correlationId, "TickPassed"),
+    type: "TickPassed",
+    schemaVersion: 1,
+    payload: { delta: 1 },
+    timestamp,
+    correlationId,
+    causationId: null,
+  };
+  const { committed } = app.engine.process(tickEvent);
+  return { events: committed };
 }

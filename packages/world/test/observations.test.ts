@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "@skald/world";
+import type { Consequence } from "@skald/world";
 import {
   riskTaker,
   wallCaution,
@@ -13,9 +14,10 @@ function world(): ReadonlyWorld {
     player: Object.freeze({ x: 0, y: 0 }),
     walls: new Set<string>(),
     observations: new Map<string, number>(),
+    consequences: new Map<string, Consequence>(),
     eventNumber: 0,
     time: 0,
-  }) as ReadonlyWorld;
+  }) as unknown as ReadonlyWorld;
 }
 
 function evt(

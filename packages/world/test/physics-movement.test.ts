@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import { physicsMovement } from "@skald/world";
-import type { ReadonlyWorld } from "@skald/world";
+import type { ReadonlyWorld, Consequence } from "@skald/world";
 
 function worldWith(
   player: { x: number; y: number },
@@ -13,9 +13,10 @@ function worldWith(
     player: Object.freeze({ ...player }),
     walls: new Set(walls),
     observations: new Map(),
+    consequences: new Map<string, Consequence>(),
     eventNumber,
     time,
-  }) as ReadonlyWorld;
+  }) as unknown as ReadonlyWorld;
 }
 
 function moveRequested(

@@ -7,6 +7,9 @@ export const EventType = {
   MovementSucceeded: "MovementSucceeded",
   MovementBlocked: "MovementBlocked",
   ObservationUpdated: "ObservationUpdated",
+  TickPassed: "TickPassed",
+  ConsequenceCreated: "ConsequenceCreated",
+  ConsequenceExpired: "ConsequenceExpired",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

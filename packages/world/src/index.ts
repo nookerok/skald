@@ -12,3 +12,5 @@ export {
   impatience,
   observationRules,
 } from "./rules/observations.js";
+export { repercussion, expire } from "./rules/consequences.js";
+export type { Consequence } from "./projection.js";

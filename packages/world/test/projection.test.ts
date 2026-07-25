@@ -141,6 +141,80 @@ describe("WorldProjector — Projection Purity (replay from scratch = current)",
   });
 });
 
+describe("WorldProjector — consequences", () => {
+  it("ConsequenceCreated adds a consequence to the map", () => {
+    const p = new WorldProjector();
+    const payload = {
+      id: "aud@1",
+      type: "audacity",
+      severity: 1,
+      createdAt: 5,
+      expiresAt: 10,
+      data: {},
+    };
+    p.apply(e("ConsequenceCreated", "c-1", payload, 5));
+
+    const c = p.getSnapshot().consequences.get("aud@1");
+    expect(c).toBeDefined();
+    expect(c!.type).toBe("audacity");
+    expect(c!.expiresAt).toBe(10);
+  });
+
+  it("ConsequenceExpired removes a consequence from the map", () => {
+    const p = new WorldProjector();
+    p.apply(e("ConsequenceCreated", "c-1", {
+      id: "aud@1", type: "audacity", severity: 1, createdAt: 5, expiresAt: 10, data: {},
+    }, 5));
+    p.apply(e("ConsequenceExpired", "c-2", { id: "aud@1" }, 10));
+
+    expect(p.getSnapshot().consequences.has("aud@1")).toBe(false);
+  });
+
+  it("TickPassed updates time without mutating consequences", () => {
+    const p = new WorldProjector();
+    p.apply(e("TickPassed", "t-1", { delta: 1 }, 10));
+
+    expect(p.getSnapshot().time).toBe(10);
+    expect(p.getSnapshot().consequences.size).toBe(0);
+  });
+});
+
+describe("WorldProjector — Projection Purity with consequences", () => {
+  it("purity holds: bootstrap + moves + observations + ConsequenceCreated + TickPassed + ConsequenceExpired", () => {
+    const events: DomainEvent[] = [
+      ...bootstrapWorldEvents(),
+      e("MovementSucceeded", "mv-1", { x: 0, y: 1 }, 1),
+      e("ObservationUpdated", "o-1", { key: "risk_taken", delta: 1 }, 1),
+      e("MovementSucceeded", "mv-2", { x: 1, y: 1 }, 2),
+      e("ObservationUpdated", "o-2", { key: "risk_taken", delta: 1 }, 2),
+      e("MovementSucceeded", "mv-3", { x: 1, y: 2 }, 3),
+      e("ObservationUpdated", "o-3", { key: "risk_taken", delta: 1 }, 3),
+      e("ConsequenceCreated", "cc-1", {
+        id: "aud@cmd-3",
+        type: "audacity",
+        severity: 1,
+        createdAt: 3,
+        expiresAt: 8,
+        data: { threshold: 3 },
+      }, 3),
+      e("TickPassed", "t-1", { delta: 1 }, 3),
+      e("TickPassed", "t-2", { delta: 1 }, 4),
+      e("TickPassed", "t-3", { delta: 1 }, 5),
+      e("TickPassed", "t-4", { delta: 1 }, 6),
+      e("TickPassed", "t-5", { delta: 1 }, 7),
+      e("TickPassed", "t-6", { delta: 1 }, 8),
+      e("ConsequenceExpired", "ce-1", { id: "aud@cmd-3" }, 8),
+    ];
+
+    const original = rebuildProjection(events);
+    const rebuilt = rebuildProjection(events);
+
+    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
+    expect(rebuilt.getSnapshot().consequences.size).toBe(0);
+    expect(rebuilt.getSnapshot().eventNumber).toBe(original.getSnapshot().eventNumber);
+  });
+});
+
 describe("WorldProjector — clone", () => {
   it("clone copies observations independently", () => {
     const p = new WorldProjector();
@@ -150,5 +224,17 @@ describe("WorldProjector — clone", () => {
 
     expect(p.getSnapshot().observations.get("risk_taken")).toBe(3);
     expect(clone.getSnapshot().observations.get("risk_taken")).toBe(4);
+  });
+
+  it("clone copies consequences independently", () => {
+    const p = new WorldProjector();
+    p.apply(e("ConsequenceCreated", "c-1", {
+      id: "aud@1", type: "audacity", severity: 1, createdAt: 5, expiresAt: 10, data: {},
+    }, 5));
+    const clone = p.clone() as WorldProjector;
+    clone.apply(e("ConsequenceExpired", "c-2", { id: "aud@1" }, 10));
+
+    expect(p.getSnapshot().consequences.size).toBe(1);
+    expect(clone.getSnapshot().consequences.size).toBe(0);
   });
 });
