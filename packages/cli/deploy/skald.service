@@ -2,6 +2,8 @@
 Description=Skald Living World Server
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -16,6 +18,9 @@ Environment=PATH=/home/nook/.nvm/versions/node/v22.23.1/bin:/usr/local/sbin:/usr
 
 EnvironmentFile=-/home/nook/skald-data/skald.env
 
+ExecStartPre=/usr/bin/test -r /home/nook/skald/package.json
+ExecStartPre=/usr/bin/test -d /home/nook/skald-data
+ExecStartPre=/usr/bin/test -w /home/nook/skald-data
 ExecStart=/home/nook/.nvm/versions/node/v22.23.1/bin/node --import tsx packages/cli/src/server.ts
 
 Restart=on-failure

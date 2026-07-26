@@ -1,0 +1,9 @@
+[Unit]
+Description=Skald server health check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/skald-healthcheck.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=skald-healthcheck

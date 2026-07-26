@@ -297,6 +297,12 @@ read-only потребителей (Narrative Adapter будущего, CLI-prin
   server factory (`startServer`).
 - [`packages/cli/deploy/skald.service`](packages/cli/deploy/skald.service) —
   systemd unit для Orange Pi deployment.
+- [`packages/cli/deploy/install-orange-pi.sh`](packages/cli/deploy/install-orange-pi.sh) —
+  установочный скрипт.
+- [`packages/cli/deploy/update-orange-pi.sh`](packages/cli/deploy/update-orange-pi.sh) —
+  безопасное обновление с backup, тестами и rollback.
+- [`packages/cli/deploy/backup-skald.sh`](packages/cli/deploy/backup-skald.sh) —
+  ежедневный SQLite backup с integrity check.
 
 ## Server mode
 
@@ -311,9 +317,25 @@ HTTP API: `GET /api/state`, `POST /api/command`, `POST /api/wait`,
 
 Browser UI: `http://localhost:3000`.
 
-## Deployment (Orange Pi 4 LTS)
+## Orange Pi Deployment
 
-См. [`packages/cli/deploy/README.md`](packages/cli/deploy/README.md).
+```bash
+git clone https://github.com/nookerok/skald.git
+cd skald
+
+source ~/.nvm/nvm.sh
+nvm install 22.23.1
+nvm use 22.23.1
+
+npm ci
+npm run typecheck
+npm test -- --run
+
+chmod +x packages/cli/deploy/*.sh
+packages/cli/deploy/install-orange-pi.sh
+```
+
+Подробнее: [`packages/cli/deploy/README.md`](packages/cli/deploy/README.md).
 
 ---
 

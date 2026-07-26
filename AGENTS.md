@@ -318,3 +318,16 @@ Observations, Biography, Economy, LLM.
 
 Каждое Rule — отдельный unit-тест: `Given Event + Readonly World → Rule →
 Expected Events`. Интеграционные тесты — не раньше пяти рабочих правил.
+
+## Orange Pi Deployment Rule
+
+Это operational rule для доставки приложения, не игровое Rule, не Domain Event и не часть RuleEngine.
+
+1. Deployment разрешен только из чистой ветки после bash -n packages/cli/deploy/*.sh, npm run typecheck, npm test -- --run и git diff --check.
+2. Сначала изменения коммитятся и отправляются в remote; на Orange Pi разрешен только fast-forward update той же ветки.
+3. Installer и updater запускаются пользователем nook без внешнего sudo; runtime фиксирован на Node v22.23.1 и проверяется до изменений.
+4. Перед update обязательны непустой SQLite source, online backup и PRAGMA integrity_check = ok. Любая ошибка останавливает deployment.
+5. Restore выполняется только через /usr/local/bin/restore-skald.sh: integrity gate, остановка timers/services, замена БД, удаление WAL/SHM, запуск сервера, HTTP 200 health gate, запуск timers.
+6. Deployment успешен только после systemctl is-active, GET /api/health, GET /api/state и одного идемпотентного игрового smoke-запроса.
+7. При сбое используются сохраненные commit и backup для rollback; успешный статус до восстановления health запрещен.
+8. Сервер без authentication/TLS разрешено публиковать только в доверенной LAN; интернет-доступ требует отдельного security review.

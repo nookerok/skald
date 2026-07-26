@@ -1,0 +1,12 @@
+[Unit]
+Description=Skald daily SQLite backup
+
+[Service]
+Type=oneshot
+User=nook
+Group=nook
+UMask=0077
+ExecStart=/usr/local/bin/backup-skald.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=skald-backup
