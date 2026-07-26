@@ -272,12 +272,14 @@ LLM в условиях — жёсткое ограничение §5.8 (рав�
 
 ## MVP-0 — единственная задача первой итерации
 
-> **Статус (по итогам Iteration 8):** v2 архитектура завершена. 18 рабочих
-> правил, 215 тестов. Все сознательно отложенные v2-блоки (§5 ARCHITECTURE.md)
-> реализованы: Consequences (Iter 2-3), Biography (Iter 5), Situations
-> (Iter 4), Heat Law (Iter 6), Relations (Iter 6), Time Budget (Iter 7),
-> Idempotency (Iter 7), Player Strategy (Iter 8). v3+ направления (Runtime
-> Rule Synthesis, распределённый RuleEngine, Narrative Adapter с LLM,
+> **Статус (по итогам Iteration 11.1):** v2 архитектура завершена. 16 рабочих
+> правил, 301 тест (+1 opt-in skip). Все сознательно отложенные v2-блоки
+> (§5 ARCHITECTURE.md) реализованы: Consequences (Iter 2-3), Biography (Iter 5),
+> Situations (Iter 4), Heat Law (Iter 6), Relations (Iter 6), Time Budget
+> (Iter 7), Idempotency (Iter 7), Player Strategy (Iter 8).
+> Narrative Adapter v0 (шаблонный, Iter 9) и v1 (LLM, Iter 10) реализованы.
+> HTTP сервер + SQLite persistence + systemd deployment (Iter 11).
+> v3+ направления (Runtime Rule Synthesis, распределённый RuleEngine,
 > Biography pruning) сознательно отложены (ARCHITECTURE.md §11).
 
 Цель: не игра, не магия, не NPC — рабочий цикл событий целиком.

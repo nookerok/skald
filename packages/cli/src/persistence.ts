@@ -40,6 +40,15 @@ function validateEvent(raw: unknown, index: number): DomainEvent {
   };
 }
 
+export class DuplicateRequestError extends Error {
+  readonly idempotencyKey: string;
+  constructor(key: string) {
+    super(`Duplicate request: ${key}`);
+    this.name = "DuplicateRequestError";
+    this.idempotencyKey = key;
+  }
+}
+
 export function createSqliteStore(dbPath: string): PersistenceStore {
   const dir = dirname(dbPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -77,7 +86,7 @@ export function createSqliteStore(dbPath: string): PersistenceStore {
     "INSERT INTO events (event_id, type, schema_version, payload, timestamp, correlation_id, causation_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
   const insertKey = db.prepare(
-    "INSERT OR IGNORE INTO processed_requests (idempotency_key, request_kind, correlation_id) VALUES (?, ?, ?)",
+    "INSERT INTO processed_requests (idempotency_key, request_kind, correlation_id) VALUES (?, ?, ?)",
   );
   const checkKey = db.prepare(
     "SELECT 1 FROM processed_requests WHERE idempotency_key = ?",
@@ -107,22 +116,38 @@ export function createSqliteStore(dbPath: string): PersistenceStore {
       db.exec("BEGIN IMMEDIATE");
       try {
         for (const e of events) {
-          insertEvent.run(
-            e.eventId,
-            e.type,
-            e.schemaVersion,
-            JSON.stringify(e.payload),
-            e.timestamp,
-            e.correlationId,
-            e.causationId ?? null,
-          );
+          try {
+            insertEvent.run(
+              e.eventId,
+              e.type,
+              e.schemaVersion,
+              JSON.stringify(e.payload),
+              e.timestamp,
+              e.correlationId,
+              e.causationId ?? null,
+            );
+          } catch (insErr: unknown) {
+            const msg = String(insErr);
+            if (msg.includes("UNIQUE constraint")) {
+              throw Object.assign(new Error(`duplicate event: ${e.eventId}`), { code: "DUPLICATE_EVENT" });
+            }
+            throw insErr;
+          }
         }
         if (options?.idempotencyKey && options?.correlationId) {
-          insertKey.run(
-            options.idempotencyKey,
-            options.requestKind ?? "command",
-            options.correlationId,
-          );
+          try {
+            insertKey.run(
+              options.idempotencyKey,
+              options.requestKind ?? "command",
+              options.correlationId,
+            );
+          } catch (insErr: unknown) {
+            const msg = String(insErr);
+            if (msg.includes("UNIQUE constraint")) {
+              throw new DuplicateRequestError(options.idempotencyKey);
+            }
+            throw insErr;
+          }
         }
         db.exec("COMMIT");
       } catch (err) {

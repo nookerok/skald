@@ -103,13 +103,32 @@ export interface ProcessOptions {
   readonly commitContext?: CommitContext;
 }
 
+export class PostCommitConsistencyError extends Error {
+  readonly stagedCount: number;
+  constructor(stagedCount: number, cause: unknown) {
+    const msg = cause instanceof Error ? cause.message : String(cause);
+    super(`Post-commit consistency failure after ${stagedCount} events: ${msg}. Server must restart.`);
+    this.name = "PostCommitConsistencyError";
+    this.stagedCount = stagedCount;
+  }
+}
+
 export class RuleEngine<W> {
+  private poisoned = false;
+
+  isPoisoned(): boolean { return this.poisoned; }
+
   constructor(
     private readonly registry: RuleRegistry<W>,
     private readonly projection: ProjectionStore<W>,
     private readonly bus: EventBus,
     private readonly durableCommitter?: DurableCommitter,
-  ) {}
+    onSubscriberError?: (err: unknown, eventType: string) => void,
+  ) {
+    if (onSubscriberError) {
+      bus.setSubscriberErrorHandler(onSubscriberError);
+    }
+  }
 
   process(firstEvent: DomainEvent, options?: ProcessOptions): ProcessResult {
     return this.processSequence([firstEvent], options);
@@ -119,6 +138,14 @@ export class RuleEngine<W> {
     firstEvents: readonly DomainEvent[],
     options?: ProcessOptions,
   ): ProcessResult {
+    if (this.poisoned) {
+      throw new PostCommitConsistencyError(0, new Error("engine is poisoned after previous post-commit failure"));
+    }
+
+    if (firstEvents.length === 0) {
+      return { committed: [] };
+    }
+
     const working = this.projection.clone();
     const staged: DomainEvent[] = [];
     const queue: DomainEvent[] = [];
@@ -126,7 +153,6 @@ export class RuleEngine<W> {
 
     let failed: { ruleId: string; eventType: string; cause: unknown } | null = null;
 
-    // Drain each root chain fully before starting the next
     for (const root of firstEvents) {
       queue.push(root);
 
@@ -172,16 +198,21 @@ export class RuleEngine<W> {
       );
     }
 
-    // 1. Durable commit (e.g. SQLite) — if provided and context given
-    if (this.durableCommitter && options?.commitContext !== undefined) {
-      this.durableCommitter(staged, options.commitContext);
+    // 1. Durable commit — always for non-empty batch
+    if (this.durableCommitter && staged.length > 0) {
+      this.durableCommitter(staged, options?.commitContext);
     }
 
-    // 2. Memory commit: canonical log + projection + non-authoritative publish
-    for (const event of staged) {
-      this.bus.append(event);
-      this.projection.apply(event);
-      this.bus.publish(event);
+    // 2. Memory commit
+    try {
+      for (const event of staged) {
+        this.bus.append(event);
+        this.projection.apply(event);
+        this.bus.publish(event);
+      }
+    } catch (err) {
+      this.poisoned = true;
+      throw new PostCommitConsistencyError(staged.length, err);
     }
 
     return { committed: staged };

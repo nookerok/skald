@@ -72,7 +72,10 @@ export function createApp(): App {
   const bus = new EventBus();
   const projection = new WorldProjector();
   const registry = createRules();
-  const engine = new RuleEngine(registry, projection, bus);
+  const onSubErr = (err: unknown, eventType: string) => {
+    console.error(`[subscriber-error] eventType="${eventType}": ${err instanceof Error ? err.message : String(err)}`);
+  };
+  const engine = new RuleEngine(registry, projection, bus, undefined, onSubErr);
   commitBootstrap(bus, (e) => projection.apply(e));
   const router = createRouter();
   return { bus, registry, engine, projection, processedKeys: new Set(), router, store: null };
@@ -111,7 +114,10 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
       correlationId: opts?.correlationId ?? undefined,
     });
   };
-  const engine = new RuleEngine(registry, projection, bus, committer);
+  const onSubErr = (err: unknown, eventType: string) => {
+    console.error(`[subscriber-error] eventType="${eventType}": ${err instanceof Error ? err.message : String(err)}`);
+  };
+  const engine = new RuleEngine(registry, projection, bus, committer, onSubErr);
   const router = createRouter();
   return { bus, registry, engine, projection, processedKeys, router, store };
 }
@@ -224,6 +230,9 @@ export function runOfflineTicks(
   count: number,
   idempotencyKey: string,
 ): { tickEvents: DomainEvent[] } | IdempotencyReject {
+  if (!Number.isSafeInteger(count) || count < 1 || count > 100) {
+    throw new Error("count must be an integer between 1 and 100");
+  }
   if (app.processedKeys.has(idempotencyKey)) {
     return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
   }

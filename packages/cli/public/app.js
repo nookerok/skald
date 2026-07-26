@@ -1,9 +1,10 @@
-let currentIdempotencyKey = "";
+let currentKey = "";
+let pendingRequest = null;
 let polling = false;
+let retryKey = null;
+let retryInput = null;
 
-function genKey() {
-  return crypto.randomUUID();
-}
+function genKey() { return crypto.randomUUID(); }
 
 function updateStatus(msg) {
   document.getElementById("status-text").textContent = msg;
@@ -15,24 +16,39 @@ function setLoading(loading) {
   document.getElementById("advance-btn").disabled = loading;
 }
 
+function addText(el, text) {
+  const span = document.createElement("span");
+  span.textContent = text;
+  el.appendChild(span);
+}
+
+function appendNode(parent, child) { parent.appendChild(child); }
+
+function clearEvents() {
+  document.getElementById("event-log").innerHTML = "";
+}
+
 function addEvent(ev) {
   const log = document.getElementById("event-log");
   const item = document.createElement("div");
   item.className = "event-item";
-  item.innerHTML = `<span class="event-type">[${ev.type}]</span> ${JSON.stringify(ev.payload)} <small>${ev.eventId}</small>`;
+  const typeEl = document.createElement("span");
+  typeEl.className = "event-type";
+  typeEl.textContent = `[${ev.type}]`;
+  item.appendChild(typeEl);
+  const payloadText = document.createTextNode(" " + JSON.stringify(ev.payload));
+  item.appendChild(payloadText);
+  const idSmall = document.createElement("small");
+  idSmall.textContent = " " + ev.eventId;
+  item.appendChild(idSmall);
   log.appendChild(item);
   log.scrollTop = log.scrollHeight;
-}
-
-function clearEvents() {
-  document.getElementById("event-log").innerHTML = "";
 }
 
 function renderState(state) {
   document.getElementById("time-display").textContent = `T: ${state.worldTime}`;
   document.getElementById("pos-display").textContent = `(${state.player.x}, ${state.player.y})`;
 
-  // Map
   const grid = document.getElementById("map-grid");
   grid.innerHTML = "";
   for (let y = 4; y >= 0; y--) {
@@ -43,20 +59,19 @@ function renderState(state) {
       if (state.walls && state.walls.includes(key)) cell.classList.add("wall");
       if (state.player.x === x && state.player.y === y) {
         cell.classList.add("player");
-        cell.innerHTML = '<span class="player-icon">&#9679;</span>';
+        cell.textContent = "\u25CF";
       }
       if (state.heatMap && state.heatMap[key]) {
         cell.classList.add("heat");
         const hl = document.createElement("span");
         hl.className = "heat-level";
-        hl.textContent = state.heatMap[key];
+        hl.textContent = String(state.heatMap[key]);
         cell.appendChild(hl);
       }
       grid.appendChild(cell);
     }
   }
 
-  // Observations
   const obsList = document.getElementById("observations-list");
   obsList.innerHTML = "";
   if (state.observations) {
@@ -68,7 +83,6 @@ function renderState(state) {
     }
   }
 
-  // Consequences
   const consList = document.getElementById("consequences-list");
   consList.innerHTML = "";
   if (state.consequences) {
@@ -80,7 +94,6 @@ function renderState(state) {
     }
   }
 
-  // Situations
   const sitList = document.getElementById("situations-list");
   sitList.innerHTML = "";
   if (state.activeSituations) {
@@ -92,37 +105,43 @@ function renderState(state) {
     }
   }
 
-  // Relations
   const relList = document.getElementById("relations-list");
   relList.innerHTML = "";
   if (state.relations) {
     for (const r of state.relations) {
       const item = document.createElement("div");
       item.className = "relation-item";
-      item.textContent = `${r.kind} → ${r.to}: ${r.value}`;
+      item.textContent = `${r.kind} \u2192 ${r.to}: ${r.value}`;
       relList.appendChild(item);
     }
+  }
+
+  const statusEl = document.getElementById("status-details");
+  if (statusEl) {
+    statusEl.textContent = `Events: ${state.eventNumber ?? "?"} | Trees burned: ${state.burnedTrees ?? 0} | Router: ${state.routerAvailable ? "\u2705" : "\u274C"}`;
   }
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      ...opts,
+    });
+    return { status: res.status, body: await res.json() };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchState() {
   try {
-    const data = await api("/api/state");
-    if (data.ok) {
-      renderState(data.state);
-      updateStatus("Connected");
-    }
-  } catch {
-    updateStatus("Network error");
-  }
+    const { body } = await api("/api/state");
+    if (body.ok) { renderState(body.state); updateStatus("Connected"); }
+  } catch { updateStatus("Network error"); }
 }
 
 async function pollState() {
@@ -130,136 +149,132 @@ async function pollState() {
   polling = true;
   while (true) {
     await new Promise((r) => setTimeout(r, 2000));
-    await fetchState();
+    const prev = await fetch("/api/state", { signal: AbortSignal.timeout(5000) }).catch(() => null);
+    if (prev) try { const data = await prev.json(); if (data.ok) renderState(data.state); } catch {}
   }
 }
 
-async function sendCommand(input, key) {
+async function sendRequest(input, key) {
+  currentKey = key;
+  pendingRequest = { key, input };
+  retryKey = key;
+  retryInput = input;
   setLoading(true);
   try {
-    const data = await api("/api/command", {
+    const { status, body } = await api("/api/command", {
       method: "POST",
       body: JSON.stringify({ input, idempotencyKey: key }),
     });
-    if (data.ok) {
-      if (data.events) for (const e of data.events) addEvent(e);
-      if (data.tickEvents) for (const e of data.tickEvents) addEvent(e);
-      if (data.state) renderState(data.state);
-      updateStatus("Command sent");
-    } else if (data.error) {
-      if (data.error.code === "duplicate_request") {
+    if (body && body.ok) {
+      if (body.events) body.events.forEach(addEvent);
+      if (body.tickEvents) body.tickEvents.forEach(addEvent);
+      if (body.state) renderState(body.state);
+      updateStatus("OK");
+      pendingRequest = null;
+      retryKey = null;
+      retryInput = null;
+    } else if (body && body.error) {
+      if (body.error.code === "duplicate_request") {
         updateStatus("Duplicate (retry)");
       } else {
-        updateStatus(`Error: ${data.error.message}`);
+        updateStatus("Error: " + (body.error.message || "unknown"));
       }
+    } else {
+      updateStatus("HTTP " + status);
     }
-  } catch {
-    updateStatus("Network error");
+  } catch (err) {
+    if (err.name === "AbortError") updateStatus("Timeout");
+    else updateStatus("Network error");
   }
   setLoading(false);
 }
 
+function retryLast() {
+  if (retryKey && retryInput) {
+    sendRequest(retryInput, retryKey);
+  }
+}
+
 async function narrate(since) {
-  const url = since ? `/api/narrative?since=${since}` : "/api/narrative";
-  const data = await api(url);
-  if (data.ok && data.entries) {
-    document.getElementById("narrative-text").innerHTML = data.entries.map((e) =>
-      `<div>[${e.kind}] ${e.text}</div>`
-    ).join("");
+  const url = since != null ? `/api/narrative?since=${since}` : "/api/narrative";
+  const { body } = await api(url);
+  const nt = document.getElementById("narrative-text");
+  nt.innerHTML = "";
+  if (body && body.ok && body.entries) {
+    for (const e of body.entries) {
+      const el = document.createElement("div");
+      el.textContent = `[${e.kind}] ${e.text}`;
+      nt.appendChild(el);
+    }
   }
 }
 
 async function narrateLLM(since) {
-  const url = since ? `/api/narrative-llm?since=${since}` : "/api/narrative-llm";
-  const data = await api(url);
-  if (data.ok) {
-    const nt = document.getElementById("narrative-text");
-    if (data.usedFallback) {
-      nt.innerHTML = `<div class="error">[LLM fallback: ${data.fallbackReason}]</div>${data.text.replace(/\n/g, '<br>')}`;
+  const url = since != null ? `/api/narrative-llm?since=${since}` : "/api/narrative-llm";
+  const { body } = await api(url);
+  const nt = document.getElementById("narrative-text");
+  nt.innerHTML = "";
+  if (body && body.ok) {
+    if (body.usedFallback) {
+      const fb = document.createElement("div");
+      fb.className = "error";
+      fb.textContent = `[LLM fallback: ${body.fallbackReason}]`;
+      nt.appendChild(fb);
+    }
+    const textEl = document.createElement("div");
+    textEl.style.whiteSpace = "pre-wrap";
+    textEl.textContent = body.text || "";
+    nt.appendChild(textEl);
+  }
+}
+
+async function sendCommand(input, key) {
+  if (input === "wait" || input.startsWith("advance ")) {
+    await sendRequest(input, key);
+    return;
+  }
+  if (input.startsWith("narrate")) {
+    const rest = input.slice(7).trim();
+    if (rest.startsWith("llm")) {
+      const since = parseInt(rest.replace(/^llm\s*/, "").replace(/^since\s+/, ""), 10);
+      await narrateLLM(isNaN(since) ? undefined : since);
     } else {
-      nt.innerHTML = data.text.replace(/\n/g, '<br>');
+      const since = parseInt(rest.replace(/^since\s+/, ""), 10);
+      await narrate(isNaN(since) ? undefined : since);
     }
+    return;
   }
+  await sendRequest(input, key);
 }
 
-async function doWait() {
-  const key = genKey();
-  setLoading(true);
-  try {
-    const data = await api("/api/wait", {
-      method: "POST",
-      body: JSON.stringify({ count: 1, idempotencyKey: key }),
-    });
-    if (data.ok) {
-      if (data.tickEvents) for (const e of data.tickEvents) addEvent(e);
-      if (data.state) renderState(data.state);
-      updateStatus("Tick passed");
-    }
-  } catch {
-    updateStatus("Network error");
-  }
-  setLoading(false);
-}
-
-async function doAdvance() {
-  const count = parseInt(document.getElementById("advance-count").value, 10) || 5;
-  const key = genKey();
-  setLoading(true);
-  try {
-    const data = await api("/api/command", {
-      method: "POST",
-      body: JSON.stringify({ input: `advance ${count}`, idempotencyKey: key }),
-    });
-    if (data.ok) {
-      if (data.tickEvents) for (const e of data.tickEvents) addEvent(e);
-      if (data.state) renderState(data.state);
-      updateStatus(`Advanced ${count} ticks`);
-    }
-  } catch {
-    updateStatus("Network error");
-  }
-  setLoading(false);
-}
-
-// Entry
 document.addEventListener("DOMContentLoaded", async () => {
   await fetchState();
   pollState();
 
-  document.getElementById("send-btn").addEventListener("click", async () => {
+  document.getElementById("send-btn").addEventListener("click", () => {
     const input = document.getElementById("command-input").value.trim();
     if (!input) return;
-    currentIdempotencyKey = genKey();
-
-    if (input.startsWith("narrate")) {
-      const rest = input.slice(7).trim();
-      if (rest.startsWith("llm")) {
-        const since = parseInt(rest.replace(/^llm\s*/, "").replace(/^since\s+/, ""), 10);
-        await narrateLLM(isNaN(since) ? undefined : since);
-      } else {
-        const since = parseInt(rest.replace(/^since\s+/, ""), 10);
-        await narrate(isNaN(since) ? undefined : since);
-      }
-      return;
-    }
-
-    if (input === "wait") {
-      await doWait();
-      return;
-    }
-
-    if (input.startsWith("advance ")) {
-      await doAdvance();
-      return;
-    }
-
-    await sendCommand(input, currentIdempotencyKey);
+    const key = genKey();
+    sendCommand(input, key);
   });
 
   document.getElementById("command-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("send-btn").click();
   });
 
-  document.getElementById("wait-btn").addEventListener("click", doWait);
-  document.getElementById("advance-btn").addEventListener("click", doAdvance);
+  document.getElementById("wait-btn").addEventListener("click", () => {
+    const key = genKey();
+    sendRequest("wait", key);
+  });
+
+  document.getElementById("advance-btn").addEventListener("click", () => {
+    const count = parseInt(document.getElementById("advance-count").value, 10) || 5;
+    const key = genKey();
+    sendRequest(`advance ${count}`, key);
+  });
+
+  const retryBtn = document.getElementById("retry-btn");
+  if (retryBtn) {
+    retryBtn.addEventListener("click", retryLast);
+  }
 });

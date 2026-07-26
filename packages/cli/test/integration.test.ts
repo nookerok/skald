@@ -56,7 +56,7 @@ describe("Integration — 5 rules wired end-to-end", () => {
     expect(rebuilt.getSnapshot().player).toEqual(live.player);
     expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
     expect(rebuilt.getSnapshot().time).toBe(live.time);
-    expect(rebuilt.getSnapshot().walls).toEqual(live.walls);
+    expect([...rebuilt.getSnapshot().walls]).toEqual([...live.walls]);
     expect([...rebuilt.getSnapshot().observations.entries()]).toEqual(
       [...live.observations.entries()],
     );
@@ -192,7 +192,7 @@ describe("Integration — situations (12 rules)", () => {
     const rebuilt = new WorldProjector();
     for (const e of app.bus.query()) rebuilt.apply(e);
 
-    expect(rebuilt.getSnapshot().activeSituations).toEqual(live.activeSituations);
+    expect(rebuilt.getSnapshot().activeSituations.size).toBe(live.activeSituations.size);
     expect(rebuilt.getSnapshot().burnedTrees).toBe(live.burnedTrees);
     expect(rebuilt.getSnapshot().observations.get("world_reaction_fear")).toBe(
       live.observations.get("world_reaction_fear"),

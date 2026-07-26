@@ -61,6 +61,6 @@ describe("CLI — thin end-to-end wiring", () => {
     expect(rebuilt.getSnapshot().player).toEqual(live.player);
     expect(rebuilt.getSnapshot().eventNumber).toBe(live.eventNumber);
     expect(rebuilt.getSnapshot().time).toBe(live.time);
-    expect(rebuilt.getSnapshot().walls).toEqual(live.walls);
+    expect([...rebuilt.getSnapshot().walls]).toEqual([...live.walls]);
   });
 });

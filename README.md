@@ -8,10 +8,12 @@ RPG-систему — он открывает законы мира, а мир 
 Исполняемая выжимка для агента/разработчика — в [`AGENTS.md`](AGENTS.md).
 Если код противоречит `AGENTS.md`, код неправ.
 
-> **Статус:** v2 архитектура завершена. 18 рабочих правил, 215 тестов,
+> **Статус:** v2 архитектура завершена. 16 рабочих правил, 301 тест (+1 opt-in skip),
 > все сознательно отложенные v2-блоки (§5 ARCHITECTURE.md) реализованы.
+> Iteration 9: Narrative Adapter v0 (шаблонный). Iteration 10: Narrative Adapter v1 (LLM).
+> Iteration 11: HTTP сервер + SQLite persistence + systemd deployment.
 > v3+ направления (Runtime Rule Synthesis, распределённый RuleEngine,
-> Narrative Adapter с LLM, Biography pruning) сознательно отложены (§11).
+> Biography pruning) сознательно отложены (§11).
 
 ---
 
@@ -287,7 +289,31 @@ read-only потребителей (Narrative Adapter будущего, CLI-prin
   read-side utility: `buildBiographyGraph`, `findCausalChain`,
   `findCrossReference` (решает cross-tick causation gap).
 - [`packages/cli/src/index.ts`](packages/cli/src/index.ts) — composition root
-  (`createApp`), `runCommand`, `runTick`, `IdempotencyCache`.
+  (`createApp`, `createPersistentApp`), `runCommand`, `runTick`, `runCommandCycle`,
+  `runOfflineTicks`.
+- [`packages/cli/src/persistence.ts`](packages/cli/src/persistence.ts) — SQLite
+  persistence (`createSqliteStore`).
+- [`packages/cli/src/http-server.ts`](packages/cli/src/http-server.ts) — HTTP
+  server factory (`startServer`).
+- [`packages/cli/deploy/skald.service`](packages/cli/deploy/skald.service) —
+  systemd unit для Orange Pi deployment.
+
+## Server mode
+
+```bash
+npm run start:server
+# или с параметрами:
+SKALD_HOST=0.0.0.0 SKALD_PORT=3000 SKALD_DB_PATH=/tmp/skald.sqlite npm run start:server
+```
+
+HTTP API: `GET /api/state`, `POST /api/command`, `POST /api/wait`,
+`GET /api/narrative`, `GET /api/narrative-llm`, `GET /api/events`, `GET /api/health`.
+
+Browser UI: `http://localhost:3000`.
+
+## Deployment (Orange Pi 4 LTS)
+
+См. [`packages/cli/deploy/README.md`](packages/cli/deploy/README.md).
 
 ---
 

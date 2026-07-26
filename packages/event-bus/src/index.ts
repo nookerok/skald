@@ -30,26 +30,48 @@ export type EventPredicate = (event: DomainEvent) => boolean;
 export type EventHandler = (event: DomainEvent) => void;
 export type Unsubscribe = () => void;
 
+function deepFreezePayload<T>(value: T): T {
+  if (value === null || value === undefined || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    for (const item of value) deepFreezePayload(item);
+    return Object.freeze(value) as T;
+  }
+  for (const v of Object.values(value as Record<string, unknown>)) deepFreezePayload(v);
+  return Object.freeze(value) as T;
+}
+
 export class EventBus {
   private readonly log: DomainEvent[] = [];
   private readonly subscribers: Map<string, Set<EventHandler>> = new Map();
 
-  /** Append to the canonical log. Append-only: no mutation/removal exists. */
+  /** Append to the canonical log. Append-only: no mutation/removal exists.
+   *  The event payload is recursively deep-frozen to prevent external mutation. */
   append(event: DomainEvent): void {
-    this.log.push(event);
+    const frozen = Object.freeze({
+      ...event,
+      payload: deepFreezePayload(event.payload),
+    }) as DomainEvent;
+    this.log.push(frozen);
   }
 
   /** Notify subscribers registered for `event.type`. Does not touch the log.
    *  Subscriber exceptions are caught and collected — a failing subscriber
-   *  never blocks other subscribers or the canonical commit (AGENTS §9.3). */
+   *  never blocks other subscribers or the canonical commit (AGENTS §9.3).
+   *  Errors are passed to the optional error handler if provided. */
+  private subscriberErrorHandler: ((err: unknown, eventType: string) => void) | null = null;
+
+  setSubscriberErrorHandler(handler: ((err: unknown, eventType: string) => void) | null): void {
+    this.subscriberErrorHandler = handler;
+  }
+
   publish(event: DomainEvent): void {
     const handlers = this.subscribers.get(event.type);
     if (handlers) {
       for (const handler of handlers) {
         try {
           handler(event);
-        } catch {
-          // Subscriber errors are non-authoritative. Never abort commit.
+        } catch (err) {
+          this.subscriberErrorHandler?.(err, event.type);
         }
       }
     }

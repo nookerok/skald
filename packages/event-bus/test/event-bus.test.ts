@@ -14,7 +14,7 @@ function makeEvent(type: string, eventId: string, payload: unknown = {}): Domain
 }
 
 describe("EventBus.append / query", () => {
-  it("appends events and queries them back by reference-copy", () => {
+  it("appends events and queries them back", () => {
     const bus = new EventBus();
     const a = makeEvent("MoveRequested", "e-1");
     const b = makeEvent("MovementSucceeded", "e-2", { x: 0, y: 1 });
@@ -24,8 +24,8 @@ describe("EventBus.append / query", () => {
     expect(bus.size()).toBe(2);
     const all = bus.query();
     expect(all).toHaveLength(2);
-    expect(all[0]).toBe(a);
-    expect(all[1]).toBe(b);
+    expect(all[0]!.eventId).toBe("e-1");
+    expect(all[1]!.eventId).toBe("e-2");
   });
 
   it("query returns a copy so the log is not externally mutated", () => {
@@ -59,7 +59,7 @@ describe("EventBus.append / query", () => {
     const keys = Object.getOwnPropertyNames(EventBus.prototype).filter(
       (k) => k !== "constructor",
     );
-    expect(keys.sort()).toEqual(["append", "publish", "query", "size", "subscribe"]);
+    expect(keys.sort()).toEqual(["append", "publish", "query", "setSubscriberErrorHandler", "size", "subscribe"]);
   });
 });
 

@@ -83,28 +83,69 @@ export interface WorldState {
   time: number;
 }
 
+function deepCloneConsequence(c: Consequence): Consequence {
+  return Object.freeze({ ...c, data: Object.freeze({ ...c.data }) });
+}
+
+function deepCloneFired(f: FiredConsequence): FiredConsequence {
+  return Object.freeze({ ...f });
+}
+
+function deepCloneSituation(s: ActiveSituation): ActiveSituation {
+  return Object.freeze({ ...s, data: Object.freeze({ ...s.data }) });
+}
+
+function deepCloneRelation(r: RelationEdge): RelationEdge {
+  return Object.freeze({ ...r });
+}
+
+function deepCloneHeatSource(hs: HeatSource): HeatSource {
+  return Object.freeze({ ...hs });
+}
+
+function deepCloneStrategyEntry(e: StrategyEntry): StrategyEntry {
+  return Object.freeze({ ...e });
+}
+
+/** Frozen immutable Map. Mutating methods throw TypeError at runtime.
+ *  Uses a regular Map as backing store for construction, then freeze + proxy
+ *  to block mutations while preserving structural equality. */
+function cloneMap<V>(src: Map<string, V>): ReadonlyMap<string, V> {
+  const clone = new Map(src);
+  return new Proxy(clone, {
+    get(t, p: string | symbol) {
+      if (p === "set" || p === "delete" || p === "clear") return () => { throw new TypeError("immutable"); };
+      const v = Reflect.get(t, p);
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  }) as ReadonlyMap<string, V>;
+}
+
+function cloneSet(src: Set<string>): ReadonlySet<string> {
+  const clone = new Set(src);
+  return new Proxy(clone, {
+    get(t, p: string | symbol) {
+      if (p === "add" || p === "delete" || p === "clear") return () => { throw new TypeError("immutable"); };
+      const v = Reflect.get(t, p);
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  }) as ReadonlySet<string>;
+}
+
 function freeze(state: WorldState): ReadonlyWorld {
-  const cloneMap = <V>(src: Map<string, V>): ReadonlyMap<string, V> => {
-    const c = new Map(src);
-    return Object.freeze(c) as ReadonlyMap<string, V>;
-  };
-  const cloneSet = (src: Set<string>): ReadonlySet<string> => {
-    const c = new Set(src);
-    return Object.freeze(c) as ReadonlySet<string>;
-  };
   return Object.freeze({
     player: Object.freeze({ ...state.player }),
     walls: cloneSet(state.walls),
     observations: cloneMap(state.observations),
-    consequences: cloneMap(state.consequences),
-    firedConsequences: cloneMap(state.firedConsequences),
-    activeSituations: cloneMap(state.activeSituations),
+    consequences: cloneMap(new Map([...state.consequences].map(([k, c]) => [k, deepCloneConsequence(c)]))),
+    firedConsequences: cloneMap(new Map([...state.firedConsequences].map(([k, f]) => [k, deepCloneFired(f)]))),
+    activeSituations: cloneMap(new Map([...state.activeSituations].map(([k, s]) => [k, deepCloneSituation(s)]))),
     burnedTrees: state.burnedTrees,
-    relations: cloneMap(state.relations),
-    heatSources: cloneMap(state.heatSources),
+    relations: cloneMap(new Map([...state.relations].map(([k, r]) => [k, deepCloneRelation(r)]))),
+    heatSources: cloneMap(new Map([...state.heatSources].map(([k, h]) => [k, deepCloneHeatSource(h)]))),
     heatMap: cloneMap(state.heatMap),
     lastActionTick: state.lastActionTick,
-    strategy: Object.freeze([...state.strategy]),
+    strategy: Object.freeze([...state.strategy.map(deepCloneStrategyEntry)]),
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;

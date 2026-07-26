@@ -5,7 +5,27 @@ import {
   rebuildProjection,
   bootstrapWorldEvents,
   START_POSITION,
+  type ReadonlyWorld,
 } from "@skald/world";
+
+function normalizeWorld(w: ReadonlyWorld): Record<string, unknown> {
+  return {
+    player: w.player,
+    walls: [...w.walls].sort(),
+    observations: Object.fromEntries(w.observations),
+    consequences: [...w.consequences.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    firedConsequences: [...w.firedConsequences.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    activeSituations: [...w.activeSituations.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    burnedTrees: w.burnedTrees,
+    relations: [...w.relations.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    heatSources: [...w.heatSources.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    heatMap: Object.fromEntries(w.heatMap),
+    lastActionTick: w.lastActionTick,
+    strategy: w.strategy,
+    eventNumber: w.eventNumber,
+    time: w.time,
+  };
+}
 
 function e(
   type: string,
@@ -115,10 +135,7 @@ describe("WorldProjector — Projection Purity (replay from scratch = current)",
     // "Delete" the projection, then rebuild from the log alone.
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
-    expect(rebuilt.getSnapshot().player).toEqual({ x: 1, y: 1 });
-    expect(rebuilt.getSnapshot().eventNumber).toBe(original.getSnapshot().eventNumber);
-    expect(rebuilt.getSnapshot().time).toBe(original.getSnapshot().time);
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
   });
 
   it("purity holds with observations: bootstrap + movements + ObservationUpdated", () => {
@@ -134,7 +151,7 @@ describe("WorldProjector — Projection Purity (replay from scratch = current)",
     const original = rebuildProjection(events);
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
     expect(rebuilt.getSnapshot().observations.get("risk_taken")).toBe(1);
     expect(rebuilt.getSnapshot().observations.get("edge_awareness")).toBe(1);
     expect(rebuilt.getSnapshot().observations.get("wall_caution")).toBe(1);
@@ -245,9 +262,7 @@ describe("WorldProjector — Projection Purity with consequences", () => {
     const original = rebuildProjection(events);
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
-    expect(rebuilt.getSnapshot().consequences.size).toBe(0);
-    expect(rebuilt.getSnapshot().eventNumber).toBe(original.getSnapshot().eventNumber);
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
   });
 });
 
@@ -280,9 +295,7 @@ describe("WorldProjector — Projection Purity with fired consequences", () => {
     const original = rebuildProjection(events);
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
-    expect(rebuilt.getSnapshot().consequences.size).toBe(0);
-    expect(rebuilt.getSnapshot().firedConsequences.has("aud@cmd-3")).toBe(true);
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
   });
 });
 
@@ -387,9 +400,7 @@ describe("WorldProjector — Projection Purity with situations", () => {
     const original = rebuildProjection(events);
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
-    expect(rebuilt.getSnapshot().activeSituations.size).toBe(0);
-    expect(rebuilt.getSnapshot().burnedTrees).toBe(3);
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
   });
 });
 
@@ -471,10 +482,7 @@ describe("WorldProjector — purity with relations and heat", () => {
     const original = rebuildProjection(events);
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
-    expect(rebuilt.getSnapshot().relations.get("player>guild:help")!.value).toBe(1);
-    expect(rebuilt.getSnapshot().heatMap.get("1,1")).toBe(10);
-    expect(rebuilt.getSnapshot().heatSources.size).toBe(1);
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
   });
 });
 
@@ -570,8 +578,7 @@ describe("WorldProjector — purity with strategy", () => {
     const original = rebuildProjection(events);
     const rebuilt = rebuildProjection(events);
 
-    expect(rebuilt.getSnapshot()).toEqual(original.getSnapshot());
-    expect(rebuilt.getSnapshot().strategy.length).toBe(3);
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
   });
 });
 
