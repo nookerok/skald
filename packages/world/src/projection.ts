@@ -84,19 +84,27 @@ export interface WorldState {
 }
 
 function freeze(state: WorldState): ReadonlyWorld {
+  const cloneMap = <V>(src: Map<string, V>): ReadonlyMap<string, V> => {
+    const c = new Map(src);
+    return Object.freeze(c) as ReadonlyMap<string, V>;
+  };
+  const cloneSet = (src: Set<string>): ReadonlySet<string> => {
+    const c = new Set(src);
+    return Object.freeze(c) as ReadonlySet<string>;
+  };
   return Object.freeze({
     player: Object.freeze({ ...state.player }),
-    walls: state.walls,
-    observations: state.observations,
-    consequences: state.consequences,
-    firedConsequences: state.firedConsequences,
-    activeSituations: state.activeSituations,
+    walls: cloneSet(state.walls),
+    observations: cloneMap(state.observations),
+    consequences: cloneMap(state.consequences),
+    firedConsequences: cloneMap(state.firedConsequences),
+    activeSituations: cloneMap(state.activeSituations),
     burnedTrees: state.burnedTrees,
-    relations: state.relations,
-    heatSources: state.heatSources,
-    heatMap: state.heatMap,
+    relations: cloneMap(state.relations),
+    heatSources: cloneMap(state.heatSources),
+    heatMap: cloneMap(state.heatMap),
     lastActionTick: state.lastActionTick,
-    strategy: state.strategy,
+    strategy: Object.freeze([...state.strategy]),
     eventNumber: state.eventNumber,
     time: state.time,
   }) as ReadonlyWorld;

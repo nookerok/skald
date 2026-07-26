@@ -13,11 +13,15 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start:repl": "node --import tsx packages/cli/src/repl.ts",
+    "start:server": "node --import tsx packages/cli/src/server.ts",
+    "start": "npm run start:server"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.23.1",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.9",
-    "@types/node": "^22.10.0"
+    "vitest": "^2.1.9"
   }
 }

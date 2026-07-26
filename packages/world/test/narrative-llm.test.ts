@@ -62,7 +62,7 @@ describe("narrateLLM", () => {
     const { narrateLLM } = await import("../src/narrative-llm.js");
     await narrateLLM(emptySnapshot(), router);
     const messages = chatSpy.mock.calls[0]?.[1] as any[];
-    expect(messages[0]!.content).toContain("Не принимай решений за игрока или мир");
+    expect(messages[0]!.content).toContain("не принимай решений");
   });
 
   it("does not mutate snapshot", async () => {

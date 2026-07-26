@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createApp, runCommand, runTick, printNarrative } from "@skald/cli";
+import { createApp, runCommand, runTick, printNarrative, printNarrativeLLM } from "@skald/cli";
 import { WorldProjector, buildNarrative } from "@skald/world";
 
 describe("Integration — 5 rules wired end-to-end", () => {
@@ -367,5 +367,32 @@ describe("Integration — narrative (read-side, no LLM)", () => {
     expect(typeof text).toBe("string");
     expect(text.length).toBeGreaterThan(0);
     expect(text).toContain("--- Narrative");
+  });
+});
+
+// Opt-in LLM integration test: requires SKALD_RUN_LLM_INTEGRATION=1
+// and valid API keys. Skipped by default in CI.
+describe("Integration — LLM narrative (opt-in)", () => {
+  const shouldRun = process.env["SKALD_RUN_LLM_INTEGRATION"] === "1" &&
+    (process.env["SKALD_OPENCODE_ZEN_API_KEY"] || process.env["SKALD_OLLAMA_CLOUD_API_KEY"]);
+
+  it("narrateLLM with real router returns non-empty text and does not mutate state", { skip: !shouldRun }, async () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1, "key-1");
+
+    const eventsBefore = app.bus.query();
+    const snapshotBefore = app.projection.getSnapshot();
+
+    const result = await printNarrativeLLM(app);
+
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).toContain("--- Narrative LLM");
+
+    const eventsAfter = app.bus.query();
+    expect(eventsAfter).toEqual(eventsBefore);
+
+    const snapshotAfter = app.projection.getSnapshot();
+    expect(snapshotAfter).toEqual(snapshotBefore);
   });
 });

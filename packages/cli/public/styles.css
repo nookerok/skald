@@ -1,0 +1,36 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+#app { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+h1 { color: #e94560; font-size: 1.5rem; }
+#status-bar { display: flex; gap: 1rem; font-size: 0.9rem; color: #ccc; }
+#map-grid { display: grid; grid-template-columns: repeat(5, 60px); gap: 2px; margin: 1rem 0; justify-content: center; }
+.cell { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; background: #16213e; border: 1px solid #333; position: relative; }
+.cell.player { background: #0f3460; border-color: #e94560; }
+.cell.wall { background: #533483; }
+.cell.heat { background: #e94560; opacity: 0.6; }
+.cell .player-icon { font-size: 1.5rem; }
+.cell .heat-level { position: absolute; bottom: 2px; right: 2px; font-size: 0.6rem; color: #ff6b6b; }
+#controls-section { margin: 1rem 0; }
+#command-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+#command-input { flex: 1; padding: 0.5rem; background: #16213e; border: 1px solid #333; color: #e0e0e0; border-radius: 4px; }
+#advance-row { display: flex; gap: 0.5rem; }
+#advance-count { width: 80px; padding: 0.5rem; background: #16213e; border: 1px solid #333; color: #e0e0e0; border-radius: 4px; }
+button { padding: 0.5rem 1rem; background: #0f3460; color: #e0e0e0; border: 1px solid #333; border-radius: 4px; cursor: pointer; }
+button:hover { background: #e94560; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+#panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.panel { background: #16213e; padding: 1rem; border-radius: 4px; }
+.panel h2 { font-size: 1rem; margin-bottom: 0.5rem; color: #e94560; }
+.panel-content { font-size: 0.85rem; max-height: 300px; overflow-y: auto; }
+.event-item { padding: 2px 0; border-bottom: 1px solid #222; }
+.event-type { color: #4fc3f7; }
+.obs-item { color: #81c784; }
+.consequence-item { color: #ffb74d; }
+.situation-item { color: #ce93d8; }
+.relation-item { color: #90caf9; }
+.error { color: #ef5350; }
+.loading { color: #888; }
+@media (max-width: 768px) {
+  #panels { grid-template-columns: 1fr; }
+}

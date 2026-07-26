@@ -1,0 +1,37 @@
+[Unit]
+Description=Skald Living World Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nook
+WorkingDirectory=/home/nook/skald
+
+Environment=NODE_ENV=production
+Environment=SKALD_HOST=0.0.0.0
+Environment=SKALD_PORT=3000
+Environment=SKALD_DB_PATH=/home/nook/skald-data/events.sqlite
+Environment=PATH=/home/nook/.nvm/versions/node/v22.23.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+
+EnvironmentFile=-/home/nook/skald-data/skald.env
+
+ExecStart=/home/nook/.nvm/versions/node/v22.23.1/bin/node --import tsx packages/cli/src/server.ts
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/nook/skald-data
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=skald
+
+[Install]
+WantedBy=multi-user.target

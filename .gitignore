@@ -7,3 +7,8 @@ coverage/
 packages/cli/llm-health.json
 packages/cli/llm-usage.jsonl
 *.llm-cache.json
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+packages/cli/data/
+packages/cli/deploy/*.env

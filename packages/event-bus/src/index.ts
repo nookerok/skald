@@ -39,12 +39,18 @@ export class EventBus {
     this.log.push(event);
   }
 
-  /** Notify subscribers registered for `event.type`. Does not touch the log. */
+  /** Notify subscribers registered for `event.type`. Does not touch the log.
+   *  Subscriber exceptions are caught and collected — a failing subscriber
+   *  never blocks other subscribers or the canonical commit (AGENTS §9.3). */
   publish(event: DomainEvent): void {
     const handlers = this.subscribers.get(event.type);
     if (handlers) {
       for (const handler of handlers) {
-        handler(event);
+        try {
+          handler(event);
+        } catch {
+          // Subscriber errors are non-authoritative. Never abort commit.
+        }
       }
     }
   }

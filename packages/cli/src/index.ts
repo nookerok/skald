@@ -1,5 +1,5 @@
 import { EventBus } from "@skald/event-bus";
-import { RuleRegistry, RuleEngine } from "@skald/rule-engine";
+import { RuleRegistry, RuleEngine, type ProcessOptions, type CommitContext } from "@skald/rule-engine";
 import { parseCommand, type ParseResult } from "@skald/intent-parser";
 import {
   WorldProjector,
@@ -22,9 +22,12 @@ import {
   buildNarrative,
   narrateLLM,
   ModelRouter,
+  bootstrapWorldEvents,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
+import { createSqliteStore, type PersistenceStore } from "./persistence.js";
 
+export type { ParseResult } from "@skald/intent-parser";
 export interface IdempotencyReject {
   type: "IdempotencyReject";
   reason: string;
@@ -38,17 +41,14 @@ export interface App {
   projection: WorldProjector;
   processedKeys: Set<string>;
   router: ModelRouter | null;
+  store: PersistenceStore | null;
 }
 
-export function createApp(): App {
-  const bus = new EventBus();
-  const projection = new WorldProjector();
+function createRules(): RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>> {
   const registry = new RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>();
   registry.register(durationCheck);
   registry.register(physicsMovement);
-  for (const rule of observationRules) {
-    registry.register(rule);
-  }
+  for (const rule of observationRules) registry.register(rule);
   registry.register(repercussion);
   registry.register(expire);
   registry.register(fire);
@@ -58,14 +58,62 @@ export function createApp(): App {
   registry.register(giveRule);
   registry.register(heatSpread);
   registry.register(playerStrategy);
+  return registry;
+}
+
+function createRouter(): ModelRouter | null {
+  const zenKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
+  const ollamaKey = process.env["SKALD_OLLAMA_CLOUD_API_KEY"] ?? "";
+  if (!zenKey && !ollamaKey) return null;
+  return new ModelRouter({ apiKey: zenKey, healthCachePath: "packages/cli/llm-health.json" });
+}
+
+export function createApp(): App {
+  const bus = new EventBus();
+  const projection = new WorldProjector();
+  const registry = createRules();
   const engine = new RuleEngine(registry, projection, bus);
-
   commitBootstrap(bus, (e) => projection.apply(e));
+  const router = createRouter();
+  return { bus, registry, engine, projection, processedKeys: new Set(), router, store: null };
+}
 
-  const routerApiKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
-  const router = routerApiKey ? new ModelRouter({ apiKey: routerApiKey, healthCachePath: "packages/cli/llm-health.json" }) : null;
+export function createPersistentApp(opts?: { dbPath?: string | undefined }): App {
+  const dbPath = opts?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
+  const store = createSqliteStore(dbPath);
+  const storedEvents = store.loadAll();
+  const bus = new EventBus();
+  const projection = new WorldProjector();
+  const processedKeys = store.loadProcessedKeys();
 
-  return { bus, registry, engine, projection, processedKeys: new Set(), router };
+  // First run: bootstrap into SQLite
+  if (storedEvents.length === 0) {
+    const bootstrap = bootstrapWorldEvents();
+    store.commitBatch(bootstrap);
+    for (const e of bootstrap) {
+      bus.append(e);
+      projection.apply(e);
+    }
+  } else {
+    // Restore from SQLite (no rules, no publish)
+    for (const e of storedEvents) {
+      bus.append(e);
+      projection.apply(e);
+    }
+  }
+
+  const registry = createRules();
+  const committer: (events: readonly DomainEvent[], ctx: CommitContext) => void = (events, ctx) => {
+    const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string };
+    store.commitBatch(events, {
+      idempotencyKey: opts?.idempotencyKey ?? undefined,
+      requestKind: (opts?.requestKind as "command" | "wait" | undefined) ?? undefined,
+      correlationId: opts?.correlationId ?? undefined,
+    });
+  };
+  const engine = new RuleEngine(registry, projection, bus, committer);
+  const router = createRouter();
+  return { bus, registry, engine, projection, processedKeys, router, store };
 }
 
 export interface CommandOutcome {
@@ -87,18 +135,125 @@ export function runCommand(
   const parsed = parseCommand(input);
   if (parsed.type === "ParseError") return parsed;
 
-  app.processedKeys.add(idempotencyKey);
-
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
-  const { committed } = app.engine.process(firstEvent);
-  return {
-    events: committed,
-    position: { ...app.projection.getSnapshot().player },
-  };
+  const options: ProcessOptions = app.store
+    ? { commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext }
+    : {};
+
+  try {
+    const { committed } = app.engine.process(firstEvent, options);
+    app.processedKeys.add(idempotencyKey);
+    return {
+      events: committed,
+      position: { ...app.projection.getSnapshot().player },
+    };
+  } catch (err) {
+    throw err;
+  }
 }
 
 export interface TickOutcome {
   events: DomainEvent[];
+}
+
+export function runTick(
+  app: App,
+  timestamp: number,
+  correlationId: string,
+  playerOffline = false,
+): TickOutcome {
+  const tickEvent: DomainEvent = {
+    eventId: commandEventId(correlationId, "TickPassed"),
+    type: "TickPassed",
+    schemaVersion: 1,
+    payload: { delta: 1, playerOffline },
+    timestamp,
+    correlationId,
+    causationId: null,
+  };
+  const { committed } = app.engine.process(tickEvent);
+  return { events: committed };
+}
+
+export function runCommandCycle(
+  app: App,
+  input: string,
+  idempotencyKey: string,
+): { events: DomainEvent[]; tickEvents: DomainEvent[]; position: { x: number; y: number } } | ParseResult | IdempotencyReject {
+  if (app.processedKeys.has(idempotencyKey)) {
+    return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
+  }
+
+  const parsed = parseCommand(input);
+  if (parsed.type === "ParseError") return parsed;
+
+  const ts = app.projection.getSnapshot().time + 1;
+  const correlationId = `cmd-${ts}`;
+  const firstEvent = handleCommand(parsed, correlationId, ts);
+  const tickEvent: DomainEvent = {
+    eventId: commandEventId(`tick-${ts}`, "TickPassed"),
+    type: "TickPassed",
+    schemaVersion: 1,
+    payload: { delta: 1 },
+    timestamp: ts,
+    correlationId: `tick-${ts}`,
+    causationId: null,
+  };
+
+  const options: ProcessOptions = app.store
+    ? { commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext }
+    : {};
+
+  try {
+    const { committed } = app.engine.processSequence([firstEvent, tickEvent], options);
+    app.processedKeys.add(idempotencyKey);
+    const commandEvents = committed.filter((e) => e.correlationId === correlationId);
+    const tickEvents = committed.filter((e) => e.correlationId === `tick-${ts}`);
+    return {
+      events: commandEvents,
+      tickEvents,
+      position: { ...app.projection.getSnapshot().player },
+    };
+  } catch (err) {
+    throw err;
+  }
+}
+
+export function runOfflineTicks(
+  app: App,
+  count: number,
+  idempotencyKey: string,
+): { tickEvents: DomainEvent[] } | IdempotencyReject {
+  if (app.processedKeys.has(idempotencyKey)) {
+    return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
+  }
+
+  const startTs = app.projection.getSnapshot().time;
+  const rootEvents: DomainEvent[] = [];
+  for (let i = 0; i < count; i++) {
+    const ts = startTs + 1 + i;
+    rootEvents.push({
+      eventId: commandEventId(`tick-offline-${ts}`, "TickPassed"),
+      type: "TickPassed",
+      schemaVersion: 1,
+      payload: { delta: 1, playerOffline: true },
+      timestamp: ts,
+      correlationId: `tick-offline-${ts}`,
+      causationId: null,
+    });
+  }
+
+  const options: ProcessOptions = app.store
+    ? { commitContext: { idempotencyKey, requestKind: "wait", correlationId: `wait-${startTs + 1}` } as CommitContext }
+    : {};
+
+  try {
+    const { committed } = app.engine.processSequence(rootEvents, options);
+    app.processedKeys.add(idempotencyKey);
+    return { tickEvents: committed };
+  } catch (err) {
+    throw err;
+  }
 }
 
 function formatNode(node: { event: { type: string; eventId: string; payload: unknown }; children: unknown[] }, indent: number): string {
@@ -122,25 +277,6 @@ export function printBiography(app: App, correlationId?: string): string {
   }
   s += `Total events: ${events.length}, roots: ${graph.roots.length}\n`;
   return s;
-}
-
-export function runTick(
-  app: App,
-  timestamp: number,
-  correlationId: string,
-  playerOffline = false,
-): TickOutcome {
-  const tickEvent: DomainEvent = {
-    eventId: commandEventId(correlationId, "TickPassed"),
-    type: "TickPassed",
-    schemaVersion: 1,
-    payload: { delta: 1, playerOffline },
-    timestamp,
-    correlationId,
-    causationId: null,
-  };
-  const { committed } = app.engine.process(tickEvent);
-  return { events: committed };
 }
 
 export async function printNarrativeLLM(app: App, sinceTick?: number): Promise<string> {

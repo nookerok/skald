@@ -26,6 +26,13 @@ function templateText(entries: readonly NarrativeEntry[]): string {
   return lines.join("\n");
 }
 
+/**
+ * §6 Authority Hierarchy: этот адаптер — самый нижний уровень иерархии.
+ * Он НЕ имеет доступа к EventBus, Projection (кроме read-only snapshot'а на входе),
+ * RuleEngine или кому бы то ни было из infra/игрового кода, способному менять мир.
+ * Единственный output — строка текста для игрока. Архитектурная граница,
+ * а не system prompt, гарантирует §6. Prompt — дополнительное ограничение.
+ */
 export async function narrateLLM(
   snapshot: NarrativeSnapshot,
   router: ModelRouter | null,
@@ -41,7 +48,7 @@ export async function narrateLLM(
     };
   }
 
-  const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Не придумывай новые факты, только переформулируй данные события. Не принимай решений за игрока или мир.";
+  const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Переформулируй строго по переданным фактам — не добавляй новые события, не изменяй мир, не принимай решений, не описывай мысли или намерения игрока.";
 
   const userContent = JSON.stringify({ entries: snapshot.entries, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
 
