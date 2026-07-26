@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKALD_CODE="/home/nook/skald"
-SKALD_DATA="/home/nook/skald-data"
+SKALD_CODE="/home/nooker/skald"
+SKALD_DATA="/home/nooker/skald-data"
 BACKUP_DIR="${SKALD_DATA}/backups"
 DB="${SKALD_DATA}/events.sqlite"
-NODE_BINARY="/home/nook/.nvm/versions/node/v22.23.1/bin/node"
+NODE_BINARY="/home/nooker/.nvm/versions/node/v22.23.1/bin/node"
 NODE_BIN_DIR="$(dirname "${NODE_BINARY}")"
 
 echo "=== Skald Update Script ==="

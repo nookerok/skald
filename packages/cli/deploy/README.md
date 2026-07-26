@@ -10,7 +10,7 @@
 ## Quick Install
 
 ```bash
-cd /home/nook
+cd /home/nooker
 git clone https://github.com/nookerok/skald.git
 cd skald
 
@@ -29,7 +29,7 @@ packages/cli/deploy/install-orange-pi.sh
 The install script will:
 1. Verify prerequisites (including exact Node v22.23.1 binary)
 2. Run build and tests
-3. Create `/home/nook/skald-data` and backups directory
+3. Create `/home/nooker/skald-data` and backups directory
 4. Install helper scripts to `/usr/local/bin/`
 5. Install systemd units
 6. Start the server and wait for health
@@ -39,7 +39,7 @@ The install script will:
 
 ## Configuration
 
-LLM API keys go in `/home/nook/skald-data/skald.env`:
+LLM API keys go in `/home/nooker/skald-data/skald.env`:
 ```
 SKALD_OPENCODE_ZEN_API_KEY=your_key_here
 SKALD_OLLAMA_CLOUD_API_KEY=your_key_here
@@ -92,7 +92,7 @@ The update script:
 sudo systemctl start skald-backup.service
 
 # Automatic: daily via systemd timer
-# Backups stored in /home/nook/skald-data/backups/
+# Backups stored in /home/nooker/skald-data/backups/
 # Retention: 14 days (backup-*.sqlite pattern)
 ```
 
@@ -101,7 +101,7 @@ sudo systemctl start skald-backup.service
 Use the restore script (recommended):
 
 ```bash
-sudo /usr/local/bin/restore-skald.sh /home/nook/skald-data/backups/events-<DATE>.sqlite
+sudo /usr/local/bin/restore-skald.sh /home/nooker/skald-data/backups/events-<DATE>.sqlite
 ```
 
 The script:
@@ -115,7 +115,7 @@ Manual procedure (if script is unavailable):
 
 ```bash
 # 1. Verify the backup is intact
-sqlite3 /home/nook/skald-data/backups/events-<DATE>.sqlite "PRAGMA integrity_check;"
+sqlite3 /home/nooker/skald-data/backups/events-<DATE>.sqlite "PRAGMA integrity_check;"
 # Expect: ok
 
 # 2. Stop timers first (prevent concurrent jobs)
@@ -126,10 +126,10 @@ sudo systemctl stop skald-backup.service skald-healthcheck.service
 sudo systemctl stop skald.service
 
 # 4. Replace database and remove stale WAL
-cp /home/nook/skald-data/backups/events-<DATE>.sqlite /home/nook/skald-data/events.sqlite
-chown nook:nook /home/nook/skald-data/events.sqlite
-chmod 600 /home/nook/skald-data/events.sqlite
-rm -f /home/nook/skald-data/events.sqlite-wal /home/nook/skald-data/events.sqlite-shm
+cp /home/nooker/skald-data/backups/events-<DATE>.sqlite /home/nooker/skald-data/events.sqlite
+chown nooker:nooker /home/nooker/skald-data/events.sqlite
+chmod 600 /home/nooker/skald-data/events.sqlite
+rm -f /home/nooker/skald-data/events.sqlite-wal /home/nooker/skald-data/events.sqlite-shm
 
 # 5. Start server and wait for health
 sudo systemctl start skald.service
@@ -148,7 +148,7 @@ sudo systemctl start skald-backup.timer skald-healthcheck.timer
 If an update fails or the new version has issues:
 
 ```bash
-cd /home/nook/skald
+cd /home/nooker/skald
 git log --oneline -5
 git reset --hard <PREVIOUS_COMMIT>
 npm ci

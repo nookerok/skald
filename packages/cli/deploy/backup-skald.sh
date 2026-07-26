@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKALD_DATA="/home/nook/skald-data"
+SKALD_DATA="/home/nooker/skald-data"
 BACKUP_DIR="${SKALD_DATA}/backups"
 DB="${SKALD_DATA}/events.sqlite"
 RETENTION_DAYS=14

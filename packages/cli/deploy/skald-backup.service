@@ -3,8 +3,8 @@ Description=Skald daily SQLite backup
 
 [Service]
 Type=oneshot
-User=nook
-Group=nook
+User=nooker
+Group=nooker
 UMask=0077
 ExecStart=/usr/local/bin/backup-skald.sh
 StandardOutput=journal

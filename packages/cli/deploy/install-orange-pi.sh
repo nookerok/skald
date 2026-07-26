@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKALD_USER="nook"
+SKALD_USER="nooker"
 SKALD_HOME="/home/${SKALD_USER}"
 SKALD_CODE="${SKALD_HOME}/skald"
 SKALD_DATA="${SKALD_HOME}/skald-data"

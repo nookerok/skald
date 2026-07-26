@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKALD_DATA="/home/nook/skald-data"
+SKALD_DATA="/home/nooker/skald-data"
 BACKUP_FILE="${1:-}"
 HEALTH_URL="http://127.0.0.1:3000/api/health"
 
 echo "=== Skald Restore ==="
 
 if [ -z "${BACKUP_FILE}" ]; then
-  echo "Usage: $0 /home/nook/skald-data/backups/events-<DATE>.sqlite"
+  echo "Usage: $0 /home/nooker/skald-data/backups/events-<DATE>.sqlite"
   echo "Backups available:"
   ls -1 "${SKALD_DATA}/backups/"*.sqlite 2>/dev/null || echo "(none)"
   exit 1
@@ -40,7 +40,7 @@ sudo systemctl stop skald.service
 # 4. Replace database and clean stale WAL
 echo "Restoring database..."
 cp "${BACKUP_FILE}" "${SKALD_DATA}/events.sqlite"
-sudo chown nook:nook "${SKALD_DATA}/events.sqlite"
+sudo chown nooker:nooker "${SKALD_DATA}/events.sqlite"
 sudo chmod 600 "${SKALD_DATA}/events.sqlite"
 rm -f "${SKALD_DATA}/events.sqlite-wal" "${SKALD_DATA}/events.sqlite-shm"
 echo "[OK] Database restored."

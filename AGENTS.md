@@ -325,7 +325,7 @@ Expected Events`. Интеграционные тесты — не раньше 
 
 1. Deployment разрешен только из чистой ветки после bash -n packages/cli/deploy/*.sh, npm run typecheck, npm test -- --run и git diff --check.
 2. Сначала изменения коммитятся и отправляются в remote; на Orange Pi разрешен только fast-forward update той же ветки.
-3. Installer и updater запускаются пользователем nook без внешнего sudo; runtime фиксирован на Node v22.23.1 и проверяется до изменений.
+3. Installer и updater запускаются пользователем nooker без внешнего sudo; runtime фиксирован на Node v22.23.1 и проверяется перед build/start.
 4. Перед update обязательны непустой SQLite source, online backup и PRAGMA integrity_check = ok. Любая ошибка останавливает deployment.
 5. Restore выполняется только через /usr/local/bin/restore-skald.sh: integrity gate, остановка timers/services, замена БД, удаление WAL/SHM, запуск сервера, HTTP 200 health gate, запуск timers.
 6. Deployment успешен только после systemctl is-active, GET /api/health, GET /api/state и одного идемпотентного игрового smoke-запроса.
