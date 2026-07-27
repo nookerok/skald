@@ -11,6 +11,7 @@ Deployment Rule” and `packages/cli/deploy/README.md` as authoritative.
 ## Fixed target
 
 - SSH: `nooker@192.168.0.5`
+- SSH key: `/home/nook/.ssh/id_ed25519_skald`
 - Repository: `/home/nooker/skald`
 - Data: `/home/nooker/skald-data`
 - Service: `skald.service`
@@ -38,7 +39,7 @@ branch, cleanliness, and service identity. Abort on any mismatch.
 2. Verify the remote without changing it:
 
    ```bash
-   ssh nooker@192.168.0.5 \
+   ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5 \
      'hostname; whoami; test -d /home/nooker/skald; \
       git -C /home/nooker/skald status --short --branch; \
       systemctl is-active skald.service'
@@ -49,7 +50,8 @@ branch, cleanliness, and service identity. Abort on any mismatch.
 3. Run the installed updater as `nooker`, never through external `sudo`:
 
    ```bash
-   ssh nooker@192.168.0.5 /usr/local/bin/update-orange-pi.sh
+   ssh -i /home/nook/.ssh/id_ed25519_skald \
+     nooker@192.168.0.5 /usr/local/bin/update-orange-pi.sh
    ```
 
    The updater owns backup, SQLite integrity, fast-forward pull, exact Node
@@ -58,7 +60,7 @@ branch, cleanliness, and service identity. Abort on any mismatch.
 4. Confirm the deployed commit and services:
 
    ```bash
-   ssh nooker@192.168.0.5 \
+   ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5 \
      'git -C /home/nooker/skald rev-parse HEAD; \
       systemctl is-active skald.service \
       skald-healthcheck.timer skald-backup.timer; \
