@@ -103,6 +103,49 @@ describe("HTTP Server", () => {
     expect(Array.isArray(body.events)).toBe(true);
   });
 
+  it("GET /api/journal pagination: limit and hasMore", async () => {
+    // Create several turns via wait commands
+    await api("/api/command", { method: "POST", body: JSON.stringify({ input: "wait", idempotencyKey: "page-test-w1" }) });
+    await api("/api/command", { method: "POST", body: JSON.stringify({ input: "wait", idempotencyKey: "page-test-w2" }) });
+    await api("/api/command", { method: "POST", body: JSON.stringify({ input: "wait", idempotencyKey: "page-test-w3" }) });
+
+    const { body } = await api("/api/journal?limit=2");
+    expect(body.ok).toBe(true);
+    expect(body.turns.length).toBe(2);
+    expect(body.hasMore).toBe(true);
+    expect(body.nextBefore).toBeGreaterThan(0);
+
+    // Second page
+    const { body: body2 } = await api("/api/journal?limit=10&before=" + body.nextBefore);
+    expect(body2.ok).toBe(true);
+    expect(body2.turns.length).toBeGreaterThan(0);
+    expect(body2.turns.every((t: any) => t.worldTime < body.nextBefore)).toBe(true);
+  });
+
+  it("GET /api/journal exact limit boundary: hasMore=false, nextBefore=null", async () => {
+    const { body: all } = await api("/api/journal?limit=50");
+    expect(all.ok).toBe(true);
+    const total = all.turns.length;
+    // Ensure at least 1 turn exists
+    expect(total).toBeGreaterThan(0);
+    // Request exactly total — should return all, hasMore=false
+    const { body } = await api("/api/journal?limit=" + total);
+    expect(body.ok).toBe(true);
+    expect(body.turns.length).toBe(total);
+    expect(body.hasMore).toBe(false);
+    expect(body.nextBefore).toBeNull();
+  });
+
+  it("GET /api/journal with invalid before returns 400", async () => {
+    const { status } = await api("/api/journal?before=10abc");
+    expect(status).toBe(400);
+  });
+
+  it("POST /api/journal returns 405", async () => {
+    const { status } = await api("/api/journal", { method: "POST" });
+    expect(status).toBe(405);
+  });
+
   it("404 for unknown routes", async () => {
     const { status } = await api("/api/unknown");
     expect(status).toBe(404);
@@ -111,6 +154,19 @@ describe("HTTP Server", () => {
   it("unknown method returns 405", async () => {
     const { status } = await api("/api/state", { method: "POST" });
     expect(status).toBe(405);
+  });
+
+  it("GET /api/journal returns turns after commands", async () => {
+    const { body } = await api("/api/journal");
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.turns)).toBe(true);
+    expect(Array.isArray(body.threads)).toBe(true);
+  });
+
+  it("GET /api/journal with limit returns correct count", async () => {
+    const { body } = await api("/api/journal?limit=1");
+    expect(body.ok).toBe(true);
+    expect(body.turns.length).toBeLessThanOrEqual(1);
   });
 
   it("invalid JSON body returns 400", async () => {

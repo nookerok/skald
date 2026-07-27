@@ -1,5 +1,6 @@
 import { sendCommand, fetchState, retryLast } from "./api-client.js";
 import { renderTurn, renderState, renderDiagnostics } from "./presentation-view.js";
+import { loadJournal } from "./journal-view.js";
 
 let isBusy = false;
 
@@ -20,6 +21,7 @@ async function handle(input) {
       if (result.body.events) result.body.events.forEach((e) => renderDiagnostics.addEvent(e));
       if (result.body.tickEvents) result.body.tickEvents.forEach((e) => renderDiagnostics.addEvent(e));
       if (result.body.state) renderState(result.body.state);
+      await loadJournal();
       renderDiagnostics.title("OK");
     } else if (result.body && result.body.error) {
       if (result.body.error.code === "duplicate_request") {
@@ -55,8 +57,8 @@ document.getElementById("send-btn").addEventListener("click", () => {
 });
 document.getElementById("retry-btn").addEventListener("click", () => {
   const result = retryLast();
-  if (result) result.then((r) => {
-    if (r.body && r.body.ok && r.body.presentation) renderTurn(r.body.presentation);
+  if (result) result.then(async (r) => {
+    if (r.body && r.body.ok && r.body.presentation) { renderTurn(r.body.presentation); await loadJournal(); }
   });
 });
 
@@ -66,6 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (initial.body && initial.body.ok && initial.body.state) {
     renderState(initial.body.state);
   }
+  await loadJournal();
   // Poll silently
   setInterval(async () => {
     const res = await fetchState();

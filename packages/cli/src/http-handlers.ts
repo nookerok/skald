@@ -1,6 +1,6 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM, selectTurnPresentation } from "@skald/world";
+import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 
@@ -156,6 +156,39 @@ export function handleEvents(app: App, url: URL): JsonResponse {
   const all = app.bus.query();
   const slice = all.slice(offsetP.value, offsetP.value + limitP.value);
   return json({ ok: true, events: slice, count: all.length, limit: limitP.value, offset: offsetP.value });
+}
+
+export function handleJournal(app: App, url: URL): JsonResponse {
+  const events = app.bus.query();
+  const journal = buildTurnJournal(events);
+  const limitRaw = url.searchParams.get("limit") ?? "20";
+  const beforeRaw = url.searchParams.get("before");
+  const limitP = parseStrictInt(limitRaw, 20, 1, 50);
+  if (!limitP.ok) return error("invalid_request", "limit must be integer 1-50", 400);
+  const limit = limitP.value;
+
+  let beforeTick: number | undefined;
+  if (beforeRaw !== null) {
+    const beforeP = parseStrictInt(beforeRaw, 0, 1, Number.MAX_SAFE_INTEGER);
+    if (!beforeP.ok) return error("invalid_request", "before must be a positive integer", 400);
+    beforeTick = beforeP.value;
+  }
+
+  const filtered = beforeTick
+    ? journal.turns.filter((t) => t.worldTime < beforeTick)
+    : journal.turns;
+  const page = [...filtered].sort((a, b) => b.worldTime - a.worldTime).slice(0, limit);
+  const hasMore = filtered.length > page.length;
+  const nextBefore = hasMore ? page[page.length - 1]!.worldTime : null;
+
+  return json({
+    ok: true,
+    turns: page,
+    threads: journal.threads,
+    worldTime: journal.worldTime,
+    nextBefore,
+    hasMore,
+  });
 }
 
 export function handleHealth(app: App, _startTime: number): JsonResponse {

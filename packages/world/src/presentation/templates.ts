@@ -12,12 +12,13 @@ const OBSERVATION_TEXTS: Record<string, string> = {
 
 function cand(
   id: string, kind: PresentationCandidate["kind"], importance: PresentationCandidate["defaultImportance"],
-  rank: number, text: string, event: DomainEvent, groupKey?: string,
+  rank: number, text: string, event: DomainEvent, groupKey?: string, threadKey?: string, threadLabel?: string,
 ): PresentationCandidate {
   return {
     templateId: id, kind, defaultImportance: importance, rank,
     discoveryMark: null, text, timestamp: event.timestamp,
     sourceEventIds: [event.eventId], groupKey: groupKey ?? null,
+    threadKey: threadKey ?? null, threadLabel: threadLabel ?? null,
   };
 }
 
@@ -57,20 +58,20 @@ export const RELATION_CHANGED: PresentationTemplate = {
   present: (event, _world) => {
     const { kind, to, delta } = event.payload as { kind: string; to: string; delta: number };
     const dir = delta > 0 ? "укрепились" : "ослабли";
-    return cand("relation_changed", "relation", "primary", 90, `Твои связи с '${to}' ${dir} (${kind}).`, event);
+    return cand("relation_changed", "relation", "primary", 90, `Твои связи с '${to}' ${dir} (${kind}).`, event, undefined, `relation:${to}:${kind}`, `Отношение: ${to}`);
   },
 };
 
 export const FOREST_FIRE_STARTED: PresentationTemplate = {
   id: "forest_fire_started", listens: ["ForestFireStarted"],
-  present: (event, _world) => cand("forest_fire_started", "situation", "primary", 100, "В лесу разгорается пожар.", event),
+  present: (event, _world) => cand("forest_fire_started", "situation", "primary", 100, "В лесу разгорается пожар.", event, undefined, `situation:forest_fire`, `Лесной пожар`),
 };
 
 export const SITUATION_STARTED: PresentationTemplate = {
   id: "situation_started", listens: ["SituationStarted"],
   present: (event, _world) => {
     const { situationId, duration } = event.payload as { situationId: string; duration: number };
-    return cand("situation_started", "situation", "notable", 70, `Мир вокруг тебя меняется: ${situationId} (ещё ${duration} тиков).`, event, `sit:started:${situationId}`);
+    return cand("situation_started", "situation", "notable", 70, `Мир вокруг тебя меняется: ${situationId} (ещё ${duration} тиков).`, event, `sit:started:${situationId}`, `situation:${situationId}`, `Ситуация: ${situationId}`);
   },
 };
 
@@ -78,7 +79,7 @@ export const SITUATION_ENDED: PresentationTemplate = {
   id: "situation_ended", listens: ["SituationEnded"],
   present: (event, _world) => {
     const { situationId } = event.payload as { situationId: string };
-    return cand("situation_ended", "situation", "notable", 60, `Ситуация ${situationId} завершилась.`, event, `sit:ended:${situationId}`);
+    return cand("situation_ended", "situation", "notable", 60, `Ситуация ${situationId} завершилась.`, event, `sit:ended:${situationId}`, `situation:${situationId}`, `Ситуация: ${situationId}`);
   },
 };
 
@@ -86,20 +87,20 @@ export const TREE_BURNED: PresentationTemplate = {
   id: "tree_burned", listens: ["TreeBurned"],
   present: (event, _world) => {
     const { treeIndex } = event.payload as { treeIndex: number };
-    return cand("tree_burned", "situation", "notable", 60, `В огне погибло дерево #${treeIndex}.`, event, "forest_fire_tree");
+    return cand("tree_burned", "situation", "notable", 60, `В огне погибло дерево #${treeIndex}.`, event, "forest_fire_tree", `situation:forest_fire`, `Лесной пожар`);
   },
 };
 
 export const AUDACITY_TRIGGERED: PresentationTemplate = {
   id: "audacity_triggered", listens: ["AudacityTriggered"],
-  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event),
+  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event, undefined, `consequence:audacity`, `Последствие: audacity`),
 };
 
 export const CONSEQUENCE_CREATED: PresentationTemplate = {
   id: "consequence_created", listens: ["ConsequenceCreated"],
   present: (event, _world) => {
     const { type, expiresAt } = event.payload as { type: string; expiresAt: number };
-    return cand("consequence_created", "consequence", "notable", 80, `Твои действия породили последствие: ${type} (до тика ${expiresAt}).`, event, `cons:created:${type}`);
+    return cand("consequence_created", "consequence", "notable", 80, `Твои действия породили последствие: ${type} (до тика ${expiresAt}).`, event, `cons:created:${type}`, `consequence:${type}`, `Последствие: ${type}`);
   },
 };
 
@@ -107,7 +108,7 @@ export const CONSEQUENCE_FIRED: PresentationTemplate = {
   id: "consequence_fired", listens: ["ConsequenceFired"],
   present: (event, _world) => {
     const p = event.payload as { consequenceType: string };
-    return cand("consequence_fired", "consequence", "notable", 80, `Последствие ${p.consequenceType} проявило себя.`, event, `cons:fired:${p.consequenceType}`);
+    return cand("consequence_fired", "consequence", "notable", 80, `Последствие ${p.consequenceType} проявило себя.`, event, `cons:fired:${p.consequenceType}`, `consequence:${p.consequenceType}`, `Последствие: ${p.consequenceType}`);
   },
 };
 
@@ -122,7 +123,7 @@ export const OBSERVATION_UPDATED: PresentationTemplate = {
     const { key } = event.payload as { key: string };
     const text = OBSERVATION_TEXTS[key];
     if (!text) return null;
-    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`);
+    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`, `observation:${key}`, `Наблюдение: ${key}`);
   },
 };
 
@@ -132,11 +133,11 @@ export const HEAT_RADIATED: PresentationTemplate = {
     const { x, y } = event.payload as { x: number; y: number };
     const player = world.player;
     const dist = Math.abs(x - player.x) + Math.abs(y - player.y);
-    if (dist === 0) return cand("heat_radiated_near", "world", "notable", 80, "Жар ощущается совсем рядом, под ногами.", event, "heat");
+    if (dist === 0) return cand("heat_radiated_near", "world", "notable", 80, "Жар ощущается совсем рядом, под ногами.", event, "heat", "world:heat", "Тепло");
     if (dist <= 2 && x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
-      return cand("heat_radiated_near", "world", "notable", 60, "Тепло распространяется поблизости.", event, "heat");
+      return cand("heat_radiated_near", "world", "notable", 60, "Тепло распространяется поблизости.", event, "heat", "world:heat", "Тепло");
     }
-    return cand("heat_radiated_far", "world", "background", 30, "Где-то в мире разливается тепло.", event, "heat");
+    return cand("heat_radiated_far", "world", "background", 30, "Где-то в мире разливается тепло.", event, "heat", "world:heat", "Тепло");
   },
 };
 

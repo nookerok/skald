@@ -12,6 +12,7 @@ import {
   handleNarrativeLLM,
   handleEvents,
   handleHealth,
+  handleJournal,
 } from "./http-handlers.js";
 
 const __dirname = resolve(fileURLToPath(import.meta.url), "..");
@@ -105,7 +106,7 @@ export async function startServer(options?: {
         serveStatic("/index.html", res, corsOrigin);
         return;
       }
-      if (method === "GET" && (url.pathname === "/app.js" || url.pathname === "/api-client.js" || url.pathname === "/presentation-view.js")) {
+      if (method === "GET" && (url.pathname === "/app.js" || url.pathname === "/api-client.js" || url.pathname === "/presentation-view.js" || url.pathname === "/journal-view.js")) {
         serveStatic(url.pathname, res, corsOrigin);
         return;
       }
@@ -164,6 +165,12 @@ export async function startServer(options?: {
         return;
       }
 
+      if (method === "GET" && url.pathname === "/api/journal") {
+        const r = handleJournal(app, url);
+        handle(r.statusCode, JSON.parse(r.body));
+        return;
+      }
+
       if (method === "GET" && url.pathname === "/api/events") {
         const r = handleEvents(app, url);
         handle(r.statusCode, JSON.parse(r.body));
@@ -177,7 +184,7 @@ export async function startServer(options?: {
       }
 
       // 405 for known routes with wrong method
-      const getRoutes = ["/api/state", "/api/narrative", "/api/narrative-llm", "/api/events", "/api/health"];
+      const getRoutes = ["/api/state", "/api/narrative", "/api/narrative-llm", "/api/events", "/api/health", "/api/journal"];
       const postRoutes = ["/api/command", "/api/wait"];
       if (getRoutes.includes(url.pathname) && method !== "GET") {
         errHandle(405, "method_not_allowed", "method not allowed");

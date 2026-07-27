@@ -5,6 +5,12 @@ import { resolve } from "node:path";
 const PUBLIC = resolve(import.meta.dirname, "../public");
 
 describe("Browser ES modules — import link integrity", () => {
+  it("journal-view.js exists and has expected exports", () => {
+    const code = readFileSync(resolve(PUBLIC, "journal-view.js"), "utf-8");
+    expect(code).toContain("export async function loadJournal");
+    expect(code).toContain("export function renderJournal");
+  });
+
   it("all named imports in app.js actually exist in the target modules", () => {
     const appCode = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
     const stmts = appCode.matchAll(/import\s+\{\s*([^}]+)\s*\}\s*from\s+["']([^"']+)["']/g);

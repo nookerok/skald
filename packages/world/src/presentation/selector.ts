@@ -80,6 +80,8 @@ export function selectTurnPresentation(
       text: top.text,
       timestamp: top.timestamp,
       sourceEventIds: top.sourceEventIds,
+      threadKey: top.threadKey,
+      threadLabel: top.threadLabel,
     };
     // Rest of primaryCandidates go to remaining (will be demoted)
     for (let i = 1; i < primaryCandidates.length; i++) remaining.push(primaryCandidates[i]!);
@@ -96,6 +98,8 @@ export function selectTurnPresentation(
       text: `Ты находишься в точке (${world.player.x}, ${world.player.y}). Мир вокруг продолжает меняться.`,
       timestamp: world.time,
       sourceEventIds: [],
+      threadKey: null,
+      threadLabel: null,
     };
   }
 
@@ -112,6 +116,8 @@ export function selectTurnPresentation(
       text: c.text,
       timestamp: c.timestamp,
       sourceEventIds: c.sourceEventIds,
+      threadKey: c.threadKey,
+      threadLabel: c.threadLabel,
     };
 
     if (imp === "primary") {

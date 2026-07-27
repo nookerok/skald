@@ -3,6 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createSqliteStore } from "../src/persistence.js";
+import { bootstrapWorldEvents, buildTurnJournal } from "@skald/world";
 
 function tmpDb(): string {
   const dir = mkdtempSync(join(tmpdir(), "skald-test-"));
@@ -114,5 +115,33 @@ describe("PersistenceStore", () => {
     const store = createSqliteStore(tmpDb());
     store.close();
     store.close();
+  });
+
+  it("journal from SQLite replay matches live journal", () => {
+    const db = tmpDb();
+    const store = createSqliteStore(db);
+    // Write bootstrap + one turn
+    store.commitBatch(bootstrapWorldEvents());
+    const turnEvents = [
+      { eventId: "m-1", type: "MovementSucceeded", schemaVersion: 1, payload: { x: 0, y: 1 }, timestamp: 1, correlationId: "cmd-1", causationId: null },
+      { eventId: "t-1", type: "TickPassed", schemaVersion: 1, payload: { delta: 1 }, timestamp: 1, correlationId: "tick-1", causationId: null },
+    ];
+    store.commitBatch(turnEvents);
+
+    // Build live journal BEFORE closing
+    const liveEvents = store.loadAll();
+    const liveJournal = buildTurnJournal(liveEvents);
+    store.close();
+
+    // Reopen and build replay journal
+    const store2 = createSqliteStore(db);
+    const replayedEvents = store2.loadAll();
+    const replayedJournal = buildTurnJournal(replayedEvents);
+    store2.close();
+
+    // Journals must be identical
+    expect(JSON.stringify(liveJournal)).toBe(JSON.stringify(replayedJournal));
+    expect(liveJournal.turns.length).toBeGreaterThan(0);
+    expect(liveJournal.turns[0]!.worldTime).toBe(1);
   });
 });

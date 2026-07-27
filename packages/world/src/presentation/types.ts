@@ -19,6 +19,8 @@ export interface PresentationCandidate {
   readonly timestamp: number;
   readonly sourceEventIds: readonly string[];
   readonly groupKey: string | null;
+  readonly threadKey: string | null;
+  readonly threadLabel: string | null;
 }
 
 export interface PresentationEntry {
@@ -28,6 +30,8 @@ export interface PresentationEntry {
   readonly text: string;
   readonly timestamp: number;
   readonly sourceEventIds: readonly string[];
+  readonly threadKey: string | null;
+  readonly threadLabel: string | null;
 }
 
 export interface TurnPresentation {

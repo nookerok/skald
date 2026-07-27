@@ -9,12 +9,13 @@ Working tree: should be clean after Iteration 13 commit
 
 ## Current milestone
 
-Iteration 13 — Discovery & Presentation Layer is complete and ready to commit.
-- Backend PresentationTemplate/Selector: classification, importance, grouping.
-- HTTP API returns presentation in command/wait/narrative responses.
-- Playable browser UI: D-pad, social buttons, primary card, notable entries,
-  diagnostics collapsed by default.
-- 26 test files, 314 passed, 1 skip, tsc clean.
+Iteration 14 — Turn Journal & Presentation Threads is complete.
+- Single-pass canonical Event Log builder with monotonic timestamp validation.
+- Presentation Threads group related cross-turn entries.
+- HTTP GET /api/journal with strict pagination.
+- Browser journal-view.js connected to app.js, HTML, CSS.
+- Full journal model kept separate from thread-filtered view.
+- 27 test files, 335 tests, 1 skip, tsc clean.
 
 ## Completed
 
@@ -23,20 +24,20 @@ Iteration 13 — Discovery & Presentation Layer is complete and ready to commit.
   duration checks, idempotency and player strategy.
 - Narrative v0/v1, HTTP server, SQLite persistence and Orange Pi deployment.
 - Server hardening, immutable snapshots/payloads and poisoning recovery.
-- Playability Principles documented (design guidance, not invariants).
-- Presentation Layer: types, templates, selector, turn narrative.
-- Browser UI: D-pad, social actions, primary/notable/background, diagnostics.
+- Presentation Layer (Iteration 13): types, templates, selector, playable UI.
+- Turn Journal (Iteration 14): historical replay builder, thread aggregation,
+  HTTP API with pagination, browser journal-view.js.
 
 ## Current task
 
-Commit Iteration 13 and push. Then deploy to Orange Pi.
+Awaiting commit/deploy. Browser smoke-test recommended before deployment.
 
 ## Exact next step
 
-1. Commit and push all changes.
-2. Deploy to Orange Pi via deploy/update-orange-pi.sh.
-3. Run 10-turn browser smoke test.
-4. Start Iteration 14 — Turn Journal & Presentation Threads.
+1. Run npm run validate.
+2. Manual browser playtest (10 turns → reload → thread filter → pagination).
+3. Commit and push.
+4. Deploy to Orange Pi via update-orange-pi.sh.
 
 ## Known blockers
 
