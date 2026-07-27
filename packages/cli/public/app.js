@@ -1,17 +1,18 @@
 import { sendCommand, fetchState, retryLast } from "./api-client.js";
 import { renderTurn, renderState, renderDiagnostics } from "./presentation-view.js";
 import { loadJournal } from "./journal-view.js";
+import { keepPendingVisible, setControlsBusy } from "./ui-state.js";
 
 let isBusy = false;
 
 function setBusy(b) {
   isBusy = b;
-  document.querySelectorAll(".dir-btn, .social-btn").forEach((el) => el.disabled = b);
-  document.getElementById("send-btn").disabled = b;
+  setControlsBusy(b);
 }
 
 async function handle(input) {
   if (isBusy) return;
+  const startedAt = performance.now();
   setBusy(true);
   try {
     const result = await sendCommand(input);
@@ -34,8 +35,10 @@ async function handle(input) {
     }
   } catch (err) {
     renderDiagnostics.title(err.name === "AbortError" ? "Timeout" : "Network error");
+  } finally {
+    await keepPendingVisible(startedAt);
+    setBusy(false);
   }
-  setBusy(false);
 }
 
 // D-pad
@@ -55,11 +58,27 @@ document.getElementById("send-btn").addEventListener("click", () => {
   const input = document.getElementById("command-input").value.trim();
   if (input) handle(input);
 });
-document.getElementById("retry-btn").addEventListener("click", () => {
+document.getElementById("retry-btn").addEventListener("click", async () => {
+  if (isBusy) return;
+  const startedAt = performance.now();
   const result = retryLast();
-  if (result) result.then(async (r) => {
-    if (r.body && r.body.ok && r.body.presentation) { renderTurn(r.body.presentation); await loadJournal(); }
-  });
+  if (!result) return;
+
+  setBusy(true);
+  try {
+    const response = await result;
+    if (response.body && response.body.ok) {
+      if (response.body.presentation) renderTurn(response.body.presentation);
+      if (response.body.state) renderState(response.body.state);
+      await loadJournal();
+      renderDiagnostics.title("OK");
+    }
+  } catch (err) {
+    renderDiagnostics.title(err.name === "AbortError" ? "Timeout" : "Network error");
+  } finally {
+    await keepPendingVisible(startedAt);
+    setBusy(false);
+  }
 });
 
 // Initial load + polling
