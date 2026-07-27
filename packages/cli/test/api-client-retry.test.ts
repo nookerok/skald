@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 describe("api-client retry", () => {
   let fetchCalls: Array<{ url: string; body: unknown }>;
@@ -14,6 +14,10 @@ describe("api-client retry", () => {
         json: () => Promise.resolve({ ok: true }),
       });
     }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("retryLast sends the same idempotencyKey as the original sendCommand", async () => {
@@ -38,6 +42,20 @@ describe("api-client retry", () => {
     await sendCommand("move east");
     const key1 = fetchCalls[0]!.body.idempotencyKey;
     const key2 = fetchCalls[1]!.body.idempotencyKey;
+    expect(key1).not.toBe(key2);
+  });
+
+  it("creates unique keys on plain HTTP when crypto.randomUUID is unavailable", async () => {
+    vi.stubGlobal("crypto", {});
+    const { sendCommand } = await import("../public/api-client.js");
+
+    await sendCommand("move north");
+    await sendCommand("move east");
+
+    const key1 = fetchCalls[0]!.body.idempotencyKey as string;
+    const key2 = fetchCalls[1]!.body.idempotencyKey as string;
+    expect(key1).toMatch(/^web-/);
+    expect(key2).toMatch(/^web-/);
     expect(key1).not.toBe(key2);
   });
 });

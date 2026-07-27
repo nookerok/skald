@@ -1,8 +1,21 @@
 let retryKey = null;
 let retryInput = null;
+let fallbackKeySequence = 0;
 
 function genKey() {
-  return crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  // randomUUID is unavailable on non-secure LAN origins (plain HTTP).
+  // Idempotency keys need uniqueness, not cryptographic secrecy.
+  fallbackKeySequence += 1;
+  return [
+    "web",
+    Date.now().toString(36),
+    fallbackKeySequence.toString(36),
+    Math.random().toString(36).slice(2),
+  ].join("-");
 }
 
 export async function sendCommand(input, overrideKey) {
