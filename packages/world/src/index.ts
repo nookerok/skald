@@ -49,6 +49,8 @@ export type {
   NarrativeEntry,
   NarrativeSnapshot,
 } from "./narrative.js";
+export { selectTurnPresentation } from "./presentation/selector.js";
+export type * from "./presentation/types.js";
 export { narrateLLM } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
 export { ModelRouter } from "./llm/router.js";

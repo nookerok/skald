@@ -20,8 +20,12 @@ async function mockRouter(text = "Художественное описание.
 function emptySnapshot(): NarrativeSnapshot {
   return {
     entries: [
-      { kind: "world", timestamp: 5, text: "Ты находишься на позиции (0, 0).", sourceEventIds: [] },
+      { kind: "world", timestamp: 5, text: "Ты находишься на позиции (0, 0).", sourceEventIds: [], importance: "background", discoveryMark: null },
     ],
+    presentation: {
+      primary: null, notable: [], background: [], suppressedEventCount: 0,
+      worldTime: 5, playerPosition: { x: 0, y: 0 },
+    },
     worldTime: 5,
     playerPosition: { x: 0, y: 0 },
   };
@@ -72,5 +76,36 @@ describe("narrateLLM", () => {
     const entriesBefore = snapshot.entries.length;
     await narrateLLM(snapshot, router);
     expect(snapshot.entries.length).toBe(entriesBefore);
+  });
+
+  it("prompt contains primary+notable but NOT background", async () => {
+    const router = await mockRouter();
+    const chatSpy = vi.spyOn(router, "chat");
+    const { narrateLLM } = await import("../src/narrative-llm.js");
+    const snapshot: NarrativeSnapshot = {
+      entries: [
+        { kind: "world", timestamp: 5, text: "background entry", sourceEventIds: [], importance: "background", discoveryMark: null },
+      ],
+      presentation: {
+        primary: { kind: "action", importance: "primary", discoveryMark: null, text: "primary text", timestamp: 5, sourceEventIds: ["e-1"] },
+        notable: [{ kind: "observation", importance: "notable", discoveryMark: null, text: "notable text", timestamp: 5, sourceEventIds: ["e-2"] }],
+        background: [{ kind: "world", importance: "background", discoveryMark: null, text: "bg", timestamp: 5, sourceEventIds: [] }],
+        suppressedEventCount: 2,
+        worldTime: 5,
+        playerPosition: { x: 0, y: 0 },
+      },
+      worldTime: 5,
+      playerPosition: { x: 0, y: 0 },
+    };
+    await narrateLLM(snapshot, router);
+    const messages = chatSpy.mock.calls[0]?.[1] as any[];
+    const userContent = messages[1]!.content as string;
+    const parsed = JSON.parse(userContent);
+    // Should contain primary and notable
+    expect(parsed.entries.some((e: any) => e.text === "primary text")).toBe(true);
+    expect(parsed.entries.some((e: any) => e.text === "notable text")).toBe(true);
+    // Should NOT contain background entries
+    expect(parsed.entries.some((e: any) => e.text === "bg")).toBe(false);
+    expect(parsed.entries.some((e: any) => e.text === "background entry")).toBe(false);
   });
 });

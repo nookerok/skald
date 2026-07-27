@@ -11,4 +11,4 @@ packages/cli/llm-usage.jsonl
 *.sqlite-wal
 *.sqlite-shm
 packages/cli/data/
-packages/cli/deploy/*.env
+packages/cli/deploy/*.env.codegraph/

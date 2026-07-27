@@ -1,0 +1,169 @@
+import type { DomainEvent } from "@skald/event-bus";
+import type { PresentationTemplate, PresentationCandidate } from "./types.js";
+import { WORLD_WIDTH, WORLD_HEIGHT } from "../map.js";
+
+const OBSERVATION_TEXTS: Record<string, string> = {
+  risk_taken: "Твой рискованный поступок не остался незамеченным.",
+  wall_caution: "Повторяющиеся преграды оставляют след в твоём пути.",
+  edge_awareness: "Граница мира становится для тебя всё очевиднее.",
+  impatience: "Твоя поспешность начинает проявляться в поступках.",
+  world_reaction_fear: "Мир отвечает на твои действия нарастающим страхом.",
+};
+
+function cand(
+  id: string, kind: PresentationCandidate["kind"], importance: PresentationCandidate["defaultImportance"],
+  rank: number, text: string, event: DomainEvent, groupKey?: string,
+): PresentationCandidate {
+  return {
+    templateId: id, kind, defaultImportance: importance, rank,
+    discoveryMark: null, text, timestamp: event.timestamp,
+    sourceEventIds: [event.eventId], groupKey: groupKey ?? null,
+  };
+}
+
+export const MOVEMENT_SUCCEEDED: PresentationTemplate = {
+  id: "movement_succeeded", listens: ["MovementSucceeded"],
+  present: (event, _world) => cand("movement_succeeded", "action", "primary", 100, "Ты проходишь дальше.", event),
+};
+
+export const MOVEMENT_BLOCKED_WALL: PresentationTemplate = {
+  id: "movement_blocked_wall", listens: ["MovementBlocked"],
+  present: (event, _world) => {
+    const r = (event.payload as { reason: string }).reason;
+    if (r === "wall") return cand("movement_blocked_wall", "action", "primary", 100, "Путь преграждает стена.", event);
+    if (r === "boundary") return cand("movement_blocked_boundary", "action", "primary", 100, "Ты достиг края мира — дальше пути нет.", event);
+    return null;
+  },
+};
+
+export const ACTION_REJECTED: PresentationTemplate = {
+  id: "action_rejected", listens: ["ActionRejected"],
+  present: (event, _world) => {
+    const r = (event.payload as { reason: string }).reason;
+    if (r === "insufficient_time") {
+      return cand("action_rejected_time", "action", "primary", 100, "Ты уже сделал всё, что можно было успеть в это мгновение. Придётся подождать.", event);
+    }
+    return null;
+  },
+};
+
+export const COMMAND_REJECTED: PresentationTemplate = {
+  id: "command_rejected", listens: ["CommandRejected"],
+  present: (event, _world) => cand("command_rejected", "action", "primary", 100, "Мир не понял этого намерения.", event),
+};
+
+export const RELATION_CHANGED: PresentationTemplate = {
+  id: "relation_changed", listens: ["RelationChanged"],
+  present: (event, _world) => {
+    const { kind, to, delta } = event.payload as { kind: string; to: string; delta: number };
+    const dir = delta > 0 ? "укрепились" : "ослабли";
+    return cand("relation_changed", "relation", "primary", 90, `Твои связи с '${to}' ${dir} (${kind}).`, event);
+  },
+};
+
+export const FOREST_FIRE_STARTED: PresentationTemplate = {
+  id: "forest_fire_started", listens: ["ForestFireStarted"],
+  present: (event, _world) => cand("forest_fire_started", "situation", "primary", 100, "В лесу разгорается пожар.", event),
+};
+
+export const SITUATION_STARTED: PresentationTemplate = {
+  id: "situation_started", listens: ["SituationStarted"],
+  present: (event, _world) => {
+    const { situationId, duration } = event.payload as { situationId: string; duration: number };
+    return cand("situation_started", "situation", "notable", 70, `Мир вокруг тебя меняется: ${situationId} (ещё ${duration} тиков).`, event, `sit:started:${situationId}`);
+  },
+};
+
+export const SITUATION_ENDED: PresentationTemplate = {
+  id: "situation_ended", listens: ["SituationEnded"],
+  present: (event, _world) => {
+    const { situationId } = event.payload as { situationId: string };
+    return cand("situation_ended", "situation", "notable", 60, `Ситуация ${situationId} завершилась.`, event, `sit:ended:${situationId}`);
+  },
+};
+
+export const TREE_BURNED: PresentationTemplate = {
+  id: "tree_burned", listens: ["TreeBurned"],
+  present: (event, _world) => {
+    const { treeIndex } = event.payload as { treeIndex: number };
+    return cand("tree_burned", "situation", "notable", 60, `В огне погибло дерево #${treeIndex}.`, event, "forest_fire_tree");
+  },
+};
+
+export const AUDACITY_TRIGGERED: PresentationTemplate = {
+  id: "audacity_triggered", listens: ["AudacityTriggered"],
+  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event),
+};
+
+export const CONSEQUENCE_CREATED: PresentationTemplate = {
+  id: "consequence_created", listens: ["ConsequenceCreated"],
+  present: (event, _world) => {
+    const { type, expiresAt } = event.payload as { type: string; expiresAt: number };
+    return cand("consequence_created", "consequence", "notable", 80, `Твои действия породили последствие: ${type} (до тика ${expiresAt}).`, event, `cons:created:${type}`);
+  },
+};
+
+export const CONSEQUENCE_FIRED: PresentationTemplate = {
+  id: "consequence_fired", listens: ["ConsequenceFired"],
+  present: (event, _world) => {
+    const p = event.payload as { consequenceType: string };
+    return cand("consequence_fired", "consequence", "notable", 80, `Последствие ${p.consequenceType} проявило себя.`, event, `cons:fired:${p.consequenceType}`);
+  },
+};
+
+export const CONSEQUENCE_EXPIRED: PresentationTemplate = {
+  id: "consequence_expired", listens: ["ConsequenceExpired"],
+  present: (_event, _world) => null,
+};
+
+export const OBSERVATION_UPDATED: PresentationTemplate = {
+  id: "observation_updated", listens: ["ObservationUpdated"],
+  present: (event, _world) => {
+    const { key } = event.payload as { key: string };
+    const text = OBSERVATION_TEXTS[key];
+    if (!text) return null;
+    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`);
+  },
+};
+
+export const HEAT_RADIATED: PresentationTemplate = {
+  id: "heat_radiated", listens: ["HeatRadiated"],
+  present: (event, world) => {
+    const { x, y } = event.payload as { x: number; y: number };
+    const player = world.player;
+    const dist = Math.abs(x - player.x) + Math.abs(y - player.y);
+    if (dist === 0) return cand("heat_radiated_near", "world", "notable", 80, "Жар ощущается совсем рядом, под ногами.", event, "heat");
+    if (dist <= 2 && x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
+      return cand("heat_radiated_near", "world", "notable", 60, "Тепло распространяется поблизости.", event, "heat");
+    }
+    return cand("heat_radiated_far", "world", "background", 30, "Где-то в мире разливается тепло.", event, "heat");
+  },
+};
+
+export const TICK_PASSED: PresentationTemplate = {
+  id: "tick_passed", listens: ["TickPassed"],
+  present: (event, _world) => {
+    const p = event.payload as { playerOffline?: boolean };
+    if (p.playerOffline) return cand("tick_passed_offline", "time", "background", 10, "Время идёт без тебя...", event);
+    return null;
+  },
+};
+
+export const ALL_TEMPLATES: PresentationTemplate[] = [
+  MOVEMENT_SUCCEEDED,
+  MOVEMENT_BLOCKED_WALL,
+  ACTION_REJECTED,
+  COMMAND_REJECTED,
+  RELATION_CHANGED,
+  FOREST_FIRE_STARTED,
+  SITUATION_STARTED,
+  SITUATION_ENDED,
+  TREE_BURNED,
+  AUDACITY_TRIGGERED,
+  CONSEQUENCE_CREATED,
+  CONSEQUENCE_FIRED,
+  CONSEQUENCE_EXPIRED,
+  OBSERVATION_UPDATED,
+  HEAT_RADIATED,
+  TICK_PASSED,
+];

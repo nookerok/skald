@@ -246,8 +246,11 @@ describe("buildNarrative", () => {
       e("m-2", "MovementSucceeded", { x: 0, y: 2 }, 3),
     ];
     const snapshot = buildNarrative(events, emptyWorld(), { sinceTick: 2 });
-    expect(snapshot.entries.some((e) => e.text.includes("(0, 2)"))).toBe(true);
-    expect(snapshot.entries.some((e) => e.text.includes("(0, 1)"))).toBe(false);
+    // MovementSucceeded at ts=1 should be excluded, at ts=3 included
+    const m1Entries = snapshot.entries.filter((en) => en.timestamp === 1);
+    const m2Entries = snapshot.entries.filter((en) => en.timestamp === 3);
+    expect(m1Entries.length).toBe(0);
+    expect(m2Entries.length).toBeGreaterThan(0);
   });
 
   it("null events (bootstrap) are excluded", () => {

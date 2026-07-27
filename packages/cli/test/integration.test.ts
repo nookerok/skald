@@ -279,6 +279,15 @@ describe("Integration — time budget and idempotency", () => {
     expect(r2Types).toContain("ActionRejected");
   });
 
+  it("retry with same idempotency key is rejected as duplicate", () => {
+    const app = createApp();
+    const r1 = runCommand(app, "move north", "cmd-1", 1, "key-retry-1");
+    expect("type" in r1 && (r1 as any).type === "IdempotencyReject").toBe(false);
+
+    const r2 = runCommand(app, "move north", "cmd-2", 2, "key-retry-1");
+    expect("type" in r2 && (r2 as any).type === "IdempotencyReject").toBe(true);
+  });
+
   it("purity with budget and idempotency: replay = live", () => {
     const app = createApp();
     runCommand(app, "move north", "cmd-1", 1, "key-1");
@@ -352,7 +361,7 @@ describe("Integration — narrative (read-side, no LLM)", () => {
     const snapshot = buildNarrative(events, world);
 
     expect(snapshot.entries.length).toBeGreaterThan(0);
-    expect(snapshot.entries.some((e) => e.text.includes("перемещаешься"))).toBe(true);
+    expect(snapshot.entries.some((e) => e.text.includes("проходишь"))).toBe(true);
     expect(snapshot.worldTime).toBe(2);
 
     const eventsAfter = app.bus.query();

@@ -50,7 +50,11 @@ export async function narrateLLM(
 
   const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Переформулируй строго по переданным фактам — не добавляй новые события, не изменяй мир, не принимай решений, не описывай мысли или намерения игрока.";
 
-  const userContent = JSON.stringify({ entries: snapshot.entries, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  // Only primary and notable — no background, no world-state projection entries
+  const llmEntries = snapshot.presentation?.primary
+    ? [snapshot.presentation.primary, ...snapshot.presentation.notable]
+    : [];
+  const userContent = JSON.stringify({ entries: llmEntries, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },

@@ -105,8 +105,8 @@ export async function startServer(options?: {
         serveStatic("/index.html", res, corsOrigin);
         return;
       }
-      if (method === "GET" && url.pathname === "/app.js") {
-        serveStatic("/app.js", res, corsOrigin);
+      if (method === "GET" && (url.pathname === "/app.js" || url.pathname === "/api-client.js" || url.pathname === "/presentation-view.js")) {
+        serveStatic(url.pathname, res, corsOrigin);
         return;
       }
       if (method === "GET" && url.pathname === "/styles.css") {

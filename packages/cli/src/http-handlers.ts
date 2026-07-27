@@ -1,6 +1,7 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM } from "@skald/world";
+import { buildNarrative, narrateLLM, selectTurnPresentation } from "@skald/world";
+import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 
 export interface JsonResponse {
@@ -54,8 +55,9 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const r = runOfflineTicks(app, 1, idempotencyKey);
       if ("type" in r && (r as IdempotencyReject).type === "IdempotencyReject")
         return error("duplicate_request", "duplicate idempotencyKey", 409);
-      const tickResult = r as { tickEvents: unknown[] };
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app) });
+      const tickResult = r as { tickEvents: DomainEvent[] };
+      const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres });
     }
     if (input.startsWith("advance ")) {
       const raw = input.slice(8).trim();
@@ -64,8 +66,9 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const r = runOfflineTicks(app, n, idempotencyKey);
       if ("type" in r && (r as IdempotencyReject).type === "IdempotencyReject")
         return error("duplicate_request", "duplicate idempotencyKey", 409);
-      const tickResult = r as { tickEvents: unknown[] };
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app) });
+      const tickResult = r as { tickEvents: DomainEvent[] };
+      const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres });
     }
     const r = runCommandCycle(app, input, idempotencyKey);
     if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
@@ -73,13 +76,16 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       return error("duplicate_request", "duplicate idempotencyKey", 409);
     if ("type" in r && (r as any).type === "ParseError")
       return error("parse_error", (r as any).reason ?? "parse error", 400);
-    const cmdResult = r as { events: unknown[]; tickEvents: unknown[]; position: unknown };
+    const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
+    const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
+    const pres = selectTurnPresentation(allCycleEvents, app.projection.getSnapshot());
     return json({
       ok: true,
       events: cmdResult.events,
       tickEvents: cmdResult.tickEvents,
       position: cmdResult.position,
       state: serializeWorldState(app),
+      presentation: pres,
     });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
@@ -98,8 +104,9 @@ export async function handleWait(app: App, body: unknown): Promise<JsonResponse>
     const result = runOfflineTicks(app, n, idempotencyKey);
     if ("type" in result && (result as IdempotencyReject).type === "IdempotencyReject")
       return error("duplicate_request", "duplicate idempotencyKey", 409);
-    const r = result as { tickEvents: unknown[] };
-    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app) });
+    const r = result as { tickEvents: DomainEvent[] };
+    const pres = selectTurnPresentation(r.tickEvents, app.projection.getSnapshot());
+    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: pres });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
   }
@@ -121,7 +128,8 @@ export function handleNarrative(app: App, url: URL): JsonResponse {
   if (!sinceP.ok) return error("invalid_request", "since must be a non-negative integer", 400);
   const opts = sinceP.value > 0 ? { sinceTick: sinceP.value } : undefined;
   const snapshot = buildNarrative(events, world, opts);
-  return json({ ok: true, ...snapshot });
+  // Serialize safely — remove circular refs and non-serializable
+  return json({ ok: true, entries: snapshot.entries, presentation: snapshot.presentation, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
 }
 
 export async function handleNarrativeLLM(app: App, url: URL): Promise<JsonResponse> {

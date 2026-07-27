@@ -11,59 +11,58 @@
   <header>
     <h1>Skald</h1>
     <div id="status-bar">
-      <span id="status-text">Connecting...</span>
+      <span id="status-text" aria-live="polite">Connecting...</span>
       <span id="time-display">T: 0</span>
       <span id="pos-display">(0, 0)</span>
+      <span id="status-details"></span>
     </div>
   </header>
 
   <main>
+    <!-- Primary event card -->
+    <section id="primary-section">
+      <div id="primary-card" class="card card-primary"></div>
+      <div id="notable-list"></div>
+    </section>
+
+    <!-- Map -->
     <section id="map-section">
-      <h2>Map</h2>
       <div id="map-grid"></div>
     </section>
 
+    <!-- Action panel -->
     <section id="controls-section">
-      <div id="command-row">
-        <input type="text" id="command-input" placeholder="move north, give help to guild, wait, advance 5, narrate, narrate llm" autofocus>
-        <button id="send-btn">Send</button>
-        <button id="wait-btn">Wait</button>
+      <div id="dpad">
+        <button id="btn-n" class="dir-btn" aria-label="Move north">&#9650;</button>
+        <button id="btn-w" class="dir-btn" aria-label="Move west">&#9664;</button>
+        <button id="btn-wait" class="dir-btn action-btn" aria-label="Wait">&#9632;</button>
+        <button id="btn-e" class="dir-btn" aria-label="Move east">&#9654;</button>
+        <button id="btn-s" class="dir-btn" aria-label="Move south">&#9660;</button>
       </div>
-      <div id="advance-row">
-        <input type="number" id="advance-count" value="5" min="1" max="100">
-        <button id="advance-btn">Advance N</button>
-        <button id="retry-btn" style="margin-left:0.5rem;">Retry</button>
+      <div id="social-actions">
+        <button id="btn-help" class="social-btn" aria-label="Give help to guild">Помочь</button>
+        <button id="btn-respect" class="social-btn" aria-label="Give respect to guild">Уважать</button>
+        <button id="btn-fear" class="social-btn" aria-label="Give fear to guild">Напугать</button>
       </div>
     </section>
 
-    <section id="panels">
-      <div class="panel" id="event-panel">
-        <h2>Events</h2>
-        <div id="event-log"></div>
+    <!-- Diagnostics (collapsed) -->
+    <details id="diagnostics">
+      <summary>Diagnostics</summary>
+      <div id="event-log"></div>
+      <div id="observations-list"></div>
+      <div id="consequences-list"></div>
+      <div id="situations-list"></div>
+      <div id="relations-list"></div>
+      <div id="narrative-text"></div>
+      <div id="raw-input-section">
+        <input type="text" id="command-input" placeholder="raw command">
+        <button id="send-btn">Send</button>
+        <button id="retry-btn">Retry</button>
       </div>
-      <div class="panel" id="narrative-panel">
-        <h2>Narrative</h2>
-        <div id="narrative-text"></div>
-      </div>
-      <div class="panel" id="observations-panel">
-        <h2>Observations</h2>
-        <div id="observations-list"></div>
-      </div>
-      <div class="panel" id="consequences-panel">
-        <h2>Consequences</h2>
-        <div id="consequences-list"></div>
-      </div>
-      <div class="panel" id="situations-panel">
-        <h2>Situations</h2>
-        <div id="situations-list"></div>
-      </div>
-      <div class="panel" id="relations-panel">
-        <h2>Relations</h2>
-        <div id="relations-list"></div>
-      </div>
-    </section>
+    </details>
   </main>
 </div>
-<script src="/app.js"></script>
+<script type="module" src="/app.js"></script>
 </body>
 </html>
