@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skald Orange Pi Deploy"
+  short_description: "Safely deploy and verify Skald on Orange Pi"
+  default_prompt: "Use $skald-orange-pi-deploy to update Skald on its Orange Pi and run all health and gameplay gates."
