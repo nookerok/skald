@@ -35,6 +35,13 @@ describe("HTTP Server", () => {
     expect(text).toContain("<!DOCTYPE html>");
   });
 
+  it("GET /ui-state.js serves the pending-state browser module", async () => {
+    const res = await fetch(`${server!.url}/ui-state.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/javascript");
+    expect(await res.text()).toContain("export function setControlsBusy");
+  });
+
   it("GET /api/state returns world state", async () => {
     const { status, body } = await api("/api/state");
     expect(status).toBe(200);

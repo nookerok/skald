@@ -106,7 +106,7 @@ export async function startServer(options?: {
         serveStatic("/index.html", res, corsOrigin);
         return;
       }
-      if (method === "GET" && (url.pathname === "/app.js" || url.pathname === "/api-client.js" || url.pathname === "/presentation-view.js" || url.pathname === "/journal-view.js")) {
+      if (method === "GET" && (url.pathname === "/app.js" || url.pathname === "/api-client.js" || url.pathname === "/presentation-view.js" || url.pathname === "/journal-view.js" || url.pathname === "/ui-state.js")) {
         serveStatic(url.pathname, res, corsOrigin);
         return;
       }
