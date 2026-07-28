@@ -196,21 +196,24 @@ describe("Player Guidance", () => {
 
   // --- Regression tests for P1 fixes ---
 
-  it("19. one move counts as one action, not two", () => {
-    // MoveRequested + MovementSucceeded at same timestamp = 1 top-level action
-    const events = [ev("MoveRequested", 1), ev("MovementSucceeded", 1, { x: 0, y: 1 })];
-    // Only 1 top-level action (MoveRequested), so free_play is NOT triggered
+  it("19. one move with TickPassed at same T counts as 1 action", () => {
+    const events = [
+      ev("MoveRequested", 1),
+      ev("MovementSucceeded", 1, { x: 0, y: 1 }),
+      ev("TickPassed", 1, { delta: 1 }), // same timestamp — not a separate action
+    ];
     const g = makeGuidance(events);
     expect(g.phase).not.toBe("free_play");
   });
 
-  it("20. three blocked movements do NOT trigger free_play", () => {
+  it("20. three blocked moves do NOT trigger free_play", () => {
     const events: DomainEvent[] = [];
     for (let i = 1; i <= 3; i++) {
       events.push(ev("MoveRequested", i));
       events.push(ev("MovementBlocked", i, { reason: "wall" }));
+      events.push(ev("TickPassed", i, { delta: 1 })); // same timestamp
     }
-    // 3 MoveRequested = 3 top-level actions, well below 6
+    // 3 unique timestamps = 3 actions, well below 6
     const g = makeGuidance(events);
     expect(g.phase).not.toBe("free_play");
   });

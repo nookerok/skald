@@ -51,14 +51,20 @@ function getPhase(
 ): GuidancePhase {
   const riskCard = findRiskCard(discovery);
 
-  // Count top-level command intents only — MoveRequested, GiveRequested, or wait TickPassed.
-  // Do NOT count MovementSucceeded / MovementBlocked / RelationChanged etc. to avoid double-counting.
-  const topLevelEvents = events.filter((e) =>
-    e.type === "MoveRequested" || e.type === "GiveRequested",
-  );
-  const actionCount = topLevelEvents.length + (world.time > 0 ? (events.filter((e) =>
-    e.type === "TickPassed" && !(e.payload as { playerOffline?: boolean }).playerOffline,
-  ).length) : 0);
+  // Count unique action timestamps — one command produces
+  // MoveRequested + MovementBlocked + TickPassed at the same T.
+  // We count the timestamp once, not each event type.
+  const actionTimes = new Set<number>();
+  for (const e of events) {
+    if (
+      e.type === "MoveRequested" ||
+      e.type === "GiveRequested" ||
+      e.type === "TickPassed"
+    ) {
+      actionTimes.add(e.timestamp);
+    }
+  }
+  const actionCount = actionTimes.size;
 
   // discoveredAt: timestamp of the first echo evidence (ConsequenceFired for this discovery)
   let discoveredAt = 0;

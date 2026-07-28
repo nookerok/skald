@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createApp, runCommand, runTick, printNarrative, printNarrativeLLM } from "@skald/cli";
-import { WorldProjector, buildNarrative } from "@skald/world";
+import { WorldProjector, buildNarrative, buildPlayerGuidance } from "@skald/world";
 
 describe("Integration — 5 rules wired end-to-end", () => {
   it("move north (success) → risk_taken=1, other observations undefined", () => {
@@ -403,5 +403,44 @@ describe("Integration — LLM narrative (opt-in)", () => {
 
     const snapshotAfter = app.projection.getSnapshot();
     expect(snapshotAfter).toEqual(snapshotBefore);
+  });
+});
+
+describe("Integration — Guidance action-count (regression)", () => {
+  it("three blocked moves do NOT trigger free_play", () => {
+    const app = createApp();
+    // Move east once to reach x=1 (wall is at x=2)
+    runCommand(app, "move east", "cmd-1", 1, "key-1");
+
+    // Three blocked moves at wall (2,0)
+    for (let t = 2; t <= 4; t++) {
+      runCommand(app, "move east", `cmd-${t}`, t, `key-${t}`);
+    }
+
+    const guidance = buildPlayerGuidance(app.bus.query(), app.projection.getSnapshot());
+    expect(guidance.phase).not.toBe("free_play");
+  });
+
+  it("six non-discovery actions trigger free_play", () => {
+    // Use give commands — they don't create risk_taken
+    // so the risk_draws_attention discovery card never appears.
+    const app = createApp();
+    for (let t = 1; t <= 6; t++) {
+      runCommand(app, "give help to guild", `cmd-${t}`, t, `key-${t}`);
+    }
+
+    const guidance = buildPlayerGuidance(app.bus.query(), app.projection.getSnapshot());
+    expect(guidance.phase).toBe("free_play");
+  });
+
+  it("three moves trigger observe_consequence (risk accumulates into hypothesis + active audacity)", () => {
+    const app = createApp();
+    runCommand(app, "move north", "cmd-1", 1, "key-1");
+    runCommand(app, "move north", "cmd-2", 2, "key-2");
+    runCommand(app, "move north", "cmd-3", 3, "key-3");
+
+    const guidance = buildPlayerGuidance(app.bus.query(), app.projection.getSnapshot());
+    // risk_taken=3 triggers hypothesis + active audacity consequence
+    expect(guidance.phase).toBe("observe_consequence");
   });
 });
