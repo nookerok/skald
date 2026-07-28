@@ -4,7 +4,7 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-28
 Branch: main
-Working tree: deploy privilege hardening pending validation and commit
+Working tree: deployment verified; visual browser QA pending
 
 ## Current milestone
 
@@ -39,16 +39,17 @@ UX-1 — Current Playable Shell is complete.
 
 ## Current task
 
-UX-1 is deployed to Orange Pi at commit 1cf6d76. API smoke passed 10/10
-(worldTime 32 to 42, duplicate request 409). Fix the updater restart privilege
-gate, install it once on the device, then re-run the updater non-interactively.
+UX-1 and deploy privilege hardening are live on Orange Pi at commit f59ffce.
+API smoke passed 10/10 (worldTime 32 to 42, duplicate request 409).
+Non-interactive updater regression passed backup, 395 tests, restart and health.
+Visual browser QA remains pending because the WSL-backed browser sandbox fails.
 
 ## Exact next step
 
-1. Validate, commit and push the restricted restart policy.
-2. Run install-orange-pi.sh interactively once to install the policy.
-3. Re-run update-orange-pi.sh over non-interactive SSH.
-4. Complete the visual browser smoke-test from an NTFS-backed browser task.
+1. Open an NTFS-backed Codex browser task.
+2. Test http://192.168.0.5:3000 with ten real control clicks.
+3. Verify reload, thread filter, pagination, reconnect and retry.
+4. Start UX-2 only after visual QA is recorded.
 
 ## Known blockers
 
