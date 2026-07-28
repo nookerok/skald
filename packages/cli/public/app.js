@@ -127,6 +127,14 @@ function showMenu() {
   loadMenu();
 }
 
+function bindGameplayControls() {
+  const actions = { "btn-n": "move north", "btn-s": "move south", "btn-e": "move east", "btn-w": "move west", "btn-wait": "wait", "btn-help": "give help to guild", "btn-respect": "give respect to guild", "btn-fear": "give fear to guild" };
+  for (const [id, input] of Object.entries(actions)) {
+    const button = document.getElementById(id);
+    if (button) button.onclick = () => handle(input);
+  }
+}
+
 function showGame(worldId) {
   document.getElementById("panel-menu").style.display = "none";
   document.getElementById("panel-game-shell").style.display = "block";
@@ -134,6 +142,7 @@ function showGame(worldId) {
   setCurrentWorld(worldId);
   interactionReady = false;
   setControlsBusy(true);
+  bindGameplayControls();
   connect();
 }
 
@@ -179,14 +188,6 @@ function setupListeners() {
     window.location.hash = "#/menu";
   });
 
-  document.getElementById("btn-n")?.addEventListener("click", () => handle("move north"));
-  document.getElementById("btn-s")?.addEventListener("click", () => handle("move south"));
-  document.getElementById("btn-e")?.addEventListener("click", () => handle("move east"));
-  document.getElementById("btn-w")?.addEventListener("click", () => handle("move west"));
-  document.getElementById("btn-wait")?.addEventListener("click", () => handle("wait"));
-  document.getElementById("btn-help")?.addEventListener("click", () => handle("give help to guild"));
-  document.getElementById("btn-respect")?.addEventListener("click", () => handle("give respect to guild"));
-  document.getElementById("btn-fear")?.addEventListener("click", () => handle("give fear to guild"));
 
   document.getElementById("send-btn")?.addEventListener("click", () => {
     const input = document.getElementById("command-input").value.trim();
