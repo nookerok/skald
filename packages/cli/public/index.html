@@ -8,42 +8,34 @@
 </head>
 <body>
 <div id="app">
+  <!-- Header: status + time + position -->
   <header>
     <h1>Skald</h1>
     <div id="status-bar">
-      <span id="status-text" aria-live="polite">Connecting...</span>
+      <span id="status-text" aria-live="polite" role="status">Загрузка...</span>
       <span id="time-display">T: 0</span>
       <span id="pos-display">(0, 0)</span>
-      <span id="status-details"></span>
     </div>
   </header>
 
-  <main>
+  <!-- Main game area -->
+  <main id="game-view">
     <!-- Primary event card -->
     <section id="primary-section">
-      <div id="primary-card" class="card card-primary"></div>
+      <div id="empty-state" class="card card-primary">Мир ждёт твоего действия.</div>
+      <div id="primary-card" class="card card-primary" style="display:none"></div>
       <div id="notable-list"></div>
+      <div id="suppressed-msg" style="display:none"></div>
     </section>
 
-    <!-- Map -->
-    <section id="map-section">
-      <div id="map-grid"></div>
-    </section>
-
-    <!-- Action panel -->
-    <!-- Journal -->
-    <section id="journal-section">
-      <h2>Журнал</h2>
-      <div id="journal-container"></div>
-    </section>
-
+    <!-- D-pad + social actions -->
     <section id="controls-section">
       <div id="dpad">
-        <button id="btn-n" class="dir-btn" aria-label="Move north">&#9650;</button>
-        <button id="btn-w" class="dir-btn" aria-label="Move west">&#9664;</button>
-        <button id="btn-wait" class="dir-btn action-btn" aria-label="Wait">&#9632;</button>
-        <button id="btn-e" class="dir-btn" aria-label="Move east">&#9654;</button>
-        <button id="btn-s" class="dir-btn" aria-label="Move south">&#9660;</button>
+        <button id="btn-n" class="dir-btn" aria-label="Move north" accesskey="w">&#9650;</button>
+        <button id="btn-w" class="dir-btn" aria-label="Move west" accesskey="a">&#9664;</button>
+        <button id="btn-wait" class="dir-btn action-btn" aria-label="Wait" accesskey=" ">&#9632;</button>
+        <button id="btn-e" class="dir-btn" aria-label="Move east" accesskey="d">&#9654;</button>
+        <button id="btn-s" class="dir-btn" aria-label="Move south" accesskey="s">&#9660;</button>
       </div>
       <div id="social-actions">
         <button id="btn-help" class="social-btn" aria-label="Give help to guild">Помочь</button>
@@ -52,23 +44,34 @@
       </div>
     </section>
 
-    <!-- Diagnostics (collapsed) -->
-    <details id="diagnostics">
+    <!-- Map -->
+    <section id="map-section" aria-label="Map">
+      <div id="map-grid"></div>
+    </section>
+
+    <!-- Journal (foldable) -->
+    <section id="journal-section">
+      <h2><button id="journal-toggle" aria-expanded="false">Журнал</button></h2>
+      <div id="journal-view" style="display:none">
+        <div id="journal-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Diagnostics (developer mode) -->
+  <aside id="diagnostics-panel" role="complementary">
+    <details>
       <summary>Diagnostics</summary>
       <div id="event-log"></div>
-      <div id="observations-list"></div>
-      <div id="consequences-list"></div>
-      <div id="situations-list"></div>
-      <div id="relations-list"></div>
-      <div id="narrative-text"></div>
       <div id="raw-input-section">
         <input type="text" id="command-input" placeholder="raw command">
         <button id="send-btn">Send</button>
         <button id="retry-btn">Retry</button>
       </div>
     </details>
-  </main>
+  </aside>
 </div>
+
 <script type="module" src="/app.js"></script>
 </body>
 </html>

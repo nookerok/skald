@@ -11,6 +11,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Current milestone | CODEX_HANDOFF.md |
 | Terms | docs/GLOSSARY.md |
 | Accepted decisions | docs/DECISIONS.md |
+| UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
 
 ## Package ownership
@@ -22,6 +23,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | packages/world | Projection, world Rules, Narrative and Presentation |
 | packages/intent-parser | Syntax and semantic parsing without world decisions |
 | packages/cli | Composition roots, REPL, HTTP, SQLite, UI and deployment |
+| docs/ux | UX capability, authority, screen and state contracts |
 
 ## Runtime flows
 

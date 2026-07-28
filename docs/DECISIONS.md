@@ -13,6 +13,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-006 | LLM/Narrative are read-only and non-authoritative | accepted | docs/ARCHITECTURE.md |
 | D-007 | Presentation importance is classified on backend | accepted | docs/PLAYABILITY_PRINCIPLES.md |
 | D-008 | Deployment is operational and outside RuleEngine | accepted | AGENTS.md |
+| D-009 | UX-0 separates current production capabilities from future concepts; LLM does not select facts or actions | accepted | docs/ux/UX_PRODUCT_CONTRACT.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;
