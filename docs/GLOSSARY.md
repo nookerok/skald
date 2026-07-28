@@ -22,6 +22,9 @@
 | Discovery | Understanding an existing world law derived from Event Log | Runtime Rule generation |
 | DiscoveryDefinition | Static code mapping Domain Events to evidence and stages | A Rule or Event emitter |
 | DiscoveryCard | A read-model DTO for one discoverable world law with stage and evidence | A stored entity or projection component |
+| WorldId | UUID identifying one independent game world and its Event Log | A save slot or account |
+| WorldRecord | Catalog metadata (label, status, timestamps) for one world | A game state source of truth |
+| CharacterProfile | Immutable literary traits (wound, promise, principle) snapshotted at world creation | A character sheet or stat block |
 
 Do not introduce quests, missions, XP, levels, classes, mana, cooldowns, skill
 trees or talents. Express behavior through Events, Rules, Consequences,

@@ -2,20 +2,24 @@ import { createServer, type Server, type IncomingMessage, type ServerResponse } 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPersistentApp, type App } from "./index.js";
+import { createMultiWorldStore, type MultiWorldStore } from "./persistence/index.js";
+import { WorldRuntimeManager } from "./runtime/index.js";
 import { readJsonBody } from "./http-body.js";
 import {
-  handleState,
-  handleCommand,
-  handleWait,
-  handleNarrative,
-  handleNarrativeLLM,
-  handleEvents,
-  handleHealth,
-  handleJournal,
-  handleDiscoveries,
-  handleGuidance,
-} from "./http-handlers.js";
+  handleWorlds,
+  handleContinue,
+} from "./http/catalog-handlers.js";
+import {
+  handleWorldState,
+  handleWorldCommand,
+  handleWorldWait,
+  handleWorldJournal,
+  handleWorldDiscoveries,
+  handleWorldGuidance,
+  handleWorldNarrative,
+  handleWorldEvents,
+} from "./http/world-handlers.js";
+import { LEGACY_WORLD_ID } from "./persistence/types.js";
 
 const __dirname = resolve(fileURLToPath(import.meta.url), "..");
 const PUBLIC_DIR = resolve(__dirname, "../public");
@@ -27,6 +31,11 @@ const MIME: Record<string, string> = {
 };
 
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'";
+
+export interface ServerApp {
+  store: MultiWorldStore;
+  runtimes: WorldRuntimeManager;
+}
 
 function secHeaders(corsOrigin?: string): Record<string, string> {
   const h: Record<string, string> = {
@@ -40,7 +49,7 @@ function secHeaders(corsOrigin?: string): Record<string, string> {
 }
 
 export interface StartedServer {
-  readonly app: App;
+  readonly app: ServerApp;
   readonly server: Server;
   readonly url: string;
   close(): Promise<void>;
@@ -73,14 +82,22 @@ function writeError(res: ServerResponse, statusCode: number, code: string, messa
   writeJson(res, statusCode, { ok: false, error: { code, message } }, corsOrigin);
 }
 
+const WORLD_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
+
+function validateWorldId(id: string): boolean {
+  return WORLD_ID_RE.test(id);
+}
+
 export async function startServer(options?: {
   host?: string;
   port?: number;
   dbPath?: string;
   corsOrigin?: string;
 }): Promise<StartedServer> {
-  const app = createPersistentApp({ dbPath: options?.dbPath ?? undefined });
-  const startTime = Date.now();
+  const dbPath = options?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
+  const store = createMultiWorldStore(dbPath);
+  const runtimes = new WorldRuntimeManager(store);
+  const serverApp: ServerApp = { store, runtimes };
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
   let closed = false;
 
@@ -88,10 +105,9 @@ export async function startServer(options?: {
     const handle = (s: number, d: unknown) => writeJson(res, s, d, corsOrigin);
     const errHandle = (s: number, c: string, m: string) => writeError(res, s, c, m, corsOrigin);
     try {
-      const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+      let url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       const method = req.method ?? "GET";
 
-      // CORS preflight
       if (corsOrigin && method === "OPTIONS") {
         res.writeHead(204, {
           "Access-Control-Allow-Origin": corsOrigin,
@@ -104,116 +120,82 @@ export async function startServer(options?: {
         return;
       }
 
-      if (method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-        serveStatic("/index.html", res, corsOrigin);
-        return;
-      }
-      if (method === "GET" && (url.pathname === "/app.js" || url.pathname === "/api-client.js" || url.pathname === "/presentation-view.js" || url.pathname === "/journal-view.js" || url.pathname === "/ui-state.js" || url.pathname === "/client-state.js" || url.pathname === "/status-view.js" || url.pathname === "/discovery-view.js" || url.pathname === "/guidance-view.js")) {
-        serveStatic(url.pathname, res, corsOrigin);
-        return;
-      }
-      if (method === "GET" && (url.pathname === "/styles.css" || url.pathname === "/guidance.css")) {
-        serveStatic(url.pathname, res, corsOrigin);
-        return;
+      // Static files
+      if (method === "GET") {
+        if (url.pathname === "/" || url.pathname === "/index.html") { serveStatic("/index.html", res, corsOrigin); return; }
+        const jsFiles = ["/app.js", "/api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js"];
+        if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
+        const cssFiles = ["/styles.css", "/guidance.css", "/menu.css"];
+        if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
       }
 
-      if (method === "GET" && url.pathname === "/api/state") {
-        const r = handleState(app);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "POST" && url.pathname === "/api/command") {
-        if (parseContentType(req.headers["content-type"]) !== "application/json") {
-          errHandle(415, "unsupported_media_type", "Content-Type must be application/json");
-          return;
-        }
-        let body: unknown;
-        try { body = await readJsonBody(req); } catch (err) {
-          const msg = err instanceof Error ? err.message : "";
-          errHandle(msg.includes("too large") ? 413 : 400, "invalid_request", msg.includes("too large") ? "body too large" : "invalid JSON body");
-          return;
-        }
-        const r = await handleCommand(app, body);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "POST" && url.pathname === "/api/wait") {
-        if (parseContentType(req.headers["content-type"]) !== "application/json") {
-          errHandle(415, "unsupported_media_type", "Content-Type must be application/json");
-          return;
-        }
-        let body: unknown;
-        try { body = await readJsonBody(req); } catch (err) {
-          const msg = err instanceof Error ? err.message : "";
-          errHandle(msg.includes("too large") ? 413 : 400, "invalid_request", msg.includes("too large") ? "body too large" : "invalid JSON body");
-          return;
-        }
-        const r = await handleWait(app, body);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "GET" && url.pathname === "/api/narrative") {
-        const r = handleNarrative(app, url);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "GET" && url.pathname === "/api/narrative-llm") {
-        const r = await handleNarrativeLLM(app, url);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "GET" && url.pathname === "/api/journal") {
-        const r = handleJournal(app, url);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "GET" && url.pathname === "/api/events") {
-        const r = handleEvents(app, url);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "GET" && url.pathname === "/api/discoveries") {
-        const r = handleDiscoveries(app);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
-      if (method === "GET" && url.pathname === "/api/guidance") {
-        const r = handleGuidance(app);
-        handle(r.statusCode, JSON.parse(r.body));
-        return;
-      }
-
+      // Catalog
+      if (method === "GET" && url.pathname === "/api/worlds") { const r = handleWorlds(runtimes); handle(r.statusCode, JSON.parse(r.body)); return; }
+      if (method === "GET" && url.pathname === "/api/continue") { const r = handleContinue(runtimes); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/health") {
-        const r = handleHealth(app, startTime);
-        handle(r.statusCode, JSON.parse(r.body));
+        handle(200, { status: "ok", uptimeSeconds: Math.floor(process.uptime()), persistence: "sqlite", multiWorld: true });
         return;
       }
 
-      // 405 for known routes with wrong method
-      const getRoutes = ["/api/state", "/api/narrative", "/api/narrative-llm", "/api/events", "/api/health", "/api/journal", "/api/discoveries", "/api/guidance"];
-      const postRoutes = ["/api/command", "/api/wait"];
-      if (getRoutes.includes(url.pathname) && method !== "GET") {
-        errHandle(405, "method_not_allowed", "method not allowed");
-      } else if (postRoutes.includes(url.pathname) && method !== "POST") {
-        errHandle(405, "method_not_allowed", "method not allowed");
-      } else {
-        errHandle(404, "not_found", "not found");
+      // Mapping from unscoped paths to world-scoped sub-paths
+      const UNSCoped_PATH: Record<string, string> = {
+        "/api/state": "/state", "/api/command": "/command", "/api/wait": "/wait",
+        "/api/narrative": "/narrative", "/api/narrative-llm": "/narrative",
+        "/api/journal": "/journal", "/api/discoveries": "/discoveries",
+        "/api/guidance": "/guidance", "/api/events": "/events",
+      };
+      const scopedSub = UNSCoped_PATH[url.pathname];
+      if (scopedSub) {
+        const newPath = `/api/worlds/${LEGACY_WORLD_ID}${scopedSub}`;
+        url = new URL(newPath + url.search, `http://${req.headers.host ?? "localhost"}`);
       }
+
+      // World-scoped
+      const m = url.pathname.match(/^\/api\/worlds\/([^/]+)(\/.*)?$/);
+      if (m) {
+        const worldId = m[1]!;
+        const sub = m[2] ?? "";
+        if (!validateWorldId(worldId)) { errHandle(400, "invalid_world_id", "world ID must be 1-128 chars"); return; }
+
+        let runtime;
+        try { runtime = await runtimes.get(worldId); } catch (err: any) {
+          errHandle(err.statusCode || 404, "world_not_found", err.message); return;
+        }
+
+        if (method === "GET") {
+          if (sub === "/state" || sub === "") { const r = handleWorldState(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/journal") { const r = handleWorldJournal(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/discoveries") { const r = handleWorldDiscoveries(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/guidance") { const r = handleWorldGuidance(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/narrative") { const r = handleWorldNarrative(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/events") { const r = handleWorldEvents(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
+        }
+
+        if (method === "POST") {
+          if (sub === "/command" || sub === "/wait") {
+            if (parseContentType(req.headers["content-type"]) !== "application/json") {
+              errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return;
+            }
+            let body: unknown;
+            try { body = await readJsonBody(req); } catch (err) {
+              errHandle((err as any)?.message?.includes("too large") ? 413 : 400, "invalid_request", "invalid body"); return;
+            }
+            const handler = sub === "/wait" ? handleWorldWait : handleWorldCommand;
+            const r = await handler(runtime, body);
+            handle(r.statusCode, JSON.parse(r.body)); return;
+          }
+        }
+
+        // Known sub-path but wrong method → 405
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/narrative", "/events"];
+        const knownPostSubs = ["/command", "/wait"];
+        if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
+        if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
+      }
+
+      errHandle(404, "not_found", "not found");
     } catch (err) {
       errHandle(500, "internal_error", "internal error");
-    } finally {
-      const poisoned = (app.engine as any).isPoisoned?.();
-      if (poisoned) {
-        setImmediate(() => { process.exit(1); });
-      }
     }
   });
 
@@ -223,16 +205,13 @@ export async function startServer(options?: {
       const addr = server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
       resolvePromise({
-        app,
+        app: serverApp,
         server,
         url: `http://${options?.host ?? "127.0.0.1"}:${port}`,
         close: () => new Promise((res) => {
           if (closed) { res(); return; }
           closed = true;
-          server.close(() => {
-            if (app.store) app.store.close();
-            res();
-          });
+          server.close(() => { store.close(); res(); });
         }),
       });
     });

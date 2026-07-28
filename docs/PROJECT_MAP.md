@@ -13,6 +13,8 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Accepted decisions | docs/DECISIONS.md |
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
+| Orange Pi operations | .agents/skills/skald-orange-pi-deploy/SKILL.md |
+| Browser and visual QA | .agents/skills/skald-ntfs-browser-qa/SKILL.md |
 
 ## Package ownership
 
@@ -35,6 +37,10 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 
     backup + integrity gate -> fast-forward update -> validation -> restart
     -> health + state + idempotent smoke request
+
+    WSL repository task -> fixed NTFS Codex browser task
+    -> in-app browser at LAN URL -> screenshots/DOM/console evidence
+    -> PASS/FAIL/BLOCKED returned to repository task
 
 ## Authority boundaries
 

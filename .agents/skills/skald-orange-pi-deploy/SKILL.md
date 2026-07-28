@@ -108,10 +108,12 @@ actions. For every response require:
 After turn ten, require `/api/health` HTTP 200 and `/api/state` to match the last
 response. Re-send one completed request with the same key and require HTTP 409.
 
-For visual QA, open `http://192.168.0.5:3000` and actually click ten controls.
-Confirm primary/notable rendering, disabled controls while pending, retry,
-collapsed diagnostics, and persistence after reload. If a real browser run is
-unavailable, report API smoke success separately and never claim visual QA.
+For visual QA, invoke `$skald-ntfs-browser-qa`; the WSL repository task is not
+the browser execution surface. Send the deployed commit, current world time,
+authorized click budget and exact assertions to the fixed NTFS task. Confirm
+primary/notable rendering, disabled controls while pending, retry, collapsed
+diagnostics, and persistence after reload. If that real browser run is
+unavailable, report API smoke success separately and visual QA as BLOCKED.
 
 ## Failure handling
 

@@ -25,7 +25,7 @@ import {
   bootstrapWorldEvents,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
-import { createSqliteStore, type PersistenceStore } from "./persistence.js";
+import { createMultiWorldStore, LEGACY_WORLD_ID, type WorldId } from "./persistence.js";
 
 export type { ParseResult } from "@skald/intent-parser";
 export interface IdempotencyReject {
@@ -41,7 +41,8 @@ export interface App {
   projection: WorldProjector;
   processedKeys: Set<string>;
   router: ModelRouter | null;
-  store: PersistenceStore | null;
+  store: ReturnType<typeof createMultiWorldStore> | null;
+  worldId: WorldId;
 }
 
 function createRules(): RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>> {
@@ -78,21 +79,22 @@ export function createApp(): App {
   const engine = new RuleEngine(registry, projection, bus, undefined, onSubErr);
   commitBootstrap(bus, (e) => projection.apply(e));
   const router = createRouter();
-  return { bus, registry, engine, projection, processedKeys: new Set(), router, store: null };
+  return { bus, registry, engine, projection, processedKeys: new Set(), router, store: null, worldId: LEGACY_WORLD_ID };
 }
 
 export function createPersistentApp(opts?: { dbPath?: string | undefined }): App {
   const dbPath = opts?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
-  const store = createSqliteStore(dbPath);
-  const storedEvents = store.loadAll();
+  const store = createMultiWorldStore(dbPath);
+  const worldId = LEGACY_WORLD_ID;
+  const storedEvents = store.loadEvents(worldId);
   const bus = new EventBus();
   const projection = new WorldProjector();
-  const processedKeys = store.loadProcessedKeys();
+  const processedKeys = store.loadProcessedKeys(worldId);
 
   // First run: bootstrap into SQLite
   if (storedEvents.length === 0) {
     const bootstrap = bootstrapWorldEvents();
-    store.commitBatch(bootstrap);
+    store.commitBatch(worldId, bootstrap);
     for (const e of bootstrap) {
       bus.append(e);
       projection.apply(e);
@@ -108,7 +110,7 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
   const registry = createRules();
   const committer: (events: readonly DomainEvent[], ctx: CommitContext) => void = (events, ctx) => {
     const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string };
-    store.commitBatch(events, {
+    store.commitBatch(worldId, events, {
       idempotencyKey: opts?.idempotencyKey ?? undefined,
       requestKind: (opts?.requestKind as "command" | "wait" | undefined) ?? undefined,
       correlationId: opts?.correlationId ?? undefined,
@@ -119,7 +121,7 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
   };
   const engine = new RuleEngine(registry, projection, bus, committer, onSubErr);
   const router = createRouter();
-  return { bus, registry, engine, projection, processedKeys, router, store };
+  return { bus, registry, engine, projection, processedKeys, router, store, worldId };
 }
 
 export interface CommandOutcome {

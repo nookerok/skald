@@ -1,0 +1,128 @@
+import { EventBus } from "@skald/event-bus";
+import { RuleRegistry, RuleEngine, type CommitContext } from "@skald/rule-engine";
+import {
+  WorldProjector,
+  physicsMovement,
+  observationRules,
+  repercussion,
+  expire,
+  fire,
+  start,
+  forestFireSpread,
+  end,
+  giveRule,
+  heatSpread,
+  durationCheck,
+  playerStrategy,
+  bootstrapWorldEvents,
+  ModelRouter,
+} from "@skald/world";
+import type { DomainEvent } from "@skald/event-bus";
+import type { MultiWorldStore } from "../persistence/sqlite-store.js";
+import type { WorldId } from "../persistence/types.js";
+import { WorldCommandQueue } from "./world-command-queue.js";
+
+export interface WorldRuntime {
+  worldId: WorldId;
+  bus: EventBus;
+  registry: RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>;
+  engine: RuleEngine<ReturnType<WorldProjector["getSnapshot"]>>;
+  projection: WorldProjector;
+  processedKeys: Set<string>;
+  router: ModelRouter | null;
+  store: MultiWorldStore;
+  queue: WorldCommandQueue;
+}
+
+function createRules(): RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>> {
+  const registry = new RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>();
+  registry.register(durationCheck);
+  registry.register(physicsMovement);
+  for (const rule of observationRules) registry.register(rule);
+  registry.register(repercussion);
+  registry.register(expire);
+  registry.register(fire);
+  registry.register(start);
+  registry.register(forestFireSpread);
+  registry.register(end);
+  registry.register(giveRule);
+  registry.register(heatSpread);
+  registry.register(playerStrategy);
+  return registry;
+}
+
+function createRouter(): ModelRouter | null {
+  const zenKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
+  const ollamaKey = process.env["SKALD_OLLAMA_CLOUD_API_KEY"] ?? "";
+  if (!zenKey && !ollamaKey) return null;
+  return new ModelRouter({ apiKey: zenKey, healthCachePath: "packages/cli/llm-health.json" });
+}
+
+export class WorldRuntimeManager {
+  private runtimes = new Map<WorldId, WorldRuntime>();
+
+  constructor(private readonly store: MultiWorldStore) {}
+
+  async get(worldId: WorldId): Promise<WorldRuntime> {
+    const cached = this.runtimes.get(worldId);
+    if (cached) return cached;
+
+    const record = this.store.getWorldRecord(worldId);
+    if (!record) throw Object.assign(new Error(`World not found: ${worldId}`), { statusCode: 404 });
+    if (record.status !== "active") {
+      throw Object.assign(new Error(`World is ${record.status}: ${worldId}`), { statusCode: 409 });
+    }
+
+    const bus = new EventBus();
+    const projection = new WorldProjector();
+    const storedEvents = this.store.loadEvents(worldId);
+    const processedKeys = this.store.loadProcessedKeys(worldId);
+
+    // Load or bootstrap
+    if (storedEvents.length > 0) {
+      for (const e of storedEvents) {
+        bus.append(e);
+        projection.apply(e);
+      }
+    } else {
+      // Fresh world — bootstrap initial events and persist them
+      const bootstrap = bootstrapWorldEvents();
+      for (const e of bootstrap) {
+        bus.append(e);
+        projection.apply(e);
+      }
+      this.store.commitBatch(worldId, bootstrap);
+    }
+
+    const registry = createRules();
+    const committer: (events: readonly DomainEvent[], ctx: CommitContext) => void = (events, ctx) => {
+      const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string };
+      this.store.commitBatch(worldId, events, {
+        idempotencyKey: opts?.idempotencyKey ?? undefined,
+        requestKind: (opts?.requestKind as "command" | "wait" | undefined) ?? undefined,
+        correlationId: opts?.correlationId ?? undefined,
+      });
+    };
+    const onSubErr = (err: unknown, eventType: string) => {
+      console.error(`[subscriber-error] world="${worldId}" eventType="${eventType}": ${err instanceof Error ? err.message : String(err)}`);
+    };
+    const engine = new RuleEngine(registry, projection, bus, committer, onSubErr);
+    const router = createRouter();
+    const queue = new WorldCommandQueue();
+
+    const runtime: WorldRuntime = {
+      worldId, bus, registry, engine, projection, processedKeys, router,
+      store: this.store, queue,
+    };
+    this.runtimes.set(worldId, runtime);
+    return runtime;
+  }
+
+  evict(worldId: WorldId): void {
+    this.runtimes.delete(worldId);
+  }
+
+  has(worldId: WorldId): boolean {
+    return this.runtimes.has(worldId);
+  }
+}

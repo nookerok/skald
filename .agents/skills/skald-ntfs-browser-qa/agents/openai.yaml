@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skald NTFS Browser QA"
+  short_description: "Run Skald visual QA through the fixed NTFS task"
+  default_prompt: "Use $skald-ntfs-browser-qa to run evidence-based browser QA against the deployed Skald UI."

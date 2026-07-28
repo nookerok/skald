@@ -94,6 +94,22 @@ Before handoff, commit or deployment run npm run validate. Update
 CODEX_HANDOFF.md only when milestone, next step, blocker or validation state
 changes. Git and executable code outrank handoff.
 
+## Project skills
+
+Project-specific operational workflows live under `.agents/skills/`.
+
+- Use `$skald-orange-pi-deploy` for Orange Pi install, update, service checks,
+  backup, restore, rollback and post-deploy API smoke tests.
+- Use `$skald-ntfs-browser-qa` for every actual Skald browser or visual QA run,
+  including screenshots, console inspection, interaction smoke, responsive
+  checks, accessibility checks and post-deploy UI verification.
+
+The repository task is WSL-backed. Do not repeatedly attempt its in-app browser
+when visual QA is required. Route the run through the fixed projectless NTFS
+Codex task recorded in `$skald-ntfs-browser-qa`, then read its evidence back
+into the repository task. Do not silently create another browser task or claim
+visual success from API, unit or integration tests.
+
 ## Testing
 
 Every Rule has a unit test:
@@ -102,6 +118,11 @@ Given Event + ReadonlyWorld -> Rule -> Expected Events.
 Every new PresentationTemplate has a pure unit test. Integration tests cover
 the complete command path. Preserve Projection Purity, atomicity, idempotency,
 immutable snapshot/payload, poisoning and LLM authority tests.
+
+Browser-facing changes also require a real run through
+`$skald-ntfs-browser-qa`. Gameplay clicks change the canonical Event Log, so
+the delegated prompt must state an authorized click budget. Record visual QA as
+PASS, FAIL or BLOCKED independently from `npm run validate`.
 
 ## Validation
 
