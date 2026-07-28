@@ -18,8 +18,15 @@
     </div>
   </header>
 
-  <!-- Main game area -->
-  <main id="game-view">
+  <!-- Tab navigation -->
+  <nav id="tab-nav" role="tablist" aria-label="Основная навигация">
+    <button id="tab-game" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-game">Игра</button>
+    <button id="tab-journal" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-journal">Журнал</button>
+    <button id="tab-discoveries" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-discoveries">Открытия</button>
+  </nav>
+
+  <!-- Game view -->
+  <main id="panel-game" role="tabpanel" aria-label="Игра">
     <!-- Primary event card -->
     <section id="primary-section">
       <div id="empty-state" class="card card-primary">Мир ждёт твоего действия.</div>
@@ -48,15 +55,17 @@
     <section id="map-section" aria-label="Map">
       <div id="map-grid"></div>
     </section>
-
-    <!-- Journal (foldable) -->
-    <section id="journal-section">
-      <h2><button id="journal-toggle" aria-expanded="false">Журнал</button></h2>
-      <div id="journal-view" style="display:none">
-        <div id="journal-container"></div>
-      </div>
-    </section>
   </main>
+
+  <!-- Journal view -->
+  <div id="panel-journal" role="tabpanel" aria-label="Журнал" style="display:none">
+    <div id="journal-container"></div>
+  </div>
+
+  <!-- Discoveries view -->
+  <div id="panel-discoveries" role="tabpanel" aria-label="Открытия" style="display:none">
+    <div id="discovery-container"></div>
+  </div>
 
   <!-- Diagnostics (developer mode) -->
   <aside id="diagnostics-panel" role="complementary">

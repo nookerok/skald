@@ -192,6 +192,68 @@ describe("HTTP Server", () => {
     expect(await res.text()).toContain("export function renderStatus");
   });
 
+  it("GET /api/discoveries returns discovery cards", async () => {
+    // Make some moves to collect risk_taken observations
+    await api("/api/command", { method: "POST", body: JSON.stringify({ input: "move north", idempotencyKey: "disc-setup-1" }) });
+    await api("/api/command", { method: "POST", body: JSON.stringify({ input: "move north", idempotencyKey: "disc-setup-2" }) });
+
+    const { status, body } = await api("/api/discoveries");
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.cards)).toBe(true);
+    expect(body.worldTime).toBeGreaterThan(0);
+    expect(Array.isArray(body.recentEvidence)).toBe(true);
+  });
+
+  it("POST /api/discoveries returns 405", async () => {
+    const { status } = await api("/api/discoveries", { method: "POST" });
+    expect(status).toBe(405);
+  });
+
+  it("GET /api/discoveries on empty world returns cards: []", async () => {
+    // Use a fresh server without moves
+    const tmpDir2 = mkdtempSync(join(tmpdir(), "skald-disc-empty-"));
+    const s2 = await startServer({ host: "127.0.0.1", port: 0, dbPath: join(tmpDir2, "events.sqlite") });
+    try {
+      const res = await fetch(`${s2.url}/api/discoveries`);
+      const body = await res.json() as any;
+      expect(res.status).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.cards).toEqual([]);
+      expect(body.recentEvidence).toEqual([]);
+      expect(body.worldTime).toBe(0);
+    } finally {
+      await s2.close();
+    }
+  });
+
+  it("SQLite restart returns identical DiscoveryJournal", async () => {
+    const tmpDir3 = mkdtempSync(join(tmpdir(), "skald-disc-id-"));
+    const dbPath = join(tmpDir3, "events.sqlite");
+    const s3 = await startServer({ host: "127.0.0.1", port: 0, dbPath });
+    // Make moves
+    await fetch(`${s3.url}/api/command`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: "move north", idempotencyKey: "disc-id-n1" }) });
+    await fetch(`${s3.url}/api/command`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: "move east", idempotencyKey: "disc-id-e2" }) });
+    const { body: before } = await (await fetch(`${s3.url}/api/discoveries`)).json() as any;
+    await s3.close();
+
+    // Restart
+    const s4 = await startServer({ host: "127.0.0.1", port: 0, dbPath });
+    try {
+      const { body: after } = await (await fetch(`${s4.url}/api/discoveries`)).json() as any;
+      expect(after).toEqual(before);
+    } finally {
+      await s4.close();
+    }
+  });
+
+  it("GET /discovery-view.js serves the discovery browser module", async () => {
+    const res = await fetch(`${server!.url}/discovery-view.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/javascript");
+    expect(await res.text()).toContain("export async function loadDiscoveries");
+  });
+
   it("invalid JSON body returns 400", async () => {
     const res = await fetch(`${server!.url}/api/command`, {
       method: "POST",

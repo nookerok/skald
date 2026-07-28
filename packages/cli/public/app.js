@@ -1,6 +1,7 @@
 import { sendCommand, fetchState, retryLast } from "./api-client.js";
 import { renderTurn, renderState, renderDiagnostics } from "./presentation-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
+import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, APP, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
@@ -34,6 +35,7 @@ async function handle(input) {
       if (result.body.events) result.body.events.forEach((e) => renderDiagnostics.addEvent(e));
       if (result.body.tickEvents) result.body.tickEvents.forEach((e) => renderDiagnostics.addEvent(e));
       await loadJournal();
+      await loadDiscoveries();
     } else if (result.body && result.body.error) {
       if (result.body.error.code === "duplicate_request") {
         dispatch("COMMAND_DUPLICATE");
@@ -61,6 +63,7 @@ async function reconcileAfterDuplicate() {
   const fresh = await fetchState();
   if (fresh.body && fresh.body.ok && fresh.body.state) renderState(fresh.body.state);
   await loadJournal();
+  await loadDiscoveries();
 }
 
 async function connect() {
@@ -74,7 +77,7 @@ async function connect() {
     const journalHasTurns = turns.ok && turns.turns.length > 0;
     dispatch("BOOT_SUCCESS", { turns: journalHasTurns ? 1 : 0 });
     if (stateRes.body && stateRes.body.ok && stateRes.body.state) renderState(stateRes.body.state);
-    if (journalHasTurns) await loadJournal();
+    if (journalHasTurns) { await loadJournal(); await loadDiscoveries(); }
   } catch {
     dispatch("BOOT_FAILURE");
     startReconnectLoop();
@@ -94,6 +97,7 @@ function startReconnectLoop() {
         reconnectDelay = 1000;
         dispatch("RECONNECT_SUCCESS", { turns: 0 });
         await loadJournal();
+        await loadDiscoveries();
         return;
       }
     } catch {}
@@ -133,6 +137,7 @@ function setupListeners() {
         if (result.body.events) result.body.events.forEach((e) => renderDiagnostics.addEvent(e));
         if (result.body.tickEvents) result.body.tickEvents.forEach((e) => renderDiagnostics.addEvent(e));
         await loadJournal();
+        await loadDiscoveries();
       } else if (result.body && result.body.error) {
         if (result.body.error.code === "duplicate_request") {
           dispatch("COMMAND_DUPLICATE");
@@ -156,14 +161,43 @@ function setupListeners() {
     }
   });
 
-  // Journal toggle
-  document.getElementById("journal-toggle")?.addEventListener("click", () => {
-    const view = document.getElementById("journal-view");
-    const btn = document.getElementById("journal-toggle");
-    if (!view || !btn) return;
-    const open = view.style.display !== "block";
-    view.style.display = open ? "block" : "none";
-    btn.setAttribute("aria-expanded", String(open));
+  // Tab navigation
+  function switchView(view) {
+    dispatch("SET_VIEW", view);
+    try { sessionStorage.setItem("skald:activeView", view); } catch {}
+
+    const tabs = { game: "tab-game", journal: "tab-journal", discoveries: "tab-discoveries" };
+    const panels = { game: "panel-game", journal: "panel-journal", discoveries: "panel-discoveries" };
+
+    for (const [key, tabId] of Object.entries(tabs)) {
+      const tab = document.getElementById(tabId);
+      const panel = document.getElementById(panels[key]);
+      if (!tab || !panel) continue;
+      const active = key === view;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", String(active));
+      panel.style.display = active ? "block" : "none";
+    }
+
+    if (view === "journal") loadJournal();
+    if (view === "discoveries") loadDiscoveries();
+  }
+
+  document.getElementById("tab-game")?.addEventListener("click", () => switchView("game"));
+  document.getElementById("tab-journal")?.addEventListener("click", () => switchView("journal"));
+  document.getElementById("tab-discoveries")?.addEventListener("click", () => switchView("discoveries"));
+
+  // Handle navigation events from other views (e.g., discovery evidence → journal)
+  document.addEventListener("skald:navigate", (e) => {
+    const { view, turnId } = e.detail;
+    if (view === "journal") {
+      switchView("journal");
+      // Try restoring the turn filter from sessionStorage
+      if (turnId) {
+        try { sessionStorage.setItem("skald:journal:turn-navigate", turnId); } catch {}
+        loadJournal();
+      }
+    }
   });
 
   // Keyboard

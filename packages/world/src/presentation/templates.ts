@@ -13,10 +13,11 @@ const OBSERVATION_TEXTS: Record<string, string> = {
 function cand(
   id: string, kind: PresentationCandidate["kind"], importance: PresentationCandidate["defaultImportance"],
   rank: number, text: string, event: DomainEvent, groupKey?: string, threadKey?: string, threadLabel?: string,
+  discoveryMark: PresentationCandidate["discoveryMark"] = null,
 ): PresentationCandidate {
   return {
     templateId: id, kind, defaultImportance: importance, rank,
-    discoveryMark: null, text, timestamp: event.timestamp,
+    discoveryMark, text, timestamp: event.timestamp,
     sourceEventIds: [event.eventId], groupKey: groupKey ?? null,
     threadKey: threadKey ?? null, threadLabel: threadLabel ?? null,
   };
@@ -93,14 +94,15 @@ export const TREE_BURNED: PresentationTemplate = {
 
 export const AUDACITY_TRIGGERED: PresentationTemplate = {
   id: "audacity_triggered", listens: ["AudacityTriggered"],
-  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event, undefined, `consequence:audacity`, `Последствие: audacity`),
+  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event, undefined, `consequence:audacity`, `Последствие: audacity`, "omen"),
 };
 
 export const CONSEQUENCE_CREATED: PresentationTemplate = {
   id: "consequence_created", listens: ["ConsequenceCreated"],
   present: (event, _world) => {
     const { type, expiresAt } = event.payload as { type: string; expiresAt: number };
-    return cand("consequence_created", "consequence", "notable", 80, `Твои действия породили последствие: ${type} (до тика ${expiresAt}).`, event, `cons:created:${type}`, `consequence:${type}`, `Последствие: ${type}`);
+    const mark: PresentationCandidate["discoveryMark"] = type === "audacity" ? "omen" : null;
+    return cand("consequence_created", "consequence", "notable", 80, `Твои действия породили последствие: ${type} (до тика ${expiresAt}).`, event, `cons:created:${type}`, `consequence:${type}`, `Последствие: ${type}`, mark);
   },
 };
 
@@ -108,7 +110,8 @@ export const CONSEQUENCE_FIRED: PresentationTemplate = {
   id: "consequence_fired", listens: ["ConsequenceFired"],
   present: (event, _world) => {
     const p = event.payload as { consequenceType: string };
-    return cand("consequence_fired", "consequence", "notable", 80, `Последствие ${p.consequenceType} проявило себя.`, event, `cons:fired:${p.consequenceType}`, `consequence:${p.consequenceType}`, `Последствие: ${p.consequenceType}`);
+    const mark: PresentationCandidate["discoveryMark"] = p.consequenceType === "audacity" ? "echo" : null;
+    return cand("consequence_fired", "consequence", "notable", 80, `Последствие ${p.consequenceType} проявило себя.`, event, `cons:fired:${p.consequenceType}`, `consequence:${p.consequenceType}`, `Последствие: ${p.consequenceType}`, mark);
   },
 };
 
@@ -123,7 +126,8 @@ export const OBSERVATION_UPDATED: PresentationTemplate = {
     const { key } = event.payload as { key: string };
     const text = OBSERVATION_TEXTS[key];
     if (!text) return null;
-    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`, `observation:${key}`, `Наблюдение: ${key}`);
+    const mark: PresentationCandidate["discoveryMark"] = key === "risk_taken" ? "trace" : null;
+    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`, `observation:${key}`, `Наблюдение: ${key}`, mark);
   },
 };
 

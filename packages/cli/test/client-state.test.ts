@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect } from "vitest";
-import { createInitialState, transition, APP, CMD, JOURNAL } from "../public/client-state.js";
+import { createInitialState, transition, APP, CMD, JOURNAL, DISCOVERIES } from "../public/client-state.js";
 
 describe("client-state transitions", () => {
   it("initial state is booting", () => {
@@ -130,5 +130,30 @@ describe("client-state transitions", () => {
   it("SET_MESSAGE updates lastPlayerMessage", () => {
     const s = transition(createInitialState(), "SET_MESSAGE", "Мир ответил.");
     expect(s.lastPlayerMessage).toBe("Мир ответил.");
+  });
+
+  it("DISCOVERIES_LOADING transition", () => {
+    const s = transition(createInitialState(), "DISCOVERIES_LOADING");
+    expect(s.discoveries).toBe(DISCOVERIES.LOADING);
+  });
+
+  it("DISCOVERIES_AVAILABLE with cards sets AVAILABLE", () => {
+    const s = transition(createInitialState(), "DISCOVERIES_AVAILABLE", { cards: 1 });
+    expect(s.discoveries).toBe(DISCOVERIES.AVAILABLE);
+  });
+
+  it("DISCOVERIES_AVAILABLE with 0 cards sets EMPTY", () => {
+    const s = transition(createInitialState(), "DISCOVERIES_AVAILABLE", { cards: 0 });
+    expect(s.discoveries).toBe(DISCOVERIES.EMPTY);
+  });
+
+  it("DISCOVERIES_STALE transition", () => {
+    const s = transition(createInitialState(), "DISCOVERIES_STALE");
+    expect(s.discoveries).toBe(DISCOVERIES.STALE);
+  });
+
+  it("DISCOVERIES_UNAVAILABLE transition", () => {
+    const s = transition(createInitialState(), "DISCOVERIES_UNAVAILABLE");
+    expect(s.discoveries).toBe(DISCOVERIES.UNAVAILABLE);
   });
 });

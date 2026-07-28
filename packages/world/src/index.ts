@@ -53,6 +53,8 @@ export { selectTurnPresentation } from "./presentation/selector.js";
 export type * from "./presentation/types.js";
 export { buildTurnJournal } from "./journal/builder.js";
 export type * from "./journal/types.js";
+export { buildDiscoveryJournal, DEFINITIONS } from "./discovery/index.js";
+export type * from "./discovery/types.js";
 export { narrateLLM } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
 export { ModelRouter } from "./llm/router.js";

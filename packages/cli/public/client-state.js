@@ -3,12 +3,14 @@
 export const APP = { BOOTING: "booting", READY: "ready", DISCONNECTED: "disconnected", RECONNECTING: "reconnecting", FATAL: "fatal" };
 export const CMD = { IDLE: "idle", PENDING: "pending", SUCCEEDED: "succeeded", REJECTED: "rejected", DUPLICATE: "duplicate", TRANSPORT_FAILED: "transport_failed", TIMEOUT: "timeout" };
 export const JOURNAL = { LOADING: "loading", AVAILABLE: "available", EMPTY: "empty", STALE: "stale", UNAVAILABLE: "unavailable" };
+export const DISCOVERIES = { LOADING: "loading", AVAILABLE: "available", EMPTY: "empty", STALE: "stale", UNAVAILABLE: "unavailable" };
 
 export function createInitialState() {
   return {
     application: APP.BOOTING,
     command: CMD.IDLE,
     journal: JOURNAL.LOADING,
+    discoveries: DISCOVERIES.LOADING,
     activeView: "game",
     activeThread: null,
     lastPlayerMessage: null,
@@ -68,6 +70,18 @@ export function transition(state, action, payload) {
 
     case "JOURNAL_UNAVAILABLE":
       return { ...state, journal: JOURNAL.UNAVAILABLE };
+
+    case "DISCOVERIES_LOADING":
+      return { ...state, discoveries: DISCOVERIES.LOADING };
+
+    case "DISCOVERIES_AVAILABLE":
+      return { ...state, discoveries: payload?.cards > 0 ? DISCOVERIES.AVAILABLE : DISCOVERIES.EMPTY };
+
+    case "DISCOVERIES_STALE":
+      return { ...state, discoveries: DISCOVERIES.STALE };
+
+    case "DISCOVERIES_UNAVAILABLE":
+      return { ...state, discoveries: DISCOVERIES.UNAVAILABLE };
 
     case "SET_VIEW":
       return { ...state, activeView: payload };

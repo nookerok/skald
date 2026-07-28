@@ -19,7 +19,9 @@
 | Trace | A visible sign left by prior behavior | A new canonical Event type |
 | Echo | A delayed or repeated consequence | A separate storage subsystem |
 | Omen | A visible indication of possible change | A guaranteed prophecy |
-| Discovery | Understanding an existing world law | Runtime Rule generation |
+| Discovery | Understanding an existing world law derived from Event Log | Runtime Rule generation |
+| DiscoveryDefinition | Static code mapping Domain Events to evidence and stages | A Rule or Event emitter |
+| DiscoveryCard | A read-model DTO for one discoverable world law with stage and evidence | A stored entity or projection component |
 
 Do not introduce quests, missions, XP, levels, classes, mana, cooldowns, skill
 trees or talents. Express behavior through Events, Rules, Consequences,

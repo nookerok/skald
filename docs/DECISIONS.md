@@ -14,6 +14,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-007 | Presentation importance is classified on backend | accepted | docs/PLAYABILITY_PRINCIPLES.md |
 | D-008 | Deployment is operational and outside RuleEngine | accepted | AGENTS.md |
 | D-009 | UX-0 separates current production capabilities from future concepts; LLM does not select facts or actions | accepted | docs/ux/UX_PRODUCT_CONTRACT.md |
+| D-010 | Discovery is a read model derived from Event Log, not stored as Events; stages are monotonic; LLM does not classify evidence; definitions are static compile-time code | accepted | docs/adr/0001-discovery-read-model.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

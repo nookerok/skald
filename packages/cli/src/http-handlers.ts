@@ -1,6 +1,6 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal } from "@skald/world";
+import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 
@@ -189,6 +189,12 @@ export function handleJournal(app: App, url: URL): JsonResponse {
     nextBefore,
     hasMore,
   });
+}
+
+export function handleDiscoveries(app: App): JsonResponse {
+  const events = app.bus.query();
+  const journal = buildDiscoveryJournal(events);
+  return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, worldTime: journal.worldTime });
 }
 
 export function handleHealth(app: App, _startTime: number): JsonResponse {

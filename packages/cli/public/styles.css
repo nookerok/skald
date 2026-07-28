@@ -62,6 +62,32 @@ h1 {
 
 #status-text { font-weight: 500; }
 
+/* Tab navigation */
+#tab-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--font-base);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color var(--transition), border-color var(--transition);
+  min-width: var(--touch-target);
+}
+
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
 /* Cards */
 .card { padding: 0.75rem 1rem; border-radius: var(--radius); margin-bottom: 0.5rem; }
 .card-primary { background: var(--bg-accent); border-left: 4px solid var(--accent); font-size: 1.05rem; line-height: 1.5; }
@@ -147,19 +173,193 @@ h1 {
 .cell.wall { background: #533483; }
 .cell.heat { background: var(--accent); opacity: 0.5; }
 
-/* Journal toggle */
-#journal-toggle {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font: inherit;
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 0.3rem 0;
+/* Journal (tab panel) */
+#panel-journal { min-height: 200px; }
+
+/* Journal threads and turns */
+.thread-bar {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
 }
 
-#journal-toggle:hover { color: var(--accent-dim); }
-#journal-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.thread-bar button, .thread-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.thread-bar button:hover, .thread-btn:hover { background: var(--bg-accent); }
+.thread-bar button:focus-visible, .thread-btn:focus-visible { outline: 2px solid var(--focus-ring); }
+
+.turn-entry { margin-bottom: 0.5rem; }
+.turn-header {
+  background: var(--bg-secondary);
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: var(--font-sm);
+}
+
+.turn-header:hover { background: var(--bg-accent); }
+.turn-body { padding: 0.4rem 0.6rem; }
+.turn-primary { font-size: var(--font-sm); margin-bottom: 0.3rem; }
+
+.notable-toggle {
+  font-size: var(--font-xs);
+  color: var(--focus-ring);
+  cursor: pointer;
+  padding: 0.2rem 0;
+}
+
+.notable-list { padding-left: 0.5rem; }
+
+/* Discoveries */
+.discovery-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 1rem 0.5rem;
+  line-height: 1.6;
+}
+
+.discovery-empty p { margin-bottom: 0.3rem; }
+
+.discovery-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .discovery-layout { grid-template-columns: 1fr; }
+}
+
+.discovery-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.discovery-card:hover { border-color: var(--focus-ring); }
+.discovery-card-active { border-color: var(--accent); }
+.discovery-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.discovery-stage-badge {
+  display: inline-block;
+  font-size: var(--font-xs);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.3rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.stage-trace { background: #3a4a5a; color: #90caf9; }
+.stage-hypothesis { background: #4a3a2a; color: #ffb74d; }
+.stage-discovered { background: #2a3a2a; color: #81c784; }
+
+.discovery-card-title {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  margin-bottom: 0.1rem;
+}
+
+.discovery-card-question {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.discovery-card-evidence {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+}
+
+.discovery-detail {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  min-height: 120px;
+}
+
+.discovery-detail h3 {
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+  color: var(--accent);
+}
+
+.discovery-detail-summary {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.discovery-detail-hint {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--font-sm);
+  padding: 1rem 0;
+}
+
+.discovery-evidence-header {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+
+.discovery-evidence-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  font-size: var(--font-xs);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.15rem;
+}
+
+.discovery-evidence-item:hover { background: var(--bg-accent); }
+.discovery-evidence-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+.evidence-kind-tag {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.kind-trace { background: #3a4a5a; color: #90caf9; }
+.kind-omen { background: #4a3a2a; color: #ffb74d; }
+.kind-echo { background: #2a3a2a; color: #81c784; }
+
+.evidence-text { color: var(--text-secondary); }
+
+.discovery-recent {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.discovery-recent summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  padding: 0.2rem 0;
+}
 
 /* Diagnostics */
 #diagnostics-panel { margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
