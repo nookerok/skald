@@ -1,8 +1,9 @@
-import { sendCommand, fetchState, retryLast } from "./api-client.js";
+import { sendCommand, fetchState, retryLast, setCurrentWorld, getCurrentWorld } from "./world-api-client.js";
 import { renderTurn, renderState, renderDiagnostics } from "./presentation-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadGuidance, applyGuidance, renderGuidance } from "./guidance-view.js";
+import { loadMenu } from "./menu-view.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, APP, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
@@ -11,7 +12,6 @@ let state = createInitialState();
 
 function dispatch(action, payload) {
   const next = transition(state, action, payload);
-  // Copy pending fields that shouldn't be lost on UI-only actions
   if (next.command === CMD.IDLE && state.pendingKey && action !== "COMMAND_SUCCESS" && action !== "COMMAND_REJECTED") {
     next.pendingKey = state.pendingKey;
     next.pendingInput = state.pendingInput;
@@ -69,18 +69,20 @@ async function reconcileAfterDuplicate() {
 }
 
 async function connect() {
-  dispatch("BOOT_FAILURE"); // in case of silent start, re-enter booting
+  dispatch("BOOT_FAILURE");
   state.application = APP.BOOTING;
   renderStatus(state);
 
   try {
     const stateRes = await fetchState();
-    const turns = stateRes.body?.ok ? (await (await fetch("/api/journal?limit=1")).json()) : { turns: [] };
+    const turnsRes = await fetch("/api/worlds/" + (getCurrentWorld() || "legacy-world") + "/journal?limit=1");
+    const turns = await turnsRes.json();
     const journalHasTurns = turns.ok && turns.turns.length > 0;
     dispatch("BOOT_SUCCESS", { turns: journalHasTurns ? 1 : 0 });
     if (stateRes.body && stateRes.body.ok && stateRes.body.state) renderState(stateRes.body.state);
     if (journalHasTurns) { await loadJournal(); await loadDiscoveries(); }
     await loadGuidance();
+    renderGuidance();
   } catch {
     dispatch("BOOT_FAILURE");
     startReconnectLoop();
@@ -110,9 +112,65 @@ function startReconnectLoop() {
   }, reconnectDelay);
 }
 
+// --- View switching ---
+
+function showMenu() {
+  document.getElementById("panel-menu").style.display = "block";
+  document.getElementById("panel-game-shell").style.display = "none";
+  document.getElementById("diagnostics-panel").style.display = "none";
+  loadMenu();
+}
+
+function showGame(worldId) {
+  document.getElementById("panel-menu").style.display = "none";
+  document.getElementById("panel-game-shell").style.display = "block";
+  document.getElementById("diagnostics-panel").style.display = "block";
+  setCurrentWorld(worldId);
+  connect();
+}
+
+function switchView(view) {
+  dispatch("SET_VIEW", view);
+  try { sessionStorage.setItem("skald:activeView", view); } catch {}
+
+  const tabs = { game: "tab-game", journal: "tab-journal", discoveries: "tab-discoveries" };
+  const panels = { game: "panel-game", journal: "panel-journal", discoveries: "panel-discoveries" };
+
+  for (const [key, tabId] of Object.entries(tabs)) {
+    const tab = document.getElementById(tabId);
+    const panel = document.getElementById(panels[key]);
+    if (!tab || !panel) continue;
+    const active = key === view;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+    panel.style.display = active ? "block" : "none";
+  }
+
+  if (view === "journal") loadJournal();
+  if (view === "discoveries") loadDiscoveries();
+}
+
+// --- Hash routing ---
+
+function handleRoute() {
+  const hash = window.location.hash;
+  const worldMatch = hash.match(/^#\/world\/(.+)$/);
+  if (worldMatch) {
+    showGame(worldMatch[1]);
+  } else {
+    showMenu();
+  }
+}
+
+window.addEventListener("hashchange", handleRoute);
+
 // --- Event listeners ---
 
 function setupListeners() {
+  document.getElementById("btn-to-menu")?.addEventListener("click", () => {
+    window.location.hash = "#/menu";
+  });
+
   document.getElementById("btn-n")?.addEventListener("click", () => handle("move north"));
   document.getElementById("btn-s")?.addEventListener("click", () => handle("move south"));
   document.getElementById("btn-e")?.addEventListener("click", () => handle("move east"));
@@ -122,11 +180,11 @@ function setupListeners() {
   document.getElementById("btn-respect")?.addEventListener("click", () => handle("give respect to guild"));
   document.getElementById("btn-fear")?.addEventListener("click", () => handle("give fear to guild"));
 
-  // Diagnostics raw command
   document.getElementById("send-btn")?.addEventListener("click", () => {
     const input = document.getElementById("command-input").value.trim();
     if (input) handle(input);
   });
+
   document.getElementById("retry-btn")?.addEventListener("click", async () => {
     if (!state.pendingKey || !state.pendingInput) return;
     if (state.command === CMD.PENDING) return;
@@ -144,55 +202,20 @@ function setupListeners() {
         await loadJournal();
         await loadDiscoveries();
       } else if (result.body && result.body.error) {
-        if (result.body.error.code === "duplicate_request") {
-          dispatch("COMMAND_DUPLICATE");
-          await reconcileAfterDuplicate();
-        } else if (result.body.error.code === "parse_error") {
-          dispatch("COMMAND_REJECTED", { message: result.body.error.message || "Неизвестная команда." });
-        } else {
-          dispatch("COMMAND_REJECTED", { message: result.body.error.message || "Мир не отвечает." });
-        }
-      } else {
-        dispatch("COMMAND_TRANSPORT_FAIL");
-      }
+        if (result.body.error.code === "duplicate_request") { dispatch("COMMAND_DUPLICATE"); await reconcileAfterDuplicate(); }
+        else if (result.body.error.code === "parse_error") { dispatch("COMMAND_REJECTED", { message: result.body.error.message || "Неизвестная команда." }); }
+        else { dispatch("COMMAND_REJECTED", { message: result.body.error.message || "Мир не отвечает." }); }
+      } else { dispatch("COMMAND_TRANSPORT_FAIL"); }
     } catch (err) {
-      if (err.name === "AbortError") {
-        dispatch("COMMAND_TIMEOUT");
-      } else {
-        dispatch("COMMAND_TRANSPORT_FAIL");
-      }
-    } finally {
-      setControlsBusy(false);
-    }
+      if (err.name === "AbortError") { dispatch("COMMAND_TIMEOUT"); }
+      else { dispatch("COMMAND_TRANSPORT_FAIL"); }
+    } finally { setControlsBusy(false); }
   });
-
-  // Tab navigation
-  function switchView(view) {
-    dispatch("SET_VIEW", view);
-    try { sessionStorage.setItem("skald:activeView", view); } catch {}
-
-    const tabs = { game: "tab-game", journal: "tab-journal", discoveries: "tab-discoveries" };
-    const panels = { game: "panel-game", journal: "panel-journal", discoveries: "panel-discoveries" };
-
-    for (const [key, tabId] of Object.entries(tabs)) {
-      const tab = document.getElementById(tabId);
-      const panel = document.getElementById(panels[key]);
-      if (!tab || !panel) continue;
-      const active = key === view;
-      tab.classList.toggle("active", active);
-      tab.setAttribute("aria-selected", String(active));
-      panel.style.display = active ? "block" : "none";
-    }
-
-    if (view === "journal") loadJournal();
-    if (view === "discoveries") loadDiscoveries();
-  }
 
   document.getElementById("tab-game")?.addEventListener("click", () => switchView("game"));
   document.getElementById("tab-journal")?.addEventListener("click", () => switchView("journal"));
   document.getElementById("tab-discoveries")?.addEventListener("click", () => switchView("discoveries"));
 
-  // Handle command events from guidance suggestions
   document.addEventListener("skald:command", (e) => {
     const { input } = e.detail;
     if (input && state.application === APP.READY && state.command !== CMD.PENDING) {
@@ -200,7 +223,6 @@ function setupListeners() {
     }
   });
 
-  // Handle navigation events from other views (e.g., discovery evidence → journal)
   document.addEventListener("skald:navigate", (e) => {
     const { view, turnId } = e.detail;
     if (view === "journal") {
@@ -212,11 +234,9 @@ function setupListeners() {
     }
   });
 
-  // Keyboard
   document.addEventListener("keydown", (e) => {
     const tag = (e.target && e.target.tagName) || "";
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
     switch (e.key) {
       case "ArrowUp": case "w": e.preventDefault(); handle("move north"); break;
       case "ArrowDown": case "s": e.preventDefault(); handle("move south"); break;
@@ -227,7 +247,6 @@ function setupListeners() {
   });
 }
 
-// --- Polling with stale-response guard ---
 function startPolling() {
   setInterval(async () => {
     const res = await fetchState();
@@ -238,9 +257,8 @@ function startPolling() {
   }, 5000);
 }
 
-// --- Init ---
 document.addEventListener("DOMContentLoaded", () => {
   setupListeners();
-  connect();
+  handleRoute();
   startPolling();
 });

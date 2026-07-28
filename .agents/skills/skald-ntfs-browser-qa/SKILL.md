@@ -13,8 +13,8 @@ task.
 
 - Thread ID: `019fa52b-1610-7b23-9567-37891d24c782`
 - Host ID: `local`
-- Title: `??????? browser QA Skald`
-- Workspace: `C:\Users\?????\Documents\Codex\2026-07-27\skald-browser`
+- Title contains: `browser QA Skald`
+- Workspace: `C:\Users\<Windows-user>\Documents\Codex\2026-07-27\skald-browser`
 - Production URL: `http://192.168.0.5:3000`
 
 The task is projectless and exists only for browser control. It must not edit
@@ -80,6 +80,6 @@ blocked and include its exact error.
 
 ## Missing-task handling
 
-If the fixed thread cannot be found, search once by its exact title and NTFS
+If the fixed thread cannot be found, search once by its title fragment and NTFS
 workspace. If it is still absent, stop and tell the user. Creating another
 Codex task requires an explicit user request.
