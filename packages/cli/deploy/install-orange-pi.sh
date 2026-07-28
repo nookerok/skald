@@ -67,7 +67,16 @@ sudo install -d -o "${SKALD_USER}" -g "${SKALD_USER}" -m 700 "${SKALD_DATA}"
 sudo install -d -o "${SKALD_USER}" -g "${SKALD_USER}" -m 700 "${SKALD_DATA}/backups"
 echo "[OK] Data directories created."
 
-# 6. Env file (do not overwrite existing)
+# 6. Restricted updater privilege
+SUDOERS_SOURCE="${SKALD_CODE}/packages/cli/deploy/skald-sudoers"
+SUDOERS_TARGET="/etc/sudoers.d/skald-deploy"
+test -f "${SUDOERS_SOURCE}" || { echo "ERROR: ${SUDOERS_SOURCE} not found"; exit 1; }
+sudo /usr/sbin/visudo -cf "${SUDOERS_SOURCE}"
+sudo install -o root -g root -m 440 "${SUDOERS_SOURCE}" "${SUDOERS_TARGET}"
+sudo /usr/sbin/visudo -cf "${SUDOERS_TARGET}"
+echo "[OK] Restricted restart privilege installed."
+
+# 7. Env file (do not overwrite existing)
 if [ ! -f "${ENV_FILE}" ]; then
   cp "${SKALD_CODE}/packages/cli/deploy/skald.env.example" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
@@ -76,7 +85,7 @@ else
   echo "[OK] ${ENV_FILE} already exists."
 fi
 
-# 7. Helper scripts first
+# 8. Helper scripts first
 echo "Installing helper scripts..."
 for script in update-orange-pi.sh backup-skald.sh restore-skald.sh skald-healthcheck.sh; do
   sudo cp "${SKALD_CODE}/packages/cli/deploy/${script}" "/usr/local/bin/${script}"
@@ -84,7 +93,7 @@ for script in update-orange-pi.sh backup-skald.sh restore-skald.sh skald-healthc
 done
 echo "[OK] Scripts installed."
 
-# 8. systemd units
+# 9. systemd units
 echo "Installing systemd units..."
 sudo cp "${SKALD_CODE}/packages/cli/deploy/skald.service" /etc/systemd/system/skald.service
 for unit in skald-backup.service skald-backup.timer skald-healthcheck.service skald-healthcheck.timer; do
@@ -93,7 +102,7 @@ done
 sudo systemctl daemon-reload
 echo "[OK] Units installed."
 
-# 9. Start server and wait for health
+# 10. Start server and wait for health
 sudo systemctl enable skald.service
 sudo systemctl start skald.service
 echo "Waiting for server to become healthy..."
@@ -109,7 +118,7 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# 10. Enable timers (only after server confirmed healthy)
+# 11. Enable timers (only after server confirmed healthy)
 sudo systemctl enable --now skald-healthcheck.timer
 sudo systemctl enable --now skald-backup.timer
 echo "[OK] Timers enabled."

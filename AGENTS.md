@@ -123,7 +123,9 @@ Deployment is operational, not a game Rule or Domain Event.
 1. Deploy only from a clean branch after npm run validate.
 2. Commit and push before device update; Orange Pi update is fast-forward only.
 3. Installer/updater run as the deployment user, not sudo ./script.sh. Runtime
-   is exactly Node v22.23.1 and is checked before build/start.
+   is exactly Node v22.23.1 and is checked before build/start. The installer
+   grants `nooker` passwordless access only to restart `skald.service`; updater
+   must verify that restricted permission before backup or pull.
 4. Before update require a non-empty SQLite source, online backup and
    PRAGMA integrity_check = ok.
 5. Restore only through /usr/local/bin/restore-skald.sh. Stop timers/services,

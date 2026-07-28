@@ -30,10 +30,11 @@ The install script will:
 1. Verify prerequisites (including exact Node v22.23.1 binary)
 2. Run build and tests
 3. Create `/home/nooker/skald-data` and backups directory
-4. Install helper scripts to `/usr/local/bin/`
-5. Install systemd units
-6. Start the server and wait for health
-7. Enable health check and backup timers
+4. Install a restricted sudoers rule for restarting only `skald.service`
+5. Install helper scripts to `/usr/local/bin/`
+6. Install systemd units
+7. Start the server and wait for health
+8. Enable health check and backup timers
 
 > **Do not run install-orange-pi.sh with sudo.** It refuses root. Only `systemctl` and file copies inside the script use sudo.
 
@@ -75,13 +76,15 @@ sudo systemctl disable --now skald.service
 
 The update script:
 1. Refuses root/sudo
-2. Checks for clean working tree (including untracked files)
-3. Rejects detached HEAD
-4. Creates SQLite backup (only if DB exists)
-5. Fetches and merges via `git pull --ff-only`
-6. Runs `npm ci`, typecheck, and tests
-7. Restarts the service
-8. Waits up to 60 seconds for health check
+2. Requires the installer-managed non-interactive permission to restart only
+   `skald.service`; it fails before backup or pull when the permission is absent
+3. Checks for clean working tree (including untracked files)
+4. Rejects detached HEAD
+5. Creates and verifies a SQLite backup
+6. Fetches and merges via `git pull --ff-only`
+7. Runs `npm ci`, typecheck, and tests
+8. Restarts the service
+9. Waits up to 60 seconds for health check
 
 > **Do not run update-orange-pi.sh with sudo.** It refuses root.
 

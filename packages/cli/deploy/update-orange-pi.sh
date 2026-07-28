@@ -35,14 +35,21 @@ PREV_COMMIT=$(git rev-parse HEAD)
 echo "Branch: ${PREV_BRANCH}"
 echo "Commit: ${PREV_COMMIT}"
 
-# 3. Database must exist for always-on server
+# 3. Require the installer-managed restricted restart privilege before mutation
+if ! sudo -n -l /usr/bin/systemctl restart skald.service >/dev/null 2>&1; then
+  echo "ERROR: Non-interactive restart permission is not installed."
+  echo "Run packages/cli/deploy/install-orange-pi.sh interactively once."
+  exit 1
+fi
+
+# 4. Database must exist for always-on server
 if [ ! -s "${DB}" ]; then
   echo "ERROR: ${DB} does not exist or is empty."
   echo "For an always-on server the canonical database must be present."
   exit 1
 fi
 
-# 4. Backup SQLite
+# 5. Backup SQLite
 mkdir -p "${BACKUP_DIR}"
 BACKUP_FILE="${BACKUP_DIR}/backup-${PREV_COMMIT}-pre-update-$(date +%Y%m%d-%H%M%S).sqlite"
 echo "Backing up SQLite to ${BACKUP_FILE}..."
@@ -55,7 +62,7 @@ if [ "${RESULT}" != "ok" ]; then
 fi
 echo "[OK] Backup created and verified."
 
-# 5. Fetch and fast-forward
+# 6. Fetch and fast-forward
 echo "Fetching updates..."
 git fetch origin "${PREV_BRANCH}"
 if ! git pull --ff-only origin "${PREV_BRANCH}"; then
@@ -64,7 +71,7 @@ if ! git pull --ff-only origin "${PREV_BRANCH}"; then
   exit 1
 fi
 
-# 6. Fix Node runtime to match systemd unit
+# 7. Fix Node runtime to match systemd unit
 if [ ! -x "${NODE_BINARY}" ]; then
   echo "ERROR: Node v22.23.1 not found at ${NODE_BINARY}."
   echo "Run: nvm install 22.23.1 && nvm use 22.23.1"
@@ -79,7 +86,7 @@ if [ "${NODE_VER}" != "v22.23.1" ]; then
 fi
 echo "[OK] Node v22.23.1 confirmed."
 
-# 7. Build and test — wrap in rollback-guidance block
+# 8. Build and test — wrap in rollback-guidance block
 echo "Installing dependencies..."
 if ! npm ci; then
   echo "ERROR: npm ci failed."
@@ -100,10 +107,10 @@ if ! npm test -- --run; then
 fi
 echo "[OK] Build and tests passed."
 
-# 7. Restart
-sudo systemctl restart skald.service
+# 9. Restart through the installer-managed single-command sudoers policy
+sudo -n /usr/bin/systemctl restart skald.service
 
-# 8. Wait for health
+# 10. Wait for health
 echo "Waiting for health check..."
 for i in $(seq 1 60); do
   if curl --fail --silent --max-time 2 http://127.0.0.1:3000/api/health > /dev/null 2>&1; then

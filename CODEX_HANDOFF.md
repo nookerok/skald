@@ -4,7 +4,7 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-28
 Branch: main
-Working tree: UX-1 implementation complete
+Working tree: deploy privilege hardening pending validation and commit
 
 ## Current milestone
 
@@ -39,20 +39,21 @@ UX-1 — Current Playable Shell is complete.
 
 ## Current task
 
-Run manual browser smoke-test. Then commit and deploy to Orange Pi.
+UX-1 is deployed to Orange Pi at commit 1cf6d76. API smoke passed 10/10
+(worldTime 32 to 42, duplicate request 409). Fix the updater restart privilege
+gate, install it once on the device, then re-run the updater non-interactively.
 
 ## Exact next step
 
-1. Run npm run validate.
-2. Manual browser playtest: 10 turns → reload → thread filter → pagination
-   → offline → reconnect → retry → keyboard → reduced motion.
-3. Commit and push.
-4. Deploy to Orange Pi via update-orange-pi.sh.
+1. Validate, commit and push the restricted restart policy.
+2. Run install-orange-pi.sh interactively once to install the policy.
+3. Re-run update-orange-pi.sh over non-interactive SSH.
+4. Complete the visual browser smoke-test from an NTFS-backed browser task.
 
 ## Known blockers
 
 - Visual browser testing may be unavailable when the in-app browser sandbox
-  fails. Do not claim visual QA without an actual run.
+  fails in the WSL-backed task. Do not claim visual QA without an actual run.
 
 ## Do not continue
 

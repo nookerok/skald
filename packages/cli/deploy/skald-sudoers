@@ -1,0 +1,2 @@
+# Restricted privilege used by the non-interactive Skald updater.
+nooker ALL=(root) NOPASSWD: /usr/bin/systemctl restart skald.service

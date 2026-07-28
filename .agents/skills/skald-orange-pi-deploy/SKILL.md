@@ -47,7 +47,17 @@ branch, cleanliness, and service identity. Abort on any mismatch.
 
    If authentication fails, stop. Do not guess passwords, users, or keys.
 
-3. Run the installed updater as `nooker`, never through external `sudo`:
+3. Confirm the installer-managed restricted restart permission before mutation:
+
+   ```bash
+   ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5 \
+     'sudo -n -l /usr/bin/systemctl restart skald.service'
+   ```
+
+   This policy grants `nooker` only the ability to restart `skald.service`.
+   If it is missing, stop and run the installer interactively once.
+
+4. Run the installed updater as `nooker`, never through external `sudo`:
 
    ```bash
    ssh -i /home/nook/.ssh/id_ed25519_skald \
@@ -57,7 +67,7 @@ branch, cleanliness, and service identity. Abort on any mismatch.
    The updater owns backup, SQLite integrity, fast-forward pull, exact Node
    selection, dependency install, tests, restart, and its health gate.
 
-4. Confirm the deployed commit and services:
+5. Confirm the deployed commit and services:
 
    ```bash
    ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5 \
@@ -73,7 +83,8 @@ branch, cleanliness, and service identity. Abort on any mismatch.
 ## Install workflow
 
 Use installation only when `/home/nooker/skald` or the systemd deployment is
-absent. Read `packages/cli/deploy/README.md`, then run from the remote clone:
+absent, or once after upgrading an older installation that lacks the restricted
+restart policy. Read `packages/cli/deploy/README.md`, then run interactively from the remote clone:
 
 ```bash
 packages/cli/deploy/install-orange-pi.sh
