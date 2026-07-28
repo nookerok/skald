@@ -1,8 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { resolve, extname } from "node:path";
+import { execFileSync } from "node:child_process";
 
 const PUBLIC = resolve(import.meta.dirname, "../public");
+
+describe("Browser JS syntax gate", () => {
+  const jsFiles = readdirSync(PUBLIC).filter((f) => extname(f) === ".js");
+
+  for (const file of jsFiles) {
+    it(`${file} passes node --check`, () => {
+      const filePath = resolve(PUBLIC, file);
+      execFileSync(process.execPath, ["--check", filePath]);
+    });
+  }
+});
 
 describe("Browser ES modules — import link integrity", () => {
   it("journal-view.js exists and has expected exports", () => {

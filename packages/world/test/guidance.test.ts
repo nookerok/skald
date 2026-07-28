@@ -193,4 +193,53 @@ describe("Player Guidance", () => {
     expect(a).toEqual(makeGuidance([...base])); // stable
     expect(b.phase).toBe("test_trace"); // progressed
   });
+
+  // --- Regression tests for P1 fixes ---
+
+  it("19. one move counts as one action, not two", () => {
+    // MoveRequested + MovementSucceeded at same timestamp = 1 top-level action
+    const events = [ev("MoveRequested", 1), ev("MovementSucceeded", 1, { x: 0, y: 1 })];
+    // Only 1 top-level action (MoveRequested), so free_play is NOT triggered
+    const g = makeGuidance(events);
+    expect(g.phase).not.toBe("free_play");
+  });
+
+  it("20. three blocked movements do NOT trigger free_play", () => {
+    const events: DomainEvent[] = [];
+    for (let i = 1; i <= 3; i++) {
+      events.push(ev("MoveRequested", i));
+      events.push(ev("MovementBlocked", i, { reason: "wall" }));
+    }
+    // 3 MoveRequested = 3 top-level actions, well below 6
+    const g = makeGuidance(events);
+    expect(g.phase).not.toBe("free_play");
+  });
+
+  it("21. discovered → new trace remains free_play (does not revert to review_discovery)", () => {
+    // Full discovery path
+    const events: DomainEvent[] = [
+      ev("MoveRequested", 1), ev("MovementSucceeded", 1, { x: 0, y: 1 }),
+      ev("ObservationUpdated", 1, { key: "risk_taken", newValue: 1, delta: 1 }),
+      ev("AudacityTriggered", 2, {}),
+      ev("ConsequenceFired", 3, { consequenceType: "audacity", consequenceId: "c1", firedAt: 3 }),
+    ];
+    expect(makeGuidance(events).phase).toBe("review_discovery");
+
+    // Later ticks push past discoveredAt+2
+    const later = [...events, ev("TickPassed", 5, { delta: 1 }), ev("TickPassed", 6, { delta: 1 })];
+    expect(makeGuidance(later).phase).toBe("free_play");
+
+    // New trace after discovery should NOT reopen onboarding
+    const withNewTrace = [...later, ev("MoveRequested", 7), ev("MovementSucceeded", 7, { x: 1, y: 1 }),
+      ev("ObservationUpdated", 7, { key: "risk_taken", newValue: 2, delta: 1 })];
+    expect(makeGuidance(withNewTrace).phase).toBe("free_play");
+  });
+
+  it("22. GUIDANCE_ACTIONS allowlist is runtime-immutable", () => {
+    // Attempt to mutate the registry should throw
+    expect(() => { (GUIDANCE_ACTIONS as any).move_north = null; }).toThrow();
+    expect(() => { (GUIDANCE_ACTIONS as any).new_action = { kind: "command", input: "x", view: null }; }).toThrow();
+    // Attempt to mutate an inner def should also throw
+    expect(() => { (GUIDANCE_ACTIONS["move_north"] as any).input = "hacked"; }).toThrow();
+  });
 });

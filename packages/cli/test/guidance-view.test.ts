@@ -36,9 +36,9 @@ describe("guidance-view.js", () => {
     expect(code).toContain("skald:navigate");
   });
 
-  it("uses sessionStorage for dismissal", () => {
+  it("uses versioned sessionStorage for dismissal", () => {
     const code = readFileSync(resolve(PUBLIC, "guidance-view.js"), "utf-8");
-    expect(code).toContain("skald:guidance:dismissed:");
+    expect(code).toContain("skald:guidance:dismissed:1:");
   });
 
   it("renders free_play as collapsible details", () => {

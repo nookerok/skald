@@ -6,7 +6,7 @@ export interface GuidanceActionDef {
   readonly view: "journal" | "discoveries" | null;
 }
 
-export const GUIDANCE_ACTIONS: Record<GuidanceActionId, GuidanceActionDef> = {
+const _actions: Record<GuidanceActionId, GuidanceActionDef> = {
   move_north: { kind: "command", input: "move north", view: null },
   move_south: { kind: "command", input: "move south", view: null },
   move_east: { kind: "command", input: "move east", view: null },
@@ -18,3 +18,11 @@ export const GUIDANCE_ACTIONS: Record<GuidanceActionId, GuidanceActionDef> = {
   open_journal: { kind: "navigate", input: null, view: "journal" },
   open_discoveries: { kind: "navigate", input: null, view: "discoveries" },
 };
+
+// Deep-freeze the entire registry: the outer object and every inner def.
+for (const key of Object.keys(_actions)) {
+  Object.freeze(_actions[key as GuidanceActionId]);
+}
+Object.freeze(_actions);
+
+export const GUIDANCE_ACTIONS: Readonly<Record<GuidanceActionId, Readonly<GuidanceActionDef>>> = _actions;

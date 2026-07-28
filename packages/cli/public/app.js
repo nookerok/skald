@@ -199,10 +199,12 @@ function setupListeners() {
       handle(input);
     }
   });
+
+  // Handle navigation events from other views (e.g., discovery evidence → journal)
+  document.addEventListener("skald:navigate", (e) => {
     const { view, turnId } = e.detail;
     if (view === "journal") {
       switchView("journal");
-      // Try restoring the turn filter from sessionStorage
       if (turnId) {
         try { sessionStorage.setItem("skald:journal:turn-navigate", turnId); } catch {}
         loadJournal();
@@ -212,7 +214,7 @@ function setupListeners() {
 
   // Keyboard
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
+    const tag = (e.target && e.target.tagName) || "";
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
     switch (e.key) {

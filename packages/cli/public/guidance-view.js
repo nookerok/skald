@@ -26,7 +26,7 @@ export function applyGuidance(guidance) {
 
 function isDismissed(phase) {
   try {
-    const key = "skald:guidance:dismissed:" + phase;
+    const key = "skald:guidance:dismissed:1:" + phase;
     return sessionStorage.getItem(key) === "1";
   } catch { return false; }
 }
@@ -34,7 +34,7 @@ function isDismissed(phase) {
 function dismissCurrent() {
   if (!currentGuidance) return;
   try {
-    const key = "skald:guidance:dismissed:" + currentGuidance.phase;
+    const key = "skald:guidance:dismissed:1:" + currentGuidance.phase;
     sessionStorage.setItem(key, "1");
   } catch {}
   currentGuidance = null;

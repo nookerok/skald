@@ -4,7 +4,6 @@ export const APP = { BOOTING: "booting", READY: "ready", DISCONNECTED: "disconne
 export const CMD = { IDLE: "idle", PENDING: "pending", SUCCEEDED: "succeeded", REJECTED: "rejected", DUPLICATE: "duplicate", TRANSPORT_FAILED: "transport_failed", TIMEOUT: "timeout" };
 export const JOURNAL = { LOADING: "loading", AVAILABLE: "available", EMPTY: "empty", STALE: "stale", UNAVAILABLE: "unavailable" };
 export const DISCOVERIES = { LOADING: "loading", AVAILABLE: "available", EMPTY: "empty", STALE: "stale", UNAVAILABLE: "unavailable" };
-export const GUIDANCE = { LOADING: "loading", AVAILABLE: "available", FREE_PLAY: "free_play", STALE: "stale", UNAVAILABLE: "unavailable" };
 
 export function createInitialState() {
   return {
@@ -12,7 +11,6 @@ export function createInitialState() {
     command: CMD.IDLE,
     journal: JOURNAL.LOADING,
     discoveries: DISCOVERIES.LOADING,
-    guidance: GUIDANCE.LOADING,
     activeView: "game",
     activeThread: null,
     lastPlayerMessage: null,
@@ -84,21 +82,6 @@ export function transition(state, action, payload) {
 
     case "DISCOVERIES_UNAVAILABLE":
       return { ...state, discoveries: DISCOVERIES.UNAVAILABLE };
-
-    case "GUIDANCE_LOADING":
-      return { ...state, guidance: GUIDANCE.LOADING };
-
-    case "GUIDANCE_AVAILABLE":
-      return { ...state, guidance: GUIDANCE.AVAILABLE };
-
-    case "GUIDANCE_FREE_PLAY":
-      return { ...state, guidance: GUIDANCE.FREE_PLAY };
-
-    case "GUIDANCE_STALE":
-      return { ...state, guidance: GUIDANCE.STALE };
-
-    case "GUIDANCE_UNAVAILABLE":
-      return { ...state, guidance: GUIDANCE.UNAVAILABLE };
 
     case "SET_VIEW":
       return { ...state, activeView: payload };

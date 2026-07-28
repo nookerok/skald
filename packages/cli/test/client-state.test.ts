@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect } from "vitest";
-import { createInitialState, transition, APP, CMD, JOURNAL, DISCOVERIES, GUIDANCE } from "../public/client-state.js";
+import { createInitialState, transition, APP, CMD, JOURNAL, DISCOVERIES } from "../public/client-state.js";
 
 describe("client-state transitions", () => {
   it("initial state is booting", () => {
@@ -155,30 +155,5 @@ describe("client-state transitions", () => {
   it("DISCOVERIES_UNAVAILABLE transition", () => {
     const s = transition(createInitialState(), "DISCOVERIES_UNAVAILABLE");
     expect(s.discoveries).toBe(DISCOVERIES.UNAVAILABLE);
-  });
-
-  it("GUIDANCE_LOADING transition", () => {
-    const s = transition(createInitialState(), "GUIDANCE_LOADING");
-    expect(s.guidance).toBe(GUIDANCE.LOADING);
-  });
-
-  it("GUIDANCE_AVAILABLE transition", () => {
-    const s = transition(createInitialState(), "GUIDANCE_AVAILABLE");
-    expect(s.guidance).toBe(GUIDANCE.AVAILABLE);
-  });
-
-  it("GUIDANCE_FREE_PLAY transition", () => {
-    const s = transition(createInitialState(), "GUIDANCE_FREE_PLAY");
-    expect(s.guidance).toBe(GUIDANCE.FREE_PLAY);
-  });
-
-  it("GUIDANCE_STALE transition", () => {
-    const s = transition(createInitialState(), "GUIDANCE_STALE");
-    expect(s.guidance).toBe(GUIDANCE.STALE);
-  });
-
-  it("GUIDANCE_UNAVAILABLE transition", () => {
-    const s = transition(createInitialState(), "GUIDANCE_UNAVAILABLE");
-    expect(s.guidance).toBe(GUIDANCE.UNAVAILABLE);
   });
 });
