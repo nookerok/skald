@@ -4,9 +4,28 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-28
 Branch: main
-Working tree: UX-2 implementation complete
+Working tree: UX-3 implementation complete
 
 ## Current milestone
+
+UX-3 — Onboarding & Contextual Suggestions is complete.
+- ADR 0002: Player Guidance read model (deterministic, no Events/Rules).
+- Guidance selector: 7 phases (first_action→explore_world→test_trace→
+  strengthen_hypothesis→observe_consequence→review_discovery→free_play),
+  fully derived from Event Log + ReadonlyWorld + DiscoveryJournal.
+- Static action allowlist (GUIDANCE_ACTIONS): 8 commands + 2 navigate.
+  Selector can only reference registered IDs.
+- GET /api/guidance endpoint (200/405); inline guidance in command/wait
+  responses; worldTime consistency with state/presentation.
+- Browser guidance-view.js: onboarding cards with 2-3 suggestions + dismiss,
+  free_play collapsible block. skald:command and skald:navigate events.
+- Dismissal stored in sessionStorage per-phase; new phase reshows.
+- Guidance busy-state (disabled buttons during pending) in ui-state.js
+  and status-view.js.
+- docs/ux/UX3_FIRST_FIVE_MINUTES.md: primary and alternative routes.
+- 36 test files, 470 tests, 1 skip, tsc clean.
+
+## Completed
 
 UX-2 — Discovery Presentation is complete.
 - ADR 0001: Discovery read model (derived from Event Log, no new Events/Rules).

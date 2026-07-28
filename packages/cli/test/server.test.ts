@@ -254,6 +254,92 @@ describe("HTTP Server", () => {
     expect(await res.text()).toContain("export async function loadDiscoveries");
   });
 
+  it("GET /api/guidance returns 200 with guidance DTO", async () => {
+    const { status, body } = await api("/api/guidance");
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.guidance).toBeDefined();
+    expect(body.guidance.schemaVersion).toBe(1);
+    expect(body.guidance.suggestions).toBeInstanceOf(Array);
+    expect(body.guidance.worldTime).toBeGreaterThanOrEqual(0);
+  });
+
+  it("POST /api/guidance returns 405", async () => {
+    const { status } = await api("/api/guidance", { method: "POST" });
+    expect(status).toBe(405);
+  });
+
+  it("fresh world returns first_action guidance", async () => {
+    const tmpDirG = mkdtempSync(join(tmpdir(), "skald-guid-fresh-"));
+    const sFresh = await startServer({ host: "127.0.0.1", port: 0, dbPath: join(tmpDirG, "events.sqlite") });
+    try {
+      const res = await fetch(`${sFresh.url}/api/guidance`);
+      const body = await res.json() as any;
+      expect(body.guidance.phase).toBe("first_action");
+      expect(body.guidance.mode).toBe("onboarding");
+    } finally {
+      await sFresh.close();
+    }
+  });
+
+  it("command response includes inline guidance", async () => {
+    const { status, body } = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "move north", idempotencyKey: "guidance-cmd-1" }),
+    });
+    expect(status).toBe(200);
+    expect(body.guidance).toBeDefined();
+    expect(body.guidance.worldTime).toBe(body.state.worldTime);
+  });
+
+  it("wait response includes inline guidance", async () => {
+    const { status, body } = await api("/api/wait", {
+      method: "POST",
+      body: JSON.stringify({ count: 1, idempotencyKey: "guidance-wait-1" }),
+    });
+    expect(status).toBe(200);
+    expect(body.guidance).toBeDefined();
+  });
+
+  it("guidance, state and presentation worldTime are consistent", async () => {
+    const { body } = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "move north", idempotencyKey: "guidance-cons-1" }),
+    });
+    expect(body.guidance.worldTime).toBe(body.state.worldTime);
+    expect(body.presentation.worldTime).toBe(body.state.worldTime);
+  });
+
+  it("GET /guidance.css serves the guidance stylesheet", async () => {
+    const res = await fetch(`${server!.url}/guidance.css`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/css");
+  });
+
+  it("GET /guidance-view.js serves the guidance browser module", async () => {
+    const res = await fetch(`${server!.url}/guidance-view.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/javascript");
+    expect(await res.text()).toContain("export async function loadGuidance");
+  });
+
+  it("SQLite restart returns identical guidance", async () => {
+    const tmpDir4 = mkdtempSync(join(tmpdir(), "skald-guid-id-"));
+    const dbPath = join(tmpDir4, "events.sqlite");
+    const s5 = await startServer({ host: "127.0.0.1", port: 0, dbPath });
+    await fetch(`${s5.url}/api/command`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: "move north", idempotencyKey: "guid-restart-1" }) });
+    const { body: before } = await (await fetch(`${s5.url}/api/guidance`)).json() as any;
+    await s5.close();
+
+    const s6 = await startServer({ host: "127.0.0.1", port: 0, dbPath });
+    try {
+      const { body: after } = await (await fetch(`${s6.url}/api/guidance`)).json() as any;
+      expect(after).toEqual(before);
+    } finally {
+      await s6.close();
+    }
+  });
+
   it("invalid JSON body returns 400", async () => {
     const res = await fetch(`${server!.url}/api/command`, {
       method: "POST",

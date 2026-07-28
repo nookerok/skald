@@ -35,7 +35,7 @@ describe("browser pending state", () => {
 
     expect(buttons.every((button) => button.disabled)).toBe(true);
     expect(document.querySelectorAll).toHaveBeenCalledWith(
-      ".dir-btn, .social-btn, #send-btn, #retry-btn",
+      ".dir-btn, .social-btn, #send-btn, #retry-btn, .guidance-action",
     );
     expect(controls.attributes["aria-busy"]).toBe("true");
 

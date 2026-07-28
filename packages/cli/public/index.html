@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skald — Living World</title>
 <link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/guidance.css">
 </head>
 <body>
 <div id="app">
@@ -33,6 +34,11 @@
       <div id="primary-card" class="card card-primary" style="display:none"></div>
       <div id="notable-list"></div>
       <div id="suppressed-msg" style="display:none"></div>
+    </section>
+
+    <!-- Guidance (contextual suggestions) -->
+    <section id="guidance-section" aria-label="Подсказка" aria-live="polite">
+      <div id="guidance-container"></div>
     </section>
 
     <!-- D-pad + social actions -->

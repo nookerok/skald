@@ -2,6 +2,7 @@ import { sendCommand, fetchState, retryLast } from "./api-client.js";
 import { renderTurn, renderState, renderDiagnostics } from "./presentation-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
+import { loadGuidance, applyGuidance, renderGuidance } from "./guidance-view.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, APP, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
@@ -34,6 +35,7 @@ async function handle(input) {
       if (result.body.state) renderState(result.body.state);
       if (result.body.events) result.body.events.forEach((e) => renderDiagnostics.addEvent(e));
       if (result.body.tickEvents) result.body.tickEvents.forEach((e) => renderDiagnostics.addEvent(e));
+      if (result.body.guidance) applyGuidance(result.body.guidance);
       await loadJournal();
       await loadDiscoveries();
     } else if (result.body && result.body.error) {
@@ -78,6 +80,7 @@ async function connect() {
     dispatch("BOOT_SUCCESS", { turns: journalHasTurns ? 1 : 0 });
     if (stateRes.body && stateRes.body.ok && stateRes.body.state) renderState(stateRes.body.state);
     if (journalHasTurns) { await loadJournal(); await loadDiscoveries(); }
+    await loadGuidance();
   } catch {
     dispatch("BOOT_FAILURE");
     startReconnectLoop();
@@ -98,6 +101,7 @@ function startReconnectLoop() {
         dispatch("RECONNECT_SUCCESS", { turns: 0 });
         await loadJournal();
         await loadDiscoveries();
+        await loadGuidance();
         return;
       }
     } catch {}
@@ -136,6 +140,7 @@ function setupListeners() {
         if (result.body.state) renderState(result.body.state);
         if (result.body.events) result.body.events.forEach((e) => renderDiagnostics.addEvent(e));
         if (result.body.tickEvents) result.body.tickEvents.forEach((e) => renderDiagnostics.addEvent(e));
+        if (result.body.guidance) applyGuidance(result.body.guidance);
         await loadJournal();
         await loadDiscoveries();
       } else if (result.body && result.body.error) {
@@ -187,8 +192,13 @@ function setupListeners() {
   document.getElementById("tab-journal")?.addEventListener("click", () => switchView("journal"));
   document.getElementById("tab-discoveries")?.addEventListener("click", () => switchView("discoveries"));
 
-  // Handle navigation events from other views (e.g., discovery evidence → journal)
-  document.addEventListener("skald:navigate", (e) => {
+  // Handle command events from guidance suggestions
+  document.addEventListener("skald:command", (e) => {
+    const { input } = e.detail;
+    if (input && state.application === APP.READY && state.command !== CMD.PENDING) {
+      handle(input);
+    }
+  });
     const { view, turnId } = e.detail;
     if (view === "journal") {
       switchView("journal");

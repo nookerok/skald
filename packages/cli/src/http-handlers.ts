@@ -1,6 +1,6 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal } from "@skald/world";
+import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 
@@ -37,6 +37,12 @@ export function handleState(app: App): JsonResponse {
   return json({ ok: true, state });
 }
 
+function buildGuidance(app: App) {
+  const events = app.bus.query();
+  const world = app.projection.getSnapshot();
+  return buildPlayerGuidance(events, world);
+}
+
 function checkPoisoned(app: App): boolean {
   return (app.engine as any).isPoisoned?.() ?? false;
 }
@@ -57,7 +63,8 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
         return error("duplicate_request", "duplicate idempotencyKey", 409);
       const tickResult = r as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres });
+      const guidance = buildGuidance(app);
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
     }
     if (input.startsWith("advance ")) {
       const raw = input.slice(8).trim();
@@ -68,7 +75,8 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
         return error("duplicate_request", "duplicate idempotencyKey", 409);
       const tickResult = r as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres });
+      const guidance = buildGuidance(app);
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
     }
     const r = runCommandCycle(app, input, idempotencyKey);
     if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
@@ -79,6 +87,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
     const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
     const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
     const pres = selectTurnPresentation(allCycleEvents, app.projection.getSnapshot());
+    const guidance = buildGuidance(app);
     return json({
       ok: true,
       events: cmdResult.events,
@@ -86,6 +95,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       position: cmdResult.position,
       state: serializeWorldState(app),
       presentation: pres,
+      guidance,
     });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
@@ -106,7 +116,8 @@ export async function handleWait(app: App, body: unknown): Promise<JsonResponse>
       return error("duplicate_request", "duplicate idempotencyKey", 409);
     const r = result as { tickEvents: DomainEvent[] };
     const pres = selectTurnPresentation(r.tickEvents, app.projection.getSnapshot());
-    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: pres });
+    const guidance = buildGuidance(app);
+    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
   }
@@ -195,6 +206,11 @@ export function handleDiscoveries(app: App): JsonResponse {
   const events = app.bus.query();
   const journal = buildDiscoveryJournal(events);
   return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, worldTime: journal.worldTime });
+}
+
+export function handleGuidance(app: App): JsonResponse {
+  const guidance = buildGuidance(app);
+  return json({ ok: true, guidance });
 }
 
 export function handleHealth(app: App, _startTime: number): JsonResponse {

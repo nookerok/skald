@@ -2,7 +2,7 @@ export const MIN_PENDING_MS = 150;
 
 export function setControlsBusy(busy) {
   document
-    .querySelectorAll(".dir-btn, .social-btn, #send-btn, #retry-btn")
+    .querySelectorAll(".dir-btn, .social-btn, #send-btn, #retry-btn, .guidance-action")
     .forEach((element) => {
       element.disabled = busy;
     });

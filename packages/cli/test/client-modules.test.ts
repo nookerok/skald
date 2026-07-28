@@ -17,6 +17,20 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).toContain("export function renderDiscoveries");
   });
 
+  it("guidance-view.js exists and has expected exports", () => {
+    const code = readFileSync(resolve(PUBLIC, "guidance-view.js"), "utf-8");
+    expect(code).toContain("export async function loadGuidance");
+    expect(code).toContain("export function applyGuidance");
+    expect(code).toContain("export function renderGuidance");
+  });
+
+  it("guidance.css exists", () => {
+    expect(existsSync(resolve(PUBLIC, "guidance.css"))).toBe(true);
+    const css = readFileSync(resolve(PUBLIC, "guidance.css"), "utf-8");
+    expect(css).toContain(".guidance-action");
+    expect(css).toContain(".guidance-onboarding");
+  });
+
   it("all named imports in app.js actually exist in the target modules", () => {
     const appCode = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
     const stmts = appCode.matchAll(/import\s+\{\s*([^}]+)\s*\}\s*from\s+["']([^"']+)["']/g);

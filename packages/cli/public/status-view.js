@@ -64,7 +64,7 @@ export function renderStatus(state) {
   if (controls) {
     const busy = state.command === CMD.PENDING || state.application === APP.BOOTING || state.application === APP.RECONNECTING;
     controls.setAttribute("aria-busy", String(busy));
-    document.querySelectorAll(".dir-btn, .social-btn, #send-btn, #retry-btn").forEach((el) => {
+    document.querySelectorAll(".dir-btn, .social-btn, #send-btn, #retry-btn, .guidance-action").forEach((el) => {
       el.disabled = busy;
     });
   }
