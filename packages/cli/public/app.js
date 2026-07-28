@@ -22,7 +22,7 @@ function dispatch(action, payload) {
 }
 
 async function handle(input) {
-  if (state.command === CMD.PENDING) return;
+  if (state.application !== APP.READY || state.command === CMD.PENDING) return;
   const key = crypto.randomUUID();
   dispatch("COMMAND_START", { input, key });
   setControlsBusy(true);
@@ -57,7 +57,7 @@ async function handle(input) {
       dispatch("COMMAND_TRANSPORT_FAIL");
     }
   } finally {
-    setControlsBusy(false);
+    setControlsBusy(state.application !== APP.READY);
   }
 }
 
@@ -83,6 +83,7 @@ async function connect() {
     if (journalHasTurns) { await loadJournal(); await loadDiscoveries(); }
     await loadGuidance();
     renderGuidance();
+    setControlsBusy(false);
   } catch {
     dispatch("BOOT_FAILURE");
     startReconnectLoop();
@@ -104,6 +105,7 @@ function startReconnectLoop() {
         await loadJournal();
         await loadDiscoveries();
         await loadGuidance();
+        setControlsBusy(false);
         return;
       }
     } catch {}
@@ -126,6 +128,7 @@ function showGame(worldId) {
   document.getElementById("panel-game-shell").style.display = "block";
   document.getElementById("diagnostics-panel").style.display = "block";
   setCurrentWorld(worldId);
+  setControlsBusy(true);
   connect();
 }
 
@@ -187,7 +190,7 @@ function setupListeners() {
 
   document.getElementById("retry-btn")?.addEventListener("click", async () => {
     if (!state.pendingKey || !state.pendingInput) return;
-    if (state.command === CMD.PENDING) return;
+    if (state.application !== APP.READY || state.command === CMD.PENDING) return;
     setControlsBusy(true);
     dispatch("COMMAND_START", { input: state.pendingInput, key: state.pendingKey });
     try {
@@ -209,7 +212,7 @@ function setupListeners() {
     } catch (err) {
       if (err.name === "AbortError") { dispatch("COMMAND_TIMEOUT"); }
       else { dispatch("COMMAND_TRANSPORT_FAIL"); }
-    } finally { setControlsBusy(false); }
+    } finally { setControlsBusy(state.application !== APP.READY); }
   });
 
   document.getElementById("tab-game")?.addEventListener("click", () => switchView("game"));
