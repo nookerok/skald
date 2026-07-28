@@ -9,6 +9,7 @@ import { createInitialState, transition, APP, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
 
 let state = createInitialState();
+let interactionReady = false;
 
 function dispatch(action, payload) {
   const next = transition(state, action, payload);
@@ -22,7 +23,7 @@ function dispatch(action, payload) {
 }
 
 async function handle(input) {
-  if (state.application !== APP.READY || state.command === CMD.PENDING) return;
+  if (!interactionReady || state.command === CMD.PENDING) return;
   const key = crypto.randomUUID();
   dispatch("COMMAND_START", { input, key });
   setControlsBusy(true);
@@ -57,7 +58,7 @@ async function handle(input) {
       dispatch("COMMAND_TRANSPORT_FAIL");
     }
   } finally {
-    setControlsBusy(state.application !== APP.READY);
+    setControlsBusy(!interactionReady);
   }
 }
 
@@ -84,6 +85,7 @@ async function connect() {
     await loadGuidance();
     renderGuidance();
     setControlsBusy(false);
+    interactionReady = true;
   } catch {
     dispatch("BOOT_FAILURE");
     startReconnectLoop();
@@ -106,6 +108,7 @@ function startReconnectLoop() {
         await loadDiscoveries();
         await loadGuidance();
         setControlsBusy(false);
+        interactionReady = true;
         return;
       }
     } catch {}
@@ -117,6 +120,7 @@ function startReconnectLoop() {
 // --- View switching ---
 
 function showMenu() {
+  interactionReady = false;
   document.getElementById("panel-menu").style.display = "block";
   document.getElementById("panel-game-shell").style.display = "none";
   document.getElementById("diagnostics-panel").style.display = "none";
@@ -128,6 +132,7 @@ function showGame(worldId) {
   document.getElementById("panel-game-shell").style.display = "block";
   document.getElementById("diagnostics-panel").style.display = "block";
   setCurrentWorld(worldId);
+  interactionReady = false;
   setControlsBusy(true);
   connect();
 }
@@ -190,7 +195,7 @@ function setupListeners() {
 
   document.getElementById("retry-btn")?.addEventListener("click", async () => {
     if (!state.pendingKey || !state.pendingInput) return;
-    if (state.application !== APP.READY || state.command === CMD.PENDING) return;
+    if (!interactionReady || state.command === CMD.PENDING) return;
     setControlsBusy(true);
     dispatch("COMMAND_START", { input: state.pendingInput, key: state.pendingKey });
     try {
@@ -212,7 +217,7 @@ function setupListeners() {
     } catch (err) {
       if (err.name === "AbortError") { dispatch("COMMAND_TIMEOUT"); }
       else { dispatch("COMMAND_TRANSPORT_FAIL"); }
-    } finally { setControlsBusy(state.application !== APP.READY); }
+    } finally { setControlsBusy(!interactionReady); }
   });
 
   document.getElementById("tab-game")?.addEventListener("click", () => switchView("game"));
