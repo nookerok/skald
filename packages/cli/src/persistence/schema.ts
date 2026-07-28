@@ -1,9 +1,13 @@
 export const USER_VERSION = 2;
 
-export function execSchemaV2(db: { exec(sql: string): void }): void {
+export function configureDatabase(db: { exec(sql: string): void }): void {
+  // These connection pragmas cannot run while a migration transaction is open.
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = FULL");
   db.exec("PRAGMA busy_timeout = 5000");
+}
+
+export function execSchemaV2(db: { exec(sql: string): void }): void {
   db.exec(`PRAGMA user_version = ${USER_VERSION}`);
 
   db.exec(`CREATE TABLE IF NOT EXISTS character_profiles (

@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
-import { execSchemaV2 } from "./schema.js";
+import { configureDatabase, execSchemaV2 } from "./schema.js";
 import { migrateV1ToV2, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 
@@ -75,6 +75,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     throw new Error("node:sqlite is not available. Node.js 22.23.1+ required.");
   }
   const db = new DatabaseSync(dbPath) as SqliteHandle;
+  configureDatabase(db);
 
   // Version-aware open
   const versionAction = validateUserVersion(db);

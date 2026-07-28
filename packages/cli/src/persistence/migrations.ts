@@ -20,8 +20,14 @@ function eventDigest(rows: Record<string, unknown>[]): string {
   const h = createHash("sha256");
   for (const r of rows) {
     h.update(JSON.stringify([
-      r["seq"], r["event_id"], r["type"], r["schema_version"],
-      r["payload"], r["timestamp"], r["causation_id"], r["correlation_id"],
+      r["seq"],
+      r["event_id"],
+      r["type"],
+      r["schema_version"],
+      r["payload"] ?? r["payload_json"],
+      r["timestamp"],
+      r["causation_id"],
+      r["correlation_id"],
     ]));
   }
   return h.digest("hex");
@@ -35,49 +41,26 @@ interface MigrationResult {
 }
 
 export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
-  // Snapshot old data
   const oldEvents = getRows(db, "SELECT * FROM events ORDER BY seq ASC");
   const oldKeys = getRows(db, "SELECT * FROM processed_requests");
   const digestBefore = eventDigest(oldEvents);
 
-  // BEGIN EXCLUSIVE transaction
   db.exec("BEGIN EXCLUSIVE");
   try {
-    // Drop old indexes if they exist
-    try { db.exec("DROP INDEX IF EXISTS events_world_seq"); } catch { /* ignore */ }
-    try { db.exec("DROP INDEX IF EXISTS events_world_time"); } catch { /* ignore */ }
+    db.exec("DROP INDEX IF EXISTS events_world_seq");
+    db.exec("DROP INDEX IF EXISTS events_world_time");
 
-    // Create v2 tables under temp names
-    db.exec(`CREATE TABLE events_v2 (
-      seq            INTEGER PRIMARY KEY AUTOINCREMENT,
-      world_id       TEXT NOT NULL,
-      event_id       TEXT NOT NULL,
-      type           TEXT NOT NULL,
-      schema_version INTEGER NOT NULL,
-      payload_json   TEXT NOT NULL,
-      timestamp      INTEGER NOT NULL,
-      causation_id   TEXT,
-      correlation_id TEXT,
-      UNIQUE (world_id, event_id)
-    ) STRICT`);
+    // Keep the v1 tables available as migration sources while creating v2.
+    db.exec("ALTER TABLE events RENAME TO events_legacy");
+    db.exec("ALTER TABLE processed_requests RENAME TO processed_requests_legacy");
 
-    db.exec(`CREATE TABLE processed_requests_v2 (
-      world_id        TEXT NOT NULL,
-      idempotency_key TEXT NOT NULL,
-      request_kind    TEXT NOT NULL,
-      correlation_id  TEXT NOT NULL,
-      PRIMARY KEY (world_id, idempotency_key)
-    ) STRICT`);
-
-    // Create v2 tables
     execSchemaV2(db);
 
-    // Create legacy world record
     db.prepare(
-      "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at, last_played_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at, last_played_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     ).run(
       LEGACY_WORLD_ID,
-      "Первый мир",
+      "\u041f\u0435\u0440\u0432\u044b\u0439 \u043c\u0438\u0440",
       "legacy",
       null,
       null,
@@ -86,12 +69,12 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
       0,
     );
 
-    // Copy events with world_id
     const insertEv = db.prepare(
-      "INSERT INTO events (world_id, event_id, type, schema_version, payload_json, timestamp, causation_id, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO events (seq, world_id, event_id, type, schema_version, payload_json, timestamp, causation_id, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     );
     for (const r of oldEvents) {
       insertEv.run(
+        r["seq"],
         LEGACY_WORLD_ID,
         r["event_id"],
         r["type"],
@@ -103,9 +86,8 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
       );
     }
 
-    // Copy processed keys
     const insertKey = db.prepare(
-      "INSERT OR IGNORE INTO processed_requests (world_id, idempotency_key, request_kind, correlation_id) VALUES (?, ?, ?, ?)",
+      "INSERT INTO processed_requests (world_id, idempotency_key, request_kind, correlation_id) VALUES (?, ?, ?, ?)",
     );
     for (const r of oldKeys) {
       insertKey.run(
@@ -116,23 +98,20 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
       );
     }
 
-    // Verify row counts
     const newEventCount = (db.prepare("SELECT COUNT(*) AS c FROM events").get() as { c: number }).c;
     if (newEventCount !== oldEvents.length) {
       throw new Error(`event count mismatch: ${oldEvents.length} old vs ${newEventCount} new`);
     }
 
-    // Verify digest
     const newEventRows = getRows(db, "SELECT * FROM events ORDER BY seq ASC");
     const digestAfter = eventDigest(newEventRows);
+    if (digestBefore !== digestAfter) {
+      throw new Error(`event digest mismatch: ${digestBefore} old vs ${digestAfter} new`);
+    }
 
-    // Drop old tables
-    db.exec("DROP TABLE IF EXISTS events_v2");
-    db.exec("DROP TABLE IF EXISTS processed_requests_v2");
-
-    // Set version
-    db.exec(`PRAGMA user_version = 2`);
-
+    db.exec("DROP TABLE events_legacy");
+    db.exec("DROP TABLE processed_requests_legacy");
+    db.exec("PRAGMA user_version = 2");
     db.exec("COMMIT");
 
     return {
@@ -143,9 +122,6 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
     };
   } catch (err) {
     db.exec("ROLLBACK");
-    // Drop temp tables if they exist
-    try { db.exec("DROP TABLE IF EXISTS events_v2"); } catch { /* ignore */ }
-    try { db.exec("DROP TABLE IF EXISTS processed_requests_v2"); } catch { /* ignore */ }
     throw err;
   }
 }
@@ -166,9 +142,8 @@ export function verifyIntegrity(db: SqliteHandle): void {
   if (result.integrity_check !== "ok") {
     throw new Error(`SQLite integrity check failed: ${result.integrity_check}`);
   }
-  try {
-    db.prepare("PRAGMA foreign_key_check").all();
-  } catch (err) {
-    throw new Error(`Foreign key check failed: ${String(err)}`);
+  const foreignKeys = db.prepare("PRAGMA foreign_key_check").all();
+  if (foreignKeys.length > 0) {
+    throw new Error(`Foreign key check failed: ${JSON.stringify(foreignKeys)}`);
   }
 }
