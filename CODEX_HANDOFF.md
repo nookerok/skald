@@ -17,7 +17,12 @@ UX-1 — Current Playable Shell is complete.
 - Keyboard navigation: arrows/WASD for movement, Space for wait.
 - CSS custom properties, responsive layout, focus-visible, aria attributes.
 - Empty state, pending message, error messages without raw HTTP codes.
-- 29 test files, 351 tests, 1 skip, tsc clean.
+- 31 test files, 392 tests, 1 skip, tsc clean.
+- Thread filter persisted to sessionStorage; survives reload and re-render.
+- Journal pagination dedup prevents duplicate turns on <Ранее> load.
+- aria-pressed on active thread button; aria-expanded on turn accordions.
+- Retry reuses the original idempotency key (sendCommand bypass, not handle()).
+- Polling guard blocks overwrite during PENDING as well as SUCCEEDED.
 
 ## Completed
 

@@ -120,8 +120,39 @@ function setupListeners() {
     if (input) handle(input);
   });
   document.getElementById("retry-btn")?.addEventListener("click", async () => {
-    if (state.pendingKey && state.pendingInput) {
-      await handle(state.pendingInput);
+    if (!state.pendingKey || !state.pendingInput) return;
+    if (state.command === CMD.PENDING) return;
+    setControlsBusy(true);
+    dispatch("COMMAND_START", { input: state.pendingInput, key: state.pendingKey });
+    try {
+      const result = await sendCommand(state.pendingInput, state.pendingKey);
+      if (result.body && result.body.ok) {
+        dispatch("COMMAND_SUCCESS");
+        if (result.body.presentation) renderTurn(result.body.presentation);
+        if (result.body.state) renderState(result.body.state);
+        if (result.body.events) result.body.events.forEach((e) => renderDiagnostics.addEvent(e));
+        if (result.body.tickEvents) result.body.tickEvents.forEach((e) => renderDiagnostics.addEvent(e));
+        await loadJournal();
+      } else if (result.body && result.body.error) {
+        if (result.body.error.code === "duplicate_request") {
+          dispatch("COMMAND_DUPLICATE");
+          await reconcileAfterDuplicate();
+        } else if (result.body.error.code === "parse_error") {
+          dispatch("COMMAND_REJECTED", { message: result.body.error.message || "Неизвестная команда." });
+        } else {
+          dispatch("COMMAND_REJECTED", { message: result.body.error.message || "Мир не отвечает." });
+        }
+      } else {
+        dispatch("COMMAND_TRANSPORT_FAIL");
+      }
+    } catch (err) {
+      if (err.name === "AbortError") {
+        dispatch("COMMAND_TIMEOUT");
+      } else {
+        dispatch("COMMAND_TRANSPORT_FAIL");
+      }
+    } finally {
+      setControlsBusy(false);
     }
   });
 
@@ -151,14 +182,11 @@ function setupListeners() {
 }
 
 // --- Polling with stale-response guard ---
-let lastCommandTime = 0;
-
 function startPolling() {
   setInterval(async () => {
     const res = await fetchState();
     if (res.body && res.body.ok && res.body.state) {
-      // Don't overwrite if a command just succeeded
-      if (state.command === CMD.SUCCEEDED) return;
+      if (state.command === CMD.PENDING || state.command === CMD.SUCCEEDED) return;
       renderState(res.body.state);
     }
   }, 5000);

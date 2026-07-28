@@ -176,6 +176,22 @@ describe("HTTP Server", () => {
     expect(body.turns.length).toBeLessThanOrEqual(1);
   });
 
+  it("GET /client-state.js serves the pure state machine module", async () => {
+    const res = await fetch(`${server!.url}/client-state.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/javascript");
+    const text = await res.text();
+    expect(text).toContain("export const APP");
+    expect(text).toContain("export function transition");
+  });
+
+  it("GET /status-view.js serves the status renderer module", async () => {
+    const res = await fetch(`${server!.url}/status-view.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/javascript");
+    expect(await res.text()).toContain("export function renderStatus");
+  });
+
   it("invalid JSON body returns 400", async () => {
     const res = await fetch(`${server!.url}/api/command`, {
       method: "POST",

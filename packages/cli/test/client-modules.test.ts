@@ -40,4 +40,34 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).toContain("export function renderState");
     expect(code).toContain("export const renderDiagnostics");
   });
+
+  it("client-state.js exists and has expected exports", () => {
+    const code = readFileSync(resolve(PUBLIC, "client-state.js"), "utf-8");
+    expect(code).toContain("export const APP");
+    expect(code).toContain("export const CMD");
+    expect(code).toContain("export const JOURNAL");
+    expect(code).toContain("export function createInitialState");
+    expect(code).toContain("export function transition");
+  });
+
+  it("status-view.js exists and has expected exports", () => {
+    const code = readFileSync(resolve(PUBLIC, "status-view.js"), "utf-8");
+    expect(code).toContain("export function renderStatus");
+    expect(code).toContain("export function renderJournalStatus");
+  });
+
+  it("presentation-view.js does not expose raw event type in presentation rendering", () => {
+    const code = readFileSync(resolve(PUBLIC, "presentation-view.js"), "utf-8");
+    // renderTurn and renderState functions only use presentation data (pres.primary.text, state.*)
+    // The renderDiagnostics module (diagnostics panel) intentionally shows ev.type — that is allowed.
+    // Extract just the renderTurn and renderState function bodies to verify they don't leak event names.
+    const renderTurnMatch = code.match(/export function renderTurn[\s\S]*?(?=\nexport )/);
+    const renderStateMatch = code.match(/export function renderState[\s\S]*?(?=\nexport )/);
+    if (renderTurnMatch) {
+      expect(renderTurnMatch[0]).not.toMatch(/ev\.type/);
+    }
+    if (renderStateMatch) {
+      expect(renderStateMatch[0]).not.toMatch(/ev\.type/);
+    }
+  });
 });

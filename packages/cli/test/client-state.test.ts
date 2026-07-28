@@ -78,4 +78,57 @@ describe("client-state transitions", () => {
     const s = transition(createInitialState(), "SET_VIEW", "journal");
     expect(s.activeView).toBe("journal");
   });
+
+  it("COMMAND_TRANSPORT_FAIL preserves pending fields for retry", () => {
+    const s = transition(createInitialState(), "COMMAND_START", { input: "a", key: "k1" });
+    const next = transition(s, "COMMAND_TRANSPORT_FAIL");
+    expect(next.command).toBe(CMD.TRANSPORT_FAILED);
+    expect(next.pendingKey).toBe("k1");
+    expect(next.pendingInput).toBe("a");
+  });
+
+  it("TIMEOUT preserves key (retry possible), REJECTED clears key (game rejection)", () => {
+    const pending = transition(createInitialState(), "COMMAND_START", { input: "a", key: "k1" });
+    const timeout = transition(pending, "COMMAND_TIMEOUT");
+    const rejected = transition(pending, "COMMAND_REJECTED");
+    expect(timeout.pendingKey).toBe("k1");
+    expect(rejected.pendingKey).toBeNull();
+  });
+
+  it("RECONNECT_SUCCESS resets command to IDLE", () => {
+    const s = transition(createInitialState(), "COMMAND_START", { input: "a", key: "k1" });
+    const reconnected = transition(s, "RECONNECT_SUCCESS", { turns: 1 });
+    expect(reconnected.application).toBe(APP.READY);
+    expect(reconnected.command).toBe(CMD.IDLE);
+  });
+
+  it("JOURNAL_LOADING transition", () => {
+    const s = transition(createInitialState(), "JOURNAL_LOADING");
+    expect(s.journal).toBe(JOURNAL.LOADING);
+  });
+
+  it("JOURNAL_STALE transition", () => {
+    const s = transition(createInitialState(), "JOURNAL_STALE");
+    expect(s.journal).toBe(JOURNAL.STALE);
+  });
+
+  it("JOURNAL_UNAVAILABLE transition", () => {
+    const s = transition(createInitialState(), "JOURNAL_UNAVAILABLE");
+    expect(s.journal).toBe(JOURNAL.UNAVAILABLE);
+  });
+
+  it("JOURNAL_AVAILABLE with zero turns sets EMPTY", () => {
+    const s = transition(createInitialState(), "JOURNAL_AVAILABLE", { turns: 0 });
+    expect(s.journal).toBe(JOURNAL.EMPTY);
+  });
+
+  it("SET_THREAD updates activeThread", () => {
+    const s = transition(createInitialState(), "SET_THREAD", "movement");
+    expect(s.activeThread).toBe("movement");
+  });
+
+  it("SET_MESSAGE updates lastPlayerMessage", () => {
+    const s = transition(createInitialState(), "SET_MESSAGE", "Мир ответил.");
+    expect(s.lastPlayerMessage).toBe("Мир ответил.");
+  });
 });
