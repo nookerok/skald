@@ -21,6 +21,7 @@ import {
   handleWorldGuidance,
   handleWorldNarrative,
   handleWorldEvents,
+  handleWorldGameShell,
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
 
@@ -191,6 +192,7 @@ export async function startServer(options?: {
           if (sub === "/guidance") { const r = handleWorldGuidance(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/narrative") { const r = handleWorldNarrative(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/events") { const r = handleWorldEvents(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/game-shell") { const r = handleWorldGameShell(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
         }
 
         if (method === "POST") {

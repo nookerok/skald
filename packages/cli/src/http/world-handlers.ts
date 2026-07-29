@@ -4,6 +4,8 @@ import {
   buildTurnJournal,
   buildDiscoveryJournal,
   buildPlayerGuidance,
+  buildGameShellSnapshot,
+  buildShellDelta,
   selectTurnPresentation,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -103,12 +105,12 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         if ("type" in r && (r as any).type === "IdempotencyReject")
           return error("duplicate_request", "duplicate idempotencyKey", 409);
         const tickResult = r as { tickEvents: DomainEvent[] };
-        const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
-        const guidance = buildGuidance(runtime);
-        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance });
-      }
-
-      if (input.startsWith("advance ")) {
+      const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
+      const guidance = buildGuidance(runtime);
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta });
+    }
+    if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
         const n = Number(raw);
         if (!Number.isSafeInteger(n) || n < 1 || n > 100) return error("invalid_request", "advance N (1-100, integer)");
@@ -131,6 +133,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
       const pres = selectTurnPresentation(allCycleEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       return json({
         ok: true,
         events: cmdResult.events,
@@ -139,6 +142,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         state: serializeWorldStateFromRuntime(runtime),
         presentation: pres,
         guidance,
+        shellDelta,
       });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
@@ -181,6 +185,25 @@ export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
 export function handleWorldGuidance(runtime: WorldRuntime): JsonResponse {
   const guidance = buildGuidance(runtime);
   return json({ ok: true, guidance });
+}
+
+export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): JsonResponse {
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  // Read character profile from store
+  const record = (runtime.store as any).getWorldRecord(worldId);
+  let charProfile = null;
+  if (record?.characterId) {
+    try {
+      const db = (runtime.store as any).db;
+      if (db) {
+        const row = db.prepare("SELECT display_name, wound, promise, principle FROM character_profiles WHERE character_id = ?").get(record.characterId) as any;
+        if (row) charProfile = row;
+      }
+    } catch {}
+  }
+  const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId);
+  return json({ ok: true, snapshot });
 }
 
 export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
