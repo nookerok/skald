@@ -74,6 +74,9 @@ export function renderJournalStatus(state) {
   const container = document.getElementById("journal-container");
   if (!container) return;
 
+  // A populated journal is authoritative; never overlay an empty/loading status on it.
+  if (container.querySelector(".turn-entry")) return;
+
   const existingMsg = container.querySelector(".journal-status-msg");
   if (existingMsg) existingMsg.remove();
 
