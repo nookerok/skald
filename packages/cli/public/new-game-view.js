@@ -32,6 +32,15 @@ export async function initNewGame() {
   if (draft.templateId) selectedTemplateId = draft.templateId;
   if (draft.saveLabel) saveLabel = draft.saveLabel;
 
+  // Restore pending creation request
+  pendingReq = loadPendingRequest();
+  if (pendingReq) {
+    characterName = pendingReq.body.characterName;
+    selectedPresetId = pendingReq.body.characterPresetId;
+    selectedTemplateId = pendingReq.body.worldTemplateId;
+    saveLabel = pendingReq.body.saveLabel;
+  }
+
   await loadPresets();
   await loadTemplates();
 
@@ -236,10 +245,15 @@ function renderConfirmStep(container) {
     return;
   }
 
-  if (pendingReq && pendingReq.state === "failed") {
+  if (pendingReq && pendingReq.state === "timeout") {
     const errMsg = document.createElement("div");
     errMsg.className = "ng-error";
-    errMsg.textContent = "Не удалось создать мир. Проверь соединение и попробуй снова.";
+    errMsg.textContent = "Мир не отвечает. Проверь соединение и попробуй снова.";
+    container.appendChild(errMsg);
+  } else if (pendingReq && pendingReq.state === "failed") {
+    const errMsg = document.createElement("div");
+    errMsg.className = "ng-error";
+    errMsg.textContent = "Не удалось создать мир. Попробуй снова.";
     container.appendChild(errMsg);
   }
 
@@ -253,13 +267,33 @@ function renderConfirmStep(container) {
 
   const createBtn = document.createElement("button");
   createBtn.className = "ng-btn ng-btn-create";
-  createBtn.textContent = "Создать мир";
-  createBtn.addEventListener("click", createWorld);
+  createBtn.textContent = pendingReq ? "Повторить" : "Создать мир";
+  createBtn.addEventListener("click", () => {
+    if (pendingReq) { submitPendingRequest(); } else { createNewRequest(); }
+  });
   nav.appendChild(createBtn);
   container.appendChild(nav);
 }
 
-async function createWorld() {
+function loadPendingRequest() {
+  try {
+    const raw = sessionStorage.getItem("skald:new-game:pending");
+    if (!raw) return null;
+    const req = JSON.parse(raw);
+    if (!req.worldId || !req.idempotencyKey || !req.body) return null;
+    return req;
+  } catch { return null; }
+}
+
+function savePendingRequest(req) {
+  try { sessionStorage.setItem("skald:new-game:pending", JSON.stringify(req)); } catch {}
+}
+
+function clearPendingRequest() {
+  try { sessionStorage.removeItem("skald:new-game:pending"); } catch {}
+}
+
+function createNewRequest() {
   const worldId = createWorldId();
   const idempotencyKey = createIdempotencyKey();
   const body = {
@@ -270,26 +304,45 @@ async function createWorld() {
   };
 
   pendingReq = { worldId, idempotencyKey, body, state: "pending" };
-  try { sessionStorage.setItem("skald:new-game:pending", JSON.stringify(pendingReq)); } catch {}
+  savePendingRequest(pendingReq);
+  submitPendingRequest();
+}
+
+async function submitPendingRequest() {
+  if (!pendingReq) { pendingReq = loadPendingRequest(); }
+  if (!pendingReq) return;
+
+  pendingReq.state = "pending";
+  savePendingRequest(pendingReq);
   renderNewGame();
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
     const res = await fetch("/api/worlds", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(pendingReq.body),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
+
     const result = await res.json();
     if (result.ok) {
       clearDraft();
-      try { sessionStorage.removeItem("skald:new-game:pending"); } catch {}
-      window.location.hash = "#/world/" + (result.world?.worldId || worldId);
+      clearPendingRequest();
+      pendingReq = null;
+      window.location.hash = "#/world/" + (result.world?.worldId || pendingReq?.worldId);
     } else {
       pendingReq.state = "failed";
+      savePendingRequest(pendingReq);
       renderNewGame();
     }
-  } catch {
-    pendingReq.state = "failed";
+  } catch (err) {
+    clearTimeout(timeout);
+    pendingReq.state = err.name === "AbortError" ? "timeout" : "failed";
+    savePendingRequest(pendingReq);
     renderNewGame();
   }
 }

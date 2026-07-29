@@ -35,6 +35,7 @@ export interface CreateWorldParams {
   readonly characterWound: string;
   readonly characterPromise: string;
   readonly characterPrinciple: string;
+  readonly characterProfileVersion: number;
   readonly bootstrapEvents: readonly DomainEvent[];
 }
 
@@ -273,7 +274,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         // 1. Insert character profile
         db.prepare(
           "INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ).run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, 1, now);
+        ).run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, now);
 
         // 2. Insert world record
         db.prepare(

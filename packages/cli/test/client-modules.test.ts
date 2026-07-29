@@ -43,6 +43,23 @@ describe("Browser ES modules — import link integrity", () => {
     expect(css).toContain(".guidance-onboarding");
   });
 
+  it("new-game-view.js exists and has expected exports", () => {
+    const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
+    expect(code).toContain("export async function initNewGame");
+    expect(code).toContain("export function renderNewGame");
+  });
+
+  it("new-game-state.js exists and has expected exports", () => {
+    const code = readFileSync(resolve(PUBLIC, "new-game-state.js"), "utf-8");
+    expect(code).toContain("export function loadDraft");
+    expect(code).toContain("export function saveDraft");
+    expect(code).toContain("export function clearDraft");
+  });
+
+  it("new-game.css exists", () => {
+    expect(existsSync(resolve(PUBLIC, "new-game.css"))).toBe(true);
+  });
+
   it("all named imports in app.js actually exist in the target modules", () => {
     const appCode = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
     const stmts = appCode.matchAll(/import\s+\{\s*([^}]+)\s*\}\s*from\s+["']([^"']+)["']/g);

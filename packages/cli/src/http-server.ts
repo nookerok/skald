@@ -166,6 +166,12 @@ export async function startServer(options?: {
         url = new URL(newPath + url.search, `http://${req.headers.host ?? "localhost"}`);
       }
 
+      // 405 for catalog GET-only endpoints with wrong method
+      const catalogGets = ["/api/worlds", "/api/character-presets", "/api/world-templates", "/api/continue"];
+      if (method !== "GET" && catalogGets.includes(url.pathname)) {
+        errHandle(405, "method_not_allowed", `method ${method} not allowed`); return;
+      }
+
       // World-scoped
       const m = url.pathname.match(/^\/api\/worlds\/([^/]+)(\/.*)?$/);
       if (m) {

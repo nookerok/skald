@@ -52,19 +52,34 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
   const b = body as Record<string, unknown>;
 
-  const worldId = b["worldId"] as string;
-  const idempotencyKey = b["idempotencyKey"] as string;
-  const saveLabel = (b["saveLabel"] as string ?? "").trim();
-  const characterName = (b["characterName"] as string ?? "").trim();
-  const characterPresetId = b["characterPresetId"] as string;
-  const worldTemplateId = b["worldTemplateId"] as string;
+  const worldId = b["worldId"];
+  const idempotencyKey = b["idempotencyKey"];
+  const saveLabelRaw = b["saveLabel"];
+  const characterNameRaw = b["characterName"];
+  const characterPresetId = b["characterPresetId"];
+  const worldTemplateId = b["worldTemplateId"];
 
-  // Validation
-  if (!worldId || worldId.length < 1 || worldId.length > 128) return error("invalid_world_id", "worldId required (1-128 chars)", 400);
-  if (!idempotencyKey || idempotencyKey.length < 1 || idempotencyKey.length > 128) return error("invalid_key", "idempotencyKey required (1-128 chars)", 400);
-  if (!saveLabel || saveLabel.length < 1 || saveLabel.length > 80) return error("invalid_label", "saveLabel required (1-80 chars)", 400);
-  if (!characterName || characterName.length < 1 || characterName.length > 40) return error("invalid_name", "characterName required (1-40 chars)", 400);
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(worldId)) return error("invalid_world_id", "worldId must be alphanumeric", 400);
+  // Strict typeof checks before any operations
+  if (typeof worldId !== "string" || worldId.length < 1 || worldId.length > 128)
+    return error("invalid_world_id", "worldId required (string, 1-128 chars)", 400);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(worldId as string))
+    return error("invalid_world_id", "worldId must be alphanumeric", 400);
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 1 || idempotencyKey.length > 128)
+    return error("invalid_key", "idempotencyKey required (string, 1-128 chars)", 400);
+  if (typeof saveLabelRaw !== "string")
+    return error("invalid_label", "saveLabel must be a string", 400);
+  if (typeof characterNameRaw !== "string")
+    return error("invalid_name", "characterName must be a string", 400);
+  if (typeof characterPresetId !== "string")
+    return error("unknown_preset", "characterPresetId must be a string", 400);
+  if (typeof worldTemplateId !== "string")
+    return error("unknown_template", "worldTemplateId must be a string", 400);
+
+  const saveLabel = (saveLabelRaw as string).trim();
+  const characterName = (characterNameRaw as string).trim();
+
+  if (saveLabel.length < 1 || saveLabel.length > 80) return error("invalid_label", "saveLabel required (1-80 chars)", 400);
+  if (characterName.length < 1 || characterName.length > 40) return error("invalid_name", "characterName required (1-40 chars)", 400);
 
   const preset = getCharacterPreset(characterPresetId);
   if (!preset) return error("unknown_preset", `unknown character preset: ${characterPresetId}`, 400);
@@ -88,6 +103,7 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
     characterWound: preset.wound,
     characterPromise: preset.promise,
     characterPrinciple: preset.principle,
+    characterProfileVersion: preset.profileVersion,
     bootstrapEvents,
   };
 

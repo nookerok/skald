@@ -1,11 +1,12 @@
 import { commandEventId } from "../ids.js";
 import type { DomainEvent } from "@skald/event-bus";
+import { getWorldTemplate } from "./world-templates.js";
 
-/**
- * Build the initial bootstrap events for a given world template.
- * Different templates produce different starting Event Logs.
- */
 export function buildBootstrapEvents(templateId: string): readonly DomainEvent[] {
+  const template = getWorldTemplate(templateId);
+  if (!template && templateId !== "legacy") {
+    throw new Error(`Unknown world template: ${templateId}`);
+  }
   const events: DomainEvent[] = [];
 
   // PlayerSpawned — all worlds start with player at (0,0)
