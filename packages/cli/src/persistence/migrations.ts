@@ -126,15 +126,34 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
   if (v === 0) return "fresh";
   if (v === 1) return "migrate";
-  if (v === 2) return "open";
+  if (v === 2) return "migrateV3";
+  if (v === 3) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0, 1, or 2.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-3.`);
+}
+
+export function migrateV2ToV3(db: SqliteHandle): void {
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS world_creation_requests (
+      idempotency_key TEXT PRIMARY KEY,
+      request_hash    TEXT NOT NULL,
+      world_id        TEXT NOT NULL UNIQUE,
+      created_at      INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id)
+    ) STRICT`);
+    db.exec("PRAGMA user_version = 3");
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 export function verifyIntegrity(db: SqliteHandle): void {

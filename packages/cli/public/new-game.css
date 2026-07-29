@@ -1,0 +1,147 @@
+#panel-new-game {
+  max-width: 600px;
+  margin: 1rem auto;
+  padding: 1rem;
+}
+
+.ng-question {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+.ng-label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.ng-input {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.2rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-base);
+}
+
+.ng-input:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.ng-cards {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.ng-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.ng-card:hover { border-color: var(--focus-ring); }
+.ng-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.ng-card-selected { border-color: var(--accent); background: var(--bg-accent); }
+
+.ng-card-title {
+  font-size: var(--font-base);
+  font-weight: 500;
+  margin-bottom: 0.2rem;
+}
+
+.ng-card-desc {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin-bottom: 0.2rem;
+}
+
+.ng-card-question {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.ng-card-traits {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.ng-card-traits em { color: var(--accent); }
+
+.ng-nav {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.ng-btn {
+  padding: 0.6rem 1.2rem;
+  font-size: var(--font-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  min-height: var(--touch-target);
+  transition: background var(--transition);
+}
+
+.ng-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.ng-btn-back {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.ng-btn-back:hover { background: var(--bg-accent); }
+
+.ng-btn-next {
+  background: var(--bg-accent);
+  color: var(--text-primary);
+}
+
+.ng-btn-next:hover { background: var(--accent); }
+
+.ng-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ng-btn-create {
+  background: var(--accent);
+  color: white;
+  font-weight: 500;
+}
+
+.ng-btn-create:hover { background: var(--accent-dim); }
+
+.ng-confirm-info {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: var(--font-sm);
+  line-height: 1.6;
+}
+
+.ng-pending {
+  color: var(--focus-ring);
+  font-size: var(--font-sm);
+  padding: 0.5rem 0;
+}
+
+.ng-error {
+  color: #ef9a9a;
+  font-size: var(--font-sm);
+  padding: 0.5rem 0;
+}

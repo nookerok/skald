@@ -1,10 +1,13 @@
 export {
   createMultiWorldStore,
   DuplicateRequestError,
+  type MultiWorldStore,
+  type CommitOptions,
+  type CreateWorldParams,
+  type CreateWorldResult,
 } from "./sqlite-store.js";
-export type { MultiWorldStore, CommitOptions } from "./sqlite-store.js";
-export { migrateV1ToV2, validateUserVersion, verifyIntegrity } from "./migrations.js";
-export { configureDatabase, execSchemaV2, USER_VERSION } from "./schema.js";
+export { migrateV1ToV2, migrateV2ToV3, validateUserVersion, verifyIntegrity } from "./migrations.js";
+export { configureDatabase, execSchemaV2, execSchemaV3, USER_VERSION } from "./schema.js";
 export type {
   WorldId,
   CharacterProfileId,

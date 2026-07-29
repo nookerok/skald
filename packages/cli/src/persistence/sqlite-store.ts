@@ -3,8 +3,8 @@ import { dirname } from "node:path";
 import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
-import { configureDatabase, execSchemaV2 } from "./schema.js";
-import { migrateV1ToV2, validateUserVersion, verifyIntegrity } from "./migrations.js";
+import { configureDatabase, execSchemaV3 } from "./schema.js";
+import { migrateV1ToV2, migrateV2ToV3, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 
 export interface CommitOptions {
@@ -20,7 +20,27 @@ export interface MultiWorldStore {
   commitBatch(worldId: WorldId, events: readonly DomainEvent[], options?: CommitOptions): void;
   listWorlds(): WorldRecord[];
   getWorldRecord(worldId: WorldId): WorldRecord | null;
+  createWorld(params: CreateWorldParams): CreateWorldResult;
   close(): void;
+}
+
+export interface CreateWorldParams {
+  readonly worldId: WorldId;
+  readonly idempotencyKey: string;
+  readonly requestHash: string;
+  readonly saveLabel: string;
+  readonly characterName: string;
+  readonly characterPresetId: string;
+  readonly worldTemplateId: string;
+  readonly characterWound: string;
+  readonly characterPromise: string;
+  readonly characterPrinciple: string;
+  readonly bootstrapEvents: readonly DomainEvent[];
+}
+
+export interface CreateWorldResult {
+  created: boolean;
+  worldRecord: WorldRecord;
 }
 
 interface SqliteHandle {
@@ -81,7 +101,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const versionAction = validateUserVersion(db);
 
   if (versionAction === "fresh") {
-    execSchemaV2(db);
+    execSchemaV3(db);
     // Create legacy world record so FK constraints are satisfied
     db.prepare(
       "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -91,8 +111,15 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     const result = migrateV1ToV2(db);
     console.log(`[persistence] migrated v1→v2: ${result.eventCount} events, digest=${result.digestAfter.slice(0, 12)}`);
     verifyIntegrity(db);
+    // Chain to v3
+    migrateV2ToV3(db);
+    console.log(`[persistence] migrated v2→v3: world_creation_requests table added`);
+  } else if (versionAction === "migrateV3") {
+    verifyIntegrity(db);
+    migrateV2ToV3(db);
+    console.log(`[persistence] migrated v2→v3: world_creation_requests table added`);
   } else {
-    // Already v2 — verify
+    // Already v3 — verify
     verifyIntegrity(db);
   }
 
@@ -205,6 +232,86 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         lastPlayedAt: (r["last_played_at"] as number) ?? null,
         worldTime: (r["world_time"] as number) ?? 0,
       };
+    },
+
+    createWorld(params: CreateWorldParams): CreateWorldResult {
+      const now = Date.now();
+      const characterId = `char-${params.worldId}`;
+
+      // Check idempotency first
+      const existing = db.prepare("SELECT world_id, request_hash FROM world_creation_requests WHERE idempotency_key = ?").get(params.idempotencyKey) as Record<string, unknown> | undefined;
+      if (existing) {
+        if (existing["request_hash"] !== params.requestHash) {
+          throw Object.assign(new Error("conflicting creation request for key"), { code: "CONFLICT" });
+        }
+        const record = getWorld.get(existing["world_id"]) as Record<string, unknown>;
+        if (!record) throw new Error("existing creation record references missing world");
+        return {
+          created: false,
+          worldRecord: {
+            worldId: record["world_id"] as string,
+            saveLabel: record["save_label"] as string,
+            templateId: record["template_id"] as string,
+            characterId: (record["character_id"] as string) ?? null,
+            characterName: (record["character_name_snapshot"] as string) ?? null,
+            status: record["status"] as "active",
+            createdAt: record["created_at"] as number,
+            lastPlayedAt: (record["last_played_at"] as number) ?? null,
+            worldTime: 0,
+          },
+        };
+      }
+
+      // Check worldId uniqueness
+      const existingWorld = getWorld.get(params.worldId) as Record<string, unknown> | undefined;
+      if (existingWorld) {
+        throw Object.assign(new Error("world already exists"), { code: "DUPLICATE_WORLD" });
+      }
+
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        // 1. Insert character profile
+        db.prepare(
+          "INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, 1, now);
+
+        // 2. Insert world record
+        db.prepare(
+          "INSERT INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).run(params.worldId, params.saveLabel, params.worldTemplateId, characterId, params.characterName, "active", now);
+
+        // 3. Insert bootstrap events
+        for (const e of params.bootstrapEvents) {
+          db.prepare(
+            "INSERT INTO events (world_id, event_id, type, schema_version, payload_json, timestamp, causation_id, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          ).run(params.worldId, e.eventId, e.type, e.schemaVersion, JSON.stringify(e.payload), e.timestamp, e.causationId ?? null, e.correlationId);
+        }
+
+        // 4. Insert creation request
+        db.prepare(
+          "INSERT INTO world_creation_requests (idempotency_key, request_hash, world_id, created_at) VALUES (?, ?, ?, ?)",
+        ).run(params.idempotencyKey, params.requestHash, params.worldId, now);
+
+        db.exec("COMMIT");
+
+        return {
+          created: true,
+          worldRecord: {
+            worldId: params.worldId,
+            saveLabel: params.saveLabel,
+            templateId: params.worldTemplateId,
+            characterId,
+            characterName: params.characterName,
+            status: "active",
+            createdAt: now,
+            lastPlayedAt: null,
+            worldTime: 0,
+          },
+        };
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
     },
 
     close(): void {

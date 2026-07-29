@@ -4,6 +4,7 @@ import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadGuidance, applyGuidance, renderGuidance } from "./guidance-view.js";
 import { loadMenu } from "./menu-view.js";
+import { initNewGame, renderNewGame } from "./new-game-view.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, APP, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
@@ -122,6 +123,7 @@ function startReconnectLoop() {
 function showMenu() {
   interactionReady = false;
   document.getElementById("panel-menu").style.display = "block";
+  document.getElementById("panel-new-game").style.display = "none";
   document.getElementById("panel-game-shell").style.display = "none";
   document.getElementById("diagnostics-panel").style.display = "none";
   loadMenu();
@@ -133,6 +135,15 @@ function bindGameplayControls() {
     const button = document.getElementById(id);
     if (button) button.onclick = () => handle(input);
   }
+}
+
+function showNewGame() {
+  interactionReady = false;
+  document.getElementById("panel-menu").style.display = "none";
+  document.getElementById("panel-new-game").style.display = "block";
+  document.getElementById("panel-game-shell").style.display = "none";
+  document.getElementById("diagnostics-panel").style.display = "none";
+  initNewGame();
 }
 
 function showGame(worldId) {
@@ -174,6 +185,8 @@ function handleRoute() {
   const worldMatch = hash.match(/^#\/world\/(.+)$/);
   if (worldMatch) {
     showGame(worldMatch[1]);
+  } else if (hash.startsWith("#/new/")) {
+    showNewGame();
   } else {
     showMenu();
   }

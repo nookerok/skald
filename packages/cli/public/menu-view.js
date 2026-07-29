@@ -36,6 +36,13 @@ export function renderMenu(worlds) {
     container.appendChild(continueBtn);
   }
 
+  // New Game button
+  const newGameBtn = document.createElement("button");
+  newGameBtn.className = "menu-secondary-btn";
+  newGameBtn.textContent = "Новая игра";
+  newGameBtn.addEventListener("click", () => { window.location.hash = "#/new/character"; });
+  container.appendChild(newGameBtn);
+
   // World cards
   if (worlds.length > 0) {
     const section = document.createElement("section");

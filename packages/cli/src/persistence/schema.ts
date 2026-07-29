@@ -1,14 +1,13 @@
-export const USER_VERSION = 2;
+export const USER_VERSION = 3;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
-  // These connection pragmas cannot run while a migration transaction is open.
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = FULL");
   db.exec("PRAGMA busy_timeout = 5000");
 }
 
 export function execSchemaV2(db: { exec(sql: string): void }): void {
-  db.exec(`PRAGMA user_version = ${USER_VERSION}`);
+  db.exec(`PRAGMA user_version = 2`);
 
   db.exec(`CREATE TABLE IF NOT EXISTS character_profiles (
     character_id   TEXT PRIMARY KEY,
@@ -56,5 +55,18 @@ export function execSchemaV2(db: { exec(sql: string): void }): void {
     correlation_id  TEXT NOT NULL,
     FOREIGN KEY (world_id) REFERENCES worlds(world_id),
     PRIMARY KEY (world_id, idempotency_key)
+  ) STRICT`);
+}
+
+export function execSchemaV3(db: { exec(sql: string): void }): void {
+  execSchemaV2(db);
+  db.exec(`PRAGMA user_version = ${USER_VERSION}`);
+
+  db.exec(`CREATE TABLE IF NOT EXISTS world_creation_requests (
+    idempotency_key TEXT PRIMARY KEY,
+    request_hash    TEXT NOT NULL,
+    world_id        TEXT NOT NULL UNIQUE,
+    created_at      INTEGER NOT NULL,
+    FOREIGN KEY (world_id) REFERENCES worlds(world_id)
   ) STRICT`);
 }

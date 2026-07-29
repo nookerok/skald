@@ -2,110 +2,48 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
-Updated: 2026-07-28
+Updated: 2026-07-29
 Branch: main
-Working tree: UX-3 implementation complete
+Working tree: UX-4.1 implementation in progress
 
 ## Current milestone
 
-UX-3 — Onboarding & Contextual Suggestions is complete.
-- ADR 0002: Player Guidance read model (deterministic, no Events/Rules).
-- Guidance selector: 7 phases (first_action→explore_world→test_trace→
-  strengthen_hypothesis→observe_consequence→review_discovery→free_play),
-  fully derived from Event Log + ReadonlyWorld + DiscoveryJournal.
-- Static action allowlist (GUIDANCE_ACTIONS): 8 commands + 2 navigate.
-  Selector can only reference registered IDs.
-- GET /api/guidance endpoint (200/405); inline guidance in command/wait
-  responses; worldTime consistency with state/presentation.
-- Browser guidance-view.js: onboarding cards with 2-3 suggestions + dismiss,
-  free_play collapsible block. skald:command and skald:navigate events.
-- Dismissal stored in sessionStorage per-phase; new phase reshows.
-- Guidance busy-state (disabled buttons during pending) in ui-state.js
-  and status-view.js.
-- docs/ux/UX3_FIRST_FIVE_MINUTES.md: primary and alternative routes.
-- 36 test files, 470 tests, 1 skip, tsc clean.
+UX-4.1 — New Game Flow & Real Save Creation.
+
+Backend goals:
+- Character presets and world templates (static server allowlists)
+- POST /api/worlds with atomic create transaction + idempotency
+- Schema v3 (world_creation_requests table)
+- Catalog endpoints: /api/character-presets, /api/world-templates
+
+UI goals:
+- Character Selection screen with name input and preset cards
+- World Selection screen with template cards
+- Confirmation screen with creation pending/retry
+- Hash routing: #/new/character, #/new/world, #/new/confirm
+- Draft and pending-request persistence in sessionStorage
 
 ## Completed
 
-UX-2 — Discovery Presentation is complete.
-- ADR 0001: Discovery read model (derived from Event Log, no new Events/Rules).
-- Discovery builder: deterministic, deep-frozen, monotonic timestamps check.
-- First discovery law: risk_draws_attention (trace → hypothesis → discovered).
-- Discovery marks in Presentation: ObservationUpdated(risk_taken)→trace,
-  AudacityTriggered→omen, ConsequenceCreated(audacity)→omen,
-  ConsequenceFired(audacity)→echo.
-- GET /api/discoveries endpoint, POST returns 405.
-- Third UI tab «Открытия» with card sidebar + detail + evidence list.
-- Evidence click navigates to Journal tab via skald:navigate event.
-- Active card persisted to sessionStorage; survives reload.
-- Discoveries state model (loading/available/empty/stale/unavailable).
-- 34 test files, 429 tests, 1 skip, tsc clean.
-
-## Completed
-
-- Event Sourcing, deterministic RuleEngine and Projection replay.
-- Consequences, Situations, Observations, Biography, Heat, Relations,
-  duration checks, idempotency and player strategy.
-- Narrative v0/v1, HTTP server, SQLite persistence and Orange Pi deployment.
-- Server hardening, immutable snapshots/payloads and poisoning recovery.
-- Presentation Layer (Iteration 13): types, templates, selector, playable UI.
-- Turn Journal (Iteration 14): historical replay builder, thread aggregation,
-  HTTP API with pagination, browser journal-view.js.
-- UX-1: client-state machine, command recovery, reconnect loop, keyboard
-  navigation, responsive CSS, accessibility tokens, status rendering.
-- UX-2: Discovery read model, definition registry, discovery builder,
-  presentation marks, API endpoint, three-tab UI with evidence detail.
-- Client-state.js: pure state machine (booting/ready/disconnected/reconnecting/fatal).
-- status-view.js: renders connection status, command states, journal states.
-- Command recovery: timeout/transport failure keep pending key for retry.
-- Duplicate 409 triggers state + journal reconciliation.
-- Reconnect loop with exponential backoff (1s → 2s → 5s → 10s).
-- Keyboard navigation: arrows/WASD for movement, Space for wait.
-- CSS custom properties, responsive layout, focus-visible, aria attributes.
-- Empty state, pending message, error messages without raw HTTP codes.
-- 31 test files, 392 tests, 1 skip, tsc clean.
-- Thread filter persisted to sessionStorage; survives reload and re-render.
-- Journal pagination dedup prevents duplicate turns on <Ранее> load.
-- aria-pressed on active thread button; aria-expanded on turn accordions.
-- Retry reuses the original idempotency key (sendCommand bypass, not handle()).
-- Polling guard blocks overwrite during PENDING as well as SUCCEEDED.
-
-## Completed
-
-- Event Sourcing, deterministic RuleEngine and Projection replay.
-- Consequences, Situations, Observations, Biography, Heat, Relations,
-  duration checks, idempotency and player strategy.
-- Narrative v0/v1, HTTP server, SQLite persistence and Orange Pi deployment.
-- Server hardening, immutable snapshots/payloads and poisoning recovery.
-- Presentation Layer (Iteration 13): types, templates, selector, playable UI.
-- Turn Journal (Iteration 14): historical replay builder, thread aggregation,
-  HTTP API with pagination, browser journal-view.js.
-- UX-1: client-state machine, command recovery, reconnect loop, keyboard
-  navigation, responsive CSS, accessibility tokens, status rendering.
+UX-0: Product contract, authority boundaries, screen inventory
+UX-1: Playable shell, client-state, reconnect, keyboard, accessibility
+UX-2: Discovery read model, presentation marks, builder, discovery-view.js
+UX-3: Guidance phases, selector, allowlist, onboarding UI, dismissal
+UX-4.0: Multi-world persistence (schema v2), WorldRuntimeManager, scoped
+        HTTP API, Main Menu, Continue, hash routing, world-api-client
 
 ## Current task
 
-UX-1 and deploy privilege hardening are live on Orange Pi at commit f59ffce.
-API smoke passed 10/10 (worldTime 32 to 42, duplicate request 409).
-Non-interactive updater regression passed backup, 395 tests, restart and health.
-Visual browser QA remains pending because the WSL-backed browser sandbox fails.
-
-## Exact next step
-
-1. Open an NTFS-backed Codex browser task.
-2. Test http://192.168.0.5:3000 with ten real control clicks.
-3. Verify reload, thread filter, pagination, reconnect and retry.
-4. Start UX-2 only after visual QA is recorded.
+Build UX-4.1: character presets, world templates, schema v3, POST /api/worlds,
+catalog endpoints, New Game flow UI.
 
 ## Known blockers
 
-- Visual browser testing may be unavailable when the in-app browser sandbox
-  fails in the WSL-backed task. Do not claim visual QA without an actual run.
+None. All gates pass.
 
 ## Do not continue
 
-- Do not add Domain Events or Rules for UI behavior.
-- Do not modify RuleEngine, EventBus, or canonical Projection schema for
-  read-side features.
-- Do not install CodeGraph by modifying global configs without a separate
-  configuration review.
+- Do not add Domain Events or Rules for world creation or character selection.
+- Do not add gameplay bonuses to character presets.
+- Do not add deletion/renaming/archiving (deferred to UX-4.2).
+- Do not add LLM-generated characters or worlds.

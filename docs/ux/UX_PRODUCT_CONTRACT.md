@@ -1,6 +1,6 @@
 # UX Product Contract
 
-Status: UX-0 accepted planning baseline.
+Status: UX-4.0 baseline (Main Menu, multi-world persistence live).
 
 ## Product promise
 
@@ -18,14 +18,13 @@ observe -> choose a supported intention -> submit command
 
 ## Current production scope
 
-The production UI may expose only movement, wait, supported social actions,
-turn presentation, journal/thread filters, state reload and developer
-diagnostics. Every control must map to an existing command/API contract.
+Production UI exposes: Main Menu, Continue, multi-world persistence,
+movement, wait, social actions, turn presentation, journal/thread filters,
+discovery cards, onboarding guidance, state reload, diagnostics, responsive
+layout, accessibility, reconnect and error recovery.
 
-Inventory, NPC dialogue, free-form world navigation, multi-world selection,
-character creation, accounts, voice and write-capable offline mode are future
-concepts until their Events, Rules, Projection fields, persistence and API are
-approved.
+Character selection and world creation are implemented in UX-4.1
+(New Game Flow). Deletion, renaming, archiving and export are deferred.
 
 ## Authority boundary
 
@@ -34,9 +33,6 @@ player-facing and their importance. Narrative/LLM may rephrase selected facts;
 it may not select facts, importance, actions or outcomes. The browser renders
 server DTOs and sends external commands; it never becomes a world authority.
 
-## UX-1 scope
-
-The next implementation slice is the current playable shell: Game Screen,
-turn presentation, journal, thread filters, loading/reconnect/error states,
-developer diagnostics, responsive layout and accessibility. Future screens are
-documented separately and are not represented as working controls.
+World creation is an operational atomic transaction, not a Domain Event
+or a Rule. Character presets and world templates are server-side static
+allowlists.

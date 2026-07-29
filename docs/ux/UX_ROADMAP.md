@@ -1,28 +1,40 @@
 # UX Roadmap
 
-## UX-0 — Product Contract
+## UX-0 — Product Contract (completed)
 
 Capability classification, authority boundaries, screen tiers, interaction
 grammar, shared state model and acceptance gates. Documentation only.
 
-## UX-1 — Current Playable Shell
+## UX-1 — Current Playable Shell (completed)
 
 Responsive Game Screen, presentation, journal, threads, recovery states,
-diagnostics, design tokens and accessibility using current APIs only.
+diagnostics, design tokens, accessibility, keyboard navigation.
 
-## UX-2 — Discovery Presentation
+## UX-2 — Discovery Presentation (completed)
 
-Trace, Hypothesis and Discovery as read-side concepts. No new canonical entity
-is added without a separate architecture decision.
+Trace, Hypothesis and Discovery as read-side concepts. Discovery builder,
+presentation marks, /api/discoveries, Discovery tab in UI.
 
-## UX-3 — Character Identity and Onboarding
+## UX-3 — Onboarding & Contextual Suggestions (completed)
 
-Wound, Promise, Principle and first-session onboarding after their Event,
-Projection, persistence and command contracts are accepted.
+Deterministic guidance phases: first_action → explore_world → test_trace →
+strengthen_hypothesis → observe_consequence → review_discovery → free_play.
+Static action allowlist. Browser guidance-view.js with dismissal.
 
-## UX-4 — Character and World Persistence
+## UX-4.0 — Main Menu & Multi-World Persistence (completed)
 
-Multiple characters/worlds, selection, save boundaries and isolation model.
+Schema v2 migration, WorldRuntimeManager, scoped HTTP API, Main Menu,
+Continue via /api/continue, hash routing, world-api-client.
+
+## UX-4.1 — New Game Flow & Real Save Creation (current)
+
+Character presets, world templates, schema v3 (world_creation_requests),
+POST /api/worlds with atomic create transaction, Character Selection
+and World Selection UI, draft and pending state, retry idempotency.
+
+## UX-4.2 — Save Management (next)
+
+Deletion, renaming, archiving, export/import of worlds.
 
 ## UX-5 — Extended Interactions
 

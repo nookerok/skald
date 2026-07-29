@@ -38,6 +38,24 @@
 .menu-primary-btn:hover { background: var(--accent-dim); }
 .menu-primary-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
+.menu-secondary-btn {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto 0.5rem;
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  background: var(--bg-accent);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.menu-secondary-btn:hover { background: var(--accent); }
+.menu-secondary-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
 .menu-worlds {
   text-align: left;
   margin-top: 1rem;

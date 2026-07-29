@@ -8,6 +8,9 @@ import { readJsonBody } from "./http-body.js";
 import {
   handleWorlds,
   handleContinue,
+  handleCharacterPresets,
+  handleWorldTemplates,
+  handleCreateWorld,
 } from "./http/catalog-handlers.js";
 import {
   handleWorldState,
@@ -123,18 +126,31 @@ export async function startServer(options?: {
       // Static files
       if (method === "GET") {
         if (url.pathname === "/" || url.pathname === "/index.html") { serveStatic("/index.html", res, corsOrigin); return; }
-        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js"];
+        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js"];
         if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
-        const cssFiles = ["/styles.css", "/guidance.css", "/menu.css"];
+        const cssFiles = ["/styles.css", "/guidance.css", "/menu.css", "/new-game.css"];
         if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
       }
 
       // Catalog
       if (method === "GET" && url.pathname === "/api/worlds") { const r = handleWorlds(runtimes); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/continue") { const r = handleContinue(runtimes); handle(r.statusCode, JSON.parse(r.body)); return; }
+      if (method === "GET" && url.pathname === "/api/character-presets") { const r = handleCharacterPresets(); handle(r.statusCode, JSON.parse(r.body)); return; }
+      if (method === "GET" && url.pathname === "/api/world-templates") { const r = handleWorldTemplates(); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/health") {
         handle(200, { status: "ok", uptimeSeconds: Math.floor(process.uptime()), persistence: "sqlite", multiWorld: true });
         return;
+      }
+
+      // POST /api/worlds — create new world (before unscoped mapping)
+      if (method === "POST" && url.pathname === "/api/worlds") {
+        if (parseContentType(req.headers["content-type"]) !== "application/json") { errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return; }
+        let body: unknown;
+        try { body = await readJsonBody(req); } catch (err) {
+          errHandle((err as any)?.message?.includes("too large") ? 413 : 400, "invalid_request", "invalid body"); return;
+        }
+        const r = await handleCreateWorld(runtimes, body);
+        handle(r.statusCode, JSON.parse(r.body)); return;
       }
 
       // Mapping from unscoped paths to world-scoped sub-paths

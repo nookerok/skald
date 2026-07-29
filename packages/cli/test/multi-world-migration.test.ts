@@ -49,7 +49,7 @@ describe("multi-world persistence migration", () => {
     store.close();
 
     const reopened = new DatabaseSync(dbPath);
-    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 2 });
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 3 });
     expect(reopened.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
     reopened.close();
   });
