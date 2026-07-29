@@ -37,7 +37,7 @@ function apiBase() {
 }
 
 export async function sendCommand(input, overrideKey) {
-  const key = overrideKey || genKey();
+  const key = overrideKey || createRequestKey();
   if (!overrideKey) {
     retryKey = key;
     retryInput = input;
@@ -58,6 +58,21 @@ export async function sendCommand(input, overrideKey) {
   }
 }
 
+export async function fetchGameShell() {
+  try {
+    const res = await fetch(`${apiBase()}/game-shell`, { signal: AbortSignal.timeout(5000) });
+    const body = await res.json();
+    return { status: res.status, body };
+  } catch { return { status: 0, body: null }; }
+}
+
+export async function fetchEvents() {
+  try {
+    const res = await fetch(`${apiBase()}/events?limit=100`, { signal: AbortSignal.timeout(5000) });
+    const body = await res.json();
+    return { status: res.status, body };
+  } catch { return { status: 0, body: null }; }
+}
 export async function fetchState() {
   try {
     const res = await fetch(`${apiBase()}/state`, { signal: AbortSignal.timeout(5000) });
@@ -72,12 +87,12 @@ let retryKey = null;
 let retryInput = null;
 let fallbackKeySequence = 0;
 
-function genKey() {
+export function createRequestKey(prefix = "web") {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
   }
   fallbackKeySequence += 1;
-  return ["web", Date.now().toString(36), fallbackKeySequence.toString(36), Math.random().toString(36).slice(2)].join("-");
+  return [prefix, Date.now().toString(36), fallbackKeySequence.toString(36), Math.random().toString(36).slice(2)].join("-");
 }
 
 export function retryLast() {

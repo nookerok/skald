@@ -1,3 +1,5 @@
+import { createRequestKey } from "./world-api-client.js";
+
 const DRAFT_KEY = "skald:new-game-draft:1";
 
 export function loadDraft() {
@@ -18,9 +20,9 @@ export function clearDraft() {
 }
 
 export function createWorldId() {
-  return globalThis.crypto?.randomUUID?.() ?? "world-" + Date.now().toString(36);
+  return createRequestKey("world");
 }
 
 export function createIdempotencyKey() {
-  return globalThis.crypto?.randomUUID?.() ?? "ik-" + Date.now().toString(36);
+  return createRequestKey("ik");
 }

@@ -88,6 +88,8 @@ function renderCharacterStep(container) {
   nameInput.addEventListener("input", () => {
     characterName = nameInput.value.trim();
     saveDraft({ name: characterName, presetId: selectedPresetId, templateId: selectedTemplateId, saveLabel });
+    const next = container.querySelector(".ng-btn-next");
+    if (next) next.disabled = !characterName || !selectedPresetId;
   });
   nameLabel.appendChild(nameInput);
   container.appendChild(nameLabel);

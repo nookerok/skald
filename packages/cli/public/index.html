@@ -3,98 +3,119 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a1208">
 <title>Skald — Living World</title>
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/guidance.css">
 <link rel="stylesheet" href="/menu.css">
 <link rel="stylesheet" href="/new-game.css">
+<link rel="stylesheet" href="/game-shell.css">
 </head>
 <body>
 <div id="app">
+  <div id="panel-menu"><div id="menu-container"></div></div>
+  <div id="panel-new-game" hidden><div id="new-game-container"></div></div>
 
-  <!-- Main Menu -->
-  <div id="panel-menu">
-    <div id="menu-container"></div>
-  </div>
+  <div id="panel-game-shell" class="skald-shell" hidden>
+    <div class="skald-frame">
+      <header class="skald-topbar">
+        <button id="btn-to-menu" class="topbar-button" aria-label="Главное меню">← Меню</button>
+        <div class="skald-brand">SKALD <span id="active-world-label">Living World</span></div>
+        <div class="connection-state"><span id="connection-dot" class="connection-dot"></span><span id="status-text" aria-live="polite" role="status">Загрузка...</span></div>
+        <div class="topbar-meta"><span id="time-display">T: 0</span><span id="pos-display">(0, 0)</span></div>
+        <button id="open-journal-btn" class="topbar-button">Журнал</button>
+        <button id="open-discoveries-btn" class="topbar-button">Открытия</button>
+        <button id="open-dev-btn" class="topbar-button">Dev</button>
+      </header>
 
-  <!-- New Game flow -->
-  <div id="panel-new-game" style="display:none">
-    <div id="new-game-container"></div>
-  </div>
+      <section id="world-activity" class="world-activity" aria-label="Активность мира">
+        <span class="world-activity-label">Мир продолжает жить</span>
+        <div id="world-activity-list" class="world-activity-list"></div>
+      </section>
 
-  <!-- Game shell: hidden until world is selected -->
-  <div id="panel-game-shell" style="display:none">
-    <header>
-      <button id="btn-to-menu" class="back-btn" aria-label="Главное меню">&#8592; Главное меню</button>
-      <h1>Skald</h1>
-      <div id="status-bar">
-        <span id="status-text" aria-live="polite" role="status">Загрузка...</span>
-        <span id="time-display">T: 0</span>
-        <span id="pos-display">(0, 0)</span>
+      <div class="skald-layout">
+        <aside class="skald-timeline" aria-label="Причинная цепочка последнего хода">
+          <h2>Последний ход</h2>
+          <div id="causal-timeline" class="timeline-list"></div>
+          <button id="timeline-journal-btn" class="text-button">Вся хроника →</button>
+        </aside>
+
+        <main id="panel-game" class="skald-center" aria-label="Текущий ход">
+          <div id="discovery-toasts" class="discovery-toasts" aria-live="polite"></div>
+          <section id="situation-card" class="situation-card" hidden></section>
+          <section id="primary-section" class="narrative-stack">
+            <div id="empty-state" class="narrative-zone primary">Мир ждёт твоего действия.</div>
+            <article id="primary-card" class="narrative-zone primary" hidden></article>
+            <div id="notable-list" class="notable-list"></div>
+            <div id="background-list" class="background-list"></div>
+            <div id="suppressed-msg" hidden></div>
+          </section>
+          <section id="guidance-section" class="guidance-slot" aria-label="Подсказка" aria-live="polite"><div id="guidance-container"></div></section>
+          <section id="map-section" class="map-section" aria-label="Карта мира"><div id="map-grid"></div></section>
+        </main>
+
+        <aside class="skald-context" aria-label="Контекст">
+          <div class="context-tabs" role="tablist" aria-label="Контекст мира">
+            <button class="context-tab active" data-context="world" role="tab" aria-selected="true">Мир</button>
+            <button class="context-tab" data-context="character" role="tab" aria-selected="false">Персонаж</button>
+            <button class="context-tab" data-context="knowledge" role="tab" aria-selected="false">Знания</button>
+          </div>
+          <div id="context-world" class="context-panel active" role="tabpanel"></div>
+          <div id="context-character" class="context-panel" role="tabpanel"></div>
+          <div id="context-knowledge" class="context-panel" role="tabpanel"></div>
+        </aside>
       </div>
-    </header>
 
-    <nav id="tab-nav" role="tablist" aria-label="Основная навигация">
-      <button id="tab-game" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-game">Игра</button>
-      <button id="tab-journal" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-journal">Журнал</button>
-      <button id="tab-discoveries" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-discoveries">Открытия</button>
-    </nav>
-
-    <main id="panel-game" role="tabpanel" aria-label="Игра">
-      <section id="primary-section">
-        <div id="empty-state" class="card card-primary">Мир ждёт твоего действия.</div>
-        <div id="primary-card" class="card card-primary" style="display:none"></div>
-        <div id="notable-list"></div>
-        <div id="suppressed-msg" style="display:none"></div>
-      </section>
-
-      <section id="guidance-section" aria-label="Подсказка" aria-live="polite">
-        <div id="guidance-container"></div>
-      </section>
-
-      <section id="controls-section">
-        <div id="dpad">
-          <button id="btn-n" class="dir-btn" aria-label="Move north" accesskey="w">&#9650;</button>
-          <button id="btn-w" class="dir-btn" aria-label="Move west" accesskey="a">&#9664;</button>
-          <button id="btn-wait" class="dir-btn action-btn" aria-label="Wait" accesskey=" ">&#9632;</button>
-          <button id="btn-e" class="dir-btn" aria-label="Move east" accesskey="d">&#9654;</button>
-          <button id="btn-s" class="dir-btn" aria-label="Move south" accesskey="s">&#9660;</button>
+      <section id="controls-section" class="command-dock" aria-busy="true">
+        <div class="suggested-row"><span class="suggested-label">Предложенные намерения</span><div id="suggested-intentions" class="suggested-intentions"></div></div>
+        <div class="quick-actions" aria-label="Быстрые действия">
+          <div id="dpad" class="dpad">
+            <button id="btn-n" class="dir-btn" data-command="идти на север" aria-label="Move north">▲</button>
+            <button id="btn-w" class="dir-btn" data-command="идти на запад" aria-label="Move west">◀</button>
+            <button id="btn-wait" class="dir-btn action-btn" data-command="ждать" aria-label="Wait">■</button>
+            <button id="btn-e" class="dir-btn" data-command="идти на восток" aria-label="Move east">▶</button>
+            <button id="btn-s" class="dir-btn" data-command="идти на юг" aria-label="Move south">▼</button>
+          </div>
+          <div id="social-actions" class="social-actions">
+            <button id="btn-help" class="social-btn" data-command="помочь гильдии" aria-label="Give help to guild">Помочь</button>
+            <button id="btn-respect" class="social-btn" data-command="уважить гильдию" aria-label="Give respect to guild">Уважать</button>
+            <button id="btn-fear" class="social-btn" data-command="напугать гильдию" aria-label="Give fear to guild">Напугать</button>
+          </div>
         </div>
-        <div id="social-actions">
-          <button id="btn-help" class="social-btn" aria-label="Give help to guild">Помочь</button>
-          <button id="btn-respect" class="social-btn" aria-label="Give respect to guild">Уважать</button>
-          <button id="btn-fear" class="social-btn" aria-label="Give fear to guild">Напугать</button>
-        </div>
+        <form id="command-form" class="command-line">
+          <span class="command-prompt">›</span>
+          <input id="command-input" class="command-input" type="text" autocomplete="off" placeholder="Опиши намерение: осмотреть башню, идти на север...">
+          <button id="send-btn" class="command-send" type="submit">Отправить</button>
+          <button id="retry-btn" class="command-retry" type="button">Retry</button>
+        </form>
       </section>
 
-      <section id="map-section" aria-label="Map">
-        <div id="map-grid"></div>
-      </section>
-    </main>
+      <nav class="mobile-nav" aria-label="Мобильная навигация">
+        <button data-mobile-target="narrative" class="active">История</button>
+        <button data-mobile-target="world">Мир</button>
+        <button data-mobile-target="knowledge">Знания</button>
+        <button data-mobile-target="journal">Журнал</button>
+      </nav>
 
-    <div id="panel-journal" role="tabpanel" aria-label="Журнал" style="display:none">
-      <div id="journal-container"></div>
+      <div id="shell-loading" class="shell-overlay" hidden><div class="overlay-card"><strong id="loading-title">Мир загружается...</strong><span id="loading-stage">Читаем летопись</span><div class="loading-bar"></div></div></div>
+      <div id="shell-error" class="shell-overlay" hidden><div class="overlay-card error"><strong>Мастер потерял нить...</strong><span id="shell-error-message">Мир не отвечает.</span><button id="shell-retry-connect">Попробовать снова</button></div></div>
+
+      <section id="journal-overlay" class="panel-overlay" hidden aria-label="Журнал">
+        <header><h2>Журнал мира</h2><button data-close-overlay="journal-overlay" aria-label="Закрыть">×</button></header>
+        <div id="journal-container"></div>
+      </section>
+      <section id="discoveries-overlay" class="panel-overlay" hidden aria-label="Открытия">
+        <header><h2>Следы и открытия</h2><button data-close-overlay="discoveries-overlay" aria-label="Закрыть">×</button></header>
+        <div id="discovery-container"></div>
+      </section>
+      <section id="dev-overlay" class="panel-overlay dev-overlay" hidden aria-label="Dev Mode">
+        <header><h2>Pipeline и Domain Events <span class="dev-badge">DEV</span></h2><button data-close-overlay="dev-overlay" aria-label="Закрыть">×</button></header>
+        <div id="pipeline-view" class="pipeline-view"></div>
+        <div id="event-log" class="event-log"></div>
+      </section>
     </div>
-
-    <div id="panel-discoveries" role="tabpanel" aria-label="Открытия" style="display:none">
-      <div id="discovery-container"></div>
-    </div>
-
-    <aside id="diagnostics-panel" role="complementary">
-      <details>
-        <summary>Diagnostics</summary>
-        <div id="event-log"></div>
-        <div id="raw-input-section">
-          <input type="text" id="command-input" placeholder="raw command">
-          <button id="send-btn">Send</button>
-          <button id="retry-btn">Retry</button>
-        </div>
-      </details>
-    </aside>
   </div>
-
 </div>
-
-<script type="module" src="/app.js?v=dd31dbf"></script>
+<script type="module" src="/app.js?v=8f8f1f3-shell"></script>
 </body>
 </html>

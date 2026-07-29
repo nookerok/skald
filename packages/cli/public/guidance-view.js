@@ -2,10 +2,12 @@ let currentGuidance = null;
 let lastAppliedTime = 0;
 let requestSeq = 0;
 
+function apiPath(path) { try { const id = sessionStorage.getItem("skald:worldId"); return id ? `/api/worlds/${encodeURIComponent(id)}${path}` : `/api${path}`; } catch { return path; } }
+
 export async function loadGuidance() {
   const seq = ++requestSeq;
   try {
-    const res = await fetch("/api/guidance");
+    const res = await fetch(apiPath("/guidance"));
     const body = await res.json();
     if (body.ok && seq === requestSeq) {
       applyGuidance(body.guidance);

@@ -21,10 +21,12 @@ function persistActiveCard() {
   } catch {}
 }
 
+function apiPath(path) { try { const id = sessionStorage.getItem("skald:worldId"); return id ? `/api/worlds/${encodeURIComponent(id)}${path}` : `/api${path}`; } catch { return path; } }
+
 export async function loadDiscoveries() {
   restoreActiveCard();
   try {
-    const res = await fetch("/api/discoveries");
+    const res = await fetch(apiPath("/discoveries"));
     const body = await res.json();
     if (body.ok) {
       discoveryData = body;

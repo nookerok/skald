@@ -25,9 +25,11 @@ function persistFilter() {
   }
 }
 
+function apiPath(path) { try { const id = sessionStorage.getItem("skald:worldId"); return id ? `/api/worlds/${encodeURIComponent(id)}${path}` : `/api${path}`; } catch { return path; } }
+
 export async function loadJournal() {
   try {
-    const res = await fetch("/api/journal?limit=50");
+    const res = await fetch(apiPath("/journal?limit=50"));
     const body = await res.json();
     if (body.ok) {
       fullJournalData = body;
