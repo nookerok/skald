@@ -67,7 +67,8 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
   for (const e of ordered) {
     let text = "";
     switch (e.type) {
-      case "MoveRequested": case "GiveRequested": text = "Ты делаешь шаг."; break;
+      case "MoveRequested": text = "Ты пытаешься сделать шаг."; break;
+      case "GiveRequested": text = "Ты пытаешься повлиять на отношения."; break;
       case "MovementSucceeded": text = "Путь оказался свободен."; break;
       case "MovementBlocked": text = "Путь преграждён."; break;
       case "ActionValidated": case "GiveValidated": text = "Действие принято."; break;
@@ -175,7 +176,7 @@ export function buildGameShellSnapshot(
     character: buildCharacterView(characterProfile, world),
     world: buildWorldContextView(world),
     currentSituation: buildSituationView(world),
-    attention: buildAttentionView(world),
+    attention: buildAttentionView(world, events),
     lastTurn,
     recentActivity: activity,
     knowledge: buildKnowledgeSummary(discovery),
@@ -229,7 +230,7 @@ export function buildShellDelta(
     revision: { worldTime: world.time, eventNumber: world.eventNumber },
     turn,
     currentSituation: buildSituationView(world),
-    attention: buildAttentionView(world),
+    attention: buildAttentionView(world, events),
     activity,
     knowledge: buildKnowledgeSummary(discovery),
     suggestions: guidance.suggestions,
