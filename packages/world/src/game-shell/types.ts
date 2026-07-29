@@ -78,6 +78,7 @@ export interface WorldActivityItem {
   timestamp: number;
   scope: PlayerFacingScope;
   origin: ActivityOrigin;
+  sourceEventIds: readonly string[];
 }
 
 export interface KnowledgeSummary {
