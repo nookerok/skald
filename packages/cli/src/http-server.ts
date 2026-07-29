@@ -211,7 +211,7 @@ export async function startServer(options?: {
         }
 
         // Known sub-path but wrong method → 405
-        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/narrative", "/events"];
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/narrative", "/events", "/game-shell"];
         const knownPostSubs = ["/command", "/wait"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }

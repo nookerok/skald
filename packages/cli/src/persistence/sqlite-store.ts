@@ -13,6 +13,13 @@ export interface CommitOptions {
   readonly correlationId: string | undefined;
 }
 
+export interface CharacterProfileRecord {
+  display_name: string;
+  wound: string;
+  promise: string;
+  principle: string;
+}
+
 export interface MultiWorldStore {
   loadEvents(worldId: WorldId): DomainEvent[];
   loadProcessedKeys(worldId: WorldId): Set<string>;
@@ -20,6 +27,7 @@ export interface MultiWorldStore {
   commitBatch(worldId: WorldId, events: readonly DomainEvent[], options?: CommitOptions): void;
   listWorlds(): WorldRecord[];
   getWorldRecord(worldId: WorldId): WorldRecord | null;
+  getCharacterProfile(characterId: string): CharacterProfileRecord | null;
   createWorld(params: CreateWorldParams): CreateWorldResult;
   close(): void;
 }
@@ -232,6 +240,19 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         createdAt: r["created_at"] as number,
         lastPlayedAt: (r["last_played_at"] as number) ?? null,
         worldTime: (r["world_time"] as number) ?? 0,
+      };
+    },
+
+    getCharacterProfile(characterId: string): CharacterProfileRecord | null {
+      const row = db.prepare(
+        "SELECT display_name, wound, promise, principle FROM character_profiles WHERE character_id = ?",
+      ).get(characterId) as Record<string, string> | undefined;
+      if (!row) return null;
+      return {
+        display_name: row["display_name"]!,
+        wound: row["wound"]!,
+        promise: row["promise"]!,
+        principle: row["principle"]!,
       };
     },
 

@@ -3,7 +3,6 @@ import type { GuidanceSuggestion } from "../guidance/types.js";
 
 export interface CharacterView {
   displayName: string;
-  presetTitle: string;
   wound: string;
   promise: string;
   principle: string;
@@ -108,6 +107,6 @@ export interface ShellDelta {
   currentSituation: SituationView | null;
   attention: AttentionView;
   activity: readonly WorldActivityItem[];
-  knowledgeChanges: KnowledgeSummary;
+  knowledge: KnowledgeSummary;
   suggestions: readonly GuidanceSuggestion[];
 }

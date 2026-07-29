@@ -120,7 +120,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const tickResult = r as { tickEvents: DomainEvent[] };
         const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
         const guidance = buildGuidance(runtime);
-        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance });
+        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
@@ -190,18 +191,8 @@ export function handleWorldGuidance(runtime: WorldRuntime): JsonResponse {
 export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): JsonResponse {
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
-  // Read character profile from store
-  const record = (runtime.store as any).getWorldRecord(worldId);
-  let charProfile = null;
-  if (record?.characterId) {
-    try {
-      const db = (runtime.store as any).db;
-      if (db) {
-        const row = db.prepare("SELECT display_name, wound, promise, principle FROM character_profiles WHERE character_id = ?").get(record.characterId) as any;
-        if (row) charProfile = row;
-      }
-    } catch {}
-  }
+  const record = runtime.store.getWorldRecord(worldId);
+  const charProfile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
   const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId);
   return json({ ok: true, snapshot });
 }
@@ -229,7 +220,8 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       const r = result as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(r.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
-      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance });
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }
