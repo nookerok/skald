@@ -245,15 +245,16 @@ function renderConfirmStep(container) {
     return;
   }
 
-  if (pendingReq && pendingReq.state === "timeout") {
+  if (pendingReq) {
     const errMsg = document.createElement("div");
     errMsg.className = "ng-error";
-    errMsg.textContent = "Мир не отвечает. Проверь соединение и попробуй снова.";
-    container.appendChild(errMsg);
-  } else if (pendingReq && pendingReq.state === "failed") {
-    const errMsg = document.createElement("div");
-    errMsg.className = "ng-error";
-    errMsg.textContent = "Не удалось создать мир. Попробуй снова.";
+    if (pendingReq.state === "timeout") {
+      errMsg.textContent = "Мир не отвечает. Проверь соединение и попробуй снова.";
+    } else if (pendingReq.state === "terminal") {
+      errMsg.textContent = "Создание мира невозможно с этими параметрами. Начни заново.";
+    } else {
+      errMsg.textContent = "Не удалось создать мир. Попробуй снова.";
+    }
     container.appendChild(errMsg);
   }
 
@@ -267,10 +268,19 @@ function renderConfirmStep(container) {
 
   const createBtn = document.createElement("button");
   createBtn.className = "ng-btn ng-btn-create";
-  createBtn.textContent = pendingReq ? "Повторить" : "Создать мир";
-  createBtn.addEventListener("click", () => {
-    if (pendingReq) { submitPendingRequest(); } else { createNewRequest(); }
-  });
+  if (pendingReq && pendingReq.state === "terminal") {
+    createBtn.textContent = "Начать заново";
+    createBtn.addEventListener("click", () => {
+      clearPendingRequest();
+      pendingReq = null;
+      window.location.hash = "#/new/character";
+    });
+  } else {
+    createBtn.textContent = pendingReq ? "Повторить" : "Создать мир";
+    createBtn.addEventListener("click", () => {
+      if (pendingReq) { submitPendingRequest(); } else { createNewRequest(); }
+    });
+  }
   nav.appendChild(createBtn);
   container.appendChild(nav);
 }
@@ -330,10 +340,16 @@ async function submitPendingRequest() {
 
     const result = await res.json();
     if (result.ok) {
+      const targetWorldId = result.world?.worldId ?? pendingReq.worldId;
       clearDraft();
       clearPendingRequest();
       pendingReq = null;
-      window.location.hash = "#/world/" + (result.world?.worldId || pendingReq?.worldId);
+      window.location.hash = "#/world/" + targetWorldId;
+    } else if (result.error && (result.error.code === "conflict" || result.error.code === "invalid_request")) {
+      // Terminal error — show message and offer start-over
+      pendingReq.state = "terminal";
+      savePendingRequest(pendingReq);
+      renderNewGame();
     } else {
       pendingReq.state = "failed";
       savePendingRequest(pendingReq);

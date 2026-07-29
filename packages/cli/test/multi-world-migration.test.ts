@@ -53,4 +53,26 @@ describe("multi-world persistence migration", () => {
     expect(reopened.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
     reopened.close();
   });
+
+  it("direct v2-to-v3 migration adds world_creation_requests", () => {
+    const dbPath = tmpDb();
+    const db = new DatabaseSync(dbPath);
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA user_version = 2");
+    db.exec(`CREATE TABLE character_profiles (character_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, wound TEXT NOT NULL, promise TEXT NOT NULL, principle TEXT NOT NULL, profile_version INTEGER NOT NULL, created_at INTEGER NOT NULL) STRICT`);
+    db.exec(`CREATE TABLE worlds (world_id TEXT PRIMARY KEY, save_label TEXT NOT NULL, template_id TEXT NOT NULL, character_id TEXT, character_name_snapshot TEXT, status TEXT NOT NULL CHECK (status IN ('active','archived','corrupt')), created_at INTEGER NOT NULL, last_played_at INTEGER) STRICT`);
+    db.exec(`CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, world_id TEXT NOT NULL, event_id TEXT NOT NULL, type TEXT NOT NULL, schema_version INTEGER NOT NULL, payload_json TEXT NOT NULL, timestamp INTEGER NOT NULL, causation_id TEXT, correlation_id TEXT, FOREIGN KEY (world_id) REFERENCES worlds(world_id), UNIQUE (world_id, event_id)) STRICT`);
+    db.exec(`CREATE TABLE processed_requests (world_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_kind TEXT NOT NULL, correlation_id TEXT NOT NULL, FOREIGN KEY (world_id) REFERENCES worlds(world_id), PRIMARY KEY (world_id, idempotency_key)) STRICT`);
+    db.close();
+
+    const store = createMultiWorldStore(dbPath);
+    store.close();
+
+    const reopened = new DatabaseSync(dbPath);
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 3 });
+    // world_creation_requests table should exist (verify by reading schema)
+    const tables = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='world_creation_requests'").all() as { name: string }[];
+    expect(tables.length).toBe(1);
+    reopened.close();
+  });
 });

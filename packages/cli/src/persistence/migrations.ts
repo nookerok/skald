@@ -139,8 +139,7 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
 }
 
 export function migrateV2ToV3(db: SqliteHandle): void {
-  const integrityBefore = (db.prepare("PRAGMA integrity_check").get() as { integrity_check: string }).integrity_check;
-  if (integrityBefore !== "ok") throw new Error(`integrity_check before v2→v3: ${integrityBefore}`);
+  verifyIntegrity(db);
 
   db.exec("BEGIN EXCLUSIVE");
   try {
@@ -153,13 +152,12 @@ export function migrateV2ToV3(db: SqliteHandle): void {
     ) STRICT`);
     db.exec("PRAGMA user_version = 3");
     db.exec("COMMIT");
-
-    const integrityAfter = (db.prepare("PRAGMA integrity_check").get() as { integrity_check: string }).integrity_check;
-    if (integrityAfter !== "ok") throw new Error(`integrity_check after v2→v3: ${integrityAfter}`);
-  } catch (err) {
+  } catch (error) {
     db.exec("ROLLBACK");
-    throw err;
+    throw error;
   }
+
+  verifyIntegrity(db);
 }
 
 export function verifyIntegrity(db: SqliteHandle): void {

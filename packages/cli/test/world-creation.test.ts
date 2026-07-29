@@ -198,4 +198,26 @@ describe("World creation", () => {
       expect(stateAfter.body.state).toEqual(stateBefore.body.state);
     } finally {}
   });
+
+  it("failed creation does not leave orphaned profile/world/events", async () => {
+    // Try creating a world with nonexistent preset — should fail atomically
+    await api("/api/worlds", {
+      method: "POST",
+      body: JSON.stringify({
+        worldId: "orphan-test-001", idempotencyKey: "orphan-key-001",
+        saveLabel: "Orphan", characterName: "Ghost",
+        characterPresetId: "nonexistent",
+        worldTemplateId: "old_tower",
+      }),
+    });
+
+    // Verify the world doesn't appear in the catalog
+    const { body } = await api("/api/worlds");
+    const orphan = body.worlds.find((w: any) => w.worldId === "orphan-test-001");
+    expect(orphan).toBeUndefined();
+
+    // Verify no scoped state exists
+    const stateRes = await api("/api/worlds/orphan-test-001/state");
+    expect(stateRes.status).toBe(404);
+  });
 });

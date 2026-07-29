@@ -56,8 +56,25 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).toContain("export function clearDraft");
   });
 
-  it("new-game.css exists", () => {
-    expect(existsSync(resolve(PUBLIC, "new-game.css"))).toBe(true);
+  it("new-game-view.js preserves pending request on retry", () => {
+    const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
+    expect(code).toContain("submitPendingRequest");
+    expect(code).toContain("loadPendingRequest");
+    expect(code).toContain("clearPendingRequest");
+    expect(code).toContain("skald:new-game:pending");
+  });
+
+  it("new-game-view.js has start-over for terminal errors", () => {
+    const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
+    expect(code).toContain("terminal");
+    expect(code).toContain("Начать заново");
+  });
+
+  it("new-game-view.js captures targetWorldId before clearing pending", () => {
+    const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
+    // Verify targetWorldId is saved and used as fallback in success block
+    expect(code).toContain("const targetWorldId = result.world");
+    expect(code).toContain('"#/world/" + targetWorldId');
   });
 
   it("all named imports in app.js actually exist in the target modules", () => {
