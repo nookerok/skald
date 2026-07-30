@@ -59,12 +59,16 @@ function signalLabel(kind) {
 export function renderDiscoveries() {
   const container = document.getElementById("discovery-container");
   if (!container) return;
-  container.innerHTML = "";
+  container.replaceChildren();
 
   if (!discoveryData || !discoveryData.cards || discoveryData.cards.length === 0) {
     const empty = document.createElement("div");
     empty.className = "discovery-empty";
-    empty.innerHTML = "<p>Ты пока не заметил устойчивых закономерностей.</p><p>Продолжай наблюдать за ответами мира.</p>";
+    const first = document.createElement("p");
+    first.textContent = "Ты пока не заметил устойчивых закономерностей.";
+    const second = document.createElement("p");
+    second.textContent = "Продолжай наблюдать за ответами мира.";
+    empty.append(first, second);
     container.appendChild(empty);
     return;
   }

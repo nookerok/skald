@@ -157,4 +157,26 @@ describe("Game Shell read model", () => {
     expect(delta.revision).toEqual({ worldTime: rebuiltA.time, eventNumber: rebuiltA.eventNumber });
     expect(() => { (delta.activity as unknown[]).push({}); }).toThrow();
   });
+  it("renders critical check stakes and arithmetic as player-facing text", () => {
+    const events = [
+      event("ActionAttempted", "attempt", 4, { operation: "apply_force", target: { raw: "дверь" } }, "critical"),
+      event("CriticalCheckRequested", "request", 4, {
+        stakes: { success: "Дверь открывается.", failure: "Дверь остаётся закрытой." },
+        difficulty: 15,
+        modifiers: [{ label: "Повреждение", delta: 2 }],
+      }, "critical", "attempt"),
+      event("CriticalCheckRolled", "roll", 4, {
+        naturalRoll: 14, modifierTotal: 2, total: 16, difficulty: 15,
+      }, "critical", "request"),
+      event("CriticalCheckResolved", "resolved", 4, {
+        total: 16, difficulty: 15, outcome: "success",
+      }, "critical", "roll"),
+    ];
+    const chain = buildCausalChain(events, 4);
+    expect(chain.map((step) => step.text).join(" ")).toContain("Сложность: 15");
+    expect(chain.map((step) => step.text).join(" ")).toContain("Модификаторы: Повреждение +2");
+    expect(chain.map((step) => step.text).join(" ")).toContain("Бросок: 14");
+    expect(chain.map((step) => step.text).join(" ")).toContain("Итого 16 против 15");
+  });
+
 });

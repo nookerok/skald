@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 function createElement(tag) {
@@ -124,3 +124,13 @@ describe("Visual Shell — critical presentation", () => {
   });
 });
 
+
+describe("Visual Shell — DOM contract", () => {
+  it("uses DOM APIs rather than innerHTML in browser modules", () => {
+    const publicDir = resolve(import.meta.dirname, "../public");
+    const files = readdirSync(publicDir).filter((file) => file.endsWith(".js"));
+    for (const file of files) {
+      expect(readFileSync(resolve(publicDir, file), "utf8"), file).not.toContain("innerHTML");
+    }
+  });
+});

@@ -8,7 +8,7 @@ export async function loadMenu() {
 export function renderMenu(worlds) {
   const container = document.getElementById("menu-container");
   if (!container) return;
-  container.innerHTML = "";
+  container.replaceChildren();
 
   const logo = document.createElement("h1");
   logo.className = "menu-logo";
@@ -112,7 +112,11 @@ export function renderMenu(worlds) {
   // Footer
   const footer = document.createElement("div");
   footer.className = "menu-footer";
-  footer.innerHTML = "<span>Настройки</span><span>О проекте</span>";
+  const settings = document.createElement("span");
+  settings.textContent = "Настройки";
+  const about = document.createElement("span");
+  about.textContent = "О проекте";
+  footer.append(settings, about);
   container.appendChild(footer);
 }
 

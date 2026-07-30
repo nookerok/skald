@@ -25,6 +25,7 @@ describe("journal-view", () => {
       setAttribute(name, value) { this._attrs[name] = value; },
       getAttribute(name) { return this._attrs[name]; },
       appendChild(c) { this._children.push(c); },
+      replaceChildren(...nodes) { this._children = nodes; },
       querySelector(sel) { return this._children.find((c) => c._querySel === sel) || null; },
     };
 

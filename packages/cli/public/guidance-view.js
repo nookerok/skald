@@ -46,7 +46,7 @@ function dismissCurrent() {
 export function renderGuidance() {
   const container = document.getElementById("guidance-container");
   if (!container) return;
-  container.innerHTML = "";
+  container.replaceChildren();
 
   if (!currentGuidance) return;
 

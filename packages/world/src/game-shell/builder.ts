@@ -101,18 +101,20 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
         break;
       }
       case "CriticalCheckRequested": {
-        const p = e.payload as { stakes: { success: string; failure: string } };
-        text = `Критический момент: ${p.stakes.success}`;
+        const p = e.payload as { difficulty?: number; modifiers?: Array<{ label: string; delta: number }>; stakes: { success: string; failure: string } };
+        const modifiers = (p.modifiers || []).map((modifier) => modifier.label + " " + (modifier.delta >= 0 ? "+" : "") + modifier.delta).join(", ") || "нет";
+        text = `Критический момент: ${p.stakes.success} Сложность: ${p.difficulty ?? "—"}. Модификаторы: ${modifiers}.`;
         break;
       }
       case "CriticalCheckRolled": {
-        const p = e.payload as { naturalRoll: number };
-        text = `Бросок: ${p.naturalRoll}.`;
+        const p = e.payload as { naturalRoll: number; modifierTotal?: number; total?: number };
+        const modifier = p.modifierTotal ?? 0;
+        text = `Бросок: ${p.naturalRoll}. Модификаторы: ${modifier >= 0 ? "+" : ""}${modifier}. Итого до разрешения: ${p.total ?? "—"}.`;
         break;
       }
       case "CriticalCheckResolved": {
-        const p = e.payload as { outcome: string; total: number };
-        text = `Итого ${p.total}: ${p.outcome === "success" || p.outcome === "critical_success" ? "Успех!" : "Неудача."}`;
+        const p = e.payload as { outcome: string; total: number; difficulty?: number };
+        text = `Итого ${p.total} против ${p.difficulty ?? "—"}: ${p.outcome === "success" || p.outcome === "critical_success" ? "Успех!" : "Неудача."}`;
         break;
       }
       case "MovementSucceeded": text = "Путь оказался свободен."; break;

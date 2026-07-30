@@ -1,6 +1,6 @@
 export function renderTurn(pres) {
   const primaryEl = document.getElementById("primary-card");
-  primaryEl.innerHTML = "";
+  primaryEl.replaceChildren();
 
   if (pres.primary) {
     const p = pres.primary;
@@ -18,7 +18,7 @@ export function renderTurn(pres) {
   }
 
   const notableList = document.getElementById("notable-list");
-  notableList.innerHTML = "";
+  notableList.replaceChildren();
   if (pres.notable && pres.notable.length > 0) {
     for (const n of pres.notable) {
       const el = document.createElement("div");
@@ -60,7 +60,7 @@ export function renderState(state) {
   document.getElementById("pos-display").textContent = "(" + state.player.x + ", " + state.player.y + ")";
 
   const grid = document.getElementById("map-grid");
-  grid.innerHTML = "";
+  grid.replaceChildren();
   for (let y = 4; y >= 0; y--) {
     for (let x = 0; x < 5; x++) {
       const cell = document.createElement("div");
@@ -85,7 +85,7 @@ export function renderState(state) {
 
 export const renderDiagnostics = {
   clear() {
-    document.getElementById("event-log").innerHTML = "";
+    document.getElementById("event-log").replaceChildren();
   },
   addEvent(ev) {
     const log = document.getElementById("event-log");

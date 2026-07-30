@@ -56,7 +56,7 @@ export function renderJournal() {
 
   restoreFilter();
 
-  container.innerHTML = "";
+  container.replaceChildren();
 
   // Thread filters
   const threadBar = document.createElement("div");

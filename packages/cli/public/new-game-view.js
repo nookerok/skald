@@ -56,7 +56,7 @@ export async function initNewGame() {
 export function renderNewGame() {
   const container = document.getElementById("new-game-container");
   if (!container) return;
-  container.innerHTML = "";
+  container.replaceChildren();
 
   switch (step) {
     case "character": renderCharacterStep(container); break;
@@ -104,13 +104,30 @@ function renderCharacterStep(container) {
     card.setAttribute("tabindex", "0");
     card.setAttribute("aria-pressed", String(selectedPresetId === p.id));
 
-    card.innerHTML = '<div class="ng-card-title">' + escapeHtml(p.title) + '</div>' +
-      '<div class="ng-card-desc">' + escapeHtml(p.description) + '</div>';
+    const presetTitle = document.createElement("div");
+    presetTitle.className = "ng-card-title";
+    presetTitle.textContent = p.title;
+    const presetDescription = document.createElement("div");
+    presetDescription.className = "ng-card-desc";
+    presetDescription.textContent = p.description;
+    card.append(presetTitle, presetDescription);
     if (selectedPresetId === p.id) {
-      card.innerHTML += '<div class="ng-card-traits">' +
-        '<p><em>' + escapeHtml(p.wound) + '</em></p>' +
-        '<p><strong>Обещание:</strong> ' + escapeHtml(p.promise) + '</p>' +
-        '<p><strong>Принцип:</strong> ' + escapeHtml(p.principle) + '</p></div>';
+      const traits = document.createElement("div");
+      traits.className = "ng-card-traits";
+      const wound = document.createElement("p");
+      const woundEm = document.createElement("em");
+      woundEm.textContent = p.wound;
+      wound.appendChild(woundEm);
+      const promise = document.createElement("p");
+      const promiseLabel = document.createElement("strong");
+      promiseLabel.textContent = "Обещание:";
+      promise.append(promiseLabel, document.createTextNode(" " + p.promise));
+      const principle = document.createElement("p");
+      const principleLabel = document.createElement("strong");
+      principleLabel.textContent = "Принцип:";
+      principle.append(principleLabel, document.createTextNode(" " + p.principle));
+      traits.append(wound, promise, principle);
+      card.appendChild(traits);
     }
     card.addEventListener("click", () => {
       selectedPresetId = selectedPresetId === p.id ? null : p.id;
@@ -169,9 +186,16 @@ function renderWorldStep(container) {
     card.setAttribute("tabindex", "0");
     card.setAttribute("aria-pressed", String(selectedTemplateId === t.id));
 
-    card.innerHTML = '<div class="ng-card-title">' + escapeHtml(t.title) + '</div>' +
-      '<div class="ng-card-desc">' + escapeHtml(t.description) + '</div>' +
-      '<div class="ng-card-question">' + escapeHtml(t.startingQuestion) + '</div>';
+    const templateTitle = document.createElement("div");
+    templateTitle.className = "ng-card-title";
+    templateTitle.textContent = t.title;
+    const templateDescription = document.createElement("div");
+    templateDescription.className = "ng-card-desc";
+    templateDescription.textContent = t.description;
+    const templateQuestion = document.createElement("div");
+    templateQuestion.className = "ng-card-question";
+    templateQuestion.textContent = t.startingQuestion;
+    card.append(templateTitle, templateDescription, templateQuestion);
     card.addEventListener("click", () => {
       selectedTemplateId = selectedTemplateId === t.id ? null : t.id;
       saveDraft({ name: characterName, presetId: selectedPresetId, templateId: selectedTemplateId, saveLabel });
@@ -234,9 +258,18 @@ function renderConfirmStep(container) {
   const preset = presets.find(p => p.id === selectedPresetId);
   const template = templates.find(t => t.id === selectedTemplateId);
 
-  info.innerHTML = '<p><strong>Персонаж:</strong> ' + escapeHtml(characterName) + ' (' + escapeHtml(preset?.title || "") + ')</p>' +
-    '<p><strong>Мир:</strong> ' + escapeHtml(template?.title || "") + '</p>' +
-    '<p><strong>Сохранение:</strong> ' + escapeHtml(saveLabel) + '</p>';
+  const infoLine = (label, value) => {
+    const line = document.createElement("p");
+    const strong = document.createElement("strong");
+    strong.textContent = label + ":";
+    line.append(strong, document.createTextNode(" " + value));
+    return line;
+  };
+  info.append(
+    infoLine("Персонаж", characterName + " (" + (preset?.title || "") + ")"),
+    infoLine("Мир", template?.title || ""),
+    infoLine("Сохранение", saveLabel),
+  );
   container.appendChild(info);
 
   if (pendingReq && pendingReq.state === "pending") {

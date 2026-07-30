@@ -5,7 +5,7 @@ function renderItems() {
   const container = byId("world-activity-list");
   if (!container) return;
   container.replaceChildren();
-  const filtered = currentItems.filter((item) => currentScope === "global" ? true : item.scope === currentScope);
+  const filtered = currentItems.filter((item) => item.scope === currentScope);
   if (!filtered.length) { container.appendChild(emptyState(currentScope === "visible" ? "Рядом пока ничего не изменилось." : "В этой области пока нет новых сведений.", "activity-empty")); return; }
   filtered.slice(0, 8).forEach((item) => {
     const row = makeNode("article", { className: "activity-entry " + (item.origin || "") });
