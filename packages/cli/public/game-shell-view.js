@@ -11,7 +11,6 @@ export function renderGameShell(snapshot) {
   renderActivity(snapshot.recentActivity || []);
   renderKnowledge(snapshot.knowledge || {});
   renderCharacter(snapshot.character || {});
-  renderSuggestions(snapshot.suggestions || []);
   renderTimeline(snapshot.lastTurn?.causalChain || []);
 }
 
@@ -34,7 +33,6 @@ function renderActivity(items) { const el = document.getElementById("world-activ
 function renderTimeline(steps) { const el = document.getElementById("causal-timeline"); if (!el) return; const list = el.querySelector("ol") || el; list.replaceChildren(...steps.slice(0, 6).map(step => node("li", step.text || step.kind || "", "timeline-step"))); }
 function renderCharacter(character) { const el = document.getElementById("context-character"); if (!el) return; el.replaceChildren(node("h3", character.displayName || "Странник"), node("p", `Рана: ${character.wound || "—"}`), node("p", `Обещание: ${character.promise || "—"}`), node("p", `Принцип: ${character.principle || "—"}`)); }
 function renderKnowledge(knowledge) { const el = document.getElementById("context-knowledge"); if (!el) return; el.replaceChildren(); for (const [label, values] of [["Факты", knowledge.facts], ["Гипотезы", knowledge.hypotheses], ["Следы", knowledge.traces]]) { el.append(node("h3", label)); const ul = node("ul"); ul.append(...(values || []).slice(0, 8).map(v => node("li", typeof v === "string" ? v : (v.text || v.label || "")))); el.append(ul); } }
-function renderSuggestions(suggestions) { const el = document.getElementById("suggested-intentions"); if (!el) return; el.replaceChildren(...suggestions.slice(0, 4).map(s => { const b = node("button", `→ ${s.label || s.text || s.input || "Наблюдать"}`, "suggestion-btn"); b.type = "button"; b.dataset.command = s.input || s.command || "наблюдать"; return b; })); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
 export function setShellBusy(busy, stage = "Мир отвечает…") { document.body.classList.toggle("shell-busy", busy); const el = document.getElementById("loading-stage"); if (el) el.textContent = stage; const form = document.getElementById("command-form"); if (form) form.setAttribute("aria-busy", String(busy)); }
 export function showShellError(message) { const el = document.getElementById("shell-error"); if (el) { el.hidden = false; setText("shell-error-message", message || "Не удалось подключиться к миру"); } }
@@ -43,7 +41,6 @@ export function openShellOverlay(id) { const el = document.getElementById(id); i
 export function closeShellOverlay(id) { const el = document.getElementById(id); if (el) el.hidden = true; }
 export function initShellView(onCommand) {
   document.querySelectorAll(".context-tab").forEach(tab => tab.addEventListener("click", () => { document.querySelectorAll(".context-tab").forEach(t => t.setAttribute("aria-selected", String(t === tab))); document.querySelectorAll(".context-panel").forEach(p => p.hidden = p.id !== `context-${tab.dataset.context}`); }));
-  document.querySelectorAll("[data-command]").forEach(button => button.addEventListener("click", () => onCommand(button.dataset.command)));  document.getElementById("suggested-intentions")?.addEventListener("click", event => { const button = event.target?.closest?.("[data-command]"); if (button) onCommand(button.dataset.command); });
   document.getElementById("command-form")?.addEventListener("submit", e => { e.preventDefault(); const input = document.getElementById("command-input"); if (input?.value.trim()) { onCommand(input.value.trim()); input.value = ""; } });
   document.querySelectorAll("[data-overlay-open]").forEach(b => b.addEventListener("click", () => openShellOverlay(b.dataset.overlayOpen)));
   document.querySelectorAll("[data-close-overlay]").forEach(b => b.addEventListener("click", () => closeShellOverlay(b.dataset.closeOverlay)));

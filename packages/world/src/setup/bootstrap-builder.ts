@@ -1,6 +1,7 @@
 import { commandEventId } from "../ids.js";
 import type { DomainEvent } from "@skald/event-bus";
 import { getWorldTemplate } from "./world-templates.js";
+import { OLD_TOWER_OBJECTS, OLD_TOWER_LOCATIONS } from "../objects/definitions.js";
 
 export function buildBootstrapEvents(templateId: string): readonly DomainEvent[] {
   const template = getWorldTemplate(templateId);
@@ -9,7 +10,6 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
   }
   const events: DomainEvent[] = [];
 
-  // PlayerSpawned — all worlds start with player at (0,0)
   events.push({
     eventId: commandEventId("bootstrap", "PlayerSpawned"),
     type: "PlayerSpawned",
@@ -20,9 +20,7 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
     causationId: null,
   });
 
-  // Wall placements differ by template
   if (templateId === "old_tower") {
-    // Tower: walls surround the player, narrow corridor north
     events.push({
       eventId: commandEventId("bootstrap-wall-1", "WallPlaced"),
       type: "WallPlaced",
@@ -59,8 +57,70 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
       correlationId: "bootstrap",
       causationId: null,
     });
+
+    // Iteration 15 — Locations (with objectIds pre-populated)
+    const objectsByLocation = new Map<string, string[]>();
+    for (const obj of OLD_TOWER_OBJECTS) {
+      const list = objectsByLocation.get(obj.locationId) ?? [];
+      list.push(obj.id);
+      objectsByLocation.set(obj.locationId, list);
+    }
+
+    let locIdx = 0;
+    for (const loc of OLD_TOWER_LOCATIONS) {
+      events.push({
+        eventId: commandEventId(`bootstrap-loc-${locIdx}`, "LocationDefined"),
+        type: "LocationDefined",
+        schemaVersion: 1,
+        payload: {
+          id: loc.id,
+          name: loc.name,
+          description: loc.description,
+          objectIds: objectsByLocation.get(loc.id) ?? [],
+          connections: loc.connections,
+        },
+        timestamp: 0,
+        correlationId: "bootstrap",
+        causationId: null,
+      });
+      locIdx++;
+    }
+
+    // Iteration 15 — Player starts at tower_approach
+    events.push({
+      eventId: commandEventId("bootstrap-loc-player", "PlayerLocationChanged"),
+      type: "PlayerLocationChanged",
+      schemaVersion: 1,
+      payload: { locationId: "tower_approach" },
+      timestamp: 0,
+      correlationId: "bootstrap",
+      causationId: null,
+    });
+
+    // Iteration 15 — Objects
+    let objIdx = 0;
+    for (const obj of OLD_TOWER_OBJECTS) {
+      events.push({
+        eventId: commandEventId(`bootstrap-obj-${objIdx}`, "WorldObjectPlaced"),
+        type: "WorldObjectPlaced",
+        schemaVersion: 1,
+        payload: {
+          id: obj.id,
+          name: obj.name,
+          description: obj.description,
+          material: obj.material,
+          locationId: obj.locationId,
+          integrity: obj.integrity,
+          temperature: obj.temperature,
+          state: obj.initialState,
+        },
+        timestamp: 0,
+        correlationId: "bootstrap",
+        causationId: null,
+      });
+      objIdx++;
+    }
   } else if (templateId === "crossroads") {
-    // Crossroads: open space, walls at edges, heat source further away
     events.push({
       eventId: commandEventId("bootstrap-wall-1", "WallPlaced"),
       type: "WallPlaced",
@@ -89,7 +149,6 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
       causationId: null,
     });
   } else {
-    // legacy or unknown: use minimal default
     events.push({
       eventId: commandEventId("bootstrap-wall-1", "WallPlaced"),
       type: "WallPlaced",
@@ -110,7 +169,6 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
     });
   }
 
-  // StrategySet — common for all
   events.push({
     eventId: commandEventId("bootstrap-strategy", "StrategySet"),
     type: "StrategySet",

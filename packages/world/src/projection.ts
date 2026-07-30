@@ -1,6 +1,9 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { ProjectionStore } from "@skald/rule-engine";
 import { START_POSITION, wallKey } from "./map.js";
+import type { WorldObject, Location } from "./objects/types.js";
+import { applyObjectEvent, cloneObjectState } from "./objects/projector.js";
+import type { CriticalCheckState } from "./checks/types.js";
 
 export interface Consequence {
   readonly id: string;
@@ -64,6 +67,12 @@ export interface ReadonlyWorld {
   readonly strategy: readonly StrategyEntry[];
   readonly eventNumber: number;
   readonly time: number;
+  // Iteration 15 — Objects & Locations
+  readonly objects: ReadonlyMap<string, WorldObject>;
+  readonly locations: ReadonlyMap<string, Location>;
+  readonly currentLocationId: string;
+  // Iteration 15 — Pending critical checks (for crash recovery)
+  readonly pendingChecks: ReadonlyMap<string, CriticalCheckState>;
 }
 
 export interface WorldState {
@@ -81,6 +90,12 @@ export interface WorldState {
   strategy: StrategyEntry[];
   eventNumber: number;
   time: number;
+  // Iteration 15 — Objects & Locations
+  objects: Map<string, WorldObject>;
+  locations: Map<string, Location>;
+  currentLocationId: string;
+  // Iteration 15 — Pending critical checks (for crash recovery)
+  pendingChecks: Map<string, CriticalCheckState>;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -148,6 +163,12 @@ function freeze(state: WorldState): ReadonlyWorld {
     strategy: Object.freeze([...state.strategy.map(deepCloneStrategyEntry)]),
     eventNumber: state.eventNumber,
     time: state.time,
+    // Iteration 15 — Objects & Locations
+    objects: cloneMap(state.objects),
+    locations: cloneMap(state.locations),
+    currentLocationId: state.currentLocationId,
+    // Iteration 15 — Pending critical checks
+    pendingChecks: cloneMap(state.pendingChecks),
   }) as ReadonlyWorld;
 }
 
@@ -170,6 +191,12 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       strategy: [],
       eventNumber: 0,
       time: 0,
+      // Iteration 15 — Objects & Locations
+      objects: new Map<string, WorldObject>(),
+      locations: new Map<string, Location>(),
+      currentLocationId: "",
+      // Iteration 15 — Pending critical checks
+      pendingChecks: new Map<string, CriticalCheckState>(),
     };
   }
 
@@ -272,6 +299,51 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.strategy = (event.payload as { entries: StrategyEntry[] }).entries;
         break;
       }
+      // Iteration 15 — Object & Location events
+      case "WorldObjectPlaced":
+      case "LocationDefined":
+      case "PlayerLocationChanged":
+      case "ObjectTemperatureChanged":
+      case "ObjectIntegrityChanged":
+      case "PassageOpened": {
+        applyObjectEvent(s as unknown as { objects: Map<string, WorldObject>; locations: Map<string, Location>; currentLocationId: string }, event);
+        break;
+      }
+      // Iteration 15 — Critical check tracking for crash recovery
+      case "CriticalCheckRequested": {
+        const p = event.payload as {
+          checkId: string;
+          actionEventId: string;
+          checkKind: string;
+          die: string;
+          difficulty: number;
+          modifiers: Array<{ label: string; delta: number }>;
+          stakes: { success: string; failure: string };
+          targetObjectId: string;
+          targetObjectName: string;
+          locationId: string;
+        };
+        s.pendingChecks.set(p.checkId, {
+          checkId: p.checkId,
+          actionEventId: p.actionEventId,
+          checkKind: p.checkKind as CriticalCheckState["checkKind"],
+          die: p.die as CriticalCheckState["die"],
+          difficulty: p.difficulty,
+          modifiers: p.modifiers,
+          stakes: p.stakes,
+          targetObjectId: p.targetObjectId,
+          targetObjectName: p.targetObjectName,
+          locationId: p.locationId,
+          rolled: false,
+        });
+        break;
+      }
+      case "CriticalCheckRolled":
+      case "CriticalCheckResolved": {
+        const p = event.payload as { checkId: string };
+        s.pendingChecks.delete(p.checkId);
+        break;
+      }
       default:
         break;
     }
@@ -279,6 +351,11 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
 
   clone(): ProjectionStore<ReadonlyWorld> {
     const copy = new WorldProjector();
+    const cloned = cloneObjectState({
+      objects: new Map(this.state.objects),
+      locations: new Map(this.state.locations),
+      currentLocationId: this.state.currentLocationId,
+    });
     copy.state = {
       player: { ...this.state.player },
       walls: new Set(this.state.walls),
@@ -294,6 +371,10 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       strategy: [...this.state.strategy],
       eventNumber: this.state.eventNumber,
       time: this.state.time,
+      objects: cloned.objects,
+      locations: cloned.locations,
+      currentLocationId: cloned.currentLocationId,
+      pendingChecks: new Map(this.state.pendingChecks),
     };
     return copy;
   }

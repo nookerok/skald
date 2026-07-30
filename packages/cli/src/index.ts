@@ -1,20 +1,8 @@
 import { EventBus } from "@skald/event-bus";
 import { RuleRegistry, RuleEngine, type ProcessOptions, type CommitContext } from "@skald/rule-engine";
-import { parseCommand, type ParseResult } from "@skald/intent-parser";
+import { parseIntent, type IntentResult } from "@skald/intent-parser";
 import {
   WorldProjector,
-  physicsMovement,
-  observationRules,
-  repercussion,
-  expire,
-  fire,
-  start,
-  forestFireSpread,
-  end,
-  giveRule,
-  heatSpread,
-  durationCheck,
-  playerStrategy,
   handleCommand,
   commitBootstrap,
   commandEventId,
@@ -23,11 +11,13 @@ import {
   narrateLLM,
   ModelRouter,
   bootstrapWorldEvents,
+  createRules,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore, LEGACY_WORLD_ID, type WorldId } from "./persistence.js";
+import { rollCriticalCheck, rollPendingCheck } from "./dice-roller.js";
 
-export type { ParseResult } from "@skald/intent-parser";
+export type { IntentResult } from "@skald/intent-parser";
 export interface IdempotencyReject {
   type: "IdempotencyReject";
   reason: string;
@@ -43,23 +33,6 @@ export interface App {
   router: ModelRouter | null;
   store: ReturnType<typeof createMultiWorldStore> | null;
   worldId: WorldId;
-}
-
-function createRules(): RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>> {
-  const registry = new RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>();
-  registry.register(durationCheck);
-  registry.register(physicsMovement);
-  for (const rule of observationRules) registry.register(rule);
-  registry.register(repercussion);
-  registry.register(expire);
-  registry.register(fire);
-  registry.register(start);
-  registry.register(forestFireSpread);
-  registry.register(end);
-  registry.register(giveRule);
-  registry.register(heatSpread);
-  registry.register(playerStrategy);
-  return registry;
 }
 
 function createRouter(): ModelRouter | null {
@@ -91,7 +64,6 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
   const projection = new WorldProjector();
   const processedKeys = store.loadProcessedKeys(worldId);
 
-  // First run: bootstrap into SQLite
   if (storedEvents.length === 0) {
     const bootstrap = bootstrapWorldEvents();
     store.commitBatch(worldId, bootstrap);
@@ -100,7 +72,6 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
       projection.apply(e);
     }
   } else {
-    // Restore from SQLite (no rules, no publish)
     for (const e of storedEvents) {
       bus.append(e);
       projection.apply(e);
@@ -121,6 +92,28 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
   };
   const engine = new RuleEngine(registry, projection, bus, committer, onSubErr);
   const router = createRouter();
+
+  // Crash recovery: roll any pending critical checks
+  const pendingChecks = projection.getSnapshot().pendingChecks;
+  if (pendingChecks.size > 0) {
+    console.log(`[recovery] Found ${pendingChecks.size} pending critical checks`);
+    for (const [checkId, pendingCheck] of pendingChecks) {
+      const requestEvent = bus.query().find(
+        (e) => e.type === "CriticalCheckRequested" && (e.payload as { checkId: string }).checkId === checkId,
+      );
+      if (requestEvent) {
+        const rollEvent = rollPendingCheck(
+          pendingCheck,
+          requestEvent.eventId,
+          requestEvent.correlationId,
+          requestEvent.timestamp,
+        );
+        engine.processSequence([rollEvent]);
+        console.log(`[recovery] Rolled check ${checkId}`);
+      }
+    }
+  }
+
   return { bus, registry, engine, projection, processedKeys, router, store, worldId };
 }
 
@@ -129,19 +122,22 @@ export interface CommandOutcome {
   position: { x: number; y: number };
 }
 
+/**
+ * Run a single command (without tick).
+ */
 export function runCommand(
   app: App,
   input: string,
   correlationId: string,
   timestamp: number,
   idempotencyKey: string,
-): CommandOutcome | ParseResult | IdempotencyReject {
+): CommandOutcome | IntentResult | IdempotencyReject {
   if (app.processedKeys.has(idempotencyKey)) {
     return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
   }
 
-  const parsed = parseCommand(input);
-  if (parsed.type === "ParseError") return parsed;
+  const parsed = parseIntent(input);
+  if (parsed.type !== "ActionIntentCommand") return parsed;
 
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
   const options: ProcessOptions = app.store
@@ -183,17 +179,49 @@ export function runTick(
   return { events: committed };
 }
 
+/**
+ * Process dice rolls for CriticalCheckRequested events.
+ * Rolls dice and processes them through the engine to get resolution events.
+ * This is the ONLY place where dice are rolled.
+ */
+function processDiceRolls(
+  app: App,
+  committed: DomainEvent[],
+  _correlationId: string,
+): DomainEvent[] {
+  const allEvents = [...committed];
+  const rollEvents: DomainEvent[] = [];
+
+  for (const event of committed) {
+    if (event.type === "CriticalCheckRequested") {
+      const rollEvent = rollCriticalCheck(event);
+      rollEvents.push(rollEvent);
+    }
+  }
+
+  if (rollEvents.length > 0) {
+    // Process roll events through the engine to get resolution events
+    const { committed: rollCommitted } = app.engine.processSequence(rollEvents);
+    allEvents.push(...rollCommitted);
+  }
+
+  return allEvents;
+}
+
+/**
+ * Run a full command cycle: parse intent, process through rules, roll dice, tick.
+ */
 export function runCommandCycle(
   app: App,
   input: string,
   idempotencyKey: string,
-): { events: DomainEvent[]; tickEvents: DomainEvent[]; position: { x: number; y: number } } | ParseResult | IdempotencyReject {
+): { events: DomainEvent[]; tickEvents: DomainEvent[]; position: { x: number; y: number } } | IntentResult | IdempotencyReject {
   if (app.processedKeys.has(idempotencyKey)) {
     return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
   }
 
-  const parsed = parseCommand(input);
-  if (parsed.type === "ParseError") return parsed;
+  const parsed = parseIntent(input);
+  if (parsed.type !== "ActionIntentCommand") return parsed;
 
   const ts = app.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;
@@ -215,11 +243,17 @@ export function runCommandCycle(
   try {
     const { committed } = app.engine.processSequence([firstEvent, tickEvent], options);
     app.processedKeys.add(idempotencyKey);
-    const commandEvents = committed.filter((e) => e.correlationId === correlationId);
-    const tickEvents = committed.filter((e) => e.correlationId === `tick-${ts}`);
+
+    // Process dice rolls for any CriticalCheckRequested events
+    const allCommandEvents = processDiceRolls(
+      app,
+      committed.filter((e) => e.correlationId === correlationId),
+      correlationId,
+    );
+
     return {
-      events: commandEvents,
-      tickEvents,
+      events: allCommandEvents,
+      tickEvents: committed.filter((e) => e.correlationId === `tick-${ts}`),
       position: { ...app.projection.getSnapshot().player },
     };
   } catch (err) {

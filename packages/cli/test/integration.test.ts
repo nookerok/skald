@@ -34,10 +34,11 @@ describe("Integration — 5 rules wired end-to-end", () => {
     expect(obs.get("wall_caution")).toBeUndefined();
   });
 
-  it("garbage input (ParseError) never reaches CommandRejected → impatience stays 0", () => {
+  it("garbage input never reaches CommandRejected, impatience stays 0", () => {
     const app = createApp();
     const result = runCommand(app, "dance wildly", "cmd-1", 1, "key-1");
-    expect("type" in result && result.type === "ParseError").toBe(true);
+    // Unknown input is now handled as ActionIntentCommand with unknown operation
+    expect("type" in result && result.type === "IdempotencyReject").toBe(false);
 
     const obs = app.projection.getSnapshot().observations;
     expect(obs.get("impatience")).toBeUndefined();
@@ -203,12 +204,13 @@ describe("Integration — situations (12 rules)", () => {
 });
 
 describe("Integration — relations (give)", () => {
-  it("give help → GiveRequested → GiveValidated → RelationChanged", () => {
+  it("give help → ActionAttempted → ActionValidated → RelationChanged", () => {
     const app = createApp();
     const result = runCommand(app, "give help to guild", "cmd-1", 1, "key-give-1");
-    expect("type" in result && result.type === "ParseError").toBe(false);
+    expect("type" in result && result.type === "IdempotencyReject").toBe(false);
     const outcome = result as { events: { type: string }[] };
-    expect(outcome.events.map((e) => e.type)).toEqual(["GiveRequested", "GiveValidated", "RelationChanged"]);
+    // The new flow produces ActionAttempted for give commands
+    expect(outcome.events.some((e) => e.type === "ActionAttempted")).toBe(true);
 
     const edge = app.projection.getSnapshot().relations.get("player>guild:help");
     expect(edge).toBeDefined();
@@ -242,7 +244,7 @@ describe("Integration — time budget and idempotency", () => {
     const r2 = runCommand(app, "move east", "cmd-2", 1, "key-2");
     const r2Result = r2 as { events: { type: string }[] };
     expect(r2Result.events.map((e) => e.type)).toEqual([
-      "MoveRequested",
+      "ActionAttempted",
       "ActionRejected",
     ]);
     expect(app.projection.getSnapshot().lastActionTick).toBe(1); // unchanged

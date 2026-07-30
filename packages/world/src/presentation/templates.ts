@@ -154,6 +154,111 @@ export const TICK_PASSED: PresentationTemplate = {
   },
 };
 
+// ── Iteration 15 — Open Intent Templates ────────────────────────────
+
+export const ACTION_ATTEMPTED: PresentationTemplate = {
+  id: "action_attempted", listens: ["ActionAttempted"],
+  present: (event, _world) => {
+    const p = event.payload as { operation: string; target?: { raw: string } | null };
+    const target = p.target?.raw ? ` → ${p.target.raw}` : "";
+    return cand("action_attempted", "action", "primary", 100, `Ты пытаешься: ${p.operation}${target}.`, event);
+  },
+};
+
+export const ACTION_RESOLVED: PresentationTemplate = {
+  id: "action_resolved", listens: ["ActionResolved"],
+  present: (event, _world) => {
+    const p = event.payload as { result: string; description: string };
+    const text = p.description || `Результат: ${p.result}.`;
+    return cand("action_resolved", "action", "primary", 95, text, event);
+  },
+};
+
+export const ACTION_BLOCKED: PresentationTemplate = {
+  id: "action_blocked", listens: ["ActionBlocked"],
+  present: (event, _world) => {
+    const p = event.payload as { reason: string; objectName?: string };
+    if (p.objectName) {
+      return cand("action_blocked_object", "action", "primary", 100, `${p.objectName} преграждает путь.`, event);
+    }
+    return cand("action_blocked", "action", "primary", 100, "Действие невозможно.", event);
+  },
+};
+
+export const OBJECT_OBSERVED: PresentationTemplate = {
+  id: "object_observed", listens: ["ObjectObserved"],
+  present: (event, _world) => {
+    const p = event.payload as { name: string; description: string; temperature: number; integrity: number };
+    let text = p.description;
+    if (p.temperature > 60) text += " Горячий на ощупь.";
+    if (p.integrity < 40) text += " Выглядит повреждённым.";
+    return cand("object_observed", "observation", "primary", 90, text, event, `obj:${p.name}`, undefined, "trace");
+  },
+};
+
+export const OBJECT_TEMPERATURE_CHANGED: PresentationTemplate = {
+  id: "object_temperature_changed", listens: ["ObjectTemperatureChanged"],
+  present: (event, _world) => {
+    const p = event.payload as { name: string; temperature: number; previousTemperature: number };
+    if (p.temperature > p.previousTemperature) {
+      if (p.temperature > 80) {
+        return cand("object_temp_hot", "observation", "notable", 85, `${p.name} раскаляется.`, event, `temp:${p.name}`);
+      }
+      if (p.temperature > 50) {
+        return cand("object_temp_warm", "observation", "notable", 75, `${p.name} нагревается.`, event, `temp:${p.name}`);
+      }
+      return cand("object_temp_slight", "observation", "background", 50, `${p.name} слегка тёплая.`, event, `temp:${p.name}`);
+    }
+    return null;
+  },
+};
+
+export const SOUND_PRODUCED: PresentationTemplate = {
+  id: "sound_produced", listens: ["SoundProduced"],
+  present: (event, _world) => {
+    const p = event.payload as { source: string; kind: string; intensity: string };
+    if (p.intensity === "loud") {
+      return cand("sound_loud", "observation", "notable", 80, `Громкий звук: ${p.source}.`, event, "sound", "world:sound", "trace");
+    }
+    return cand("sound_quiet", "observation", "background", 40, `Тихий звук: ${p.source}.`, event, "sound");
+  },
+};
+
+export const CRITICAL_CHECK_REQUESTED: PresentationTemplate = {
+  id: "critical_check_requested", listens: ["CriticalCheckRequested"],
+  present: (event, _world) => {
+    const p = event.payload as { stakes: { success: string; failure: string }; checkKind: string };
+    return cand("critical_check", "action", "primary", 110,
+      `Критический момент: ${p.stakes.success} Неудача: ${p.stakes.failure}`,
+      event, "critical", "critical:check", "Критический момент");
+  },
+};
+
+export const CRITICAL_CHECK_RESOLVED: PresentationTemplate = {
+  id: "critical_check_resolved", listens: ["CriticalCheckResolved"],
+  present: (event, _world) => {
+    const p = event.payload as { outcome: string; total: number; difficulty: number };
+    if (p.outcome === "success" || p.outcome === "critical_success") {
+      return cand("critical_success", "action", "primary", 110,
+        `Бросок ${p.total} (против ${p.difficulty}): Успех!`,
+        event, "critical", "critical:check", "Критический момент");
+    }
+    return cand("critical_failure", "action", "primary", 110,
+      `Бросок ${p.total} (против ${p.difficulty}): Неудача.`,
+      event, "critical", "critical:check", "Критический момент");
+  },
+};
+
+export const PLAYER_LOCATION_CHANGED: PresentationTemplate = {
+  id: "player_location_changed", listens: ["PlayerLocationChanged"],
+  present: (event, _world) => {
+    const p = event.payload as { locationName: string };
+    return cand("player_location_changed", "action", "primary", 95,
+      `Ты перемещаешься: ${p.locationName}.`,
+      event, "location");
+  },
+};
+
 export const ALL_TEMPLATES: PresentationTemplate[] = [
   MOVEMENT_SUCCEEDED,
   MOVEMENT_BLOCKED_WALL,
@@ -171,4 +276,14 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   OBSERVATION_UPDATED,
   HEAT_RADIATED,
   TICK_PASSED,
+  // Iteration 15 — Open Intent templates
+  ACTION_ATTEMPTED,
+  ACTION_RESOLVED,
+  ACTION_BLOCKED,
+  OBJECT_OBSERVED,
+  OBJECT_TEMPERATURE_CHANGED,
+  SOUND_PRODUCED,
+  CRITICAL_CHECK_REQUESTED,
+  CRITICAL_CHECK_RESOLVED,
+  PLAYER_LOCATION_CHANGED,
 ];

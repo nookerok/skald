@@ -78,24 +78,56 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const guidance = buildGuidance(app);
       return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
     }
+
     const r = runCommandCycle(app, input, idempotencyKey);
     if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
     if ("type" in r && (r as IdempotencyReject).type === "IdempotencyReject")
       return error("duplicate_request", "duplicate idempotencyKey", 409);
-    if ("type" in r && (r as any).type === "ParseError")
-      return error("parse_error", (r as any).reason ?? "parse error", 400);
+
+    // Handle ClarificationRequest and UnsupportedButUnderstood
+    if ("type" in r && (r as any).type === "ClarificationRequired") {
+      return json({
+        ok: true,
+        status: "clarification",
+        clarificationId: (r as any).clarificationId,
+        question: (r as any).question,
+        interpretations: (r as any).interpretations,
+      });
+    }
+    if ("type" in r && (r as any).type === "UnsupportedButUnderstood") {
+      return json({
+        ok: true,
+        status: "unsupported",
+        message: (r as any).message,
+      });
+    }
+
     const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
     const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
     const pres = selectTurnPresentation(allCycleEvents, app.projection.getSnapshot());
     const guidance = buildGuidance(app);
+
+    // Check for CriticalCheckRequested events
+    const criticalCheck = cmdResult.events.find((e) => e.type === "CriticalCheckRequested");
+    const criticalCheckPresentation = criticalCheck
+      ? {
+          checkId: (criticalCheck.payload as any).checkId,
+          checkKind: (criticalCheck.payload as any).checkKind,
+          difficulty: (criticalCheck.payload as any).difficulty,
+          stakes: (criticalCheck.payload as any).stakes,
+        }
+      : undefined;
+
     return json({
       ok: true,
+      status: "resolved",
       events: cmdResult.events,
       tickEvents: cmdResult.tickEvents,
       position: cmdResult.position,
       state: serializeWorldState(app),
       presentation: pres,
       guidance,
+      criticalCheck: criticalCheckPresentation,
     });
   } catch (err) {
     return error("internal_error", safeError(err), 500);

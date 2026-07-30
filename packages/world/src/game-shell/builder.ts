@@ -42,14 +42,13 @@ function classifyOriginFromEvent(type: string): ActivityOrigin | null {
 export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: number): CausalStep[] {
   const root = events.find(
     (e) => e.timestamp === turnWorldTime &&
-      (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "TickPassed"),
+      (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" || e.type === "TickPassed"),
   );
   if (!root) return [];
 
   const correlationId = root.correlationId;
   const turnEvents = events.filter((e) => e.correlationId === correlationId && e.timestamp === turnWorldTime);
 
-  // DFS from root following causationId edges — strict causal descendants only
   const visited = new Set<string>();
   const ordered: DomainEvent[] = [];
   function walk(eventId: string) {
@@ -69,9 +68,60 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
     switch (e.type) {
       case "MoveRequested": text = "Ты пытаешься сделать шаг."; break;
       case "GiveRequested": text = "Ты пытаешься повлиять на отношения."; break;
+      case "ActionAttempted": {
+        const p = e.payload as { operation: string; target?: { raw: string } | null };
+        const target = p.target?.raw ? ` → ${p.target.raw}` : "";
+        text = `Ты пытаешься: ${p.operation}${target}.`;
+        break;
+      }
+      case "ActionValidated": case "GiveValidated": text = "Действие принято."; break;
+      case "ActionResolved": {
+        const p = e.payload as { result: string; description: string };
+        text = p.description || `Результат: ${p.result}.`;
+        break;
+      }
+      case "ActionBlocked": {
+        const p = e.payload as { reason: string };
+        text = `Действие заблокировано: ${p.reason}.`;
+        break;
+      }
+      case "ObjectObserved": {
+        const p = e.payload as { name: string; description: string };
+        text = p.description;
+        break;
+      }
+      case "ObjectTemperatureChanged": {
+        const p = e.payload as { name: string; temperature: number };
+        text = `${p.name} нагревается до ${p.temperature}°.`;
+        break;
+      }
+      case "SoundProduced": {
+        const p = e.payload as { source: string; kind: string };
+        text = `Звук: ${p.source} (${p.kind}).`;
+        break;
+      }
+      case "CriticalCheckRequested": {
+        const p = e.payload as { stakes: { success: string; failure: string } };
+        text = `Критический момент: ${p.stakes.success}`;
+        break;
+      }
+      case "CriticalCheckRolled": {
+        const p = e.payload as { naturalRoll: number };
+        text = `Бросок: ${p.naturalRoll}.`;
+        break;
+      }
+      case "CriticalCheckResolved": {
+        const p = e.payload as { outcome: string; total: number };
+        text = `Итого ${p.total}: ${p.outcome === "success" || p.outcome === "critical_success" ? "Успех!" : "Неудача."}`;
+        break;
+      }
       case "MovementSucceeded": text = "Путь оказался свободен."; break;
       case "MovementBlocked": text = "Путь преграждён."; break;
-      case "ActionValidated": case "GiveValidated": text = "Действие принято."; break;
+      case "PlayerLocationChanged": {
+        const p = e.payload as { locationName: string };
+        text = `Ты перемещаешься: ${p.locationName}.`;
+        break;
+      }
       case "ObservationUpdated": text = "Мир заметил твой поступок."; break;
       case "ConsequenceCreated": text = "Зародилось последствие."; break;
       case "ConsequenceFired": case "AudacityTriggered": text = "Последствие проявило себя."; break;
@@ -80,7 +130,7 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       default: continue;
     }
     steps.push({
-      kind: e.type === "MoveRequested" || e.type === "GiveRequested" ? "intention"
+      kind: e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" ? "intention"
         : e.type === "ObservationUpdated" ? "observation"
         : e.type === "ConsequenceCreated" || e.type === "ConsequenceFired" || e.type === "AudacityTriggered" ? "consequence"
         : "outcome",
@@ -94,10 +144,29 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
 function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
   const playerKey = `${world.player.x},${world.player.y}`;
   const heatLevel = world.heatMap.get(playerKey) ?? 0;
+
+  // Iteration 15 — Location info
+  const locationId = world.currentLocationId;
+  const location = locationId ? world.locations.get(locationId) : undefined;
+
+  const connectedLocations: Array<{ id: string; name: string }> = [];
+  if (location) {
+    for (const [, connTarget] of Object.entries(location.connections)) {
+      const connLoc = world.locations.get(connTarget);
+      if (connLoc) {
+        connectedLocations.push({ id: connLoc.id, name: connLoc.name });
+      }
+    }
+  }
+
   return {
     position: { x: world.player.x, y: world.player.y },
     heatLevel,
     heatDescription: heatLevel > 0 ? "Тепло ощущается здесь." : null,
+    locationId: locationId || undefined,
+    locationName: location?.name,
+    locationDescription: location?.description,
+    connectedLocations: connectedLocations.length > 0 ? connectedLocations : undefined,
   };
 }
 

@@ -10,8 +10,14 @@ export const physicsMovement: Rule<ReadonlyWorld> = {
   listens: ["ActionValidated"],
   produces: ["MovementSucceeded", "MovementBlocked"],
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
-    const originalPayload = (event.payload as { originalPayload: { direction: string } }).originalPayload;
-    const { direction } = originalPayload;
+    const originalPayload = (event.payload as { originalPayload: Record<string, unknown> }).originalPayload;
+    const direction = originalPayload.direction as string
+      ?? (originalPayload.target as { normalized?: string })?.normalized;
+
+    if (!direction) return [];
+
+    // In worlds with a location system, interactionMovement handles movement
+    if (world.currentLocationId) return [];
     const from = world.player;
     const dest = computeDestination(from.x, from.y, direction as never);
 

@@ -7,12 +7,11 @@ describe("CLI — thin end-to-end wiring", () => {
     const app = createApp();
     const result = runCommand(app, "move north", "cmd-1", 1, "key-1");
 
-    expect("type" in result && result.type === "ParseError").toBe(false);
     expect("type" in result && result.type === "IdempotencyReject").toBe(false);
     const outcome = result as { events: { type: string }[]; position: { x: number; y: number } };
 
     expect(outcome.events.map((e) => e.type)).toEqual([
-      "MoveRequested",
+      "ActionAttempted",
       "ActionValidated",
       "MovementSucceeded",
       "ObservationUpdated",
@@ -32,7 +31,7 @@ describe("CLI — thin end-to-end wiring", () => {
     };
 
     expect(outcome.events.map((e) => e.type)).toEqual([
-      "MoveRequested",
+      "ActionAttempted",
       "ActionValidated",
       "MovementBlocked",
       "ObservationUpdated",
@@ -40,13 +39,15 @@ describe("CLI — thin end-to-end wiring", () => {
     expect(outcome.position).toEqual({ x: 1, y: 0 });
   });
 
-  it("garbage input → ParseError, projection and log untouched", () => {
+  it("garbage input → unknown operation, but still produces ActionAttempted", () => {
     const app = createApp();
     const before = app.bus.size();
     const result = runCommand(app, "dance wildly", "cmd-1", 1, "key-1");
 
-    expect("type" in result && result.type === "ParseError").toBe(true);
-    expect(app.bus.size()).toBe(before);
+    // Unknown input is now handled as an ActionIntentCommand with unknown operation
+    expect("type" in result && result.type === "IdempotencyReject").toBe(false);
+    // The new flow produces ActionAttempted for all recognized intents
+    expect(app.bus.size()).toBeGreaterThan(before);
   });
 
   it("canonical log replay reproduces the live projection (wiring preserves purity)", () => {

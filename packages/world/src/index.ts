@@ -69,3 +69,10 @@ export { classifyPayload, scanForSecrets, enforceDataPolicy } from "./llm/data-p
 export { loadHealth, saveHealth, checkModel, classifyModelError } from "./llm/health.js";
 export { LLM_CONFIG } from "./llm/config.js";
 export type * from "./llm/types.js";
+
+// Iteration 15 — Objects & Locations
+export * from "./objects/index.js";
+export { interactionRules } from "./rules/interaction.js";
+export { criticalCheckRules, criticalCheckOutcomeRules } from "./checks/index.js";
+export { createRules } from "./rules/registry.js";
+export type { CriticalCheckState, CheckKind, CheckOutcome, DieType, CriticalModifier } from "./checks/types.js";

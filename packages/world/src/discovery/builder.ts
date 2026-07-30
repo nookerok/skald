@@ -1,6 +1,6 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { DiscoveryCard, DiscoveryEvidence, DiscoveryJournal } from "./types.js";
-import { DEFINITIONS, collectRiskDrawsAttention } from "./definitions.js";
+import { DEFINITIONS, collectRiskDrawsAttention, collectHeatChangesMaterial, collectSoundDrawsAttention } from "./definitions.js";
 
 export { DEFINITIONS } from "./definitions.js";
 export type { DiscoveryDefinition } from "./definitions.js";
@@ -27,7 +27,7 @@ function monotonicCheck(events: readonly DomainEvent[]): void {
 export function buildDiscoveryJournal(events: readonly DomainEvent[]): DiscoveryJournal {
   monotonicCheck(events);
 
-  const collectorFns = [collectRiskDrawsAttention];
+  const collectorFns = [collectRiskDrawsAttention, collectHeatChangesMaterial, collectSoundDrawsAttention];
   // Collect evidence for each collector into separate arrays
   const evidenceGroups = collectorFns.map(() => [] as DiscoveryEvidence[]);
   const allEvidence: DiscoveryEvidence[] = [];
@@ -56,7 +56,6 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
     if (!stage) continue;
 
     const rendered = def.render(stage);
-    // Evidence is already sorted by log order (monotonic)
     cards.push(deepFreeze({
       discoveryId: def.id,
       definitionVersion: def.version,
@@ -71,7 +70,6 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
     }));
   }
 
-  // Recent evidence: last 10 across all discoveries, sorted by worldTime desc
   const sorted = [...allEvidence].sort((a, b) => b.worldTime - a.worldTime);
   const recentEvidence = deepFreeze(sorted.slice(0, 10));
 

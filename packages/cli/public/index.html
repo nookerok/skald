@@ -67,24 +67,9 @@
       </div>
 
       <section id="controls-section" class="command-dock" aria-busy="true">
-        <div class="suggested-row"><span class="suggested-label">Предложенные намерения</span><div id="suggested-intentions" class="suggested-intentions"></div></div>
-        <div class="quick-actions" aria-label="Быстрые действия">
-          <div id="dpad" class="dpad">
-            <button id="btn-n" class="dir-btn" data-command="идти на север" aria-label="Move north">▲</button>
-            <button id="btn-w" class="dir-btn" data-command="идти на запад" aria-label="Move west">◀</button>
-            <button id="btn-wait" class="dir-btn action-btn" data-command="ждать" aria-label="Wait">■</button>
-            <button id="btn-e" class="dir-btn" data-command="идти на восток" aria-label="Move east">▶</button>
-            <button id="btn-s" class="dir-btn" data-command="идти на юг" aria-label="Move south">▼</button>
-          </div>
-          <div id="social-actions" class="social-actions">
-            <button id="btn-help" class="social-btn" data-command="помочь гильдии" aria-label="Give help to guild">Помочь</button>
-            <button id="btn-respect" class="social-btn" data-command="уважить гильдию" aria-label="Give respect to guild">Уважать</button>
-            <button id="btn-fear" class="social-btn" data-command="напугать гильдию" aria-label="Give fear to guild">Напугать</button>
-          </div>
-        </div>
         <form id="command-form" class="command-line">
           <span class="command-prompt">›</span>
-          <input id="command-input" class="command-input" type="text" autocomplete="off" placeholder="Опиши намерение: осмотреть башню, идти на север...">
+          <textarea id="command-input" class="command-input" rows="1" autocomplete="off" placeholder="Опиши намерение: осмотреть башню, идти на север, нагреть петли..."></textarea>
           <button id="send-btn" class="command-send" type="submit">Отправить</button>
           <button id="retry-btn" class="command-retry" type="button">Retry</button>
         </form>

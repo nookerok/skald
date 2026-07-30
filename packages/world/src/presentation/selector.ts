@@ -6,6 +6,8 @@ import type { PresentationCandidate, PresentationEntry, TurnPresentation } from 
 const SUPPRESSED_EVENT_TYPES = new Set([
   "PlayerSpawned", "WallPlaced", "HeatSourcePlaced", "StrategySet",
   "MoveRequested", "GiveRequested", "ActionValidated", "GiveValidated", "ActionCompleted",
+  // Iteration 15 — suppress bootstrap and location events from presentation
+  "LocationDefined", "WorldObjectPlaced",
 ]);
 
 function isSuppressed(event: DomainEvent): boolean {
@@ -91,11 +93,16 @@ export function selectTurnPresentation(
 
   // No primary candidates → fallback projection-derived entry
   if (!primary) {
+    const locationId = world.currentLocationId;
+    const location = locationId ? world.locations.get(locationId) : undefined;
+    const text = location
+      ? location.description
+      : `Ты находишься в точке (${world.player.x}, ${world.player.y}). Мир вокруг продолжает меняться.`;
     primary = {
       kind: "world",
       importance: "primary",
       discoveryMark: null,
-      text: `Ты находишься в точке (${world.player.x}, ${world.player.y}). Мир вокруг продолжает меняться.`,
+      text,
       timestamp: world.time,
       sourceEventIds: [],
       threadKey: null,

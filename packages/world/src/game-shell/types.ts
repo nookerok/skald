@@ -25,6 +25,10 @@ export interface WorldContextView {
   position: { x: number; y: number };
   heatLevel: number;
   heatDescription: string | null;
+  locationId?: string | undefined;
+  locationName?: string | undefined;
+  locationDescription?: string | undefined;
+  connectedLocations?: Array<{ id: string; name: string }> | undefined;
 }
 
 export type AttentionLevel = "calm" | "stirring" | "noticed" | "watched" | "pressured";

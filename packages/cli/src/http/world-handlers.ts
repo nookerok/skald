@@ -126,8 +126,11 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
-      if ("type" in r && (r as any).type === "IdempotencyReject")
-        return error("duplicate_request", "duplicate idempotencyKey", 409);
+      // runCommandCycleForRuntime returns a JsonResponse with 409 for duplicates
+      if ("statusCode" in r && (r as JsonResponse).statusCode === 409)
+        return r as JsonResponse;
+      if ("statusCode" in r && (r as JsonResponse).statusCode !== 200)
+        return r as JsonResponse;
       if ("type" in r && (r as any).type === "ParseError")
         return error("parse_error", (r as any).reason ?? "parse error", 400);
       const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
@@ -240,9 +243,10 @@ export function handleWorldEvents(runtime: WorldRuntime, url: URL): JsonResponse
 
 // --- Command execution helpers ---
 
-import { parseCommand } from "@skald/intent-parser";
+import { parseIntent } from "@skald/intent-parser";
 import { handleCommand as worldHandleCommand, commandEventId } from "@skald/world";
 import type { ProcessOptions, CommitContext } from "@skald/rule-engine";
+import { rollCriticalCheck } from "../dice-roller.js";
 
 export interface IdempotencyReject {
   type: "IdempotencyReject";
@@ -254,13 +258,13 @@ async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
-): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | { type: string; reason?: string; idempotencyKey?: string }> {
+): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | JsonResponse> {
   if (runtime.processedKeys.has(idempotencyKey)) {
-    return { type: "IdempotencyReject", reason: "duplicate command", idempotencyKey };
+    return error("duplicate_request", "duplicate idempotencyKey", 409);
   }
 
-  const parsed = parseCommand(input);
-  if (parsed.type === "ParseError") return parsed;
+  const parsed = parseIntent(input);
+  if (parsed.type !== "ActionIntentCommand") return error("parse_error", "Could not understand input", 400);
 
   const ts = runtime.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;
@@ -282,9 +286,25 @@ async function runCommandCycleForRuntime(
   try {
     const { committed } = runtime.engine.processSequence([firstEvent, tickEvent], options);
     runtime.processedKeys.add(idempotencyKey);
+
+    // Process dice rolls for any CriticalCheckRequested events
     const commandEvents = committed.filter((e) => e.correlationId === correlationId);
+    const allCommandEvents = [...commandEvents];
+
+    const rollEvents: DomainEvent[] = [];
+    for (const event of commandEvents) {
+      if (event.type === "CriticalCheckRequested") {
+        rollEvents.push(rollCriticalCheck(event));
+      }
+    }
+
+    if (rollEvents.length > 0) {
+      const { committed: rollCommitted } = runtime.engine.processSequence(rollEvents);
+      allCommandEvents.push(...rollCommitted);
+    }
+
     const tickEvents = committed.filter((e) => e.correlationId === `tick-${ts}`);
-    return { events: commandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player } };
+    return { events: allCommandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player } };
   } catch (err) {
     throw err;
   }

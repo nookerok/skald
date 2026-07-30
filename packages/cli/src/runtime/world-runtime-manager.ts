@@ -2,25 +2,15 @@ import { EventBus } from "@skald/event-bus";
 import { RuleRegistry, RuleEngine, type CommitContext } from "@skald/rule-engine";
 import {
   WorldProjector,
-  physicsMovement,
-  observationRules,
-  repercussion,
-  expire,
-  fire,
-  start,
-  forestFireSpread,
-  end,
-  giveRule,
-  heatSpread,
-  durationCheck,
-  playerStrategy,
   bootstrapWorldEvents,
   ModelRouter,
+  createRules,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import type { MultiWorldStore } from "../persistence/sqlite-store.js";
 import type { WorldId } from "../persistence/types.js";
 import { WorldCommandQueue } from "./world-command-queue.js";
+import { rollPendingCheck } from "../dice-roller.js";
 
 export interface WorldRuntime {
   worldId: WorldId;
@@ -32,23 +22,6 @@ export interface WorldRuntime {
   router: ModelRouter | null;
   store: MultiWorldStore;
   queue: WorldCommandQueue;
-}
-
-function createRules(): RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>> {
-  const registry = new RuleRegistry<ReturnType<WorldProjector["getSnapshot"]>>();
-  registry.register(durationCheck);
-  registry.register(physicsMovement);
-  for (const rule of observationRules) registry.register(rule);
-  registry.register(repercussion);
-  registry.register(expire);
-  registry.register(fire);
-  registry.register(start);
-  registry.register(forestFireSpread);
-  registry.register(end);
-  registry.register(giveRule);
-  registry.register(heatSpread);
-  registry.register(playerStrategy);
-  return registry;
 }
 
 function createRouter(): ModelRouter | null {
@@ -114,6 +87,11 @@ export class WorldRuntimeManager {
       worldId, bus, registry, engine, projection, processedKeys, router,
       store: this.store, queue,
     };
+
+    // Crash recovery: roll any pending critical checks
+    // Must happen before caching to avoid partial state on recovery failure
+    await recoverPendingChecks(runtime);
+
     this.runtimes.set(worldId, runtime);
     return runtime;
   }
@@ -124,5 +102,42 @@ export class WorldRuntimeManager {
 
   has(worldId: WorldId): boolean {
     return this.runtimes.has(worldId);
+  }
+}
+
+/**
+ * Crash recovery for critical checks.
+ * Finds CriticalCheckRequested events without corresponding CriticalCheckRolled
+ * and rolls them exactly once.
+ */
+async function recoverPendingChecks(runtime: WorldRuntime): Promise<void> {
+  const pendingChecks = runtime.projection.getSnapshot().pendingChecks;
+  if (pendingChecks.size === 0) return;
+
+  console.log(`[recovery] Found ${pendingChecks.size} pending critical checks`);
+
+  for (const [checkId, pendingCheck] of pendingChecks) {
+    // Find the original CriticalCheckRequested event
+    const requestEvent = runtime.bus.query().find(
+      (e) => e.type === "CriticalCheckRequested" && (e.payload as { checkId: string }).checkId === checkId,
+    );
+
+    if (!requestEvent) {
+      console.error(`[recovery] CriticalCheckRequested not found for checkId=${checkId}`);
+      continue;
+    }
+
+    // Roll the dice using the original event's correlationId and timestamp
+    // to maintain consistent command history
+    const rollEvent = rollPendingCheck(
+      pendingCheck,
+      requestEvent.eventId,
+      requestEvent.correlationId,
+      requestEvent.timestamp,
+    );
+
+    // Process through engine (this will trigger resolution)
+    runtime.engine.processSequence([rollEvent]);
+    console.log(`[recovery] Rolled check ${checkId}`);
   }
 }

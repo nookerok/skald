@@ -1,5 +1,6 @@
-/** Canonical Domain Event type strings for MVP-0. */
+/** Canonical Domain Event type strings. */
 export const EventType = {
+  // Legacy events (Iteration 0–14, kept for backward compatibility)
   PlayerSpawned: "PlayerSpawned",
   WallPlaced: "WallPlaced",
   CommandRejected: "CommandRejected",
@@ -25,6 +26,23 @@ export const EventType = {
   GiveValidated: "GiveValidated",
   ActionCompleted: "ActionCompleted",
   StrategySet: "StrategySet",
+
+  // Iteration 15 — Open Intent & Critical Checks
+  ActionAttempted: "ActionAttempted",
+  ActionResolved: "ActionResolved",
+  ActionBlocked: "ActionBlocked",
+  ActionHadNoObservableEffect: "ActionHadNoObservableEffect",
+  LocationDefined: "LocationDefined",
+  PlayerLocationChanged: "PlayerLocationChanged",
+  WorldObjectPlaced: "WorldObjectPlaced",
+  ObjectObserved: "ObjectObserved",
+  ObjectTemperatureChanged: "ObjectTemperatureChanged",
+  ObjectIntegrityChanged: "ObjectIntegrityChanged",
+  PassageOpened: "PassageOpened",
+  SoundProduced: "SoundProduced",
+  CriticalCheckRequested: "CriticalCheckRequested",
+  CriticalCheckRolled: "CriticalCheckRolled",
+  CriticalCheckResolved: "CriticalCheckResolved",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
