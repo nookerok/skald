@@ -31,6 +31,7 @@ export async function loadDiscoveries() {
     if (body.ok) {
       discoveryData = body;
       renderDiscoveries();
+      return body;
     }
   } catch {
     // silent

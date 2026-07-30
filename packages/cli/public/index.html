@@ -3,104 +3,89 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#1a1208">
+<meta name="theme-color" content="#071017">
 <title>Skald — Living World</title>
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/guidance.css">
 <link rel="stylesheet" href="/menu.css">
 <link rel="stylesheet" href="/new-game.css">
 <link rel="stylesheet" href="/game-shell.css">
+<link rel="stylesheet" href="/living-world.css">
 </head>
 <body>
 <div id="app">
   <div id="panel-menu"><div id="menu-container"></div></div>
   <div id="panel-new-game" hidden><div id="new-game-container"></div></div>
-
   <div id="panel-game-shell" class="skald-shell" hidden>
     <div class="skald-frame">
       <header class="skald-topbar">
-        <button id="btn-to-menu" class="topbar-button" aria-label="Главное меню">← Меню</button>
-        <div class="skald-brand">SKALD <span id="active-world-label">Living World</span></div>
+        <button id="btn-to-menu" class="topbar-button ghost" aria-label="Главное меню">← Меню</button>
+        <div class="skald-brand"><span class="brand-sigil" aria-hidden="true">✦</span> SKALD <span id="active-world-label">Living World</span></div>
+        <div class="topbar-place"><span id="time-display">Ход 0</span><span class="meta-separator">·</span><span id="place-display">Место неизвестно</span></div>
         <div class="connection-state"><span id="connection-dot" class="connection-dot"></span><span id="status-text" aria-live="polite" role="status">Загрузка...</span></div>
-        <div class="topbar-meta"><span id="time-display">T: 0</span><span id="pos-display">(0, 0)</span></div>
-        <button id="open-journal-btn" class="topbar-button">Журнал</button>
-        <button id="open-discoveries-btn" class="topbar-button">Открытия</button>
-        <button id="open-dev-btn" class="topbar-button">Dev</button>
+        <div class="topbar-meta"><span id="pos-display">0, 0</span></div>
+        <div class="topbar-actions">
+          <button id="open-journal-btn" class="topbar-button">Журнал</button>
+          <button id="open-discoveries-btn" class="topbar-button">Открытия</button>
+          <button id="open-dev-btn" class="topbar-button">Dev</button>
+        </div>
       </header>
-
-      <section id="world-activity" class="world-activity" aria-label="Активность мира">
-        <span class="world-activity-label">Мир продолжает жить</span>
-        <div id="world-activity-list" class="world-activity-list"></div>
-      </section>
-
       <div class="skald-layout">
-        <aside class="skald-timeline" aria-label="Причинная цепочка последнего хода">
-          <h2>Последний ход</h2>
-          <div id="causal-timeline" class="timeline-list"></div>
-          <button id="timeline-journal-btn" class="text-button">Вся хроника →</button>
+        <aside class="world-sidebar" aria-label="Известный мир">
+          <div class="sidebar-heading"><span class="eyebrow">WORLD</span><span class="sidebar-ornament" aria-hidden="true">✧</span></div>
+          <section class="sidebar-section"><h2>Вокруг</h2><div id="world-sidebar-nearby" class="sidebar-list"></div></section>
+          <section class="sidebar-section"><h2>Места</h2><div id="world-sidebar-places" class="sidebar-list"></div></section>
+          <section class="sidebar-section"><h2>Отношения</h2><div id="world-sidebar-relations" class="sidebar-list"></div></section>
+          <section class="sidebar-section"><h2>Интересное</h2><div id="world-sidebar-interest" class="sidebar-list"></div></section>
         </aside>
-
         <main id="panel-game" class="skald-center" aria-label="Текущий ход">
-          <div id="discovery-toasts" class="discovery-toasts" aria-live="polite"></div>
-          <section id="situation-card" class="situation-card" hidden></section>
+          <section id="world-stage" class="world-stage" aria-label="Сцена известного мира">
+            <picture class="world-stage-art" aria-hidden="true"><source srcset="/assets/maps/visual-shell-region.webp" type="image/webp"><img src="/assets/maps/visual-shell-region.jpg" alt=""></picture>
+            <div class="world-stage-vignette" aria-hidden="true"></div>
+            <div class="stage-header"><span class="eyebrow">ИЗВЕСТНЫЙ МИР</span><h1 id="stage-location-title">Место неизвестно</h1><p id="stage-location-description">Летопись ещё не открыла это место.</p></div>
+            <div id="stage-marker" class="stage-marker"><span class="marker-pulse" aria-hidden="true"></span><span class="marker-label">Ты здесь</span></div>
+            <div id="stage-links" class="stage-links" aria-label="Известные связанные места"></div>
+            <div class="stage-footer"><div id="stage-attention" class="attention-marks" aria-label="Внимание мира"></div><span id="stage-attention-text">Мир спокоен</span></div>
+          </section>
           <section id="primary-section" class="narrative-stack">
             <div id="empty-state" class="narrative-zone primary">Мир ждёт твоего действия.</div>
             <article id="primary-card" class="narrative-zone primary" hidden></article>
             <div id="notable-list" class="notable-list"></div>
             <div id="background-list" class="background-list"></div>
-            <div id="suppressed-msg" hidden></div>
+            <div id="critical-check-card" class="critical-check-card" hidden></div>
+            <section id="situation-card" class="situation-card" hidden></section>
           </section>
-          <section id="guidance-section" class="guidance-slot" aria-label="Подсказка" aria-live="polite"><div id="guidance-container"></div></section>
-          <section id="map-section" class="map-section" aria-label="Карта мира"><div id="map-grid"></div></section>
+          <section class="lower-panels">
+            <section id="activity-panel" class="lower-panel" aria-label="Вокруг тебя">
+              <header class="panel-heading"><div><span class="eyebrow">WORLD ACTIVITY</span><h2>Вокруг тебя</h2></div><div id="activity-filters" class="segmented-control" role="tablist" aria-label="Область активности"><button type="button" data-activity-scope="visible" role="tab" aria-selected="true">Видимое</button><button type="button" data-activity-scope="known" role="tab" aria-selected="false">Известное</button><button type="button" data-activity-scope="global" role="tab" aria-selected="false">Мир</button></div></header>
+              <div id="world-activity-list" class="activity-list"></div>
+            </section>
+            <section id="causal-panel" class="lower-panel" aria-label="Почему это произошло">
+              <header class="panel-heading"><div><span class="eyebrow">CAUSAL THREAD</span><h2>Почему это произошло</h2></div></header>
+              <ol id="causal-timeline" class="causal-list"></ol>
+            </section>
+          </section>
         </main>
-
-        <aside class="skald-context" aria-label="Контекст">
-          <div class="context-tabs" role="tablist" aria-label="Контекст мира">
-            <button class="context-tab active" data-context="world" role="tab" aria-selected="true">Мир</button>
-            <button class="context-tab" data-context="character" role="tab" aria-selected="false">Персонаж</button>
-            <button class="context-tab" data-context="knowledge" role="tab" aria-selected="false">Знания</button>
-          </div>
+        <aside class="context-rail" aria-label="Контекст">
+          <div class="context-tabs" role="tablist" aria-label="Контекст мира"><button class="context-tab active" data-context="world" role="tab" aria-selected="true">Мир</button><button class="context-tab" data-context="character" role="tab" aria-selected="false">Ты</button><button class="context-tab" data-context="knowledge" role="tab" aria-selected="false">Знания</button></div>
           <div id="context-world" class="context-panel active" role="tabpanel"></div>
-          <div id="context-character" class="context-panel" role="tabpanel"></div>
-          <div id="context-knowledge" class="context-panel" role="tabpanel"></div>
+          <div id="context-character" class="context-panel" role="tabpanel" hidden></div>
+          <div id="context-knowledge" class="context-panel" role="tabpanel" hidden></div>
         </aside>
       </div>
-
+      <section id="turn-history" class="turn-history" aria-label="Что произошло"><header class="panel-heading"><div><span class="eyebrow">PLAYER-FACING HISTORY</span><h2>Что произошло</h2></div><button id="timeline-journal-btn" class="text-button">Вся хроника →</button></header><div id="turn-history-list" class="turn-history-list"></div></section>
       <section id="controls-section" class="command-dock" aria-busy="true">
-        <form id="command-form" class="command-line">
-          <span class="command-prompt">›</span>
-          <textarea id="command-input" class="command-input" rows="1" autocomplete="off" placeholder="Опиши намерение: осмотреть башню, идти на север, нагреть петли..."></textarea>
-          <button id="send-btn" class="command-send" type="submit">Отправить</button>
-          <button id="retry-btn" class="command-retry" type="button">Retry</button>
-        </form>
+        <form id="command-form" class="command-line"><span class="command-prompt" aria-hidden="true">›</span><textarea id="command-input" class="command-input" rows="1" autocomplete="off" placeholder="Опиши, что ты хочешь сделать…"></textarea><button id="send-btn" class="command-send" type="submit">Отправить</button><button id="retry-btn" class="command-retry" type="button" hidden>Повторить</button></form>
       </section>
-
-      <nav class="mobile-nav" aria-label="Мобильная навигация">
-        <button data-mobile-target="narrative" class="active">История</button>
-        <button data-mobile-target="world">Мир</button>
-        <button data-mobile-target="knowledge">Знания</button>
-        <button data-mobile-target="journal">Журнал</button>
-      </nav>
-
+      <nav class="mobile-nav" aria-label="Мобильная навигация"><button data-mobile-target="panel-game" class="active">История</button><button data-mobile-target="world-stage">Мир</button><button data-mobile-target="context-knowledge">Знания</button><button data-mobile-target="journal-overlay">Журнал</button></nav>
       <div id="shell-loading" class="shell-overlay" hidden><div class="overlay-card"><strong id="loading-title">Мир загружается...</strong><span id="loading-stage">Читаем летопись</span><div class="loading-bar"></div></div></div>
       <div id="shell-error" class="shell-overlay" hidden><div class="overlay-card error"><strong>Мастер потерял нить...</strong><span id="shell-error-message">Мир не отвечает.</span><button id="shell-retry-connect">Попробовать снова</button></div></div>
-
-      <section id="journal-overlay" class="panel-overlay" hidden aria-label="Журнал">
-        <header><h2>Журнал мира</h2><button data-close-overlay="journal-overlay" aria-label="Закрыть">×</button></header>
-        <div id="journal-container"></div>
-      </section>
-      <section id="discoveries-overlay" class="panel-overlay" hidden aria-label="Открытия">
-        <header><h2>Следы и открытия</h2><button data-close-overlay="discoveries-overlay" aria-label="Закрыть">×</button></header>
-        <div id="discovery-container"></div>
-      </section>
-      <section id="dev-overlay" class="panel-overlay dev-overlay" hidden aria-label="Dev Mode">
-        <header><h2>Pipeline и Domain Events <span class="dev-badge">DEV</span></h2><button data-close-overlay="dev-overlay" aria-label="Закрыть">×</button></header>
-        <div id="pipeline-view" class="pipeline-view"></div>
-        <div id="event-log" class="event-log"></div>
-      </section>
+      <section id="journal-overlay" class="panel-overlay" hidden aria-label="Журнал"><header><h2>Журнал мира</h2><button data-close-overlay="journal-overlay" aria-label="Закрыть">×</button></header><div id="journal-container"></div></section>
+      <section id="discoveries-overlay" class="panel-overlay" hidden aria-label="Открытия"><header><h2>Следы и открытия</h2><button data-close-overlay="discoveries-overlay" aria-label="Закрыть">×</button></header><div id="discovery-container"></div></section>
+      <section id="dev-overlay" class="panel-overlay dev-overlay" hidden aria-label="Dev Mode"><header><h2>Pipeline и Domain Events <span class="dev-badge">DEV</span></h2><button data-close-overlay="dev-overlay" aria-label="Закрыть">×</button></header><div id="pipeline-view" class="pipeline-view"></div><div id="event-log" class="event-log"></div></section>
     </div>
   </div>
 </div>
-<script type="module" src="/app.js?v=8f8f1f3-shell"></script>
+<script type="module" src="/app.js?v=16-visual-shell"></script>
 </body>
 </html>

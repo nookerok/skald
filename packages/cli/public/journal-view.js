@@ -34,6 +34,7 @@ export async function loadJournal() {
     if (body.ok) {
       fullJournalData = body;
       renderJournal();
+      return body;
     }
   } catch {
     // silent
