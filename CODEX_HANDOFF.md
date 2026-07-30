@@ -2,15 +2,15 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
-Updated: 2026-07-29
+Updated: 2026-07-30
 Branch: main
-Working tree: UX-5.0B/C implementation complete, awaiting browser QA and commit
+Working tree: Iteration 15 complete, committed and deployed to Orange Pi
 
 ## Current milestone
 
-UX-5.0B/C — Production Game Shell vertical slice is implemented from the UX v13 prototype.
+Iteration 15 — Open Intent and Critical Checks is complete and deployed.
 
-41 test files, 542 tests + 1 skip, tsc clean, npm run validate PASS.
+44 test files, 687 tests passed + 1 skipped, tsc clean, npm run validate PASS.
 
 ## Completed
 
@@ -32,11 +32,10 @@ UX-5.0B/C: Production shell layout from UX v13, desktop/mobile responsive CSS,
 
 ## Next
 
-Run the fixed `$skald-ntfs-browser-qa` task against the deployed Orange Pi build.
-Verify menu → Continue → game shell, one authorized movement/social command,
-causal timeline, Journal/Discoveries/Dev overlays, reload persistence and mobile
-layout. Then commit and push, followed by Orange Pi update and post-deploy smoke.
+Deployment verified on Orange Pi commit 55dc995: service, timers, health/state and 10-turn API smoke passed.
+API smoke added turns 94-103; an additional duplicate-key probe correctly returned HTTP 409 and advanced state once to 104.
+Visual NTFS browser QA remains a separate optional gate.
 
 ## Known blockers
 
-None in repository validation. Visual QA is still pending.
+None for repository, deployment or API smoke. Visual QA is not claimed in this handoff.
