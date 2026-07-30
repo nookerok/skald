@@ -29,20 +29,31 @@ a heat source → a new question arises about what the fire will change.
 Iteration 13 does not introduce separate state for questions or hypotheses.
 The principle guides text and information selection.
 
-## 4. The player must see different ways to act
+## 4. The player describes intentions in words
 
-The main screen always shows several available intentions:
+The command composer is the primary action interface. The player describes what
+they want to do in their own words. The interface does not choose, complete or
+replace that intention with a direction pad, action chips or a fixed action
+menu.
 
-- four movement directions;
-- waiting;
-- supported social actions.
+The only permanent button inside the command composer submits the player's
+text. Navigation, journal, diagnostics, accessibility and other system controls
+are not game intentions and may remain buttons.
 
-The UI does not guarantee that an action will succeed. The final result
-is always determined by existing game Rules.
+The interpreter is non-authoritative: it may translate the utterance into a
+structured proposal or ask for clarification, but deterministic Rules validate
+the action and determine its consequences. Clarification does not advance world
+time or create a successful action.
 
-The requirement "at least two meaningful choices" is a design-review gate,
-not a runtime invariant — the current world may not yet contain enough
-content for a full guarantee.
+When an outcome is uncertain and its stakes are meaningful, the interface may
+show the stakes, difficulty, world-derived modifiers, recorded roll and result.
+It must not turn that critical moment into a menu of preselected actions. The
+player's choice remains the intention they expressed in their own words before
+the check.
+
+A situation with only one reasonable course of action is still a design
+warning. Multiple possibilities should be discoverable through the description
+of the world and its consequences, not exposed as a fixed command palette.
 
 ## 5. Do not use traditional RPG terminology
 

@@ -1,5 +1,8 @@
 # ADR 0002 — Player Guidance Read Model
 
+Status: read-model decision retained; suggestion-button interaction mechanics
+superseded by ADR 0005 (Open Intent and Critical Checks).
+
 ## Context
 
 New players need help understanding the action→response→discovery loop. Two

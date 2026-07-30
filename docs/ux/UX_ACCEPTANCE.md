@@ -1,4 +1,4 @@
-# UX-0 Acceptance
+# UX Acceptance
 
 ## Architecture
 
@@ -11,7 +11,12 @@
 ## Playability
 
 - The player can read the consequence of the previous action.
-- The current Game Screen exposes at least two supported intentions.
+- The Game Screen exposes a free-text composer as the primary action control.
+- No D-pad, direction buttons, action chips or permanent in-world command menu
+  chooses an intention for the player.
+- The composer action button only submits the text written by the player.
+- Critical checks may explain stakes and results but do not replace the
+  player's intention with a choice menu.
 - Primary and notable presentation remain distinct.
 - Journal and thread state survive reload.
 - No mandatory scripted path is presented as an invariant of the world.
@@ -28,12 +33,12 @@
 
 ## Validation
 
-UX-0 changes documentation only. Before handoff run:
+Before handoff run:
 
 ```bash
 npm run validate
 git diff --check
 ```
 
-The next implementation milestone additionally requires browser smoke tests for
+Browser-facing implementation changes additionally require browser smoke tests for
 pending, retry, reload, journal filters and error recovery.
