@@ -4,7 +4,7 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-30
 Branch: main
-Working tree: Iteration 16.0 Visual Shell complete, validated, awaiting commit, deploy and browser QA
+Working tree: Iteration 16.0 Visual Shell deployed and browser-QA verified; screenshots blocked by browser runtime
 
 ## Current milestone
 
@@ -33,7 +33,7 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Commit and push Iteration 16.0, update Orange Pi, then run the mandatory visual smoke-test through the fixed NTFS browser task at desktop/tablet/mobile viewports. Record visual QA separately from automated validation.
+Iteration 16.0 is deployed on Orange Pi at commit ac32129. NTFS browser QA functionally PASSed at 1536/1024/390 with 10 text intentions (T125→T135), reload, journal/discoveries and zero console errors. Screenshot capture was BLOCKED by browser runtime target-closed; keep this separate from application PASS. Next: review visual evidence limitation and plan the next product iteration.
 
 ## Known blockers
 
