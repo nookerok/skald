@@ -20,6 +20,24 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
     causationId: null,
   });
 
+  events.push({
+    eventId: commandEventId("bootstrap-cart", "ObjectPlaced"),
+    type: "ObjectPlaced",
+    schemaVersion: 1,
+    payload: {
+      entityId: "old-cart",
+      x: 1,
+      y: 0,
+      name: "old cart",
+      aliases: ["cart", "old cart"],
+      description: "A weathered wooden cart rests on one broken wheel.",
+      components: { physical: { intact: false, weight: 200 } },
+    },
+    timestamp: 0,
+    correlationId: "bootstrap",
+    causationId: commandEventId("bootstrap", "PlayerSpawned"),
+  });
+
   if (templateId === "old_tower") {
     events.push({
       eventId: commandEventId("bootstrap-wall-1", "WallPlaced"),

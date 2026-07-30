@@ -24,6 +24,13 @@ function normalizeWorld(w: ReadonlyWorld): Record<string, unknown> {
     strategy: w.strategy,
     eventNumber: w.eventNumber,
     time: w.time,
+    entities: [...w.entities.entries()]
+      .map(([id, entity]) => [id, {
+        ...entity,
+        aliases: [...entity.aliases],
+        components: { ...entity.components },
+      }])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   };
 }
 
@@ -591,5 +598,28 @@ describe("WorldProjector — clone with strategy", () => {
 
     expect(p.getSnapshot().strategy[0]!.condition).toBe("always");
     expect(clone.getSnapshot().strategy[0]!.condition).toBe("never");
+  });
+});
+
+describe("WorldProjector ? World Interaction Model purity", () => {
+  it("replays ObjectPlaced and a complete examine flow identically", () => {
+    const events: DomainEvent[] = [
+      ...bootstrapWorldEvents(),
+      e("InteractionRequested", "i-1", { verb: "examine", object: "cart" }, 1),
+      e("InteractionTimeValidated", "i-2", { verb: "examine", object: "cart" }, 1),
+      e("TargetResolved", "i-3", { entityId: "old-cart", verb: "examine" }, 1),
+      e("InteractionValidated", "i-4", { law: "perception", entityId: "old-cart", verb: "examine" }, 1),
+      e("EntityExamined", "i-5", {
+        entityId: "old-cart", name: "old cart", description: "A weathered wooden cart rests on one broken wheel.",
+      }, 1),
+      e("ObservationUpdated", "i-6", { key: "curiosity", delta: 1 }, 1),
+    ];
+
+    const original = rebuildProjection(events);
+    const rebuilt = rebuildProjection(events);
+
+    expect(normalizeWorld(rebuilt.getSnapshot())).toEqual(normalizeWorld(original.getSnapshot()));
+    expect(rebuilt.getSnapshot().entities.get("old-cart")?.components.physical).toEqual({ intact: false, weight: 200 });
+    expect(rebuilt.getSnapshot().observations.get("curiosity")).toBe(1);
   });
 });

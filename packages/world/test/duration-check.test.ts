@@ -89,3 +89,29 @@ describe("simulation.duration_check", () => {
     expect(w.lastActionTick).toBe(0);
   });
 });
+
+
+describe("simulation.duration_check ? World Interaction Model gate", () => {
+  it("passes InteractionRequested through InteractionTimeValidated", () => {
+    const out = durationCheck.handle(
+      evt("InteractionRequested", "interaction-1", { verb: "examine", object: "cart" }, 5),
+      world(0),
+    );
+    expect(out).toEqual([expect.objectContaining({
+      type: "InteractionTimeValidated",
+      causationId: "interaction-1",
+      payload: { verb: "examine", object: "cart" },
+    })]);
+  });
+
+  it("rejects InteractionRequested when the action budget is exhausted", () => {
+    const out = durationCheck.handle(
+      evt("InteractionRequested", "interaction-2", { verb: "examine", object: "cart" }, 5),
+      world(5),
+    );
+    expect(out).toEqual([expect.objectContaining({
+      type: "ActionRejected",
+      payload: { reason: "insufficient_time" },
+    })]);
+  });
+});

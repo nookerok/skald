@@ -46,6 +46,7 @@ export type {
   IntentReference,
   InterpretationMeta,
   ActionIntentCommand,
+  IntentCommand,
   ClarificationRequest,
   UnsupportedIntent,
   IntentResult,
@@ -108,7 +109,7 @@ export function parseCommand(input: string): LegacyParseResult {
 // ── Unified parse (Iteration 15 entry point) ────────────────────────
 
 import { interpretIntent } from "./deterministic-interpreter.js";
-import type { IntentResult } from "./types.js";
+import type { IntentCommand, IntentResult } from "./types.js";
 
 /**
  * Parse player input into an ActionIntentCommand.
@@ -116,6 +117,9 @@ import type { IntentResult } from "./types.js";
  * then falls through to the deterministic Russian interpreter.
  */
 export function parseIntent(input: string): IntentResult {
+  const interaction = parseExactInteraction(input);
+  if (interaction) return interaction;
+
   const legacy = parseCommand(input);
 
   if (legacy.type === "MoveCommand") {
@@ -143,6 +147,20 @@ export function parseIntent(input: string): IntentResult {
 
   // Fall through to Russian interpreter
   return interpretIntent(input);
+}
+
+/**
+ * First World Interaction Model vertical slice: exact English syntax only.
+ * Natural-language/LLM vocabulary is deliberately not widened in this path.
+ */
+function parseExactInteraction(input: string): IntentCommand | null {
+  const match = /^examine(?:\s+(.*))?$/i.exec(input.trim());
+  if (!match) return null;
+  return {
+    type: "IntentCommand",
+    verb: "examine",
+    object: (match[1] ?? "").trim(),
+  };
 }
 
 // ── Backward-compatible re-export ────────────────────────────────────

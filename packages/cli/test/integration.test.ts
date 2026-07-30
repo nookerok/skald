@@ -443,3 +443,39 @@ describe("Integration — Guidance action-count (regression)", () => {
     expect(guidance.phase).toBe("observe_consequence");
   });
 });
+
+
+describe("Integration ? World Interaction Model examine/perception", () => {
+  it("a second examine in the same tick is rejected by the action budget", () => {
+    const app = createApp();
+    runCommand(app, "examine cart", "examine-1", 1, "examine-key-1");
+    const second = runCommand(app, "examine cart", "examine-2", 1, "examine-key-2") as { events: { type: string }[] };
+
+    expect(second.events.map((event) => event.type)).toEqual(["InteractionRequested", "ActionRejected"]);
+    expect(app.projection.getSnapshot().observations.get("curiosity")).toBe(1);
+  });
+
+  it("examine cart runs the complete gate chain and leaves the entity unchanged", () => {
+    const app = createApp();
+    const entityBefore = app.projection.getSnapshot().entities.get("old-cart");
+
+    const result = runCommandCycle(app, "examine cart", "examine-cart-1");
+    expect("type" in result && result.type === "IdempotencyReject").toBe(false);
+    const outcome = result as { events: { type: string }[] };
+    const types = outcome.events.map((event) => event.type);
+
+    expect(types).toEqual([
+      "InteractionRequested",
+      "InteractionTimeValidated",
+      "TargetResolved",
+      "InteractionValidated",
+      "EntityExamined",
+      "ObservationUpdated",
+    ]);
+    expect(app.projection.getSnapshot().observations.get("curiosity")).toBe(1);
+    expect(app.projection.getSnapshot().entities.get("old-cart")).toEqual(entityBefore);
+
+    const narrative = buildNarrative(app.bus.query(), app.projection.getSnapshot());
+    expect(narrative.entries.some((entry) => entry.text.includes("old cart."))).toBe(true);
+  });
+});

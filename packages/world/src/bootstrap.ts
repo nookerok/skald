@@ -28,6 +28,23 @@ export function bootstrapWorldEvents(): DomainEvent[] {
       causationId: null,
     },
   ];
+  events.push({
+    eventId: "boot#ObjectPlaced#old-cart",
+    type: "ObjectPlaced",
+    schemaVersion: 1,
+    payload: {
+      entityId: "old-cart",
+      x: 1,
+      y: 0,
+      name: "old cart",
+      aliases: ["cart", "old cart"],
+      description: "A weathered wooden cart rests on one broken wheel.",
+      components: { physical: { intact: false, weight: 200 } },
+    },
+    timestamp: 0,
+    correlationId: "boot",
+    causationId: "boot#PlayerSpawned",
+  });
   WALLS.forEach((w, i) => {
     events.push({
       eventId: `boot#WallPlaced#${i}`,

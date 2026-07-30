@@ -137,7 +137,7 @@ export function runCommand(
   }
 
   const parsed = parseIntent(input);
-  if (parsed.type !== "ActionIntentCommand") return parsed;
+  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "IntentCommand") return parsed;
 
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
   const options: ProcessOptions = app.store
@@ -221,7 +221,7 @@ export function runCommandCycle(
   }
 
   const parsed = parseIntent(input);
-  if (parsed.type !== "ActionIntentCommand") return parsed;
+  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "IntentCommand") return parsed;
 
   const ts = app.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;

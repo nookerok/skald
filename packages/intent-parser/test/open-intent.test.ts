@@ -410,3 +410,16 @@ describe("interpretIntent — 30+ Russian formulations", () => {
     expect(cmd.operation).toBe(expectedOp);
   });
 });
+
+
+describe("parseIntent ? World Interaction Model exact syntax", () => {
+  it("parses examine <object> as IntentCommand", () => {
+    const result = parseIntent("examine cart");
+    expect(result).toEqual({ type: "IntentCommand", verb: "examine", object: "cart" });
+  });
+
+  it("keeps a missing examine target for Command Handler structural rejection", () => {
+    const result = parseIntent("examine");
+    expect(result).toEqual({ type: "IntentCommand", verb: "examine", object: "" });
+  });
+});

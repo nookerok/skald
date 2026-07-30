@@ -4,38 +4,37 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-30
 Branch: main
-Working tree: Iteration 15 complete, committed and deployed to Orange Pi
+Working tree: World Interaction Model v0 examine/perception vertical slice complete, validated, awaiting commit
 
 ## Current milestone
 
-Iteration 15 — Open Intent and Critical Checks is complete and deployed.
+World Interaction Model v0 — first vertical slice is complete.
 
-44 test files, 687 tests passed + 1 skipped, tsc clean, npm run validate PASS.
+45 test files, 703 tests passed + 1 skipped, tsc clean, npm run validate PASS.
 
 ## Completed
 
-UX-0: Product contract, authority boundaries, screen inventory
-UX-1: Playable shell, client-state, reconnect, keyboard, accessibility
-UX-2: Discovery read model, presentation marks, builder, discovery-view.js
-UX-3: Guidance phases, selector, allowlist, onboarding UI, dismissal
-UX-4.0: Multi-world persistence, schema v2, WorldRuntimeManager, scoped API,
-        Main Menu, Continue, hash routing, world-api-client
-UX-4.1: Character presets, world templates, schema v3, POST /api/worlds,
-        atomic creation with idempotency, New Game flow UI
-UX-5.0A: Game Shell read model, character/world/situation/attention views,
-         causal turn chain, world activity, knowledge summary, scoped HTTP API,
-         shellDelta for command/wait paths, replay and persistence regressions
-UX-5.0B/C: Production shell layout from UX v13, desktop/mobile responsive CSS,
-          causal timeline, world activity strip, context tabs, command dock,
-          journal/discovery/dev overlays, loading/error states, selected-world
-          read-model routing, crypto.randomUUID fallback and New Game rerender fix
+UX-0 through UX-5.0B/C: product contract, open intent UI, multi-world
+persistence, game shell, player guidance, and the production shell.
+
+Iteration 15: Open Intent and Critical Checks, deployed to Orange Pi.
+
+World Interaction Model v0 first vertical slice:
+- additive entities read model from ObjectPlaced events;
+- exact syntax examine <object> -> IntentCommand;
+- durable gate chain InteractionRequested -> InteractionTimeValidated ->
+  TargetResolved -> InteractionValidated -> EntityExamined;
+- one static verb (examine) and one law (perception);
+- curiosity observation side effect, Narrative/Presentation output, replay
+  purity and same-tick action-budget coverage.
 
 ## Next
 
-Deployment verified on Orange Pi commit 55dc995: service, timers, health/state and 10-turn API smoke passed.
-API smoke added turns 94-103; an additional duplicate-key probe correctly returned HTTP 409 and advanced state once to 104.
-Visual NTFS browser QA remains a separate optional gate.
+Review this vertical slice, then commit it. A second verb or law requires a
+separate design/implementation iteration; do not widen this registry casually.
 
 ## Known blockers
 
-None for repository, deployment or API smoke. Visual QA is not claimed in this handoff.
+LLM/chat-shell vocabulary wiring for Russian free-text forms such as
+"осмотреть телегу" is intentionally out of scope for this slice. It is a
+small follow-up after the deterministic gate pipeline is accepted.

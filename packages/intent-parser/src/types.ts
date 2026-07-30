@@ -57,6 +57,20 @@ export interface ActionIntentCommand {
   readonly interpretation: InterpretationMeta;
 }
 
+/**
+ * Narrow World Interaction Model command. It is intentionally separate from
+ * ActionIntentCommand so the first vertical slice can prove its own gate
+ * pipeline without widening the existing open-intent operation catalog.
+ */
+export interface IntentCommand {
+  readonly type: "IntentCommand";
+  readonly verb: string;
+  readonly object: string;
+  readonly instrument?: string | undefined;
+  readonly location?: string | undefined;
+  readonly modifiers?: readonly string[] | undefined;
+}
+
 export interface ClarificationRequest {
   readonly type: "ClarificationRequired";
   readonly clarificationId: string;
@@ -72,6 +86,7 @@ export interface UnsupportedIntent {
 
 export type IntentResult =
   | ActionIntentCommand
+  | IntentCommand
   | ClarificationRequest
   | UnsupportedIntent;
 

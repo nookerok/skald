@@ -8,6 +8,8 @@ const SUPPRESSED_EVENT_TYPES = new Set([
   "MoveRequested", "GiveRequested", "ActionValidated", "GiveValidated", "ActionCompleted",
   // Iteration 15 — suppress bootstrap and location events from presentation
   "LocationDefined", "WorldObjectPlaced",
+  // World Interaction Model gate and bootstrap events are not player-facing.
+  "ObjectPlaced", "InteractionRequested", "InteractionTimeValidated", "TargetResolved", "InteractionValidated",
 ]);
 
 function isSuppressed(event: DomainEvent): boolean {

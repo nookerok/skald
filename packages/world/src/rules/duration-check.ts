@@ -14,8 +14,8 @@ import { ruleEventId } from "../ids.js";
 export const durationCheck: Rule<ReadonlyWorld> = {
   id: "simulation.duration_check",
   phase: "validation",
-  listens: ["ActionAttempted", "MoveRequested", "GiveRequested"],
-  produces: ["ActionValidated", "GiveValidated", "ActionRejected"],
+  listens: ["ActionAttempted", "MoveRequested", "GiveRequested", "InteractionRequested"],
+  produces: ["ActionValidated", "GiveValidated", "InteractionTimeValidated", "ActionRejected"],
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
     const now = event.timestamp;
 
@@ -31,6 +31,21 @@ export const durationCheck: Rule<ReadonlyWorld> = {
           causationId: event.eventId,
         },
       ];
+    }
+
+    // World Interaction Model: InteractionRequested → InteractionTimeValidated.
+    // This is the sole owner of InteractionRequested, preserving the action
+    // budget before target resolution begins.
+    if (event.type === "InteractionRequested") {
+      return [{
+        eventId: ruleEventId(event.eventId, "InteractionTimeValidated", 0),
+        type: "InteractionTimeValidated",
+        schemaVersion: 1,
+        payload: event.payload,
+        timestamp: event.timestamp,
+        correlationId: event.correlationId,
+        causationId: event.eventId,
+      }];
     }
 
     // Iteration 15: ActionAttempted → ActionValidated

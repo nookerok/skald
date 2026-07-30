@@ -72,6 +72,16 @@ export type * from "./llm/types.js";
 
 // Iteration 15 — Objects & Locations
 export * from "./objects/index.js";
+export * from "./entities/index.js";
+export {
+  interactionResolveTarget,
+  interactionResolveLaw,
+  resolveInteractionLaw,
+  perceptionExamine,
+  examinedCuriosity,
+  worldInteractionRules,
+} from "./rules/world-interaction.js";
+export { interactionRegistry, getInteractionDefinition, isKnownInteractionVerb } from "./interaction-registry.js";
 export { interactionRules } from "./rules/interaction.js";
 export { criticalCheckRules, criticalCheckOutcomeRules } from "./checks/index.js";
 export { createRules } from "./rules/registry.js";

@@ -4,6 +4,7 @@ import { START_POSITION, wallKey } from "./map.js";
 import type { WorldObject, Location } from "./objects/types.js";
 import { applyObjectEvent, cloneObjectState } from "./objects/projector.js";
 import type { CriticalCheckState } from "./checks/types.js";
+import type { Entity, EntityComponents } from "./entities/types.js";
 
 export interface Consequence {
   readonly id: string;
@@ -73,6 +74,8 @@ export interface ReadonlyWorld {
   readonly currentLocationId: string;
   // Iteration 15 — Pending critical checks (for crash recovery)
   readonly pendingChecks: ReadonlyMap<string, CriticalCheckState>;
+  // World Interaction Model — additive generic entity read model
+  readonly entities: ReadonlyMap<string, Entity>;
 }
 
 export interface WorldState {
@@ -96,6 +99,8 @@ export interface WorldState {
   currentLocationId: string;
   // Iteration 15 — Pending critical checks (for crash recovery)
   pendingChecks: Map<string, CriticalCheckState>;
+  // World Interaction Model — additive generic entity read model
+  entities: Map<string, Entity>;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -120,6 +125,28 @@ function deepCloneHeatSource(hs: HeatSource): HeatSource {
 
 function deepCloneStrategyEntry(e: StrategyEntry): StrategyEntry {
   return Object.freeze({ ...e });
+}
+
+function deepCloneComponents(components: EntityComponents): EntityComponents {
+  return Object.freeze({
+    material: components.material ? Object.freeze({ ...components.material }) : undefined,
+    thermal: components.thermal ? Object.freeze({ ...components.thermal }) : undefined,
+    physical: components.physical ? Object.freeze({ ...components.physical }) : undefined,
+    relation: components.relation
+      ? Object.freeze({ ...components.relation, relationIds: Object.freeze([...components.relation.relationIds]) })
+      : undefined,
+    inventory: components.inventory
+      ? Object.freeze({ ...components.inventory, itemIds: Object.freeze([...components.inventory.itemIds]) })
+      : undefined,
+  });
+}
+
+function deepCloneEntity(entity: Entity): Entity {
+  return Object.freeze({
+    ...entity,
+    aliases: Object.freeze([...entity.aliases]),
+    components: deepCloneComponents(entity.components),
+  });
 }
 
 /** Frozen immutable Map. Mutating methods throw TypeError at runtime.
@@ -169,6 +196,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     currentLocationId: state.currentLocationId,
     // Iteration 15 — Pending critical checks
     pendingChecks: cloneMap(state.pendingChecks),
+    entities: cloneMap(new Map([...state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)]))),
   }) as ReadonlyWorld;
 }
 
@@ -197,6 +225,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       currentLocationId: "",
       // Iteration 15 — Pending critical checks
       pendingChecks: new Map<string, CriticalCheckState>(),
+      entities: new Map<string, Entity>(),
     };
   }
 
@@ -233,6 +262,11 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       case "ObservationUpdated": {
         const { key, delta } = event.payload as { key: string; delta: number };
         s.observations.set(key, (s.observations.get(key) ?? 0) + delta);
+        break;
+      }
+      case "EntityExamined": {
+        // The factual outcome consumes the action budget; gate events do not.
+        s.lastActionTick = event.timestamp;
         break;
       }
       case "ConsequenceCreated": {
@@ -297,6 +331,27 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       }
       case "StrategySet": {
         s.strategy = (event.payload as { entries: StrategyEntry[] }).entries;
+        break;
+      }
+      case "ObjectPlaced": {
+        const p = event.payload as {
+          entityId: string;
+          x: number;
+          y: number;
+          name: string;
+          aliases: string[];
+          description: string;
+          components: EntityComponents;
+        };
+        s.entities.set(p.entityId, {
+          id: p.entityId,
+          x: p.x,
+          y: p.y,
+          name: p.name,
+          aliases: [...p.aliases],
+          description: p.description,
+          components: deepCloneComponents(p.components),
+        });
         break;
       }
       // Iteration 15 — Object & Location events
@@ -375,6 +430,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       locations: cloned.locations,
       currentLocationId: cloned.currentLocationId,
       pendingChecks: new Map(this.state.pendingChecks),
+      entities: new Map([...this.state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)])),
     };
     return copy;
   }

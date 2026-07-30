@@ -100,6 +100,10 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
       const p = event.payload as { x: number; y: number; delta: number };
       return { ...base, kind: "world", text: `Тепло распространяется: клетка (${p.x}, ${p.y}) нагрелась на ${p.delta}.` };
     }
+    case "EntityExamined": {
+      const { name, description } = event.payload as { name: string; description: string };
+      return { ...base, kind: "observation", text: `Ты рассматриваешь ${name}. ${description}` };
+    }
     case "TickPassed": {
       const p = event.payload as { playerOffline?: boolean };
       if (p.playerOffline) {

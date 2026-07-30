@@ -196,6 +196,15 @@ export const OBJECT_OBSERVED: PresentationTemplate = {
   },
 };
 
+export const ENTITY_EXAMINED: PresentationTemplate = {
+  id: "entity_examined", listens: ["EntityExamined"],
+  present: (event, _world) => {
+    const { name, description } = event.payload as { name: string; description: string };
+    return cand("entity_examined", "observation", "primary", 105,
+      `Ты рассматриваешь ${name}. ${description}`, event, `entity:${name}`, undefined, "trace");
+  },
+};
+
 export const OBJECT_TEMPERATURE_CHANGED: PresentationTemplate = {
   id: "object_temperature_changed", listens: ["ObjectTemperatureChanged"],
   present: (event, _world) => {
@@ -281,6 +290,7 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   ACTION_RESOLVED,
   ACTION_BLOCKED,
   OBJECT_OBSERVED,
+  ENTITY_EXAMINED,
   OBJECT_TEMPERATURE_CHANGED,
   SOUND_PRODUCED,
   CRITICAL_CHECK_REQUESTED,

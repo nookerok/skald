@@ -1,6 +1,7 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { ActionIntentCommand } from "@skald/intent-parser";
+import type { ActionIntentCommand, IntentCommand } from "@skald/intent-parser";
 import { commandEventId } from "./ids.js";
+import { isKnownInteractionVerb } from "./interaction-registry.js";
 
 /**
  * Command Handler (infra, NOT a Rule — AGENTS invariant #7, §9.9).
@@ -18,7 +19,7 @@ import { commandEventId } from "./ids.js";
  * counter — never Date.now()).
  */
 export function handleCommand(
-  command: ActionIntentCommand,
+  command: ActionIntentCommand | IntentCommand,
   correlationId: string,
   timestamp: number,
 ): DomainEvent {
@@ -30,13 +31,45 @@ export function handleCommand(
   };
 
   // Validate required fields
-  if (!command.type || command.type !== "ActionIntentCommand") {
+  const commandType = (command as { type?: unknown }).type;
+  if (commandType !== "ActionIntentCommand" && commandType !== "IntentCommand") {
     const eventId = commandEventId(correlationId, "CommandRejected");
     return {
       ...base,
       eventId,
       type: "CommandRejected",
-      payload: { reason: `invalid command type: ${command.type}` },
+      payload: { reason: `invalid command type: ${String(commandType)}` },
+    };
+  }
+
+  if (command.type === "IntentCommand") {
+    if (!isKnownInteractionVerb(command.verb)) {
+      return {
+        ...base,
+        eventId: commandEventId(correlationId, "CommandRejected"),
+        type: "CommandRejected",
+        payload: { reason: `unknown interaction verb: ${command.verb}` },
+      };
+    }
+    if (command.object.trim().length === 0) {
+      return {
+        ...base,
+        eventId: commandEventId(correlationId, "CommandRejected"),
+        type: "CommandRejected",
+        payload: { reason: "missing interaction object" },
+      };
+    }
+    return {
+      ...base,
+      eventId: commandEventId(correlationId, "InteractionRequested"),
+      type: "InteractionRequested",
+      payload: {
+        verb: command.verb,
+        object: command.object,
+        instrument: command.instrument ?? null,
+        location: command.location ?? null,
+        modifiers: command.modifiers ?? [],
+      },
     };
   }
 

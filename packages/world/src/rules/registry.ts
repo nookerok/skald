@@ -10,6 +10,7 @@ import { durationCheck } from "./duration-check.js";
 import { playerStrategy } from "./player-strategy.js";
 import { interactionRules } from "./interaction.js";
 import { criticalCheckRules, criticalCheckOutcomeRules } from "../checks/index.js";
+import { worldInteractionRules } from "./world-interaction.js";
 
 /**
  * Create a fully-configured RuleRegistry with all game rules.
@@ -30,6 +31,9 @@ export function createRules(): RuleRegistry<ReadonlyWorld> {
 
   // Interaction rules (Iteration 15)
   for (const rule of interactionRules) registry.register(rule);
+
+  // World Interaction Model — examine/perception vertical slice
+  for (const rule of worldInteractionRules) registry.register(rule);
 
   // Phase: consequence
   registry.register(repercussion);

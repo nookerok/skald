@@ -43,6 +43,14 @@ export const EventType = {
   CriticalCheckRequested: "CriticalCheckRequested",
   CriticalCheckRolled: "CriticalCheckRolled",
   CriticalCheckResolved: "CriticalCheckResolved",
+
+  // World Interaction Model — first vertical slice (examine/perception)
+  ObjectPlaced: "ObjectPlaced",
+  InteractionRequested: "InteractionRequested",
+  InteractionTimeValidated: "InteractionTimeValidated",
+  TargetResolved: "TargetResolved",
+  InteractionValidated: "InteractionValidated",
+  EntityExamined: "EntityExamined",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
