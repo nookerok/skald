@@ -3,8 +3,8 @@
 ## Context
 
 The new visual contract presents the world through the observer's incomplete
-knowledge. The browser must not receive a second authoritative world model,
-raw truth fields, or an unfiltered Event Log. Existing discovery cards are not
+knowledge. The normal player renderer must not consume a second authoritative
+world model, raw truth fields, or an unfiltered Event Log. Existing discovery cards are not
 enough to explain confidence, freshness, evidence, hypotheses and
 contradictions.
 
@@ -44,5 +44,7 @@ relations, history, existence explanation and causal trace.
 - Predictions are represented by the contract but remain empty until a
   deterministic prediction source exists.
 - Existing DiscoveryJournal and KnowledgeSummary remain available for backward
-  compatibility while the browser Knowledge tab uses the belief DTO.
+  compatibility, diagnostics and legacy read views while the normal browser
+  Knowledge tab uses the belief DTO. They must not become a parallel source
+  for belief rendering.
 

@@ -16,6 +16,8 @@ API smoke: 10 sequential turns, world time 147 to 157, duplicate key rejected wi
 HTTP 409. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;
 screenshots and Performance API network evidence were blocked by browser-tool
 CDP/runtime limitations.
+Normative UI contract: docs/OBSERVATION_BELIEF_MODEL.md. AGENTS, architecture, UX
+contract, authority boundaries, glossary and roadmap now point to this specification.
 
 ## Completed
 

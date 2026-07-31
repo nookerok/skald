@@ -25,12 +25,13 @@ top-level package without revising this file and docs/ARCHITECTURE.md.
 ## Sources of truth
 
 1. AGENTS.md: permanent rules and safety boundaries.
-2. docs/ARCHITECTURE.md: architecture rationale and history.
-3. docs/PROJECT_MAP.md: stable navigation and runtime flows.
-4. docs/GLOSSARY.md: canonical terminology.
-5. docs/DECISIONS.md and docs/adr/: accepted cross-cutting decisions.
-6. CODEX_HANDOFF.md: current milestone only; verify it against Git and code.
-7. packages/ and tests: executable behavior.
+2. docs/ARCHITECTURE.md: simulation architecture and authority rationale.
+3. docs/OBSERVATION_BELIEF_MODEL.md: normative UI data and renderer contract.
+4. docs/PROJECT_MAP.md: stable navigation and runtime flows.
+5. docs/GLOSSARY.md: canonical terminology.
+6. docs/DECISIONS.md and docs/adr/: accepted cross-cutting decisions.
+7. CODEX_HANDOFF.md: current milestone only; verify it against Git and code.
+8. packages/ and tests: executable behavior.
 
 If sources disagree, stop and surface the contradiction. Do not silently choose
 the convenient interpretation.
@@ -75,6 +76,14 @@ not select facts, importance or actions.
 Playability guidance is in docs/PLAYABILITY_PRINCIPLES.md. It is design
 guidance, not a new runtime invariant.
 
+Observation & Belief is the defining contract for the normal player UI:
+docs/OBSERVATION_BELIEF_MODEL.md is normative for observer scope, DTO shape,
+uncertainty rendering and forbidden fields. The normal Knowledge renderer may
+read only BeliefModelDTO and current ObservationRecord data. Existing Game
+Shell context fields are compatibility read views; they must not be used as a
+second Knowledge/truth source. Developer Diagnostics is a separate,
+explicitly-opened trusted-LAN surface.
+
 ## Development workflow
 
 At task start:
@@ -118,6 +127,10 @@ Given Event + ReadonlyWorld -> Rule -> Expected Events.
 Every new PresentationTemplate has a pure unit test. Integration tests cover
 the complete command path. Preserve Projection Purity, atomicity, idempotency,
 immutable snapshot/payload, poisoning and LLM authority tests.
+
+Observation & Belief changes additionally require builder tests for
+observer scope, freshness decay, contradiction persistence, immutable DTOs and
+absence of forbidden truth fields, plus HTTP DTO-shape tests.
 
 Browser-facing changes also require a real run through
 `$skald-ntfs-browser-qa`. Gameplay clicks change the canonical Event Log, so

@@ -251,6 +251,24 @@ MovementSucceeded → ObservationUpdated → Projection.observations.risk_taken+
 
 Интерпретацию значений ("ты заметно склонен к риску") делает Narrative/LLM-слой, а не World. Отдельного `PlayerProfileManager` не существует.
 
+### 5.3.1 Observation & Belief Model - normative UI contract
+
+The complete normative contract is in docs/OBSERVATION_BELIEF_MODEL.md. It does
+not create a gameplay subsystem or alter Event Log authority. It fixes the
+simulation-to-player boundary:
+
+Event Log + ReadonlyWorld
+        |
+Observation Engine (deterministic and observer-scoped)
+        |
+BeliefModel / ObservationRecord -> BeliefModelDTO -> Knowledge renderer
+
+Evidence, hypotheses, relations, freshness and contradictions are derived
+read-side values. Observation Engine emits no Domain Events, writes no
+Projection or SQLite, and never calls LLM/network. The normal renderer does not
+read raw Events, Projection maps, payloads or internal IDs. Diagnostics is a
+separate explicitly-opened trusted-LAN surface.
+
 ### 5.4 Situations — долгоживущие правила во времени
 
 **Решение:** Situation — не объект, не менеджер, не сценарий. Это обычное Rule, которое активируется/деактивируется событиями и действует на `TickPassed`.

@@ -1,5 +1,11 @@
 # UX Interaction Grammar
 
+The intent grammar is a backend contract, not a list of UI buttons.
+The player expresses intentions through the free-text composer. Move, Wait and
+Give are parser/rule proposals; they must not reappear as a permanent action
+palette. Read-only navigation controls (journal, knowledge and diagnostics) are
+not in-world intentions.
+
 ## Current registered intentions
 
 ```text

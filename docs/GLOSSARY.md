@@ -11,6 +11,15 @@
 | Consequence | A derived world effect with lifecycle data | Quest or XP reward |
 | Situation | A time-bounded active world state | Dialogue tree or mission |
 | Observation | Deterministic count of a recurring pattern | An LLM interpretation |
+| ObservationRecord | Observer-scoped result of the deterministic Observation Engine | Mutable world state |
+| Evidence | Typed, time-stamped reason supporting an observation or belief | A hidden Event Log dump |
+| BeliefModel | Observer-scoped read model of interpretations, hypotheses, relations and contradictions | A second source of truth |
+| PatternBelief | Current interpretation plus supporting evidence and open hypotheses | A confirmed world fact |
+| Hypothesis | Provisional interpretation whose confidence can strengthen or weaken | A Rule or player command |
+| Freshness | Deterministic decay of how recent an observation remains | Deletion of old evidence |
+| Contradiction | Persistent evidence that conflicts with an active interpretation | An error to hide automatically |
+| Lens | Allowed observation perspective: terrain, ecology, relations, emergence, history or prediction | A UI filter that changes facts |
+| BeliefModelDTO | JSON-safe server DTO consumed by the normal Knowledge renderer | Raw Projection or Event Log |
 | Relation | A projection edge with kind/value | Relationship manager service |
 | Strategy | Pre-registered condition -> action table for offline ticks | NPC.decide() |
 | Narrative | Textual description of existing facts | An authority or decision layer |
@@ -29,3 +38,5 @@
 Do not introduce quests, missions, XP, levels, classes, mana, cooldowns, skill
 trees or talents. Express behavior through Events, Rules, Consequences,
 Situations, Observations, Relations and existing world laws.
+
+The normal Knowledge UI is defined by docs/OBSERVATION_BELIEF_MODEL.md.

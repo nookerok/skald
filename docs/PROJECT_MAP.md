@@ -8,6 +8,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 |---|---|
 | Permanent rules | AGENTS.md |
 | Architecture and rationale | docs/ARCHITECTURE.md |
+| Normative UI observation contract | docs/OBSERVATION_BELIEF_MODEL.md |
 | Current milestone | CODEX_HANDOFF.md |
 | Terms | docs/GLOSSARY.md |
 | Accepted decisions | docs/DECISIONS.md |
@@ -33,6 +34,9 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> RuleEngine -> staged Domain Events -> EventBus + Projection commit
     -> Presentation/Narrative -> HTTP/CLI output
 
+    Event Log + ReadonlyWorld -> Observation Engine -> BeliefModelDTO
+    -> normal Knowledge renderer (observer-scoped, uncertainty-preserving)
+
     SQLite open -> Event Log replay -> Projection rebuild -> HTTP readiness
 
     backup + integrity gate -> fast-forward update -> validation -> restart
@@ -50,7 +54,8 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Projection | Committed Domain Events | Derived snapshot during commit |
 | PresentationTemplate | Event and ReadonlyWorld | Presentation DTO only |
 | Narrative/LLM | Selected read-only presentation | Text only |
-| Browser | API DTOs | External commands through HTTP |
+| Browser normal UI | BeliefModelDTO/current observations and explicitly documented read DTOs | External commands through HTTP |
+| Developer diagnostics | Explicitly opened trusted-LAN diagnostics DTOs | None |
 | Deployment | Git, SQLite and service state | Operational files/services only |
 
 ## Search recipes

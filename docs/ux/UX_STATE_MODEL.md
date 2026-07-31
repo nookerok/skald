@@ -40,3 +40,12 @@ narrative timeout must not replay or duplicate a committed player command.
 | timeout | «Ответ задерживается» | Wait or safely recover |
 | stale | «Показана последняя известная запись» | Reconnect |
 | empty journal | «История ещё не началась» | Return to game |
+
+
+## Belief content states
+
+The Knowledge surface uses the shared loading | available | empty | stale |
+unavailable content states. An available model preserves confidence, freshness,
+evidence, hypotheses and contradictions. Stale data is labelled as the last
+known observation; unavailable data is not replaced with World state or an
+invented interpretation.

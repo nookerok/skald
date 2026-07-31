@@ -26,11 +26,17 @@ Static action allowlist. Browser guidance-view.js with dismissal.
 Schema v2 migration, WorldRuntimeManager, scoped HTTP API, Main Menu,
 Continue via /api/continue, hash routing, world-api-client.
 
-## UX-4.1 — New Game Flow & Real Save Creation (current)
+## UX-4.1 - New Game Flow & Real Save Creation (completed)
 
 Character presets, world templates, schema v3 (world_creation_requests),
 POST /api/worlds with atomic create transaction, Character Selection
 and World Selection UI, draft and pending state, retry idempotency.
+
+## UX-5.0 - Visual Shell and Observation & Belief (completed)
+
+Atmospheric shell, free-text composer, responsive context rail and normative
+Observation & Belief Knowledge renderer. BeliefModelDTO is derived from Event
+Log + ReadonlyWorld and deployed on Orange Pi.
 
 ## UX-4.2 — Save Management (next)
 

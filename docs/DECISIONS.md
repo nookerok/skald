@@ -18,6 +18,8 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-011 | Player Guidance is a read model derived from Event Log + World + DiscoveryJournal; phases are deterministic; suggestions come from a static allowlist; LLM does not select suggestions; browser dismissal is local Presentation state | accepted | docs/adr/0002-player-guidance-read-model.md |
 | D-012 | Multi-world persistence uses a single SQLite database with world_id isolation; WorldId = save slot; one character per world; autosave only; world_id is infrastructure, not a Domain Event field | accepted | docs/adr/0003-multi-world-persistence.md |
 
+| D-013 | Observation & Belief Model is the normative observer-scoped UI read contract; confidence/freshness/evidence/hypotheses/contradictions are deterministic and the normal renderer never reads World/Event Log directly | accepted | docs/OBSERVATION_BELIEF_MODEL.md; docs/adr/0006-observation-belief-read-model.md |
+
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;
 it does not replace executable tests.

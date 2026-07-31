@@ -8,6 +8,17 @@
 - Concept controls are visibly marked as non-functional.
 - Developer data is absent from normal player presentation.
 
+## Observation & Belief
+
+- The normal Knowledge surface is driven only by BeliefModelDTO and current
+  ObservationRecord data.
+- Interpretation, confidence, freshness, evidence, hypotheses and
+  contradictions are visible as separate concepts.
+- No actual*, true* or real* field, raw Event payload or internal Event ID
+  appears in normal player presentation.
+- Empty, stale and unavailable belief states are distinct.
+- Developer Diagnostics is separate and explicitly opened.
+
 ## Playability
 
 - The player can read the consequence of the previous action.

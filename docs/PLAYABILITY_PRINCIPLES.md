@@ -79,3 +79,21 @@ For future Discovery Layer use project language:
 
 Iteration 13 may use these words as presentation labels but must not
 create new canonical entities.
+
+
+## 6. Observation & Belief determines the player UI
+
+The normative data contract is in docs/OBSERVATION_BELIEF_MODEL.md. The player
+does not receive the authoritative World or an unfiltered Event Log. The normal
+Knowledge renderer receives only observer-scoped BeliefModelDTO and current
+ObservationRecord data.
+
+The interface makes uncertainty legible: interpretation, confidence, freshness,
+evidence, hypotheses and contradictions remain distinct. The browser never
+invents confidence, selects facts, resolves contradictions or turns a belief
+into a preselected action. A prose prompt may invite investigation, but the
+only permanent game control remains the free-text composer and its submit
+button.
+
+Developer Diagnostics is outside normal player presentation and may show raw
+events only after explicit opening on the trusted LAN.

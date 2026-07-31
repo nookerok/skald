@@ -8,6 +8,10 @@ Skald is a living world whose laws the player discovers through actions and
 observable consequences. The interface is a window into the world, not an
 administration panel or a second source of truth.
 
+The normal player UI is determined by the Observation & Belief contract:
+docs/OBSERVATION_BELIEF_MODEL.md. It renders observer-scoped beliefs and
+observations, not authoritative World state or an unfiltered Event Log.
+
 ## Current player loop
 
 ```text
@@ -29,6 +33,14 @@ accessibility, reconnect and error recovery.
 
 Character selection and world creation are implemented in UX-4.1
 (New Game Flow). Deletion, renaming, archiving and export are deferred.
+
+## Normative Observation & Belief UI contract
+
+The Knowledge surface consumes only BeliefModelDTO and current
+ObservationRecord data. It must show interpretation, confidence, freshness,
+evidence, hypotheses and contradictions without silently collapsing uncertainty.
+The browser does not classify facts, infer outcomes or choose actions. Raw
+events and IDs belong only to explicitly opened Developer Diagnostics.
 
 ## Interaction contract
 
