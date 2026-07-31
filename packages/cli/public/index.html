@@ -67,22 +67,22 @@
           </section>
         </main>
         <aside class="context-rail" aria-label="Контекст">
-          <div class="context-tabs" role="tablist" aria-label="Контекст мира"><button class="context-tab active" data-context="world" role="tab" aria-selected="true">Мир</button><button class="context-tab" data-context="character" role="tab" aria-selected="false">Ты</button><button class="context-tab" data-context="knowledge" role="tab" aria-selected="false">Знания</button></div>
-          <div id="context-world" class="context-panel active" role="tabpanel"></div>
-          <div id="context-character" class="context-panel" role="tabpanel" hidden></div>
-          <div id="context-knowledge" class="context-panel" role="tabpanel" hidden></div>
+          <div class="context-tabs" role="tablist" aria-label="Контекст мира"><button id="context-tab-world" class="context-tab active" data-context="world" role="tab" aria-selected="true" aria-controls="context-world">Мир</button><button id="context-tab-character" class="context-tab" data-context="character" role="tab" aria-selected="false" aria-controls="context-character">Ты</button><button id="context-tab-knowledge" class="context-tab" data-context="knowledge" role="tab" aria-selected="false" aria-controls="context-knowledge">Знания</button></div>
+          <div id="context-world" class="context-panel active" role="tabpanel" aria-labelledby="context-tab-world"></div>
+          <div id="context-character" class="context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></div>
+          <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden></div>
         </aside>
       </div>
       <section id="turn-history" class="turn-history" aria-label="Что произошло"><header class="panel-heading"><div><span class="eyebrow">PLAYER-FACING HISTORY</span><h2>Что произошло</h2></div><button id="timeline-journal-btn" class="text-button">Вся хроника →</button></header><div id="turn-history-list" class="turn-history-list"></div></section>
       <section id="controls-section" class="command-dock" aria-busy="true">
         <form id="command-form" class="command-line"><span class="command-prompt" aria-hidden="true">›</span><textarea id="command-input" class="command-input" rows="1" autocomplete="off" placeholder="Опиши, что ты хочешь сделать…"></textarea><button id="send-btn" class="command-send" type="submit">Отправить</button><button id="retry-btn" class="command-retry" type="button" hidden>Повторить</button></form>
       </section>
-      <nav class="mobile-nav" aria-label="Мобильная навигация"><button data-mobile-target="world-stage" class="active" aria-label="Мир">Мир</button><button data-mobile-target="activity-panel" aria-label="Вокруг тебя">Вокруг</button><button data-mobile-target="context-knowledge" aria-label="Знания">Знания</button><button data-mobile-target="journal-overlay" aria-label="Журнал">Журнал</button></nav>
-      <div id="shell-loading" class="shell-overlay" hidden><div class="overlay-card"><strong id="loading-title">Мир загружается...</strong><span id="loading-stage">Читаем летопись</span><div class="loading-bar"></div></div></div>
-      <div id="shell-error" class="shell-overlay" hidden><div class="overlay-card error"><strong>Мастер потерял нить...</strong><span id="shell-error-message">Мир не отвечает.</span><button id="shell-retry-connect">Попробовать снова</button></div></div>
-      <section id="journal-overlay" class="panel-overlay" hidden aria-label="Журнал"><header><h2>Журнал мира</h2><button data-close-overlay="journal-overlay" aria-label="Закрыть">×</button></header><div id="journal-container"></div></section>
-      <section id="discoveries-overlay" class="panel-overlay" hidden aria-label="Открытия"><header><h2>Следы и открытия</h2><button data-close-overlay="discoveries-overlay" aria-label="Закрыть">×</button></header><div id="discovery-container"></div></section>
-      <section id="dev-overlay" class="panel-overlay dev-overlay" hidden aria-label="Dev Mode"><header><h2>Pipeline и Domain Events <span class="dev-badge">DEV</span></h2><button data-close-overlay="dev-overlay" aria-label="Закрыть">×</button></header><div id="pipeline-view" class="pipeline-view"></div><div id="event-log" class="event-log"></div></section>
+      <nav class="mobile-nav" aria-label="Мобильная навигация"><button data-mobile-target="world-stage" class="active" aria-label="Мир" aria-pressed="true">Мир</button><button data-mobile-target="activity-panel" aria-label="Вокруг тебя" aria-pressed="false">Вокруг</button><button data-mobile-target="context-knowledge" aria-label="Знания" aria-pressed="false">Знания</button><button data-mobile-target="journal-overlay" aria-label="Журнал" aria-pressed="false">Журнал</button></nav>
+      <div id="shell-loading" class="shell-overlay" role="dialog" aria-modal="true" aria-hidden="true" hidden><div class="overlay-card"><strong id="loading-title">Мир загружается...</strong><span id="loading-stage">Читаем летопись</span><div class="loading-bar"></div></div></div>
+      <div id="shell-error" class="shell-overlay" role="dialog" aria-modal="true" aria-hidden="true" hidden><div class="overlay-card error"><strong>Мастер потерял нить...</strong><span id="shell-error-message">Мир не отвечает.</span><button id="shell-retry-connect">Попробовать снова</button></div></div>
+      <section id="journal-overlay" class="panel-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Журнал"><header><h2>Журнал мира</h2><button data-close-overlay="journal-overlay" aria-label="Закрыть">×</button></header><div id="journal-container"></div></section>
+      <section id="discoveries-overlay" class="panel-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Открытия"><header><h2>Следы и открытия</h2><button data-close-overlay="discoveries-overlay" aria-label="Закрыть">×</button></header><div id="discovery-container"></div></section>
+      <section id="dev-overlay" class="panel-overlay dev-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Dev Mode"><header><h2>Pipeline и Domain Events <span class="dev-badge">DEV</span></h2><button data-close-overlay="dev-overlay" aria-label="Закрыть">×</button></header><div id="pipeline-view" class="pipeline-view"></div><div id="event-log" class="event-log"></div></section>
     </div>
   </div>
 </div>

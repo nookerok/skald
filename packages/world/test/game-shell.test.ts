@@ -177,6 +177,13 @@ describe("Game Shell read model", () => {
     expect(chain.map((step) => step.text).join(" ")).toContain("Модификаторы: Повреждение +2");
     expect(chain.map((step) => step.text).join(" ")).toContain("Бросок: 14");
     expect(chain.map((step) => step.text).join(" ")).toContain("Итого 16 против 15");
+    const check = chain.find((step) => step.critical);
+    expect(check?.critical).toMatchObject({
+      success: "Дверь открывается.",
+      failure: "Дверь остаётся закрытой.",
+      difficulty: 15,
+      modifiers: [{ label: "Повреждение", delta: 2 }],
+    });
   });
 
 });

@@ -96,9 +96,10 @@ describe("Visual Shell — contextual map selection", () => {
     vi.stubGlobal("document", doc);
   });
   afterEach(() => vi.unstubAllGlobals());
-  it("selects a known location without sending a command", async () => {
+  it("renders connected location names and dispatches a read-only selection", async () => {
     const { renderWorldStage } = await import("../public/world-stage-view.js");
     renderWorldStage({ locationName: "Башня", connectedLocations: [{ id: "crossing", name: "Перекрёсток" }] }, { marks: 0, maxMarks: 5 }, null);
+    expect(doc.getElementById("stage-links").children[0].textContent).toBe("Перекрёсток");
     const button = doc.getElementById("stage-links").children[0];
     button.events.click();
     expect(doc.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "skald:context-select" }));
@@ -121,6 +122,17 @@ describe("Visual Shell — critical presentation", () => {
     expect(card.hidden).toBe(false);
     expect(card.children.map((child) => child.textContent).join(" ")).toContain("Критический момент");
     expect(card.children.some((child) => child.tagName === "BUTTON")).toBe(false);
+  });
+  it("renders both success and failure stakes from structured critical data", async () => {
+    const { renderCriticalCheck } = await import("../public/critical-check-view.js");
+    renderCriticalCheck([{
+      text: "Критический момент: дверь.",
+      critical: { success: "Дверь открывается.", failure: "Дверь остаётся закрытой.", modifiers: [] },
+    }]);
+    const card = doc.getElementById("critical-check-card");
+    const stakes = card.children[2].children[1];
+    expect(stakes.children.map((child) => child.textContent).join(" ")).toContain("Дверь открывается.");
+    expect(stakes.children.map((child) => child.textContent).join(" ")).toContain("Дверь остаётся закрытой.");
   });
 });
 

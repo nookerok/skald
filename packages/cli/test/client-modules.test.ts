@@ -122,6 +122,26 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).toContain("export function renderJournalStatus");
   });
 
+
+
+  it("visual shell preserves mobile navigation and overlay accessibility hooks", () => {
+    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
+    const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
+    const css = readFileSync(resolve(PUBLIC, "living-world.css"), "utf-8");
+    expect(shell).toContain('target === "journal-overlay"');
+    expect(shell).toContain('target === "context-knowledge"');
+    expect(shell).toContain('event.key !== "Escape"');
+    expect(shell).toContain('overlayOpeners');
+    expect(html).toContain('role="dialog" aria-modal="true"');
+    expect(html).toContain('aria-controls="context-knowledge"');
+    expect(css).not.toContain(".command-retry{display:none}");
+  });
+
+  it("visual shell has no shipped D-pad or social CSS selectors", () => {
+    const css = readFileSync(resolve(PUBLIC, "styles.css"), "utf-8");
+    expect(css).not.toMatch(/#dpad|\.dir-btn|\.social-btn|#social-actions/);
+  });
+
   it("presentation-view.js does not expose raw event type in presentation rendering", () => {
     const code = readFileSync(resolve(PUBLIC, "presentation-view.js"), "utf-8");
     // renderTurn and renderState functions only use presentation data (pres.primary.text, state.*)

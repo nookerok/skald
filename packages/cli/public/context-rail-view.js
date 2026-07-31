@@ -1,4 +1,5 @@
 import { byId, emptyState, makeNode } from "./dom-helpers.js";
+let currentSnapshot = null;
 function addSection(parent, title, content) {
   const section = makeNode("section", { className: "context-section" });
   section.appendChild(makeNode("h3", { text: title }));
@@ -8,10 +9,11 @@ function addSection(parent, title, content) {
 function listValues(values, emptyText) {
   const list = makeNode("ul", { className: "context-list" });
   if (!values || !values.length) { list.appendChild(emptyState(emptyText, "context-empty")); return list; }
-  values.slice(0, 8).forEach((value) => list.appendChild(makeNode("li", { text: typeof value === "string" ? value : (value.text || value.title || value.target || value.kind || "—") })));
+  values.slice(0, 8).forEach((value) => list.appendChild(makeNode("li", { text: typeof value === "string" ? value : (value.text || value.title || value.name || value.target || value.kind || "—") })));
   return list;
 }
 export function renderContextRail(snapshot = {}) {
+  currentSnapshot = snapshot;
   const world = snapshot.world || {};
   const attention = snapshot.attention || {};
   const character = snapshot.character || {};
@@ -45,4 +47,19 @@ export function renderContextRail(snapshot = {}) {
     knowledgePanel.replaceChildren();
     [["Факты", knowledge.facts], ["Гипотезы", knowledge.hypotheses], ["Следы", knowledge.traces], ["Последние свидетельства", knowledge.recentEvidence]].forEach(([title, values]) => addSection(knowledgePanel, title, listValues(values, "Пока пусто.")));
   }
+}
+
+export function showContextLocation(locationId, name) {
+  const worldPanel = byId("context-world");
+  if (!worldPanel) return;
+  const locations = currentSnapshot?.world?.connectedLocations || [];
+  const location = locations.find((item) => item.id === locationId) || { id: locationId, name };
+  worldPanel.querySelector?.("#selected-location-card")?.remove?.();
+  const card = makeNode("article", { className: "selected-location-card", attrs: { id: "selected-location-card", "aria-live": "polite" } });
+  card.append(
+    makeNode("span", { className: "eyebrow", text: "ИЗВЕСТНОЕ МЕСТО" }),
+    makeNode("strong", { text: location.name || name || location.id || "Место" }),
+    makeNode("p", { text: location.description || "Это место уже связано с текущей областью мира. Подробности откроются по мере исследования." }),
+  );
+  worldPanel.appendChild(card);
 }

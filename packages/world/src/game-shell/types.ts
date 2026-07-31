@@ -28,7 +28,7 @@ export interface WorldContextView {
   locationId?: string | undefined;
   locationName?: string | undefined;
   locationDescription?: string | undefined;
-  connectedLocations?: Array<{ id: string; name: string }> | undefined;
+  connectedLocations?: Array<{ id: string; name: string; description?: string }> | undefined;
 }
 
 export type AttentionLevel = "calm" | "stirring" | "noticed" | "watched" | "pressured";
@@ -54,6 +54,12 @@ export interface CausalStep {
   kind: "intention" | "action" | "outcome" | "observation" | "consequence";
   text: string;
   sourceEventIds: readonly string[];
+  critical?: {
+    success: string;
+    failure: string;
+    difficulty?: number;
+    modifiers: readonly { label: string; delta: number }[];
+  };
 }
 
 export interface DiscoverySignalView {

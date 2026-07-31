@@ -7,6 +7,7 @@ import { initNewGame } from "./new-game-view.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
+import { showContextLocation } from "./context-rail-view.js";
 
 let state = createInitialState();
 let interactionReady = false;
@@ -151,6 +152,7 @@ function bindGlobal() {
   window.addEventListener("hashchange", () => route());
   document.addEventListener("skald:context-select", (event) => {
     const label = event.detail?.name || event.detail?.label;
+    if (event.detail?.locationId) showContextLocation(event.detail.locationId, label);
     if (label) renderShellConnection("ready", "Выбрано: " + label);
   });
 }

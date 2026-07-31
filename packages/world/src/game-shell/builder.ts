@@ -131,14 +131,24 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       case "RelationChanged": text = "Отношения изменились."; break;
       default: continue;
     }
-    steps.push({
+    const step: CausalStep = {
       kind: e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" ? "intention"
         : e.type === "ObservationUpdated" ? "observation"
         : e.type === "ConsequenceCreated" || e.type === "ConsequenceFired" || e.type === "AudacityTriggered" ? "consequence"
         : "outcome",
       text,
       sourceEventIds: [e.eventId],
-    });
+    };
+    if (e.type === "CriticalCheckRequested") {
+      const p = e.payload as { difficulty?: number; modifiers?: Array<{ label: string; delta: number }>; stakes: { success: string; failure: string } };
+      step.critical = {
+        success: p.stakes.success,
+        failure: p.stakes.failure,
+        ...(p.difficulty === undefined ? {} : { difficulty: p.difficulty }),
+        modifiers: (p.modifiers || []).map((modifier) => ({ label: modifier.label, delta: modifier.delta })),
+      };
+    }
+    steps.push(step);
   }
   return steps;
 }
@@ -151,12 +161,12 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
   const locationId = world.currentLocationId;
   const location = locationId ? world.locations.get(locationId) : undefined;
 
-  const connectedLocations: Array<{ id: string; name: string }> = [];
+  const connectedLocations: Array<{ id: string; name: string; description?: string }> = [];
   if (location) {
     for (const [, connTarget] of Object.entries(location.connections)) {
       const connLoc = world.locations.get(connTarget);
       if (connLoc) {
-        connectedLocations.push({ id: connLoc.id, name: connLoc.name });
+        connectedLocations.push({ id: connLoc.id, name: connLoc.name, description: connLoc.description });
       }
     }
   }

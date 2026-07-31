@@ -2,15 +2,15 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
-Updated: 2026-07-30
+Updated: 2026-07-31
 Branch: main
-Working tree: Iteration 16.0 Visual Shell deployed and browser-QA verified; screenshots blocked by browser runtime
+Working tree: Iteration 16.0.1 corrective patch; local validation passed, production redeploy and browser recheck pending
 
 ## Current milestone
 
-Iteration 16.0 Visual Shell is complete.
+Iteration 16.0.1 corrective patch is implemented locally; do not close until production browser QA is repeated.
 
-46 test files, 718 tests passed + 1 skipped, tsc clean, npm run validate PASS.
+46 test files, 723 tests passed + 1 skipped, tsc clean, npm run validate PASS.
 
 ## Completed
 
@@ -33,7 +33,7 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Iteration 16.0 is deployed on Orange Pi at commit ac32129. NTFS browser QA functionally PASSed at 1536/1024/390 with 10 text intentions (T125→T135), reload, journal/discoveries and zero console errors. Screenshot capture was BLOCKED by browser runtime target-closed; keep this separate from application PASS. Next: review visual evidence limitation and plan the next product iteration.
+Iteration 16.0 is deployed on Orange Pi at commit 3dc4097. A read-only NTFS browser review found mobile Knowledge/Journal navigation, Retry mobile visibility, critical failure-stake presentation and overlay Escape/ARIA defects. The corrective patch fixes these locally; deploy and repeat browser QA before acceptance.
 
 ## Known blockers
 
