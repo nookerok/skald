@@ -1,6 +1,6 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance } from "@skald/world";
+import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 
@@ -199,6 +199,10 @@ export function handleEvents(app: App, url: URL): JsonResponse {
   const all = app.bus.query();
   const slice = all.slice(offsetP.value, offsetP.value + limitP.value);
   return json({ ok: true, events: slice, count: all.length, limit: limitP.value, offset: offsetP.value });
+}
+
+export function handleBeliefModel(app: App): JsonResponse {
+  return json({ ok: true, beliefModel: buildBeliefModel(app.bus.query(), app.projection.getSnapshot()) });
 }
 
 export function handleJournal(app: App, url: URL): JsonResponse {

@@ -11,6 +11,7 @@ import { buildCharacterView } from "./character-view.js";
 import { buildSituationView } from "./situation-view.js";
 import { buildAttentionView } from "./attention-view.js";
 import { buildKnowledgeSummary } from "./knowledge-view.js";
+import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
 
 interface CharacterProfileRecord {
   display_name: string;
@@ -206,6 +207,7 @@ export function buildGameShellSnapshot(
   const discovery = buildDiscoveryJournal(events);
   const journal = buildTurnJournal(events);
   const guidance = buildPlayerGuidance(events, world);
+  const beliefModel = buildBeliefModel(events, world);
 
   // Event index for activity classification
   const eventIndex = new Map<string, DomainEvent>();
@@ -261,6 +263,7 @@ export function buildGameShellSnapshot(
     lastTurn,
     recentActivity: activity,
     knowledge: buildKnowledgeSummary(discovery),
+    beliefModel: serializeBeliefModel(beliefModel),
     suggestions: guidance.suggestions,
   });
 }
@@ -271,6 +274,7 @@ export function buildShellDelta(
 ): ShellDelta {
   const discovery = buildDiscoveryJournal(events);
   const guidance = buildPlayerGuidance(events, world);
+  const beliefModel = buildBeliefModel(events, world);
   const journal = buildTurnJournal(events);
 
   const eventIndex = new Map<string, DomainEvent>();
@@ -314,6 +318,7 @@ export function buildShellDelta(
     attention: buildAttentionView(world, events),
     activity,
     knowledge: buildKnowledgeSummary(discovery),
+    beliefModel: serializeBeliefModel(beliefModel),
     suggestions: guidance.suggestions,
   });
 }

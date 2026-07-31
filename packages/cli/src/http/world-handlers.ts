@@ -5,6 +5,8 @@ import {
   buildDiscoveryJournal,
   buildPlayerGuidance,
   buildGameShellSnapshot,
+  buildBeliefModel,
+  serializeBeliefModel,
   buildShellDelta,
   selectTurnPresentation,
 } from "@skald/world";
@@ -14,6 +16,10 @@ export interface JsonResponse {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
+}
+
+function serializeShellDelta(delta: ReturnType<typeof buildShellDelta>) {
+  return { ...delta, beliefModel: serializeBeliefModel(delta.beliefModel) };
 }
 
 function json(data: unknown, statusCode = 200): JsonResponse {
@@ -108,7 +114,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta });
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta) });
     }
     if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
@@ -121,7 +127,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
         const guidance = buildGuidance(runtime);
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta });
+        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta) });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
@@ -146,7 +152,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         state: serializeWorldStateFromRuntime(runtime),
         presentation: pres,
         guidance,
-        shellDelta,
+        shellDelta: serializeShellDelta(shellDelta),
       });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
@@ -191,13 +197,17 @@ export function handleWorldGuidance(runtime: WorldRuntime): JsonResponse {
   return json({ ok: true, guidance });
 }
 
+export function handleWorldBeliefModel(runtime: WorldRuntime): JsonResponse {
+  return json({ ok: true, beliefModel: serializeBeliefModel(buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot())) });
+}
+
 export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): JsonResponse {
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const record = runtime.store.getWorldRecord(worldId);
   const charProfile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
   const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId);
-  return json({ ok: true, snapshot });
+  return json({ ok: true, snapshot: { ...snapshot, beliefModel: serializeBeliefModel(snapshot.beliefModel) } });
 }
 
 export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
@@ -224,7 +234,7 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       const pres = selectTurnPresentation(r.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta });
+      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta) });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }

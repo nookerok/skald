@@ -1,4 +1,5 @@
 import { byId, emptyState, makeNode } from "./dom-helpers.js";
+import { renderBeliefModel } from "./belief-view.js";
 let currentSnapshot = null;
 function addSection(parent, title, content) {
   const section = makeNode("section", { className: "context-section" });
@@ -18,6 +19,7 @@ export function renderContextRail(snapshot = {}) {
   const attention = snapshot.attention || {};
   const character = snapshot.character || {};
   const knowledge = snapshot.knowledge || {};
+  const beliefModel = snapshot.beliefModel;
   const worldPanel = byId("context-world");
   const characterPanel = byId("context-character");
   const knowledgePanel = byId("context-knowledge");
@@ -44,8 +46,11 @@ export function renderContextRail(snapshot = {}) {
     addSection(characterPanel, "Отношения", listValues(character.relations, "Отношения ещё не определились."));
   }
   if (knowledgePanel) {
-    knowledgePanel.replaceChildren();
-    [["Факты", knowledge.facts], ["Гипотезы", knowledge.hypotheses], ["Следы", knowledge.traces], ["Последние свидетельства", knowledge.recentEvidence]].forEach(([title, values]) => addSection(knowledgePanel, title, listValues(values, "Пока пусто.")));
+    if (beliefModel) renderBeliefModel(knowledgePanel, beliefModel);
+    else {
+      knowledgePanel.replaceChildren();
+      [["Факты", knowledge.facts], ["Гипотезы", knowledge.hypotheses], ["Следы", knowledge.traces], ["Последние свидетельства", knowledge.recentEvidence]].forEach(([title, values]) => addSection(knowledgePanel, title, listValues(values, "Пока пусто.")));
+    }
   }
 }
 

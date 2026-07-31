@@ -55,6 +55,16 @@ export { buildTurnJournal } from "./journal/builder.js";
 export type * from "./journal/types.js";
 export { buildDiscoveryJournal, DEFINITIONS } from "./discovery/index.js";
 export type * from "./discovery/types.js";
+export { buildBeliefModel, createObservationAPI, serializeBeliefModel } from "./observation/index.js";
+export type {
+  SimTime, Confidence, PatternId, ObserverId, EvidenceId, HypothesisId, ObservationId,
+  LensId, EvidenceType, ObservationSource, HypothesisStatus, RelationType, Trend, EmergenceStage,
+  Evidence, Hypothesis, ObservationContext, TerrainPayload, EcologyPayload, RelationObservation,
+  RelationsPayload, EmergencePayload, HistoryPayload, TrajectoryHypothesis, PredictionPayload,
+  LensPayload, ObservationRecord, Factor, CollapseCondition, ExistenceExplanation,
+  CausalChain, PatternBelief, Contradiction, BeliefModel, BeliefModelDTO, ObservablePattern, ObservationAPI,
+  CausalStep as ObservationCausalStep,
+} from "./observation/types.js";
 export { buildPlayerGuidance, GUIDANCE_ACTIONS } from "./guidance/index.js";
 export type * from "./guidance/types.js";
 export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplate, listCharacterPresets, listWorldTemplates, buildBootstrapEvents } from "./setup/index.js";

@@ -109,6 +109,7 @@ export interface GameShellSnapshot {
   lastTurn: PlayerTurnView | null;
   recentActivity: readonly WorldActivityItem[];
   knowledge: KnowledgeSummary;
+  beliefModel: import("../observation/types.js").BeliefModelDTO;
   suggestions: readonly GuidanceSuggestion[];
 }
 
@@ -119,5 +120,6 @@ export interface ShellDelta {
   attention: AttentionView;
   activity: readonly WorldActivityItem[];
   knowledge: KnowledgeSummary;
+  beliefModel: import("../observation/types.js").BeliefModelDTO;
   suggestions: readonly GuidanceSuggestion[];
 }

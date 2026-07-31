@@ -4,13 +4,15 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-31
 Branch: main
-Working tree: Iteration 16.0.1 corrective patch; local validation passed, production redeploy and browser recheck pending
+Working tree: Observation & Belief read-model vertical slice; local validation pending
 
 ## Current milestone
 
-Iteration 16.0.1 corrective patch is implemented locally; do not close until production browser QA is repeated.
+Observation & Belief read model is implemented as a pure read-side adapter for
+the new visual contract. It is not yet deployed or browser-verified.
 
-46 test files, 723 tests passed + 1 skipped, tsc clean, npm run validate PASS.
+47 test files, 731 tests expected after the focused suite; tsc and npm run validate
+must be rerun before commit/deploy.
 
 ## Completed
 

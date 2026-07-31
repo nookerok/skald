@@ -49,6 +49,20 @@ describe("HTTP Server", () => {
     expect(body.state.player).toBeDefined();
   });
 
+  it("GET /api/beliefs returns a JSON-safe belief model", async () => {
+    const { status, body } = await api("/api/beliefs");
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.beliefModel.schemaVersion).toBe(1);
+    expect(Array.isArray(body.beliefModel.beliefs)).toBe(true);
+    expect(JSON.stringify(body.beliefModel)).not.toMatch(/actual|true|real/i);
+  });
+
+  it("POST /api/beliefs returns 405", async () => {
+    const { status } = await api("/api/beliefs", { method: "POST" });
+    expect(status).toBe(405);
+  });
+
   it("POST /api/command with move north succeeds", async () => {
     const { status, body } = await api("/api/command", {
       method: "POST",

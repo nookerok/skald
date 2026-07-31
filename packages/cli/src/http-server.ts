@@ -22,6 +22,7 @@ import {
   handleWorldNarrative,
   handleWorldEvents,
   handleWorldGameShell,
+  handleWorldBeliefModel,
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
 
@@ -130,7 +131,7 @@ export async function startServer(options?: {
       // Static files
       if (method === "GET") {
         if (url.pathname === "/" || url.pathname === "/index.html") { serveStatic("/index.html", res, corsOrigin); return; }
-        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js"];
+        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js"];
         if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
         const cssFiles = ["/styles.css", "/guidance.css", "/menu.css", "/new-game.css", "/game-shell.css", "/living-world.css"];
         if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
@@ -163,7 +164,7 @@ export async function startServer(options?: {
         "/api/state": "/state", "/api/command": "/command", "/api/wait": "/wait",
         "/api/narrative": "/narrative", "/api/narrative-llm": "/narrative",
         "/api/journal": "/journal", "/api/discoveries": "/discoveries",
-        "/api/guidance": "/guidance", "/api/events": "/events",
+        "/api/guidance": "/guidance", "/api/beliefs": "/beliefs", "/api/events": "/events",
       };
       const scopedSub = UNSCoped_PATH[url.pathname];
       if (scopedSub) {
@@ -197,6 +198,7 @@ export async function startServer(options?: {
           if (sub === "/narrative") { const r = handleWorldNarrative(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/events") { const r = handleWorldEvents(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/game-shell") { const r = handleWorldGameShell(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/beliefs") { const r = handleWorldBeliefModel(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
         }
 
         if (method === "POST") {
@@ -215,7 +217,7 @@ export async function startServer(options?: {
         }
 
         // Known sub-path but wrong method → 405
-        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/narrative", "/events", "/game-shell"];
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell"];
         const knownPostSubs = ["/command", "/wait"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
