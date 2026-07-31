@@ -9,7 +9,7 @@ Working tree: clean; PR-1..PR-8 observation infrastructure deployed and smoke-te
 ## Current milestone
 
 Observation and Belief read model is implemented as a pure read-side adapter for
-the new visual contract. Commit c5fc56c is pushed to main and deployed on
+the new visual contract. Commit f168712 is pushed to main and deployed on
 Orange Pi 192.168.0.5.
 Validation: 55 test files, 756 passed, 1 skipped; typecheck and diff-check clean.
 API smoke: 10 sequential turns, world time 158 to 167, every response had
