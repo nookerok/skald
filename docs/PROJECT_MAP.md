@@ -21,6 +21,13 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 
 | Package | Responsibility |
 |---|---|
+| packages/patterns | Pattern Ontology v1.0 identities, boundaries and lifecycle state machine |
+| packages/observation | Observation Contract v1.0, zod validation, JSON Schemas and pipeline skeleton |
+| packages/lenses | Pure terrain/ecology/relations/emergence/history/prediction lens transforms |
+| packages/belief | Pure evidence -> hypothesis -> belief -> contradiction revisions and decay |
+| packages/explain | Structured existence explanations from BeliefModel only |
+| packages/trace | Observer-scoped causal tracing from BeliefModel only |
+| packages/events | Non-canonical reactive Belief notifications over EventBus |
 | packages/event-bus | Event envelope, append, publish, query and persistence interfaces |
 | packages/rule-engine | Queue, phases, staged batch and atomic commit |
 | packages/world | Projection, world Rules, Narrative and Presentation |
@@ -35,6 +42,8 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> Presentation/Narrative -> HTTP/CLI output
 
     Event Log + ReadonlyWorld -> Observation Engine -> BeliefModelDTO
+    Pattern Ontology -> Observation Contract -> Observation Engine -> Lenses
+    -> Belief -> Explain/Trace -> reactive Belief notifications
     -> normal Knowledge renderer (observer-scoped, uncertainty-preserving)
 
     SQLite open -> Event Log replay -> Projection rebuild -> HTTP readiness

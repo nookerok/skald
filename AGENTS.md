@@ -12,6 +12,13 @@ They must live in the robot workspace AGENTS.md, not in Skald's agent context.
 
 Only these top-level packages are allowed:
 
+    packages/patterns/
+    packages/observation/
+    packages/lenses/
+    packages/belief/
+    packages/explain/
+    packages/trace/
+    packages/events/
     packages/event-bus/
     packages/rule-engine/
     packages/world/
@@ -83,6 +90,26 @@ read only BeliefModelDTO and current ObservationRecord data. Existing Game
 Shell context fields are compatibility read views; they must not be used as a
 second Knowledge/truth source. Developer Diagnostics is a separate,
 explicitly-opened trusted-LAN surface.
+
+## Observation infrastructure implementation contract
+
+The implementation order is mandatory: Pattern Ontology -> Observation Contract
+-> Observation Engine -> Lens Engine -> Belief Engine -> Explain Engine ->
+Trace Engine -> reactive Belief Event API. Do not skip a contract layer.
+
+Simulation Core remains the single source of truth. Renderer code never reads
+Simulation directly; Observation Engine is the only layer allowed to observe it;
+BeliefModel is the only semantic data structure exposed to normal UI. Never
+invent or rename public interfaces, prefer composition over inheritance, use pure
+functions where possible, avoid singletons/hidden globals/runtime reflection and
+magic strings, document every public type/function, and add tests for every
+exported function. If behavior is unspecified, add a TODO instead of inventing
+it.
+
+The new packages are infrastructure contracts and read-side engines. They do
+not add Domain Events, Rules, persistence tables or renderer code. The existing
+world/src/observation builder is a compatibility adapter and must consume the
+canonical @skald/observation types.
 
 ## Development workflow
 

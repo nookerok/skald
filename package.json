@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "workspaces": [
+    "packages/patterns",
+    "packages/observation",
+    "packages/lenses",
+    "packages/belief",
+    "packages/explain",
+    "packages/trace",
+    "packages/events",
     "packages/event-bus",
     "packages/intent-parser",
     "packages/rule-engine",

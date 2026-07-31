@@ -1,5 +1,5 @@
 {
-  "name": "@skald/world",
+  "name": "@skald/observation",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,10 +12,9 @@
     }
   },
   "dependencies": {
-    "@skald/observation": "*",
-    "@skald/event-bus": "*",
-    "@skald/intent-parser": "*",
-    "@skald/rule-engine": "*"
+    "@skald/patterns": "*",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

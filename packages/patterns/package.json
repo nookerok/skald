@@ -1,5 +1,5 @@
 {
-  "name": "@skald/world",
+  "name": "@skald/patterns",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,12 +10,6 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     }
-  },
-  "dependencies": {
-    "@skald/observation": "*",
-    "@skald/event-bus": "*",
-    "@skald/intent-parser": "*",
-    "@skald/rule-engine": "*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

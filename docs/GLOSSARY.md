@@ -20,6 +20,12 @@
 | Contradiction | Persistent evidence that conflicts with an active interpretation | An error to hide automatically |
 | Lens | Allowed observation perspective: terrain, ecology, relations, emergence, history or prediction | A UI filter that changes facts |
 | BeliefModelDTO | JSON-safe server DTO consumed by the normal Knowledge renderer | Raw Projection or Event Log |
+| Pattern | Observer-bounded ontology identity with a lifecycle, not a simulation object | A hidden renderer entity |
+| Pattern Ontology | Shared identities, kinds, boundaries and lifecycle states | A business Rule |
+| Lens | Pure projection of an ObservationRecord into one semantic view | A renderer component |
+| Belief Engine | Pure evidence/hypothesis/revision read-side transformation | A source of world truth |
+| ExistenceExplanation | Structured factors derived from BeliefModel | Natural-language authority |
+| CausalChain | Observer-scoped trace assembled from known belief relations | Complete hidden causality |
 | Relation | A projection edge with kind/value | Relationship manager service |
 | Strategy | Pre-registered condition -> action table for offline ticks | NPC.decide() |
 | Narrative | Textual description of existing facts | An authority or decision layer |

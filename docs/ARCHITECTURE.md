@@ -269,6 +269,28 @@ Projection or SQLite, and never calls LLM/network. The normal renderer does not
 read raw Events, Projection maps, payloads or internal IDs. Diagnostics is a
 separate explicitly-opened trusted-LAN surface.
 
+### 5.3.2 Observation infrastructure package layers
+
+The read-side implementation is split into explicit packages so contracts do
+not become hidden behavior in the renderer:
+
+```text
+@skald/patterns
+    -> @skald/observation (types, validation, JSON Schema, pipeline skeleton)
+        -> @skald/lenses
+        -> @skald/belief
+            -> @skald/explain
+            -> @skald/trace
+        -> @skald/events (EventBus fan-out, never append)
+```
+
+Pattern Ontology defines identities, boundaries and lifecycle transitions only.
+The Observation Contract owns the public names and DTO boundary. Later engines
+are pure read-side transformations. None of these packages creates Rules,
+Domain Events, persistence or renderer components. `world/src/observation` is
+kept as a compatibility adapter until the runtime is migrated to the package
+engines; it re-exports the canonical contract types.
+
 ### 5.4 Situations — долгоживущие правила во времени
 
 **Решение:** Situation — не объект, не менеджер, не сценарий. Это обычное Rule, которое активируется/деактивируется событиями и действует на `TickPassed`.

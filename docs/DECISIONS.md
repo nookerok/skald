@@ -19,6 +19,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-012 | Multi-world persistence uses a single SQLite database with world_id isolation; WorldId = save slot; one character per world; autosave only; world_id is infrastructure, not a Domain Event field | accepted | docs/adr/0003-multi-world-persistence.md |
 
 | D-013 | Observation & Belief Model is the normative observer-scoped UI read contract; confidence/freshness/evidence/hypotheses/contradictions are deterministic and the normal renderer never reads World/Event Log directly | accepted | docs/OBSERVATION_BELIEF_MODEL.md; docs/adr/0006-observation-belief-read-model.md |
+| D-014 | Observation infrastructure is layered as Pattern Ontology -> Contract -> Observation -> Lenses -> Belief -> Explain/Trace -> reactive events; these packages are read-side and emit no canonical Domain Events | accepted | AGENTS.md; docs/ARCHITECTURE.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

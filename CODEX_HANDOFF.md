@@ -4,20 +4,22 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-31
 Branch: main
-Working tree: clean; Observation and Belief read-model deployed and browser-reviewed
+Working tree: dirty; PR-1..PR-8 observation infrastructure is implemented locally
 
 ## Current milestone
 
 Observation and Belief read model is implemented as a pure read-side adapter for
 the new visual contract. Commit f29e5f2 is pushed to main and deployed on
 Orange Pi 192.168.0.5.
-Validation: 47 test files, 734 passed, 1 skipped; typecheck and diff-check clean.
+Validation: 55 test files, 756 passed, 1 skipped; typecheck and diff-check clean.
 API smoke: 10 sequential turns, world time 147 to 157, duplicate key rejected with
 HTTP 409. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;
 screenshots and Performance API network evidence were blocked by browser-tool
 CDP/runtime limitations.
 Normative UI contract: docs/OBSERVATION_BELIEF_MODEL.md. AGENTS, architecture, UX
 contract, authority boundaries, glossary and roadmap now point to this specification.
+Observation infrastructure PR-1..PR-8 packages are implemented and type-tested;
+world/src/observation remains the compatibility runtime adapter.
 
 ## Completed
 
@@ -40,7 +42,7 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Keep the Belief Model contract and compatibility shell aligned. Treat the five npm audit findings reported by the updater (3 moderate, 1 high, 1 critical) as a separate dependency-security task; they did not block runtime health.
+Next: review and commit the PR-1..PR-8 package layer, then plan runtime migration from the world compatibility adapter. Keep the Belief Model contract and compatibility shell aligned. Treat the five npm audit findings reported by the updater (3 moderate, 1 high, 1 critical) as a separate dependency-security task; they did not block runtime health.
 
 ## Known blockers
 

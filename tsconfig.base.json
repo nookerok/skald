@@ -23,6 +23,13 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@skald/patterns": ["./packages/patterns/src/index.ts"],
+      "@skald/observation": ["./packages/observation/src/index.ts"],
+      "@skald/lenses": ["./packages/lenses/src/index.ts"],
+      "@skald/belief": ["./packages/belief/src/index.ts"],
+      "@skald/explain": ["./packages/explain/src/index.ts"],
+      "@skald/trace": ["./packages/trace/src/index.ts"],
+      "@skald/events": ["./packages/events/src/index.ts"],
       "@skald/event-bus": ["./packages/event-bus/src/index.ts"],
       "@skald/intent-parser": ["./packages/intent-parser/src/index.ts"],
       "@skald/rule-engine": ["./packages/rule-engine/src/index.ts"],

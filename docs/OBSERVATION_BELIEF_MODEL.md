@@ -4,8 +4,9 @@ Status: **normative UI contract, v1.0**
 
 This document is the source of truth for what the normal player UI may read
 and how it represents incomplete knowledge. The executable TypeScript contract
-lives in `packages/world/src/observation/types.ts`; the deterministic builder
-lives in `packages/world/src/observation/builder.ts`.
+lives in `packages/observation/src/types.ts`; runtime validation and JSON Schema
+live beside it. The current `packages/world/src/observation/builder.ts` is a
+compatibility adapter and is not the contract owner.
 
 ## Product boundary
 
@@ -135,7 +136,9 @@ The canonical endpoint is `GET /api/worlds/:worldId/beliefs`; the legacy
 `{ ok: true, beliefModel: BeliefModelDTO }`. `POST` is not a read operation and
 returns `405`.
 
-`packages/cli/public/belief-view.js` is a pure DOM renderer for this DTO. It
+`packages/cli/public/belief-view.js` is a pure DOM renderer for this DTO.
+The contract package also exports zod parsers and generated JSON Schemas for
+server and client boundary tests. It
 must remain free of domain classification, event interpretation, network
 authority and action selection. Any contract change requires a schema version
 and an ADR update before changing the UI.
