@@ -4,16 +4,17 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-31
 Branch: main
-Working tree: dirty; PR-1..PR-8 observation infrastructure is implemented locally
+Working tree: clean; PR-1..PR-8 observation infrastructure deployed and smoke-tested
 
 ## Current milestone
 
 Observation and Belief read model is implemented as a pure read-side adapter for
-the new visual contract. Commit f29e5f2 is pushed to main and deployed on
+the new visual contract. Commit c5fc56c is pushed to main and deployed on
 Orange Pi 192.168.0.5.
 Validation: 55 test files, 756 passed, 1 skipped; typecheck and diff-check clean.
-API smoke: 10 sequential turns, world time 147 to 157, duplicate key rejected with
-HTTP 409. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;
+API smoke: 10 sequential turns, world time 158 to 167, every response had
+`presentation.primary`, duplicate key rejected with HTTP 409; health, state and
+all systemd timers verified active after smoke. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;
 screenshots and Performance API network evidence were blocked by browser-tool
 CDP/runtime limitations.
 Normative UI contract: docs/OBSERVATION_BELIEF_MODEL.md. AGENTS, architecture, UX
