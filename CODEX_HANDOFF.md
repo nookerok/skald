@@ -22,6 +22,11 @@ contract, authority boundaries, glossary and roadmap now point to this specifica
 Observation infrastructure PR-1..PR-8 packages are implemented and type-tested;
 world/src/observation remains the compatibility runtime adapter.
 
+Worldbuilding principles v1.0 are installed under docs/worldbuilding/ and
+adopted as a governed design/checklist layer by ADR-0007. No new runtime Events,
+Rules or persistence were introduced; IntentGraph, Pattern emergence and
+parameter calibration remain deferred vertical slices.
+
 ## Completed
 
 Iteration 16.0 — Visual Shell: dark atmospheric game shell, contextual world stage, world/you/knowledge rail, honest activity and causal views, free-text composer only, responsive layout and generated map asset. Frontend-only; no new Domain Events, Rules, Projection or API contract changes.
@@ -43,7 +48,10 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Next: review and commit the PR-1..PR-8 package layer, then plan runtime migration from the world compatibility adapter. Keep the Belief Model contract and compatibility shell aligned. Treat the five npm audit findings reported by the updater (3 moderate, 1 high, 1 critical) as a separate dependency-security task; they did not block runtime health.
+Next: review and commit the worldbuilding documentation integration, then plan
+one vertical slice that maps a single accepted principle to current
+Event/ReadonlyWorld contracts. Keep the Belief Model contract and compatibility
+shell aligned. Treat the five npm audit findings reported by the updater (3 moderate, 1 high, 1 critical) as a separate dependency-security task; they did not block runtime health.
 
 ## Known blockers
 

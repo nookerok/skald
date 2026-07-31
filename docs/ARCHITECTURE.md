@@ -291,6 +291,17 @@ Domain Events, persistence or renderer components. `world/src/observation` is
 kept as a compatibility adapter until the runtime is migrated to the package
 engines; it re-exports the canonical contract types.
 
+#### 5.3.3 Worldbuilding principles as a governed design layer
+
+The imported worldbuilding specification is maintained under
+`docs/worldbuilding/`. It is a design and review layer, not an implicit runtime
+engine. Relation-first ontology, observer-scoped knowledge, irreversible history,
+non-RPG vocabulary and calibration discipline are compatible with this
+architecture. IntentGraph, Proposal/Constraint hierarchy, Pattern lifecycle,
+nonlocal topology and emergence thresholds require a dedicated vertical-slice
+ADR before they can alter Events, Rules, Projection or DTOs. See
+`docs/adr/0007-worldbuilding-principles.md`.
+
 ### 5.4 Situations — долгоживущие правила во времени
 
 **Решение:** Situation — не объект, не менеджер, не сценарий. Это обычное Rule, которое активируется/деактивируется событиями и действует на `TickPassed`.

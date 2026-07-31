@@ -38,7 +38,9 @@ top-level package without revising this file and docs/ARCHITECTURE.md.
 5. docs/GLOSSARY.md: canonical terminology.
 6. docs/DECISIONS.md and docs/adr/: accepted cross-cutting decisions.
 7. CODEX_HANDOFF.md: current milestone only; verify it against Git and code.
-8. packages/ and tests: executable behavior.
+8. docs/worldbuilding/README.md and docs/adr/0007-worldbuilding-principles.md:
+   worldbuilding vocabulary, checklists and adoption boundaries.
+9. packages/ and tests: executable behavior.
 
 If sources disagree, stop and surface the contradiction. Do not silently choose
 the convenient interpretation.
@@ -110,6 +112,10 @@ The new packages are infrastructure contracts and read-side engines. They do
 not add Domain Events, Rules, persistence tables or renderer code. The existing
 world/src/observation builder is a compatibility adapter and must consume the
 canonical @skald/observation types.
+
+## Worldbuilding principles boundary
+
+The files under `docs/worldbuilding/` are an accepted design specification and review checklist, not an implicit runtime implementation. They may guide authoring, vertical slices and calibration, but their pseudocode does not add IntentGraph, Proposal, Constraint, Pattern, Spirit, Settlement or Religion runtime objects by itself. A future implementation must have its own ADR, explicit Event/ReadonlyWorld mapping, deterministic tests and a decision about the Observation/Belief DTO. Until then, use `docs/adr/0007-worldbuilding-principles.md` to distinguish accepted principles, compatible-but-unmapped ideas and deferred runtime work. Do not claim a worldbuilding query or threshold is live merely because it is documented.
 
 ## Development workflow
 

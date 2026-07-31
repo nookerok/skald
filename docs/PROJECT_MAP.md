@@ -12,6 +12,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Current milestone | CODEX_HANDOFF.md |
 | Terms | docs/GLOSSARY.md |
 | Accepted decisions | docs/DECISIONS.md |
+| Worldbuilding principles and checklists | docs/worldbuilding/README.md; docs/adr/0007-worldbuilding-principles.md |
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
 | Orange Pi operations | .agents/skills/skald-orange-pi-deploy/SKILL.md |
