@@ -38,6 +38,12 @@ export function closeShellOverlay(id, restoreFocus = true) {
   if (!element) return;
   element.hidden = true;
   element.setAttribute("aria-hidden", "true");
+  if (id === "journal-overlay") {
+    document.querySelectorAll('[data-mobile-target="journal-overlay"]').forEach((button) => {
+      button.classList.remove("active");
+      button.setAttribute("aria-pressed", "false");
+    });
+  }
   if (restoreFocus) overlayOpeners.get(id)?.focus?.();
   overlayOpeners.delete(id);
 }
