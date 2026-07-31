@@ -4,15 +4,18 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-07-31
 Branch: main
-Working tree: Observation & Belief read-model vertical slice; local validation pending
+Working tree: clean; Observation and Belief read-model deployed and browser-reviewed
 
 ## Current milestone
 
-Observation & Belief read model is implemented as a pure read-side adapter for
-the new visual contract. It is not yet deployed or browser-verified.
-
-47 test files, 731 tests expected after the focused suite; tsc and npm run validate
-must be rerun before commit/deploy.
+Observation and Belief read model is implemented as a pure read-side adapter for
+the new visual contract. Commit f29e5f2 is pushed to main and deployed on
+Orange Pi 192.168.0.5.
+Validation: 47 test files, 734 passed, 1 skipped; typecheck and diff-check clean.
+API smoke: 10 sequential turns, world time 147 to 157, duplicate key rejected with
+HTTP 409. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;
+screenshots and Performance API network evidence were blocked by browser-tool
+CDP/runtime limitations.
 
 ## Completed
 
@@ -35,7 +38,7 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Iteration 16.0 is deployed on Orange Pi at commit 3dc4097. A read-only NTFS browser review found mobile Knowledge/Journal navigation, Retry mobile visibility, critical failure-stake presentation and overlay Escape/ARIA defects. The corrective patch fixes these locally; deploy and repeat browser QA before acceptance.
+Keep the Belief Model contract and compatibility shell aligned. Treat the five npm audit findings reported by the updater (3 moderate, 1 high, 1 critical) as a separate dependency-security task; they did not block runtime health.
 
 ## Known blockers
 
