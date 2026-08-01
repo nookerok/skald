@@ -515,17 +515,75 @@ describe("buildWorldPresenceSummary", () => {
   it("summarizes last presence, drift level and stale counts", () => {
     const events = playthrough(16);
     const world = worldWith(events).getSnapshot();
-    const summary0 = buildWorldPresenceSummary({ events, world, checkpoint: null });
+    const summary0 = buildWorldPresenceSummary({ worldId: "w", events, world, checkpoint: null });
     expect(summary0.driftLevel).toBe("none");
     expect(summary0.lastPresenceWorldTime).toBeNull();
     expect(summary0.checkpointState).toBe("missing");
+    expect(summary0.worldId).toBe("w");
+    expect(summary0.schemaVersion).toBe(1);
+    expect(summary0.currentWorldTime).toBe(16);
 
     const checkpoint = checkpointAtTime(events, 3);
-    const summary = buildWorldPresenceSummary({ events, world, checkpoint });
+    const summary = buildWorldPresenceSummary({ worldId: "w", events, world, checkpoint });
     expect(summary.lastPresenceWorldTime).toBe(3);
+    expect(summary.worldTimeDelta).toBe(13);
     expect(summary.driftLevel).not.toBe("none");
     expect(summary.staleBeliefCount).toBeGreaterThan(0);
     expect(summary.dormantThreadCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("maps checkpoint state and drift to ready player-facing texts", () => {
+    const events = playthrough(16);
+    const world = worldWith(events).getSnapshot();
+
+    const missing = buildWorldPresenceSummary({ worldId: "w", events, world, checkpoint: null });
+    expect(missing.presenceStatus).toBe("Ты ещё не входил в этот мир.");
+    expect(missing.knowledgeStatus).toBeNull();
+    expect(missing.worldTimeDelta).toBe(0);
+
+    // Checkpoint at the very end of a short session: nothing drifted, the
+    // observations are recent, no doubts.
+    const short = playthrough(4);
+    const shortWorld = worldWith(short).getSnapshot();
+    const fresh = buildWorldPresenceSummary({ worldId: "w", events: short, world: shortWorld, checkpoint: checkpointAtTime(short, 4) });
+    expect(fresh.checkpointState).toBe("valid");
+    expect(fresh.driftLevel).toBe("none");
+    expect(fresh.presenceStatus).toBe("Мир почти такой, каким ты его помнишь.");
+    expect(fresh.knowledgeStatus).toBeNull();
+
+    // Checkpoint at t=3 with 13 ticks of offline decay: stale knowledge.
+    const decayed = buildWorldPresenceSummary({ worldId: "w", events, world, checkpoint: checkpointAtTime(events, 3) });
+    expect(decayed.driftLevel).not.toBe("none");
+    expect(decayed.presenceStatus).toBe("В мире появились едва заметные расхождения.");
+    expect(decayed.knowledgeStatus).toBe("Некоторые знания требуют проверки.");
+
+    const incompatible = buildWorldPresenceSummary({
+      worldId: "w", events, world,
+      checkpoint: { ...checkpointAtTime(events, 3), beliefRevision: -1 },
+    });
+    expect(incompatible.presenceStatus).toBe("Прежнее присутствие не удалось восстановить.");
+    expect(incompatible.knowledgeStatus).toBeNull();
+  });
+
+  it("mentions silent threads in the knowledge status", () => {
+    const events = [...bootstrapWorldEvents()];
+    events.push(event(events.length, "ObservationUpdated", 1, { key: "risk_taken" }, "cmd-1"));
+    events.push(event(events.length, "TickPassed", 1, { delta: 1 }, "tick-1"));
+    const world = worldWith(events).getSnapshot();
+    const checkpoint = checkpointAtTime(events, 1);
+    const summary = buildWorldPresenceSummary({ worldId: "w", events, world, checkpoint });
+    expect(summary.checkpointState).toBe("valid");
+    expect(summary.dormantThreadCount).toBe(1);
+    expect(summary.knowledgeStatus).toBe("Одна нить давно не отзывалась.");
+
+    const two = [...bootstrapWorldEvents()];
+    two.push(event(two.length, "ObservationUpdated", 1, { key: "risk_taken" }, "cmd-1"));
+    two.push(event(two.length, "ObservationUpdated", 1, { key: "wall_caution" }, "cmd-1"));
+    two.push(event(two.length, "TickPassed", 1, { delta: 1 }, "tick-1"));
+    const world2 = worldWith(two).getSnapshot();
+    const summary2 = buildWorldPresenceSummary({ worldId: "w", events: two, world: world2, checkpoint: checkpointAtTime(two, 1) });
+    expect(summary2.dormantThreadCount).toBe(2);
+    expect(summary2.knowledgeStatus).toBe("2 нити давно не отзывались.");
   });
 
   it("hides the stored time of an incompatible checkpoint", () => {
@@ -533,7 +591,7 @@ describe("buildWorldPresenceSummary", () => {
     const world = worldWith(events).getSnapshot();
     const checkpoint = checkpointAtTime(events, 3);
     const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
-    const summary = buildWorldPresenceSummary({ events, world, checkpoint: corrupted });
+    const summary = buildWorldPresenceSummary({ worldId: "w", events, world, checkpoint: corrupted });
     expect(summary.checkpointState).toBe("incompatible");
     expect(summary.lastPresenceWorldTime).toBeNull();
   });

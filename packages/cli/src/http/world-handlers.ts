@@ -7,6 +7,7 @@ import {
   buildGameShellSnapshot,
   buildBeliefModel,
   buildObserverSession,
+  buildWorldPresenceSummary,
   computeBeliefRevision,
   parseBeliefModelDTO,
   serializeBeliefModel,
@@ -294,7 +295,8 @@ export function handleWorldPresence(runtime: WorldRuntime, worldId: string): Jso
   const world = runtime.projection.getSnapshot();
   const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
   const session = buildObserverSession({ events, world, playerContext: resolvePlayerContext(world), checkpoint });
-  return json({ ok: true, checkpoint, presence: session.presence });
+  const summary = buildWorldPresenceSummary({ worldId, events, world, checkpoint });
+  return json({ ok: true, checkpoint, presence: session.presence, summary });
 }
 
 function currentBeliefRevision(runtime: WorldRuntime): number {

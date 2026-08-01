@@ -157,13 +157,23 @@ export interface ObserverSessionDTO {
   readonly statements: readonly PresenceStatement[];
 }
 
-/** Lightweight per-world status shown on the Known Worlds screen. */
+/** Lightweight per-world card shown on the Known Worlds screen. */
 export interface WorldPresenceSummary {
-  readonly lastPresenceWorldTime: number | null;
+  readonly schemaVersion: 1;
+  readonly worldId: string;
   readonly checkpointState: CheckpointState;
+  /** Trustworthy presence time; null unless the checkpoint resolves valid. */
+  readonly lastPresenceWorldTime: number | null;
+  readonly currentWorldTime: number;
+  /** 0 when there is no trustworthy checkpoint to measure against. */
+  readonly worldTimeDelta: number;
   readonly driftLevel: BeliefDriftLevel;
   readonly staleBeliefCount: number;
   readonly dormantThreadCount: number;
+  /** Ready player-facing status; the browser never classifies drift itself. */
+  readonly presenceStatus: string;
+  /** Ready player-facing knowledge doubts; null when nothing needs attention. */
+  readonly knowledgeStatus: string | null;
 }
 
 // --- Diagnostics DTO (developer surface, never the normal player UI) ---

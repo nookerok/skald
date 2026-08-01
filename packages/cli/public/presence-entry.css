@@ -1,0 +1,90 @@
+.known-worlds {
+  text-align: left;
+  margin-top: 1rem;
+}
+
+.known-worlds-heading {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.6rem;
+}
+
+.known-worlds-empty {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
+.presence-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.presence-card:hover { border-color: var(--accent); }
+.presence-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.presence-card[data-state="loading"] .presence-card-status {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.presence-card[data-state="unavailable"] .presence-card-status {
+  color: var(--text-muted);
+}
+
+.presence-card-label {
+  font-size: var(--font-base);
+  font-weight: 500;
+  margin-bottom: 0.2rem;
+}
+
+.presence-card-character {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin-bottom: 0.2rem;
+}
+
+.presence-card-status {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  margin-bottom: 0.2rem;
+}
+
+.presence-card-warning {
+  color: #ef9a9a;
+}
+
+.presence-card-doubt {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 0.3rem;
+}
+
+.presence-card-enter-btn {
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  font-size: var(--font-sm);
+  background: var(--bg-accent);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.presence-card-enter-btn:hover { background: var(--accent); }
+.presence-card-enter-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  .presence-card { padding: 0.6rem; }
+  .presence-card-enter-btn { width: 100%; }
+}

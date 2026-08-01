@@ -20,6 +20,16 @@ export async function fetchContinue() {
   }
 }
 
+export async function fetchPresenceSummary(worldId) {
+  try {
+    const res = await fetch(`/api/worlds/${encodeURIComponent(worldId)}/presence`, { signal: AbortSignal.timeout(5000) });
+    const body = await res.json();
+    return body && typeof body === "object" ? (body.summary || null) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function setCurrentWorld(worldId) {
   currentWorldId = worldId;
   try { sessionStorage.setItem("skald:worldId", worldId); } catch {}

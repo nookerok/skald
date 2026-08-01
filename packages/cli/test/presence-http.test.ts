@@ -83,6 +83,23 @@ describe("Observer presence HTTP contract", () => {
     expect(body.presence.location.title).toBeTruthy();
   });
 
+  it("returns the known-worlds card summary with ready player-facing texts", async () => {
+    const { status, body } = await api("/api/worlds/presence-world/presence");
+    expect(status).toBe(200);
+    const summary = body.summary;
+    expect(summary.schemaVersion).toBe(1);
+    expect(summary.worldId).toBe("presence-world");
+    expect(summary.checkpointState).toBe("missing");
+    expect(summary.lastPresenceWorldTime).toBeNull();
+    expect(summary.currentWorldTime).toBeGreaterThanOrEqual(0);
+    expect(summary.worldTimeDelta).toBe(0);
+    expect(summary.driftLevel).toBe("none");
+    expect(summary.presenceStatus).toBe("Ты ещё не входил в этот мир.");
+    expect(summary.knowledgeStatus).toBeNull();
+    expect(summary.staleBeliefCount).toBe(0);
+    expect(summary.dormantThreadCount).toBe(0);
+  });
+
   it("acknowledges a fresh revision and persists the checkpoint", async () => {
     const { body: s } = await session();
     const { status, body } = await ack("ack-1", s.session.revision.worldTime, s.session.revision.eventNumber);
@@ -94,6 +111,21 @@ describe("Observer presence HTTP contract", () => {
     const after = await session();
     expect(after.body.session.checkpoint).not.toBeNull();
     expect(after.body.session.checkpoint.beliefRevision).toBe(body.checkpoint.beliefRevision);
+  });
+
+  it("card summary reflects a valid acknowledged presence", async () => {
+    const { body: s } = await session();
+    const ackRes = await ack("card-ack", s.session.revision.worldTime, s.session.revision.eventNumber);
+    expect(ackRes.status).toBe(200);
+
+    const { body } = await api("/api/worlds/presence-world/presence");
+    const summary = body.summary;
+    expect(summary.checkpointState).toBe("valid");
+    expect(summary.lastPresenceWorldTime).toBe(s.session.revision.worldTime);
+    expect(summary.worldTimeDelta).toBe(0);
+    expect(summary.driftLevel).toBe("none");
+    expect(summary.presenceStatus).toBe("Мир почти такой, каким ты его помнишь.");
+    expect(summary.knowledgeStatus).toBeNull();
   });
 
   it("duplicate acknowledge key replays the original response", async () => {

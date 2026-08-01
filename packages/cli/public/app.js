@@ -132,7 +132,7 @@ function showPanel(name) {
 async function route() {
   const hash = window.location.hash || "#/menu";
   if (hash.startsWith("#/world/")) {
-    setCurrentWorld(decodeURIComponent(hash.slice(8)));
+    setCurrentWorld(decodeURIComponent(hash.slice(8).replace(/\/return$/, "")));
     showPanel("game");
     await connect();
     return;
@@ -154,6 +154,10 @@ function bindGlobal() {
   document.getElementById("timeline-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   document.getElementById("retry-btn")?.addEventListener("click", () => { if (state.pendingInput && state.pendingKey) handle(state.pendingInput, state.pendingKey); });
   window.addEventListener("skald:retry-connect", () => connect());
+  window.addEventListener("skald:return-to-world", (event) => {
+    const worldId = event.detail?.worldId;
+    if (worldId) window.location.hash = "#/world/" + worldId + "/return";
+  });
   window.addEventListener("hashchange", () => route());
   document.addEventListener("skald:context-select", (event) => {
     const label = event.detail?.name || event.detail?.label;

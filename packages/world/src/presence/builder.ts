@@ -20,6 +20,7 @@ import { buildTurnJournal, type PresentationThread } from "../journal/index.js";
 import { computeBeliefDrift, computeBeliefRevision, STALE_FRESHNESS_THRESHOLD } from "./drift.js";
 import type {
   BeliefDriftDTO,
+  BeliefDriftLevel,
   CheckpointState,
   DiagnosticsBeliefReference,
   DiagnosticsDormantThread,
@@ -551,20 +552,57 @@ export function buildPresenceDiagnostics(input: {
   });
 }
 
-/** Lightweight per-world status for the Known Worlds screen. */
+/** Ready player-facing presence status; classification stays on the backend. */
+function presenceStatusText(state: CheckpointState, driftLevel: BeliefDriftLevel): string {
+  if (state === "missing") return "Ты ещё не входил в этот мир.";
+  if (state === "incompatible") return "Прежнее присутствие не удалось восстановить.";
+  switch (driftLevel) {
+    case "none": return "Мир почти такой, каким ты его помнишь.";
+    case "low": return "В мире появились едва заметные расхождения.";
+    case "medium": return "Некоторые знания требуют повторной проверки.";
+    case "high": return "Многое изменилось. Доверься новым наблюдениям.";
+  }
+}
+
+function nitiCountText(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} нить`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} нити`;
+  return `${count} нитей`;
+}
+
+/** Ready player-facing knowledge doubts, or null when nothing needs attention. */
+function knowledgeStatusText(staleBeliefCount: number, dormantThreadCount: number): string | null {
+  const parts: string[] = [];
+  if (staleBeliefCount > 0) parts.push("Некоторые знания требуют проверки.");
+  if (dormantThreadCount === 1) parts.push("Одна нить давно не отзывалась.");
+  if (dormantThreadCount > 1) parts.push(`${nitiCountText(dormantThreadCount)} давно не отзывались.`);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/** Lightweight per-world card for the Known Worlds screen. */
 export function buildWorldPresenceSummary(input: {
+  worldId: string;
   events: readonly DomainEvent[];
   world: ReadonlyWorld;
   checkpoint: ObserverCheckpoint | null;
 }): WorldPresenceSummary {
   const internals = buildPresenceInternals({ ...input, playerContext: { locationTitle: "", locationDescription: "" } });
+  const valid = internals.checkpointState === "valid";
   return deepFreeze({
+    schemaVersion: 1 as const,
+    worldId: input.worldId,
     // A missing or unverifiable checkpoint has no trustworthy presence time.
-    lastPresenceWorldTime: internals.checkpointState === "valid" ? (input.checkpoint?.lastPresenceWorldTime ?? null) : null,
+    lastPresenceWorldTime: valid ? (input.checkpoint?.lastPresenceWorldTime ?? null) : null,
+    currentWorldTime: input.world.time,
+    worldTimeDelta: internals.drift.worldTimeDelta,
     checkpointState: internals.checkpointState,
     driftLevel: internals.drift.level,
     staleBeliefCount: internals.drift.staleBeliefCount,
     dormantThreadCount: internals.dormantThreads.length,
+    presenceStatus: presenceStatusText(internals.checkpointState, internals.drift.level),
+    knowledgeStatus: knowledgeStatusText(internals.drift.staleBeliefCount, internals.dormantThreads.length),
   });
 }
 
