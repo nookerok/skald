@@ -5,9 +5,11 @@ export {
   type CommitOptions,
   type CreateWorldParams,
   type CreateWorldResult,
+  type AcknowledgeObserverCheckpointParams,
+  type AcknowledgeObserverCheckpointResult,
 } from "./sqlite-store.js";
-export { migrateV1ToV2, migrateV2ToV3, validateUserVersion, verifyIntegrity } from "./migrations.js";
-export { configureDatabase, execSchemaV2, execSchemaV3, USER_VERSION } from "./schema.js";
+export { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, validateUserVersion, verifyIntegrity } from "./migrations.js";
+export { configureDatabase, execSchemaV2, execSchemaV3, execSchemaV4, USER_VERSION } from "./schema.js";
 export type {
   WorldId,
   CharacterProfileId,

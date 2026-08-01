@@ -6,12 +6,22 @@ import {
   buildPlayerGuidance,
   buildGameShellSnapshot,
   buildBeliefModel,
+  buildObserverSession,
+  computeBeliefRevision,
   parseBeliefModelDTO,
   serializeBeliefModel,
   buildShellDelta,
   selectTurnPresentation,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
+import { createHash } from "node:crypto";
+
+/** Deterministic canonical hash of the acknowledge request body. */
+function acknowledgeRequestHash(worldTime: number, eventNumber: number): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ kind: "acknowledge", worldTime, eventNumber }))
+    .digest("hex");
+}
 
 export interface JsonResponse {
   statusCode: number;
@@ -108,7 +118,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   return runtime.queue.enqueue(async () => {
     try {
       if (input === "wait") {
-        const r = await runOfflineTicksForRuntime(runtime, 1, idempotencyKey);
+        const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false });
         if ("type" in r && (r as any).type === "IdempotencyReject")
           return error("duplicate_request", "duplicate idempotencyKey", 409);
         const tickResult = r as { tickEvents: DomainEvent[] };
@@ -121,7 +131,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const raw = input.slice(8).trim();
         const n = Number(raw);
         if (!Number.isSafeInteger(n) || n < 1 || n > 100) return error("invalid_request", "advance N (1-100, integer)");
-        const r = await runOfflineTicksForRuntime(runtime, n, idempotencyKey);
+        const r = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: true });
         if ("type" in r && (r as any).type === "IdempotencyReject")
           return error("duplicate_request", "duplicate idempotencyKey", 409);
         const tickResult = r as { tickEvents: DomainEvent[] };
@@ -230,7 +240,7 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
 
   return runtime.queue.enqueue(async () => {
     try {
-      const result = await runOfflineTicksForRuntime(runtime, n, idempotencyKey);
+      const result = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: false });
       if ("type" in result && (result as IdempotencyReject).type === "IdempotencyReject")
         return error("duplicate_request", "duplicate idempotencyKey", 409);
       const r = result as { tickEvents: DomainEvent[] };
@@ -252,6 +262,98 @@ export function handleWorldEvents(runtime: WorldRuntime, url: URL): JsonResponse
   const all = runtime.bus.query();
   const slice = all.slice(offsetP.value, offsetP.value + limitP.value);
   return json({ ok: true, events: slice, count: all.length, limit: limitP.value, offset: offsetP.value });
+}
+
+// --- Observer presence (UX-6) ---
+
+function resolvePlayerContext(world: ReturnType<WorldRuntime["projection"]["getSnapshot"]>): {
+  locationTitle: string;
+  locationDescription: string;
+} {
+  const locationId = world.currentLocationId;
+  const location = locationId ? world.locations.get(locationId) : undefined;
+  return {
+    locationTitle: location?.name ?? "",
+    locationDescription: location?.description ?? "",
+  };
+}
+
+export function handleObserverSession(runtime: WorldRuntime, worldId: string): JsonResponse {
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
+  const session = buildObserverSession({ events, world, playerContext: resolvePlayerContext(world), checkpoint });
+  return json({
+    ok: true,
+    session: { ...session, beliefModel: parseBeliefModelDTO(session.beliefModel) },
+  });
+}
+
+export function handleWorldPresence(runtime: WorldRuntime, worldId: string): JsonResponse {
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
+  const session = buildObserverSession({ events, world, playerContext: resolvePlayerContext(world), checkpoint });
+  return json({ ok: true, checkpoint, presence: session.presence });
+}
+
+function currentBeliefRevision(runtime: WorldRuntime): number {
+  return computeBeliefRevision(
+    serializeBeliefModel(buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot())),
+  );
+}
+
+export async function handlePresenceAcknowledge(
+  runtime: WorldRuntime,
+  worldId: string,
+  body: unknown,
+): Promise<JsonResponse> {
+  if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
+  if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
+  const { idempotencyKey, worldTime, eventNumber } = body as Record<string, unknown>;
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 1 || idempotencyKey.length > 128)
+    return error("missing_idempotency_key", "idempotencyKey required (1-128 chars)", 400);
+  if (typeof worldTime !== "number" || !Number.isSafeInteger(worldTime) || worldTime < 0)
+    return error("invalid_request", "worldTime must be a non-negative integer", 400);
+  if (typeof eventNumber !== "number" || !Number.isSafeInteger(eventNumber) || eventNumber < 0)
+    return error("invalid_request", "eventNumber must be a non-negative integer", 400);
+
+  return runtime.queue.enqueue(async () => {
+    try {
+      const requestHash = acknowledgeRequestHash(worldTime, eventNumber);
+      // Idempotency replay wins over staleness: a processed acknowledge with
+      // the same body reproduces the original response even after the world
+      // moved; a different body under the same key is a conflict.
+      const replay = runtime.store.getAcknowledgeReplay(worldId, idempotencyKey);
+      if (replay) {
+        if (replay.requestHash !== requestHash) {
+          return error("duplicate_request", "duplicate idempotencyKey", 409);
+        }
+        return json({ ok: true, changed: replay.result.changed, checkpoint: replay.result.checkpoint });
+      }
+
+      const world = runtime.projection.getSnapshot();
+      if (world.time !== worldTime || world.eventNumber !== eventNumber) {
+        return error("stale_revision", "acknowledged revision is out of date; re-fetch the observer session", 409);
+      }
+      const result = runtime.store.acknowledgeObserverCheckpoint({
+        worldId,
+        idempotencyKey,
+        requestHash,
+        correlationId: `ack-${idempotencyKey}`,
+        observerId: "player",
+        lastPresenceWorldTime: worldTime,
+        lastPresenceEventNumber: eventNumber,
+        beliefRevision: currentBeliefRevision(runtime),
+      });
+      return json({ ok: true, changed: result.changed, checkpoint: result.checkpoint });
+    } catch (err) {
+      if (err instanceof Error && err.name === "DuplicateRequestError") {
+        return error("duplicate_request", "duplicate idempotencyKey", 409);
+      }
+      return error("internal_error", safeError(err), 500);
+    }
+  });
 }
 
 // --- Command execution helpers ---
@@ -311,10 +413,11 @@ export async function runCommandCycleForRuntime(
   return { events: commandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player } };
 }
 
-async function runOfflineTicksForRuntime(
+async function runTicksForRuntime(
   runtime: WorldRuntime,
   count: number,
   idempotencyKey: string,
+  options: { playerOffline: boolean },
 ): Promise<{ tickEvents: DomainEvent[] } | IdempotencyReject> {
   if (!Number.isSafeInteger(count) || count < 1 || count > 100) {
     throw new Error("count must be an integer between 1 and 100");
@@ -328,22 +431,22 @@ async function runOfflineTicksForRuntime(
   for (let i = 0; i < count; i++) {
     const ts = startTs + 1 + i;
     rootEvents.push({
-      eventId: commandEventId(`tick-offline-${ts}`, "TickPassed"),
+      eventId: commandEventId(`tick-${ts}`, "TickPassed"),
       type: "TickPassed",
       schemaVersion: 1,
-      payload: { delta: 1, playerOffline: true },
+      payload: { delta: 1, ...(options.playerOffline ? { playerOffline: true } : {}) },
       timestamp: ts,
-      correlationId: `tick-offline-${ts}`,
+      correlationId: `tick-${ts}`,
       causationId: null,
     });
   }
 
-  const options: ProcessOptions = {
+  const options2: ProcessOptions = {
     commitContext: { idempotencyKey, requestKind: "wait", correlationId: `wait-${startTs + 1}` } as CommitContext,
   };
 
   try {
-    const { committed } = runtime.engine.processSequence(rootEvents, options);
+    const { committed } = runtime.engine.processSequence(rootEvents, options2);
     runtime.processedKeys.add(idempotencyKey);
     return { tickEvents: committed };
   } catch (err) {

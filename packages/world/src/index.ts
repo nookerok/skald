@@ -98,3 +98,20 @@ export { interactionRules } from "./rules/interaction.js";
 export { criticalCheckRules, criticalCheckOutcomeRules } from "./checks/index.js";
 export { createRules } from "./rules/registry.js";
 export type { CriticalCheckState, CheckKind, CheckOutcome, DieType, CriticalModifier } from "./checks/types.js";
+
+// UX-6 — Observer presence reconstruction (read-only)
+export {
+  buildObserverSession,
+  buildWorldPresenceSummary,
+  buildPresenceDiagnostics,
+  computePresenceDrift,
+  resolveCheckpointState,
+  reconstructCheckpointModel,
+  reconstructCurrentModel,
+  findDormantThreads,
+  computeBeliefDrift,
+  computeBeliefRevision,
+  buildDriftReasons,
+  STALE_FRESHNESS_THRESHOLD,
+} from "./presence/index.js";
+export type * from "./presence/types.js";

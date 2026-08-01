@@ -47,6 +47,10 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> Belief -> Explain/Trace -> reactive Belief notifications
     -> normal Knowledge renderer (observer-scoped, uncertainty-preserving)
 
+    Known Worlds -> connect -> observer-session (checkpoint + drift + presence)
+    -> explicit presence/acknowledge (idempotent, writes checkpoint only here)
+    -> Belief Reconstruction -> Presence Reconstruction -> Focus -> World
+
     SQLite open -> Event Log replay -> Projection rebuild -> HTTP readiness
 
     backup + integrity gate -> fast-forward update -> validation -> restart

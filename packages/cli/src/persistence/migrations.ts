@@ -126,16 +126,55 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
   if (v === 0) return "fresh";
   if (v === 1) return "migrate";
   if (v === 2) return "migrateV3";
-  if (v === 3) return "open";
+  if (v === 3) return "migrateV4";
+  if (v === 4) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-3.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-4.`);
+}
+
+export function migrateV3ToV4(db: SqliteHandle): void {
+  verifyIntegrity(db);
+
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS observer_checkpoints (
+      world_id                   TEXT NOT NULL,
+      observer_id                TEXT NOT NULL,
+      last_presence_world_time   INTEGER NOT NULL,
+      last_presence_event_number INTEGER NOT NULL,
+      belief_revision            INTEGER NOT NULL,
+      updated_at                 INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      PRIMARY KEY (world_id, observer_id)
+    ) STRICT`);
+    db.exec(`CREATE TABLE IF NOT EXISTS acknowledge_requests (
+      world_id                   TEXT NOT NULL,
+      idempotency_key            TEXT NOT NULL,
+      request_hash               TEXT NOT NULL,
+      correlation_id             TEXT NOT NULL,
+      changed                    INTEGER NOT NULL,
+      last_presence_world_time   INTEGER NOT NULL,
+      last_presence_event_number INTEGER NOT NULL,
+      belief_revision            INTEGER NOT NULL,
+      updated_at                 INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      PRIMARY KEY (world_id, idempotency_key)
+    ) STRICT`);
+    db.exec("PRAGMA user_version = 4");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  verifyIntegrity(db);
 }
 
 export function migrateV2ToV3(db: SqliteHandle): void {

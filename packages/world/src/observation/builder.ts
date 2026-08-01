@@ -173,7 +173,14 @@ function collectGroups(events: readonly DomainEvent[], observerId: string, world
   const visibleEvents: DomainEvent[] = [];
   let historicalLocation: string | null = null;
   let historicalPosition: HistoricalPosition | null = null;
+  // Events during playerOffline ticks were never observed: the observer was
+  // absent. They must not become knowledge, discoveries or drift factors.
+  const offlineTickTimes = new Set<number>();
   for (const event of events) {
+    if (event.type === "TickPassed" && payload(event).playerOffline === true) offlineTickTimes.add(event.timestamp);
+  }
+  for (const event of events) {
+    if (offlineTickTimes.has(event.timestamp)) continue;
     const eventPayload = payload(event);
     const isMovement = event.type === "MovementSucceeded" || event.type === "PlayerLocationChanged";
     if (event.type === "PlayerSpawned" || event.type === "MovementSucceeded") {

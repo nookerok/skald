@@ -4,32 +4,41 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-01
 Branch: main
-Working tree: dirty; full review remediation complete, awaiting commit
+Working tree: dirty; UX-6 (observer presence reconstruction) review remediation complete, validation green, awaiting commit + push
 
 ## Current milestone
 
-Observation and Belief read model is implemented as a pure read-side adapter for
-the new visual contract. The repository is on main after the worldbuilding documentation adoption. Review remediation now covers runtime schema freshness, nested snapshot immutability, poisoned-runtime health/restart, single-flight world loading, critical-check recovery, observer-scoped discovery and grid distance gates, plus UI authority boundaries. The normal discoveries endpoint now derives only from the player BeliefModel; unsupported observer identities fail closed, and browser validation covers nested existence explanations. Persistent CLI critical checks now use one durable batch; BeliefModelDTO is v2 with explicit freshness and idempotent decay; observer position replay updates before visibility gates.
-Validation: 56 test files, 789 passed, 1 skipped; typecheck and diff-check clean.
-API smoke: 10 sequential turns, world time 158 to 167, every response had
-`presentation.primary`, duplicate key rejected with HTTP 409; health, state and
-all systemd timers verified active after smoke. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;
-screenshots and Performance API network evidence were blocked by browser-tool
-CDP/runtime limitations.
-Normative UI contract v2: docs/OBSERVATION_BELIEF_MODEL.md; freshness decision: docs/adr/0008-belief-model-freshness.md. AGENTS, architecture, UX
-contract, authority boundaries, glossary and roadmap now point to this specification.
-Observation infrastructure PR-1..PR-8 packages are implemented and type-tested;
-world/src/observation remains the compatibility runtime adapter.
-
-Worldbuilding principles v1.0 are installed under docs/worldbuilding/ and
-adopted as a governed design/checklist layer by ADR-0007. No new runtime Events,
-Rules or persistence were introduced; IntentGraph, Pattern emergence and
-parameter calibration remain deferred vertical slices.
+UX-6 "Observer presence reconstruction" (ADR-0009) is implemented end to end:
+known-worlds entry path `observer-session`, lightweight `presence` read and an
+idempotent `presence/acknowledge` that is the only writer of the operational
+`observer_checkpoints` row. Command/wait paths never touch the checkpoint
+(P0-2); acknowledge idempotency uses a separate `acknowledge_requests` table
+with a deterministic `request_hash` (P1-3, 409 on body/key reuse conflicts).
+Belief reconstruction is a pure deterministic replay of the checkpoint event
+prefix; `resolveCheckpointState` validates the stored FNV-1a digest and treats
+`incompatible` checkpoints as no memory (P1-6). Drift uses the ADR caps
+(stale 8, contradicted 8, threads 4, changes 8) with dormant threads reported
+as informational, never as an unresolved-thread factor (P1-7). Player-facing
+presence DTOs are display-safe (no internal IDs); internal identifiers exist
+only on `PresenceDiagnosticsDTO` (P1-8). Events during `playerOffline` ticks
+are not observable and never enter the Belief Model, discoveries, drift or
+focus (P0-1). `focus.timeDescription` is always null — no World Clock law.
+Second review defects closed: an incompatible checkpoint behaves as no memory
+(P1), `wait` ticks are present ticks while `advance N` ticks are offline (P1),
+and an acknowledge retry replays the stored original response before the
+staleness gate (P1). Validation: 59 test files, 838 passed, 1 skipped via
+npm run validate (typecheck, diff-check clean).
 
 ## Completed
 
-Iteration 16.0 — Visual Shell: dark atmospheric game shell, contextual world stage, world/you/knowledge rail, honest activity and causal views, free-text composer only, responsive layout and generated map asset. Frontend-only; no new Domain Events, Rules, Projection or API contract changes.
+UX-6.0A-C: ADR-0009, `packages/world/src/presence/` (types, drift, builder),
+SQLite schema v4 (`observer_checkpoints`, `acknowledge_requests`,
+additive migration), three HTTP endpoints, offline observability filter in
+the observation builder, review remediation above. The existing
+world/src/observation builder remains the compatibility adapter consuming the
+canonical @skald/observation types.
 
+Iteration 16.0 — Visual Shell: dark atmospheric game shell, contextual world stage, world/you/knowledge rail, honest activity and causal views, free-text composer only, responsive layout and generated map asset. Frontend-only; no new Domain Events, Rules, Projection or API contract changes.
 
 UX-0 through UX-5.0B/C: product contract, open intent UI, multi-world
 persistence, game shell, player guidance, and the production shell.
@@ -47,9 +56,12 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Commit and push the remediation diff only after npm run validate; then deploy and repeat the API/browser gates on the new revision.
-Then deploy through the Orange Pi skill and run API smoke plus the fixed NTFS browser task.
-The five npm audit findings (3 moderate, 1 high, 1 critical) remain a separate dependency-security task; Vitest UI must not be exposed to LAN.
+Commit and push the UX-6 diff (validate is green: 59 files, 838 passed, 1
+skipped). Then deploy through the Orange Pi skill and run API smoke
+(observer-session, presence, one idempotent acknowledge) plus the fixed NTFS
+browser task. The five npm audit findings (3 moderate, 1 high, 1 critical)
+remain a separate dependency-security task; Vitest UI must not be exposed to
+LAN.
 
 ## Known blockers
 

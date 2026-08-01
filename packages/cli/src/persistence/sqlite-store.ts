@@ -3,8 +3,9 @@ import { dirname } from "node:path";
 import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
-import { configureDatabase, execSchemaV3 } from "./schema.js";
-import { migrateV1ToV2, migrateV2ToV3, validateUserVersion, verifyIntegrity } from "./migrations.js";
+import type { ObserverCheckpoint } from "@skald/world";
+import { configureDatabase, execSchemaV4 } from "./schema.js";
+import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 
 export interface CommitOptions {
@@ -29,6 +30,15 @@ export interface MultiWorldStore {
   getWorldRecord(worldId: WorldId): WorldRecord | null;
   getCharacterProfile(characterId: string): CharacterProfileRecord | null;
   createWorld(params: CreateWorldParams): CreateWorldResult;
+  getObserverCheckpoint(worldId: WorldId, observerId: "player"): ObserverCheckpoint | null;
+  acknowledgeObserverCheckpoint(
+    params: AcknowledgeObserverCheckpointParams,
+  ): AcknowledgeObserverCheckpointResult;
+  /** Idempotency replay lookup: the original result of a processed acknowledge. */
+  getAcknowledgeReplay(
+    worldId: WorldId,
+    idempotencyKey: string,
+  ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null;
   close(): void;
 }
 
@@ -50,6 +60,23 @@ export interface CreateWorldParams {
 export interface CreateWorldResult {
   created: boolean;
   worldRecord: WorldRecord;
+}
+
+export interface AcknowledgeObserverCheckpointParams {
+  readonly worldId: WorldId;
+  readonly idempotencyKey: string;
+  readonly requestHash: string;
+  readonly correlationId: string;
+  readonly observerId: "player";
+  readonly lastPresenceWorldTime: number;
+  readonly lastPresenceEventNumber: number;
+  readonly beliefRevision: number;
+}
+
+export interface AcknowledgeObserverCheckpointResult {
+  /** Whether the checkpoint row changed (same revision converges to false). */
+  readonly changed: boolean;
+  readonly checkpoint: ObserverCheckpoint;
 }
 
 interface SqliteHandle {
@@ -110,7 +137,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const versionAction = validateUserVersion(db);
 
   if (versionAction === "fresh") {
-    execSchemaV3(db);
+    execSchemaV4(db);
     // Create legacy world record so FK constraints are satisfied
     db.prepare(
       "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -120,15 +147,23 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     const result = migrateV1ToV2(db);
     console.log(`[persistence] migrated v1→v2: ${result.eventCount} events, digest=${result.digestAfter.slice(0, 12)}`);
     verifyIntegrity(db);
-    // Chain to v3
+    // Chain to v3 and v4
     migrateV2ToV3(db);
     console.log(`[persistence] migrated v2→v3: world_creation_requests table added`);
+    migrateV3ToV4(db);
+    console.log(`[persistence] migrated v3→v4: observer_checkpoints table added`);
   } else if (versionAction === "migrateV3") {
     verifyIntegrity(db);
     migrateV2ToV3(db);
     console.log(`[persistence] migrated v2→v3: world_creation_requests table added`);
+    migrateV3ToV4(db);
+    console.log(`[persistence] migrated v3→v4: observer_checkpoints table added`);
+  } else if (versionAction === "migrateV4") {
+    verifyIntegrity(db);
+    migrateV3ToV4(db);
+    console.log(`[persistence] migrated v3→v4: observer_checkpoints table added`);
   } else {
-    // Already v3 — verify
+    // Already v4 — verify
     verifyIntegrity(db);
   }
 
@@ -151,6 +186,79 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const getWorld = db.prepare(
     "SELECT w.world_id, w.save_label, w.template_id, w.character_id, w.character_name_snapshot, w.status, w.created_at, w.last_played_at, (SELECT MAX(timestamp) FROM events WHERE world_id = w.world_id) AS world_time FROM worlds w WHERE w.world_id = ?",
   );
+  const getCheckpoint = db.prepare(
+    "SELECT world_id, observer_id, last_presence_world_time, last_presence_event_number, belief_revision, updated_at FROM observer_checkpoints WHERE world_id = ? AND observer_id = ?",
+  );
+  const checkAcknowledgeKey = db.prepare(
+    "SELECT 1 FROM processed_requests WHERE world_id = ? AND idempotency_key = ?",
+  );
+  const getAcknowledgeRequest = db.prepare(
+    "SELECT world_id, idempotency_key, request_hash, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at FROM acknowledge_requests WHERE world_id = ? AND idempotency_key = ?",
+  );
+  const insertAcknowledgeRequest = db.prepare(
+    "INSERT INTO acknowledge_requests (world_id, idempotency_key, request_hash, correlation_id, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+
+  function mapAcknowledgeReplay(r: Record<string, unknown>): {
+    requestHash: string;
+    result: AcknowledgeObserverCheckpointResult;
+  } {
+    return {
+      requestHash: r["request_hash"] as string,
+      result: {
+        changed: (r["changed"] as number) === 1,
+        checkpoint: {
+          worldId: r["world_id"] as string,
+          observerId: "player",
+          lastPresenceWorldTime: r["last_presence_world_time"] as number,
+          lastPresenceEventNumber: r["last_presence_event_number"] as number,
+          beliefRevision: r["belief_revision"] as number,
+          updatedAt: new Date(r["updated_at"] as number).toISOString(),
+        },
+      },
+    };
+  }
+
+  function mapCheckpoint(r: Record<string, unknown>): ObserverCheckpoint {
+    return {
+      worldId: r["world_id"] as string,
+      observerId: "player",
+      lastPresenceWorldTime: r["last_presence_world_time"] as number,
+      lastPresenceEventNumber: r["last_presence_event_number"] as number,
+      beliefRevision: r["belief_revision"] as number,
+      updatedAt: new Date(r["updated_at"] as number).toISOString(),
+    };
+  }
+
+  // Caller must hold BEGIN IMMEDIATE. Returns whether content changed.
+  function upsertCheckpointLocked(
+    worldId: string,
+    observerId: "player",
+    lastPresenceWorldTime: number,
+    lastPresenceEventNumber: number,
+    beliefRevision: number,
+  ): boolean {
+    const existing = getCheckpoint.get(worldId, observerId) as Record<string, unknown> | undefined;
+    if (
+      existing &&
+      existing["last_presence_world_time"] === lastPresenceWorldTime &&
+      existing["last_presence_event_number"] === lastPresenceEventNumber &&
+      existing["belief_revision"] === beliefRevision
+    ) {
+      return false;
+    }
+    const now = Date.now();
+    if (!existing) {
+      db.prepare(
+        "INSERT INTO observer_checkpoints (world_id, observer_id, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ).run(worldId, observerId, lastPresenceWorldTime, lastPresenceEventNumber, beliefRevision, now);
+    } else {
+      db.prepare(
+        "UPDATE observer_checkpoints SET last_presence_world_time = ?, last_presence_event_number = ?, belief_revision = ?, updated_at = ? WHERE world_id = ? AND observer_id = ?",
+      ).run(lastPresenceWorldTime, lastPresenceEventNumber, beliefRevision, now, worldId, observerId);
+    }
+    return true;
+  }
 
   return {
     loadEvents(worldId: WorldId): DomainEvent[] {
@@ -334,6 +442,78 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         db.exec("ROLLBACK");
         throw err;
       }
+    },
+
+    getObserverCheckpoint(worldId: WorldId, observerId: "player"): ObserverCheckpoint | null {
+      const row = getCheckpoint.get(worldId, observerId) as Record<string, unknown> | undefined;
+      return row ? mapCheckpoint(row) : null;
+    },
+
+    acknowledgeObserverCheckpoint(
+      params: AcknowledgeObserverCheckpointParams,
+    ): AcknowledgeObserverCheckpointResult {
+      // Acknowledge idempotency: the acknowledge_requests row (key + request hash
+      // + the original result) is the replay record. A key reused with a
+      // different body is a conflict; the same body always reproduces the
+      // original response, even if a later acknowledge changed the checkpoint.
+      const ackRow = getAcknowledgeRequest.get(params.worldId, params.idempotencyKey) as
+        | Record<string, unknown>
+        | undefined;
+      if (ackRow) {
+        if (ackRow["request_hash"] !== params.requestHash) {
+          throw new DuplicateRequestError(params.idempotencyKey);
+        }
+        return mapAcknowledgeReplay(ackRow).result;
+      }
+      if (checkAcknowledgeKey.get(params.worldId, params.idempotencyKey)) {
+        throw new DuplicateRequestError(params.idempotencyKey);
+      }
+
+      db.exec("BEGIN IMMEDIATE");
+      let changed = false;
+      try {
+        changed = upsertCheckpointLocked(
+          params.worldId, params.observerId,
+          params.lastPresenceWorldTime, params.lastPresenceEventNumber,
+          params.beliefRevision,
+        );
+        const freshRow = getCheckpoint.get(params.worldId, params.observerId) as Record<string, unknown>;
+        try {
+          insertAcknowledgeRequest.run(
+            params.worldId, params.idempotencyKey,
+            params.requestHash, params.correlationId,
+            changed ? 1 : 0,
+            params.lastPresenceWorldTime, params.lastPresenceEventNumber,
+            params.beliefRevision, freshRow["updated_at"] as number,
+          );
+          insertKey.run(
+            params.worldId, params.idempotencyKey,
+            "acknowledge",
+            params.correlationId,
+          );
+        } catch (insErr: unknown) {
+          const msg = String(insErr);
+          if (msg.includes("UNIQUE constraint")) {
+            throw new DuplicateRequestError(params.idempotencyKey);
+          }
+          throw insErr;
+        }
+        db.exec("COMMIT");
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+
+      const fresh = getCheckpoint.get(params.worldId, params.observerId) as Record<string, unknown>;
+      return { changed, checkpoint: mapCheckpoint(fresh) };
+    },
+
+    getAcknowledgeReplay(
+      worldId: WorldId,
+      idempotencyKey: string,
+    ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null {
+      const row = getAcknowledgeRequest.get(worldId, idempotencyKey) as Record<string, unknown> | undefined;
+      return row ? mapAcknowledgeReplay(row) : null;
     },
 
     close(): void {

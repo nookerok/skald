@@ -23,6 +23,9 @@ import {
   handleWorldEvents,
   handleWorldGameShell,
   handleWorldBeliefModel,
+  handleObserverSession,
+  handleWorldPresence,
+  handlePresenceAcknowledge,
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
 
@@ -235,6 +238,8 @@ export async function startServer(options?: {
           if (sub === "/events") { const r = handleWorldEvents(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/game-shell") { const r = handleWorldGameShell(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/beliefs") { const r = handleWorldBeliefModel(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/observer-session") { const r = handleObserverSession(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/presence") { const r = handleWorldPresence(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
         }
 
         if (method === "POST") {
@@ -250,11 +255,22 @@ export async function startServer(options?: {
             const r = await handler(runtime, body);
             handle(r.statusCode, JSON.parse(r.body)); return;
           }
+          if (sub === "/presence/acknowledge") {
+            if (parseContentType(req.headers["content-type"]) !== "application/json") {
+              errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return;
+            }
+            let body: unknown;
+            try { body = await readJsonBody(req); } catch (err) {
+              errHandle((err as any)?.message?.includes("too large") ? 413 : 400, "invalid_request", "invalid body"); return;
+            }
+            const r = await handlePresenceAcknowledge(runtime, worldId, body);
+            handle(r.statusCode, JSON.parse(r.body)); return;
+          }
         }
 
         // Known sub-path but wrong method → 405
-        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell"];
-        const knownPostSubs = ["/command", "/wait"];
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence"];
+        const knownPostSubs = ["/command", "/wait", "/presence/acknowledge"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
       }

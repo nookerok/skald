@@ -49,8 +49,13 @@ own vertical slice with Events, Rules, Projection and API mapping.
 
 ## UX-6 — Offline and resilience
 
-Initially read-only cached journal. Write-capable offline actions require an
-explicit synchronization and conflict-resolution design.
+Backend presence reconstruction shipped: known-worlds entry path
+(`observer-session`), drift over observer-scoped belief reconstruction,
+operational checkpoint written only by explicit acknowledge, offline ticks
+not observable. Open item: the browser entry-path UI (reconstruction screen
+and focus transition) is not yet wired to the endpoints.
+Write-capable offline actions still require an explicit synchronization and
+conflict-resolution design.
 
 ## UX-7 — Visual, audio and accessibility polish
 
