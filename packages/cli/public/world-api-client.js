@@ -30,6 +30,33 @@ export async function fetchPresenceSummary(worldId) {
   }
 }
 
+export async function fetchObserverSession(worldId) {
+  try {
+    const res = await fetch(`/api/worlds/${encodeURIComponent(worldId)}/observer-session`, { signal: AbortSignal.timeout(8000) });
+    const body = await res.json();
+    return { status: res.status, body };
+  } catch {
+    return { status: 0, body: null };
+  }
+}
+
+export async function acknowledgePresence(worldId, key, worldTime, eventNumber) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`/api/worlds/${encodeURIComponent(worldId)}/presence/acknowledge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idempotencyKey: key, worldTime, eventNumber }),
+      signal: controller.signal,
+    });
+    const body = await res.json().catch(() => null);
+    return { status: res.status, body };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function setCurrentWorld(worldId) {
   currentWorldId = worldId;
   try { sessionStorage.setItem("skald:worldId", worldId); } catch {}

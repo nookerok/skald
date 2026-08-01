@@ -1,26 +1,17 @@
 import { renderLivingWorld, renderTurnHistory as renderTurnHistoryModel } from "./living-world-shell.js";
 import { initActivityView } from "./activity-view.js";
-let busyStageTimer = null;
 const overlayOpeners = new Map();
-const BUSY_STAGES = ["Разбираем намерение…", "Применяем законы мира…", "Собираем последствия…"];
 export function renderGameShell(snapshot) { renderLivingWorld(snapshot); }
 export function renderTurnHistory(journal) { renderTurnHistoryModel(journal); }
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
 export function setShellBusy(busy, stage = "Мир отвечает…") {
-  if (busyStageTimer) { clearInterval(busyStageTimer); busyStageTimer = null; }
   document.body.classList.toggle("shell-busy", busy);
   const form = document.getElementById("command-form"); if (form) form.setAttribute("aria-busy", String(busy));
   const input = document.getElementById("command-input"); const send = document.getElementById("send-btn");
   if (input) input.disabled = busy; if (send) send.disabled = busy;
   const loadingStage = document.getElementById("loading-stage");
-  if (loadingStage) {
-    loadingStage.textContent = busy ? (stage || BUSY_STAGES[0]) : "Мир готов.";
-    if (busy) {
-      let index = Math.max(0, BUSY_STAGES.indexOf(stage));
-      busyStageTimer = setInterval(() => { index = (index + 1) % BUSY_STAGES.length; loadingStage.textContent = BUSY_STAGES[index]; }, 900);
-    }
-  }
+  if (loadingStage) loadingStage.textContent = busy ? stage : "Мир готов.";
 }
 export function showShellError(message) { const element = document.getElementById("shell-error"); if (element) { element.hidden = false; element.setAttribute("aria-hidden", "false"); setText("shell-error-message", message || "Не удалось подключиться к миру"); } }
 export function clearShellError() { const element = document.getElementById("shell-error"); if (element) { element.hidden = true; element.setAttribute("aria-hidden", "true"); } }
