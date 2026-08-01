@@ -4,8 +4,9 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: clean; HEAD == f0ada36 (UX-6.0D-F entry path shipped; validated,
-not yet pushed or deployed — final gate in progress)
+Working tree: clean; HEAD == origin/main == f044743 (UX-6.0D-F entry path
+deployed to Orange Pi, API smoke + ten-turn gameplay smoke passed; visual QA
+recorded separately — dispatch through the fixed NTFS browser task)
 
 ## Current milestone
 
@@ -90,14 +91,18 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Final gate for UX-6.0D-F: push the three commits, run the NTFS browser QA
-(screenshots of Known Worlds cards, entry screen, focus, ack, shell unlock),
-then deploy to the Orange Pi via $skald-orange-pi-deploy and repeat the API
-smoke plus an idempotent game smoke against production. After that: design
-write-capable offline actions with explicit synchronization and
+Visual QA for UX-6.0D-F must go through the fixed NTFS browser task
+($skald-ntfs-browser-qa): Known Worlds cards, entry screen, focus, «Я здесь»
+ack, shell unlock — production URL http://192.168.0.5:3000 (deployed commit
+f044743; local preview also on http://localhost:3100 in WSL). After that:
+design write-capable offline actions with explicit synchronization and
 conflict-resolution semantics (roadmap open item). The five npm audit
 findings (3 moderate, 1 high, 1 critical) remain a separate
 dependency-security task; Vitest UI must not be exposed to LAN.
+
+Note: ssh from WSL to 192.168.0.5 is currently broken (lands on a stale
+endpoint with user `nook`); use the Windows OpenSSH client with
+`$env:USERPROFILE\.ssh\id_ed25519_skald` for Pi operations.
 
 ## Known blockers
 
