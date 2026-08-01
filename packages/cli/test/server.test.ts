@@ -59,6 +59,24 @@ describe("HTTP Server", () => {
     expect(text).toContain("<!DOCTYPE html>");
   });
 
+  it("serves every browser module referenced by the presence entry path", async () => {
+    const js = [
+      "/known-worlds-view.js",
+      "/presence-card-view.js",
+      "/presence-entry-state.js",
+      "/presence-entry-controller.js",
+      "/presence-view.js",
+      "/focus-view.js",
+    ];
+    for (const path of js) {
+      const res = await fetch(`${server!.url}${path}`);
+      expect(res.status, path).toBe(200);
+      expect((await res.text()).length).toBeGreaterThan(50);
+    }
+    const css = await fetch(`${server!.url}/presence-entry.css`);
+    expect(css.status).toBe(200);
+  });
+
   it("GET /ui-state.js serves the pending-state browser module", async () => {
     const res = await fetch(`${server!.url}/ui-state.js`);
     expect(res.status).toBe(200);
