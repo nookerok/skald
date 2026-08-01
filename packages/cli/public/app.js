@@ -4,6 +4,7 @@ import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadMenu } from "./menu-view.js";
 import { initNewGame } from "./new-game-view.js";
+import { startPresenceEntry } from "./presence-entry-controller.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
@@ -128,11 +129,20 @@ function showPanel(name) {
   document.getElementById("panel-menu").hidden = name !== "menu";
   document.getElementById("panel-new-game").hidden = name !== "new";
   document.getElementById("panel-game-shell").hidden = name !== "game";
+  const presencePanel = document.getElementById("panel-presence-entry");
+  if (presencePanel) presencePanel.hidden = name !== "presence";
 }
 async function route() {
   const hash = window.location.hash || "#/menu";
+  const returnMatch = hash.match(/^#\/world\/([^/]+)\/return$/);
+  if (returnMatch) {
+    setCurrentWorld(decodeURIComponent(returnMatch[1]));
+    showPanel("presence");
+    await startPresenceEntry(document.getElementById("presence-entry-container"), decodeURIComponent(returnMatch[1]));
+    return;
+  }
   if (hash.startsWith("#/world/")) {
-    setCurrentWorld(decodeURIComponent(hash.slice(8).replace(/\/return$/, "")));
+    setCurrentWorld(decodeURIComponent(hash.slice(8)));
     showPanel("game");
     await connect();
     return;
@@ -154,6 +164,10 @@ function bindGlobal() {
   document.getElementById("timeline-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   document.getElementById("retry-btn")?.addEventListener("click", () => { if (state.pendingInput && state.pendingKey) handle(state.pendingInput, state.pendingKey); });
   window.addEventListener("skald:retry-connect", () => connect());
+  window.addEventListener("skald:presence-ready", (event) => {
+    const readyWorldId = event.detail?.worldId;
+    if (readyWorldId) window.location.hash = "#/world/" + readyWorldId;
+  });
   window.addEventListener("skald:return-to-world", (event) => {
     const worldId = event.detail?.worldId;
     if (worldId) window.location.hash = "#/world/" + worldId + "/return";
