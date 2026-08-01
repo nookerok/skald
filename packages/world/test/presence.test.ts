@@ -129,6 +129,57 @@ describe("resolveCheckpointState", () => {
     const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
     expect(resolveCheckpointState(events, corrupted).state).toBe("incompatible");
   });
+
+  it("rejects a checkpoint whose world time alone was tampered", () => {
+    const events = playthrough(6);
+    const checkpoint = checkpointAtTime(events, 3);
+    // The digest still matches the belief model of the prefix; only the
+    // stored world time is replaced, and the prefix no longer ends on it.
+    const tampered = { ...checkpoint, lastPresenceWorldTime: 999 };
+    expect(resolveCheckpointState(events, tampered)).toEqual({ state: "incompatible", model: null });
+  });
+
+  it("rejects a checkpoint pointing beyond the event log without clamping", () => {
+    const events = playthrough(6);
+    const checkpoint = checkpointAtTime(events, 3);
+    expect(resolveCheckpointState(events, { ...checkpoint, lastPresenceEventNumber: 9999 }).state).toBe("incompatible");
+  });
+
+  it("rejects unsafe or negative times and event numbers", () => {
+    const events = playthrough(6);
+    const checkpoint = checkpointAtTime(events, 3);
+    expect(resolveCheckpointState(events, { ...checkpoint, lastPresenceWorldTime: -1 }).state).toBe("incompatible");
+    expect(resolveCheckpointState(events, { ...checkpoint, lastPresenceWorldTime: Number.NaN }).state).toBe("incompatible");
+    expect(resolveCheckpointState(events, { ...checkpoint, lastPresenceEventNumber: -2 }).state).toBe("incompatible");
+  });
+
+  it("rejects fractional world times and event numbers", () => {
+    const events = playthrough(6);
+    const checkpoint = checkpointAtTime(events, 3);
+    expect(resolveCheckpointState(events, { ...checkpoint, lastPresenceWorldTime: 3.5 }).state).toBe("incompatible");
+    expect(resolveCheckpointState(events, { ...checkpoint, lastPresenceEventNumber: 12.5 }).state).toBe("incompatible");
+  });
+
+  it("accepts a valid bootstrap checkpoint", () => {
+    const events = [...bootstrapWorldEvents()];
+    const checkpoint = checkpointAtTime(events, 0);
+    expect(checkpoint.lastPresenceWorldTime).toBe(0);
+    expect(resolveCheckpointState(events, checkpoint).state).toBe("valid");
+  });
+
+  it("rejects a prefix that does not end at the checkpoint time", () => {
+    const events = playthrough(6);
+    const checkpoint = checkpointAtTime(events, 3);
+    // Same prefix length, same digest, but the stored time is one tick off.
+    const mismatched = { ...checkpoint, lastPresenceWorldTime: checkpoint.lastPresenceWorldTime + 1 };
+    expect(resolveCheckpointState(events, mismatched)).toEqual({ state: "incompatible", model: null });
+  });
+
+  it("still accepts a checkpoint at the very end of the log", () => {
+    const events = playthrough(6);
+    const checkpoint = checkpointAtTime(events, 6);
+    expect(resolveCheckpointState(events, checkpoint).state).toBe("valid");
+  });
 });
 
 describe("computeBeliefDrift", () => {
@@ -378,7 +429,7 @@ describe("buildObserverSession", () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
-  it("clamps a checkpoint beyond the log", () => {
+  it("rejects a checkpoint beyond the log as incompatible", () => {
     const events = playthrough(4);
     const world = worldWith(events).getSnapshot();
     const checkpoint = {
@@ -386,7 +437,37 @@ describe("buildObserverSession", () => {
       lastPresenceEventNumber: 9999, beliefRevision: 0, updatedAt: "",
     };
     const session = buildObserverSession({ events, world, playerContext: PLAYER_CONTEXT, checkpoint });
-    expect(session.drift.worldTimeDelta).toBe(0);
+    expect(session.checkpointState).toBe("incompatible");
+    expect(session.drift.level).toBe("none");
+    expect(session.presence.dormantThreads).toEqual([]);
+    expect(session.presence.nearbyChanges).toEqual([]);
+  });
+
+  it("keeps threads dormant when their continuation happened while offline", () => {
+    const events = [...bootstrapWorldEvents()];
+    // The player observes the risk_taken thread while online at t=1...
+    events.push(event(events.length, "ObservationUpdated", 1, { key: "risk_taken" }, "cmd-1"));
+    events.push(event(events.length, "TickPassed", 1, { delta: 1 }, "tick-1"));
+    // ...and the same thread is continued during a fully offline turn at t=2.
+    events.push(event(events.length, "ObservationUpdated", 2, { key: "risk_taken" }, "cmd-2"));
+    events.push(event(events.length, "TickPassed", 2, { delta: 1, playerOffline: true }, "tick-2"));
+    const world = worldWith(events).getSnapshot();
+    const checkpoint = checkpointAtTime(events, 1);
+    const session = buildObserverSession({ events, world, playerContext: PLAYER_CONTEXT, checkpoint });
+    expect(session.checkpointState).toBe("valid");
+    // The hidden continuation is not observable: no changes, no leak.
+    expect(session.presence.nearbyChanges).toEqual([]);
+    const labels = session.presence.dormantThreads.map((thread) => thread.label);
+    expect(labels).toContain("Наблюдение: рискованный поступок");
+    const knownThread = session.presence.dormantThreads.find((thread) => thread.label === "Наблюдение: рискованный поступок")!;
+    expect(knownThread.entryCount).toBe(1);
+    expect(knownThread.lastWorldTime).toBe(1);
+    // The hidden continuation produced no observation-delta anywhere: the
+    // only statement is the dormant-thread reminder.
+    expect(session.drift.newlyObservedChangeCount).toBe(0);
+    expect(session.statements).toEqual([
+      { text: "История о «Наблюдение: рискованный поступок» осталась без продолжения.", source: "known_thread" },
+    ]);
   });
 });
 
@@ -445,5 +526,15 @@ describe("buildWorldPresenceSummary", () => {
     expect(summary.driftLevel).not.toBe("none");
     expect(summary.staleBeliefCount).toBeGreaterThan(0);
     expect(summary.dormantThreadCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("hides the stored time of an incompatible checkpoint", () => {
+    const events = playthrough(16);
+    const world = worldWith(events).getSnapshot();
+    const checkpoint = checkpointAtTime(events, 3);
+    const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
+    const summary = buildWorldPresenceSummary({ events, world, checkpoint: corrupted });
+    expect(summary.checkpointState).toBe("incompatible");
+    expect(summary.lastPresenceWorldTime).toBeNull();
   });
 });

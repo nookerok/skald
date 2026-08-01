@@ -52,11 +52,6 @@ function deepFreeze<T>(obj: T): T {
   return obj;
 }
 
-function clampEventNumber(eventNumber: number, max: number): number {
-  if (!Number.isSafeInteger(eventNumber) || eventNumber < 0) return 0;
-  return Math.min(eventNumber, max);
-}
-
 function beliefByPattern(model: BeliefModelDTO, patternId: PatternId): PatternBelief | null {
   return model.beliefs.find((belief) => belief.patternId === patternId) ?? null;
 }
@@ -139,14 +134,28 @@ function contradictedPatterns(model: BeliefModelDTO): PatternId[] {
   return [...involved].sort();
 }
 
-/** Reconstructs the belief model as of the checkpoint event prefix. */
+/**
+ * Reconstructs the belief model as of the checkpoint event prefix. The prefix
+ * is never clamped: an event number outside the log yields `null` instead of
+ * silently replaying a different prefix.
+ */
 export function reconstructCheckpointModel(
   events: readonly DomainEvent[],
   checkpoint: ObserverCheckpoint,
 ): BeliefModelDTO | null {
-  const prefix = events.slice(0, clampEventNumber(checkpoint.lastPresenceEventNumber, events.length));
+  const { lastPresenceEventNumber } = checkpoint;
+  if (
+    !Number.isSafeInteger(lastPresenceEventNumber) || lastPresenceEventNumber < 0 ||
+    lastPresenceEventNumber > events.length
+  ) {
+    return null;
+  }
+  const prefix = events.slice(0, lastPresenceEventNumber);
   if (prefix.length === 0) return null;
   const prefixWorld = rebuildProjection(prefix).getSnapshot();
+  // The replayed projection must end exactly on the stored event number; a
+  // prefix that somehow produced a different projection is not this memory.
+  if (prefixWorld.eventNumber !== lastPresenceEventNumber) return null;
   return serializeBeliefModel(buildBeliefModel(prefix, prefixWorld, "player"));
 }
 
@@ -156,16 +165,32 @@ export function reconstructCurrentModel(events: readonly DomainEvent[], world: R
 }
 
 /**
- * Resolves the checkpoint validity against a deterministic replay. A stored
- * digest that does not match the replay (corruption, algorithm change) yields
- * `incompatible` with no model: the caller must then build presence as if
- * there were no checkpoint instead of silently trusting the memory.
+ * Resolves the checkpoint validity against a deterministic replay. The stored
+ * time and event number are part of the integrity check: both must be safe
+ * non-negative integers, the event number must not exceed the log length (no
+ * clamping), and the replayed prefix must end exactly at
+ * `lastPresenceWorldTime`. Any mismatch (corruption, algorithm change,
+ * tampering) yields `incompatible` with no model: the caller must then build
+ * presence as if there were no checkpoint instead of silently trusting the
+ * memory.
  */
 export function resolveCheckpointState(
   events: readonly DomainEvent[],
   checkpoint: ObserverCheckpoint | null,
 ): { state: CheckpointState; model: BeliefModelDTO | null } {
   if (!checkpoint) return { state: "missing", model: null };
+  const { lastPresenceWorldTime, lastPresenceEventNumber } = checkpoint;
+  if (
+    !Number.isSafeInteger(lastPresenceWorldTime) || lastPresenceWorldTime < 0 ||
+    !Number.isSafeInteger(lastPresenceEventNumber) || lastPresenceEventNumber < 0 ||
+    lastPresenceEventNumber > events.length
+  ) {
+    return { state: "incompatible", model: null };
+  }
+  const prefix = events.slice(0, lastPresenceEventNumber);
+  if (prefix.length === 0 || prefix[prefix.length - 1]!.timestamp !== lastPresenceWorldTime) {
+    return { state: "incompatible", model: null };
+  }
   const model = reconstructCheckpointModel(events, checkpoint);
   if (!model) return { state: "incompatible", model: null };
   const digest = computeBeliefRevision(serializeBeliefModel(model));
@@ -393,10 +418,16 @@ function buildPresenceInternals(input: {
   const effectiveCheckpoint = resolved.state === "valid" ? input.checkpoint : null;
   const effectiveTime = effectiveCheckpoint?.lastPresenceWorldTime ?? 0;
 
+  // Threads are collected under the observer scope: turns whose TickPassed is
+  // marked playerOffline produce no presentation, so a hidden continuation of
+  // a known thread keeps it dormant instead of leaking hidden world activity.
   const checkpointThreads = effectiveCheckpoint
-    ? buildTurnJournal(input.events.slice(0, clampEventNumber(effectiveCheckpoint.lastPresenceEventNumber, input.events.length))).threads
+    ? buildTurnJournal(
+      input.events.slice(0, effectiveCheckpoint.lastPresenceEventNumber),
+      { skipOfflineTurns: true },
+    ).threads
     : [];
-  const currentThreads = buildTurnJournal(input.events).threads;
+  const currentThreads = buildTurnJournal(input.events, { skipOfflineTurns: true }).threads;
   const dormant = findDormantThreads(checkpointThreads, currentThreads, effectiveTime);
   const dormantSummaries: InternalDormantThread[] = dormant.map((thread) => ({
     threadKey: thread.threadKey,
@@ -528,7 +559,8 @@ export function buildWorldPresenceSummary(input: {
 }): WorldPresenceSummary {
   const internals = buildPresenceInternals({ ...input, playerContext: { locationTitle: "", locationDescription: "" } });
   return deepFreeze({
-    lastPresenceWorldTime: input.checkpoint?.lastPresenceWorldTime ?? null,
+    // A missing or unverifiable checkpoint has no trustworthy presence time.
+    lastPresenceWorldTime: internals.checkpointState === "valid" ? (input.checkpoint?.lastPresenceWorldTime ?? null) : null,
     checkpointState: internals.checkpointState,
     driftLevel: internals.drift.level,
     staleBeliefCount: internals.drift.staleBeliefCount,

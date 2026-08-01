@@ -14,7 +14,24 @@ function deepFreeze<T>(obj: T): T {
   return obj;
 }
 
-export function buildTurnJournal(events: readonly DomainEvent[]): TurnJournal {
+/** Options controlling how turns are collected into a journal. */
+export interface BuildTurnJournalOptions {
+  /**
+   * When true, turns containing a `TickPassed` with `playerOffline: true`
+   * still advance the internal projection (the historical projection stays
+   * complete) but produce no presentation and no thread entries: the observer
+   * could not have seen them.
+   */
+  readonly skipOfflineTurns?: boolean;
+}
+
+function turnIsOffline(events: readonly DomainEvent[]): boolean {
+  return events.some(
+    (event) => event.type === "TickPassed" && (event.payload as { playerOffline?: boolean }).playerOffline === true,
+  );
+}
+
+export function buildTurnJournal(events: readonly DomainEvent[], options: BuildTurnJournalOptions = {}): TurnJournal {
   const projector = new WorldProjector();
   const turns: JournalTurn[] = [];
   const threadMap = new Map<string, PresentationThreadEntry[]>();
@@ -28,8 +45,15 @@ export function buildTurnJournal(events: readonly DomainEvent[]): TurnJournal {
     if (currentTurnEvents.length === 0) return;
     const ts = currentTurnEvents[0]!.timestamp;
 
-    // Apply all events of this turn to the projector
+    // Apply all events of this turn to the projector regardless of observer
+    // scope: the historical projection must stay complete.
     for (const e of currentTurnEvents) projector.apply(e);
+
+    if (options.skipOfflineTurns === true && turnIsOffline(currentTurnEvents)) {
+      currentTurnEvents = [];
+      return;
+    }
+
     const snapshot = projector.getSnapshot();
     const rawPresentation = selectTurnPresentation(currentTurnEvents, snapshot);
     const sanitizeEntry = (entry: PresentationEntry): PresentationEntry => ({

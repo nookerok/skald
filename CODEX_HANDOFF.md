@@ -4,29 +4,35 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-01
 Branch: main
-Working tree: dirty; UX-6 (observer presence reconstruction) review remediation complete, validation green, awaiting commit + push
+Working tree: clean; HEAD == origin/main == 26e515f (UX-6 shipped, validated,
+deployed, API smoke passed; visual QA recorded separately per skill)
 
 ## Current milestone
 
-UX-6 "Observer presence reconstruction" (ADR-0009) is implemented end to end:
+UX-6 "Observer presence reconstruction" (ADR-0009) is shipped end to end:
 known-worlds entry path `observer-session`, lightweight `presence` read and an
 idempotent `presence/acknowledge` that is the only writer of the operational
 `observer_checkpoints` row. Command/wait paths never touch the checkpoint
 (P0-2); acknowledge idempotency uses a separate `acknowledge_requests` table
-with a deterministic `request_hash` (P1-3, 409 on body/key reuse conflicts).
-Belief reconstruction is a pure deterministic replay of the checkpoint event
-prefix; `resolveCheckpointState` validates the stored FNV-1a digest and treats
-`incompatible` checkpoints as no memory (P1-6). Drift uses the ADR caps
-(stale 8, contradicted 8, threads 4, changes 8) with dormant threads reported
-as informational, never as an unresolved-thread factor (P1-7). Player-facing
-presence DTOs are display-safe (no internal IDs); internal identifiers exist
-only on `PresenceDiagnosticsDTO` (P1-8). Events during `playerOffline` ticks
-are not observable and never enter the Belief Model, discoveries, drift or
-focus (P0-1). `focus.timeDescription` is always null — no World Clock law.
-Second review defects closed: an incompatible checkpoint behaves as no memory
-(P1), `wait` ticks are present ticks while `advance N` ticks are offline (P1),
-and an acknowledge retry replays the stored original response before the
-staleness gate (P1). Validation: 59 test files, 838 passed, 1 skipped via
+with a deterministic `request_hash` and stores the original result, so a
+replayed key reproduces the first response byte-for-byte before the staleness
+gate (P1-3, 409 on body/key reuse conflicts). Belief reconstruction is a pure
+deterministic replay of the checkpoint event prefix; `resolveCheckpointState`
+validates the stored FNV-1a digest AND the stored time/event-number (safe
+non-negative integers, no clamping beyond the log, the replayed prefix must
+end exactly on `lastPresenceWorldTime`); `incompatible` checkpoints are
+treated as no memory everywhere, including the Known Worlds summary time
+(P1-6, review round 2). Drift uses the ADR caps (stale 8, contradicted 8,
+threads 4, changes 8) with dormant threads reported as informational, never
+as an unresolved-thread factor (P1-7). Presence journal threads are collected
+under observer scope (`skipOfflineTurns`): offline turns still advance the
+historical projection but produce no presentation/thread entries, so hidden
+continuations do not un-dormant known threads (P1, review round 2). Player-
+facing presence DTOs are display-safe (no internal IDs); internal identifiers
+exist only on `PresenceDiagnosticsDTO` (P1-8). Events during `playerOffline`
+ticks are not observable and never enter the Belief Model, discoveries,
+drift, focus or threads (P0-1). `focus.timeDescription` is always null — no
+World Clock law. Validation: 59 test files, 846 passed, 1 skipped via
 npm run validate (typecheck, diff-check clean).
 
 ## Completed
@@ -34,7 +40,7 @@ npm run validate (typecheck, diff-check clean).
 UX-6.0A-C: ADR-0009, `packages/world/src/presence/` (types, drift, builder),
 SQLite schema v4 (`observer_checkpoints`, `acknowledge_requests`,
 additive migration), three HTTP endpoints, offline observability filter in
-the observation builder, review remediation above. The existing
+the observation builder, both review-remediation rounds above. The existing
 world/src/observation builder remains the compatibility adapter consuming the
 canonical @skald/observation types.
 
@@ -56,12 +62,12 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Commit and push the UX-6 diff (validate is green: 59 files, 838 passed, 1
-skipped). Then deploy through the Orange Pi skill and run API smoke
-(observer-session, presence, one idempotent acknowledge) plus the fixed NTFS
-browser task. The five npm audit findings (3 moderate, 1 high, 1 critical)
-remain a separate dependency-security task; Vitest UI must not be exposed to
-LAN.
+UX-6.0D-F: wire the browser entry-path UI (reconstruction screen and focus
+transition are still not connected to `observer-session`/`presence`/
+`acknowledge`), then design write-capable offline actions with explicit
+synchronization and conflict-resolution semantics (roadmap open item). The
+five npm audit findings (3 moderate, 1 high, 1 critical) remain a separate
+dependency-security task; Vitest UI must not be exposed to LAN.
 
 ## Known blockers
 

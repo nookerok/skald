@@ -167,4 +167,22 @@ describe("buildTurnJournal", () => {
     expect(firstHeat).toMatch(/поблизости|разливается/);
     expect(firstHeat).not.toContain("под ногами");
   });
+
+  it("skipOfflineTurns drops offline turns but keeps the projection complete", () => {
+    const events = [
+      e("obs-1", "ObservationUpdated", { key: "risk_taken" }, 1),
+      e("t-1", "TickPassed", { delta: 1 }, 1),
+      e("obs-2", "ObservationUpdated", { key: "risk_taken" }, 2),
+      e("t-2", "TickPassed", { delta: 1, playerOffline: true }, 2),
+    ];
+    const full = buildTurnJournal(events);
+    const scoped = buildTurnJournal(events, { skipOfflineTurns: true });
+    expect(full.turns).toHaveLength(2);
+    expect(scoped.turns).toHaveLength(1);
+    expect(scoped.turns[0]!.worldTime).toBe(1);
+    expect(full.threads.find((t) => t.threadKey === "observation:risk_taken")!.lastWorldTime).toBe(2);
+    const scopedThread = scoped.threads.find((t) => t.threadKey === "observation:risk_taken")!;
+    expect(scopedThread.lastWorldTime).toBe(1);
+    expect(scopedThread.entries).toHaveLength(1);
+  });
 });

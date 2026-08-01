@@ -93,11 +93,17 @@ requires an idempotency key.
 
 `beliefRevision` is validated on every reconstruction via
 `resolveCheckpointState()`: the stored digest is compared with the digest of
-the belief model replayed from the checkpoint event prefix. A mismatch
-(corruption, algorithm change, truncated prefix) yields
+the belief model replayed from the checkpoint event prefix. The stored time
+and event number are part of the same check: both must be safe non-negative
+integers, `lastPresenceEventNumber` must not exceed the log length (the
+prefix is never clamped), and the replayed prefix must end exactly at
+`lastPresenceWorldTime` — replacing only the time yields `incompatible` too.
+A mismatch (corruption, algorithm change, tampering, truncated prefix) yields
 `checkpointState: "incompatible"` and presence is built as if there were no
 checkpoint — the backend never silently trusts a memory it cannot verify.
-`checkpointState` is one of `missing | valid | incompatible`.
+`checkpointState` is one of `missing | valid | incompatible`. The Known
+Worlds summary exposes `lastPresenceWorldTime` only when the checkpoint
+resolves `valid`; missing or incompatible memory reads as `null`.
 
 ### Belief drift formula
 
@@ -143,7 +149,12 @@ Ticks with `TickPassed.playerOffline: true` mark times when the observer was
 absent. Events at those times are not observable and never enter the Belief
 Model, discoveries, `nearbyChanges`, drift factors or focus. A player who was
 offline cannot gain knowledge from events that happened during the absence;
-time still passes and checkpoint freshness still decays.
+time still passes and checkpoint freshness still decays. The same scope
+applies to journal threads used by presence: `buildTurnJournal(..., {
+skipOfflineTurns: true })` still applies every event to the historical
+projection, but offline turns produce no presentation and no thread entries,
+so a hidden continuation of a known thread keeps it dormant instead of
+leaking hidden world activity.
 
 ### Observer scope gates
 
