@@ -12,6 +12,7 @@ import type {
   RelationType, ObservationSource,
 } from "./types.js";
 import { deepFreeze } from "../discovery/builder.js";
+import { sanitizePlayerFacingText } from "../game-shell/player-facing.js";
 
 interface InternalEvidence extends Evidence {
   readonly sourceEventIds: readonly string[];
@@ -522,8 +523,24 @@ function emptyExplanation(patternId: string): ExistenceExplanation {
   return deepFreeze({ patternId, confidence: 0, supportingFactors: [], weakeningFactors: [], criticalDependencies: [], collapseConditions: [] });
 }
 
+const BELIEF_TEXT_FIELDS = new Set(["displayName", "currentInterpretation", "description", "statement", "thresholdExpression", "text"]);
+
+function sanitizeBeliefDTOText(value: unknown, field = ""): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitizeBeliefDTOText(item, field));
+  if (!value || typeof value !== "object") {
+    return typeof value === "string" && BELIEF_TEXT_FIELDS.has(field)
+      ? sanitizePlayerFacingText(value)
+      : value;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    result[key] = sanitizeBeliefDTOText(nested, key);
+  }
+  return result;
+}
+
 export function serializeBeliefModel(model: BeliefModel | import("./types.js").BeliefModelDTO): import("./types.js").BeliefModelDTO {
-  return deepFreeze({
+  return deepFreeze(sanitizeBeliefDTOText({
     schemaVersion: model.schemaVersion,
     observerId: model.observerId,
     beliefs: Array.isArray(model.beliefs) ? model.beliefs : [...model.beliefs.values()],
@@ -531,7 +548,7 @@ export function serializeBeliefModel(model: BeliefModel | import("./types.js").B
     knownRelations: model.knownRelations,
     contradictions: model.contradictions,
     lastUpdated: model.lastUpdated,
-  });
+  }) as import("./types.js").BeliefModelDTO);
 }
 
 export function createObservationAPI(events: readonly DomainEvent[], world: ReadonlyWorld, observerId = "player"): ObservationAPI {

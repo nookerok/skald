@@ -115,6 +115,18 @@ describe("Observation & Belief read model", () => {
     expect(JSON.parse(JSON.stringify(dto)).beliefs).toHaveLength(1);
   });
 
+  it("sanitizes human-readable DTO text without changing opaque relation IDs", () => {
+    const events = [event("RelationChanged", "rel-1", 1, { from: "player", to: "guild", kind: "help", delta: 1 })];
+    const dto = serializeBeliefModel(buildBeliefModel(events, rebuildProjection(events).getSnapshot()));
+    const humanText = dto.beliefs.flatMap((belief) => [
+      belief.displayName,
+      belief.currentInterpretation,
+      ...belief.supportingEvidence.map((entry) => entry.description),
+    ]).join(" ");
+    expect(humanText).not.toContain("guild");
+    expect(JSON.stringify(dto)).toContain("guild");
+  });
+
   it("enforces observer scope and exposes history/explanation/trace", () => {
     const events = [
       event("MoveRequested", "move-1", 1, {}),

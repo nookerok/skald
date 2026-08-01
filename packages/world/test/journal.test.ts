@@ -81,6 +81,17 @@ describe("buildTurnJournal", () => {
     expect(threads).toHaveLength(2);
   });
 
+  it("sanitizes human-facing thread labels and text", () => {
+    const journal = buildTurnJournal([
+      e("rel-1", "RelationChanged", { from: "player", to: "guild", kind: "help", delta: 1 }, 1),
+    ]);
+    const humanText = journal.threads.flatMap((thread) => [
+      thread.label,
+      ...thread.entries.map((entry) => entry.text),
+    ]).join(" ");
+    expect(humanText).not.toContain("guild");
+  });
+
   it("movement without threadKey does not create a thread", () => {
     const events = [
       e("m-1", "MovementSucceeded", { x: 0, y: 1 }, 1),

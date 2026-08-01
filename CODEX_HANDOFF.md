@@ -10,7 +10,7 @@ Working tree: dirty; full review remediation complete, awaiting commit
 
 Observation and Belief read model is implemented as a pure read-side adapter for
 the new visual contract. The repository is on main after the worldbuilding documentation adoption. Review remediation now covers runtime schema freshness, nested snapshot immutability, poisoned-runtime health/restart, single-flight world loading, critical-check recovery, observer-scoped discovery and grid distance gates, plus UI authority boundaries. The normal discoveries endpoint now derives only from the player BeliefModel; unsupported observer identities fail closed, and browser validation covers nested existence explanations. Persistent CLI critical checks now use one durable batch; BeliefModelDTO is v2 with explicit freshness and idempotent decay; observer position replay updates before visibility gates.
-Validation: 56 test files, 787 passed, 1 skipped; typecheck and diff-check clean.
+Validation: 56 test files, 789 passed, 1 skipped; typecheck and diff-check clean.
 API smoke: 10 sequential turns, world time 158 to 167, every response had
 `presentation.primary`, duplicate key rejected with HTTP 409; health, state and
 all systemd timers verified active after smoke. Browser QA through the fixed NTFS task passed DOM/console/mobile checks;

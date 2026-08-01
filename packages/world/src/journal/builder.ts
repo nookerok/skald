@@ -2,6 +2,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import { WorldProjector } from "../projection.js";
 import { selectTurnPresentation } from "../presentation/selector.js";
 import type { PresentationEntry } from "../presentation/types.js";
+import { sanitizePlayerFacingText } from "../game-shell/player-facing.js";
 import type { JournalTurn, PresentationThread, PresentationThreadEntry, TurnJournal } from "./types.js";
 
 function deepFreeze<T>(obj: T): T {
@@ -30,7 +31,20 @@ export function buildTurnJournal(events: readonly DomainEvent[]): TurnJournal {
     // Apply all events of this turn to the projector
     for (const e of currentTurnEvents) projector.apply(e);
     const snapshot = projector.getSnapshot();
-    const presentation = selectTurnPresentation(currentTurnEvents, snapshot);
+    const rawPresentation = selectTurnPresentation(currentTurnEvents, snapshot);
+    const sanitizeEntry = (entry: PresentationEntry): PresentationEntry => ({
+      ...entry,
+      text: sanitizePlayerFacingText(entry.text),
+      ...(entry.threadLabel ? { threadLabel: sanitizePlayerFacingText(entry.threadLabel) } : {}),
+    });
+    const presentation = {
+      primary: rawPresentation.primary ? sanitizeEntry(rawPresentation.primary) : null,
+      notable: rawPresentation.notable.map(sanitizeEntry),
+      background: rawPresentation.background.map(sanitizeEntry),
+      suppressedEventCount: rawPresentation.suppressedEventCount,
+      worldTime: rawPresentation.worldTime,
+      playerPosition: rawPresentation.playerPosition,
+    };
 
     const turnId = `turn:${ts}`;
     turns.push({
@@ -52,13 +66,13 @@ export function buildTurnJournal(events: readonly DomainEvent[]): TurnJournal {
       list.push({
         turnId,
         worldTime: ts,
-        text: entry.text,
+        text: sanitizePlayerFacingText(entry.text),
         importance: entry.importance,
         discoveryMark: entry.discoveryMark,
         sourceEventIds: entry.sourceEventIds,
       });
       threadMap.set(entry.threadKey, list);
-      if (entry.threadLabel) threadLabels.set(entry.threadKey, entry.threadLabel);
+      if (entry.threadLabel) threadLabels.set(entry.threadKey, sanitizePlayerFacingText(entry.threadLabel));
     }
 
     currentTurnEvents = [];
@@ -96,7 +110,7 @@ export function buildTurnJournal(events: readonly DomainEvent[]): TurnJournal {
     const sorted = deepFreeze([...entries].sort((a, b) => a.worldTime - b.worldTime));
     threads.push(deepFreeze({
       threadKey: key,
-      label: threadLabels.get(key) ?? key,
+      label: threadLabels.get(key) ?? sanitizePlayerFacingText(key),
       firstWorldTime: sorted[0]!.worldTime,
       lastWorldTime: sorted[sorted.length - 1]!.worldTime,
       entries: sorted,
