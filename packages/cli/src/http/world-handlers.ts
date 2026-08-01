@@ -2,10 +2,11 @@ import type { WorldRuntime } from "../runtime/index.js";
 import {
   buildNarrative,
   buildTurnJournal,
-  buildDiscoveryJournal,
+  buildDiscoveryJournalFromBeliefModel,
   buildPlayerGuidance,
   buildGameShellSnapshot,
   buildBeliefModel,
+  parseBeliefModelDTO,
   serializeBeliefModel,
   buildShellDelta,
   selectTurnPresentation,
@@ -19,7 +20,7 @@ export interface JsonResponse {
 }
 
 function serializeShellDelta(delta: ReturnType<typeof buildShellDelta>) {
-  return { ...delta, beliefModel: serializeBeliefModel(delta.beliefModel) };
+  return { ...delta, beliefModel: parseBeliefModelDTO(serializeBeliefModel(delta.beliefModel)) };
 }
 
 function json(data: unknown, statusCode = 200): JsonResponse {
@@ -187,8 +188,8 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
-  const events = runtime.bus.query();
-  const journal = buildDiscoveryJournal(events);
+  const beliefModel = buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot());
+  const journal = buildDiscoveryJournalFromBeliefModel(beliefModel);
   return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, worldTime: journal.worldTime });
 }
 
@@ -198,7 +199,8 @@ export function handleWorldGuidance(runtime: WorldRuntime): JsonResponse {
 }
 
 export function handleWorldBeliefModel(runtime: WorldRuntime): JsonResponse {
-  return json({ ok: true, beliefModel: serializeBeliefModel(buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot())) });
+  const beliefModel = parseBeliefModelDTO(serializeBeliefModel(buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot())));
+  return json({ ok: true, beliefModel });
 }
 
 export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): JsonResponse {
@@ -207,7 +209,7 @@ export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): Js
   const record = runtime.store.getWorldRecord(worldId);
   const charProfile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
   const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId);
-  return json({ ok: true, snapshot: { ...snapshot, beliefModel: serializeBeliefModel(snapshot.beliefModel) } });
+  return json({ ok: true, snapshot: { ...snapshot, beliefModel: parseBeliefModelDTO(serializeBeliefModel(snapshot.beliefModel)) } });
 }
 
 export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
@@ -218,6 +220,7 @@ export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
 }
 
 export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Promise<JsonResponse> {
+  if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
   if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
   const { count, idempotencyKey } = body as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || idempotencyKey.length < 1 || idempotencyKey.length > 128)
@@ -264,7 +267,7 @@ export interface IdempotencyReject {
   idempotencyKey: string;
 }
 
-async function runCommandCycleForRuntime(
+export async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
@@ -293,31 +296,19 @@ async function runCommandCycleForRuntime(
     commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
   };
 
-  try {
-    const { committed } = runtime.engine.processSequence([firstEvent, tickEvent], options);
-    runtime.processedKeys.add(idempotencyKey);
+  const { committed } = runtime.engine.processSequence([firstEvent, tickEvent], {
+    ...options,
+    // Dice are derived after CriticalCheckRequested has been processed, but
+    // remain in the same durable batch as the command and its TickPassed.
+    deriveEvents: (staged) => staged
+      .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
+      .map((event) => rollCriticalCheck(event)),
+  });
+  runtime.processedKeys.add(idempotencyKey);
 
-    // Process dice rolls for any CriticalCheckRequested events
-    const commandEvents = committed.filter((e) => e.correlationId === correlationId);
-    const allCommandEvents = [...commandEvents];
-
-    const rollEvents: DomainEvent[] = [];
-    for (const event of commandEvents) {
-      if (event.type === "CriticalCheckRequested") {
-        rollEvents.push(rollCriticalCheck(event));
-      }
-    }
-
-    if (rollEvents.length > 0) {
-      const { committed: rollCommitted } = runtime.engine.processSequence(rollEvents);
-      allCommandEvents.push(...rollCommitted);
-    }
-
-    const tickEvents = committed.filter((e) => e.correlationId === `tick-${ts}`);
-    return { events: allCommandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player } };
-  } catch (err) {
-    throw err;
-  }
+  const commandEvents = committed.filter((e) => e.correlationId === correlationId);
+  const tickEvents = committed.filter((e) => e.correlationId === `tick-${ts}`);
+  return { events: commandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player } };
 }
 
 async function runOfflineTicksForRuntime(

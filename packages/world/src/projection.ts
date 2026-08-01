@@ -123,6 +123,36 @@ function deepCloneHeatSource(hs: HeatSource): HeatSource {
   return Object.freeze({ ...hs });
 }
 
+function deepCloneUnknown(value: unknown): unknown {
+  if (Array.isArray(value)) return Object.freeze(value.map(deepCloneUnknown));
+  if (value !== null && typeof value === "object") {
+    const copy: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) copy[key] = deepCloneUnknown(item);
+    return Object.freeze(copy);
+  }
+  return value;
+}
+
+function deepCloneWorldObject(object: WorldObject): WorldObject {
+  return Object.freeze({ ...object, state: deepCloneUnknown(object.state) as Readonly<Record<string, unknown>> });
+}
+
+function deepCloneLocation(location: Location): Location {
+  return Object.freeze({
+    ...location,
+    objectIds: Object.freeze([...location.objectIds]),
+    connections: deepCloneUnknown(location.connections) as Readonly<Record<string, string>>,
+  });
+}
+
+function deepCloneCriticalCheck(check: CriticalCheckState): CriticalCheckState {
+  return Object.freeze({
+    ...check,
+    modifiers: Object.freeze(check.modifiers.map((modifier) => Object.freeze({ ...modifier }))),
+    stakes: Object.freeze({ ...check.stakes }),
+  });
+}
+
 function deepCloneStrategyEntry(e: StrategyEntry): StrategyEntry {
   return Object.freeze({ ...e });
 }
@@ -191,11 +221,11 @@ function freeze(state: WorldState): ReadonlyWorld {
     eventNumber: state.eventNumber,
     time: state.time,
     // Iteration 15 — Objects & Locations
-    objects: cloneMap(state.objects),
-    locations: cloneMap(state.locations),
+    objects: cloneMap(new Map([...state.objects].map(([id, object]) => [id, deepCloneWorldObject(object)]))),
+    locations: cloneMap(new Map([...state.locations].map(([id, location]) => [id, deepCloneLocation(location)]))),
     currentLocationId: state.currentLocationId,
     // Iteration 15 — Pending critical checks
-    pendingChecks: cloneMap(state.pendingChecks),
+    pendingChecks: cloneMap(new Map([...state.pendingChecks].map(([id, check]) => [id, deepCloneCriticalCheck(check)]))),
     entities: cloneMap(new Map([...state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)]))),
   }) as ReadonlyWorld;
 }

@@ -21,14 +21,16 @@ export class ModelRouter {
   readonly apiKey: string;
   readonly healthCachePath: string;
   readonly timeoutSeconds: number;
+  readonly availableProviders: readonly ProviderId[];
 
-  constructor(opts?: { apiKey?: string; baseUrl?: string; timeoutMs?: number; healthCachePath?: string }) {
-    this.providerId = LLM_CONFIG.policy.skaldProvider as ProviderId;
+  constructor(opts?: { apiKey?: string; baseUrl?: string; timeoutMs?: number; healthCachePath?: string; providerId?: ProviderId; availableProviders?: readonly ProviderId[] }) {
+    this.providerId = opts?.providerId ?? (LLM_CONFIG.policy.skaldProvider as ProviderId);
     const provConf = LLM_CONFIG.providers[this.providerId];
     this.baseUrl = (opts?.baseUrl || provConf?.baseUrl || "").replace(/\/+$/, "");
     this.apiKey = opts?.apiKey ?? process.env[provConf?.apiKeyEnv ?? ""] ?? "";
     this.healthCachePath = opts?.healthCachePath ?? "packages/cli/llm-health.json";
     this.timeoutSeconds = (opts?.timeoutMs ?? 30000) / 1000;
+    this.availableProviders = Object.freeze([...new Set(opts?.availableProviders ?? [this.providerId])]);
   }
 
   diagnostics(): RouterDiagnostic[] {
@@ -55,7 +57,7 @@ export class ModelRouter {
   }
 
   private _candidateModels(category: Category): readonly string[] {
-    return LLM_CONFIG.routes[category]?.models ?? [];
+    return (LLM_CONFIG.routes[category]?.models ?? []).filter((model) => this.availableProviders.includes(providerForModel(model)));
   }
 
   private _modelHealth(model: string): string {

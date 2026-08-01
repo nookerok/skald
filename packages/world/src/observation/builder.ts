@@ -1,6 +1,9 @@
 import type { DomainEvent } from "@skald/event-bus";
+import { createObservationPipeline } from "@skald/observation";
 import type { ReadonlyWorld } from "../projection.js";
 import { buildDiscoveryJournal } from "../discovery/builder.js";
+import { DEFINITIONS } from "../discovery/definitions.js";
+import type { DiscoveryCard, DiscoveryEvidence, DiscoveryJournal, DiscoveryStage } from "../discovery/types.js";
 import type {
   BeliefModel, CausalChain, CausalStep, Contradiction,
   Evidence, EvidenceType, EmergencePayload, ExistenceExplanation,
@@ -22,7 +25,39 @@ interface Group {
   evidence: InternalEvidence[];
 }
 
+interface HistoricalPosition {
+  readonly x: number;
+  readonly y: number;
+}
+
 const FRESHNESS_WINDOW = 12;
+/** Maximum Manhattan distance at which a grid-world event is observable. */
+export const GRID_OBSERVATION_MAX_DISTANCE = 3;
+
+const PLAYER_PATTERN_LABELS: Record<string, string> = {
+  risk_taken: "Тревожный след",
+  wall_caution: "Память преграды",
+  edge_awareness: "Граница пути",
+  impatience: "След поспешности",
+  world_reaction_fear: "Ответ мира",
+  risk_draws_attention: "Внимание мира",
+  heat_changes_material: "Перемена материи",
+  sound_draws_attention: "Шум привлекает внимание",
+};
+
+function playerPatternLabel(patternId: string): string {
+  const raw = patternId.replace(/^(observation|discovery):/, "");
+  const known = PLAYER_PATTERN_LABELS[raw];
+  if (known) return known;
+  if (patternId.startsWith("location:")) return "Место вокруг тебя";
+  if (patternId.startsWith("relation:")) return "Связь с другим";
+  if (patternId.startsWith("heat:")) return "Необычное тепло";
+  if (patternId.startsWith("sound:")) return "Далёкий звук";
+  if (patternId.startsWith("consequence:")) return "Последствие";
+  if (patternId.startsWith("barrier:")) return "Преграда на пути";
+  if (patternId.startsWith("object:") || patternId.startsWith("entity:")) return "Замеченный предмет";
+  return "Наблюдаемое явление";
+}
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -82,10 +117,74 @@ function addGroup(groups: Map<string, Group>, event: DomainEvent, targetId: stri
   groups.set(key, item);
 }
 
-function collectGroups(events: readonly DomainEvent[], worldTime: number): Map<string, Group> {
+const observationPipeline = createObservationPipeline();
+
+function eventLens(eventType: string): LensId {
+  if (eventType === "RelationChanged") return "relations";
+  if (eventType === "ObjectTemperatureChanged" || eventType === "HeatRadiated" || eventType === "SoundProduced") return "ecology";
+  if (eventType === "MovementSucceeded" || eventType === "PlayerLocationChanged" || eventType === "MovementBlocked" || eventType === "ActionBlocked") return "terrain";
+  return "emergence";
+}
+
+function gridPosition(value: unknown): HistoricalPosition | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as { x?: unknown; y?: unknown };
+  return typeof candidate.x === "number" && Number.isFinite(candidate.x)
+    && typeof candidate.y === "number" && Number.isFinite(candidate.y)
+    ? { x: candidate.x, y: candidate.y }
+    : null;
+}
+
+function eventVisibleToObserver(
+  event: DomainEvent,
+  observerId: string,
+  historicalLocation: string | null,
+  historicalPosition: HistoricalPosition | null,
+): boolean {
+  const p = payload(event);
+  const locationId = p.locationId ?? p.fromLocationId ?? p.sourceLocationId;
+  const isMovement = event.type === "MovementSucceeded" || event.type === "PlayerLocationChanged";
+  if (typeof locationId === "string" && historicalLocation && locationId !== historicalLocation && !isMovement) return false;
+  const facts: Record<string, unknown> = { ...p };
+  // Visibility is evaluated from event-time facts. Never compare historical
+  // evidence with the player's final location from the replayed world.
+  if (typeof p.observerDistance === "number" && facts.distance === undefined) facts.distance = p.observerDistance;
+  if (typeof p.observerMaxDistance === "number" && facts.maxDistance === undefined) facts.maxDistance = p.observerMaxDistance;
+  const position = p.observerPosition;
+  const contextPosition = position && typeof position === "object" ? position as { x: number; y: number; z?: number } : undefined;
+  const targetPosition = gridPosition(p);
+  if (facts.distance === undefined && targetPosition && historicalPosition) {
+    facts.distance = Math.abs(targetPosition.x - historicalPosition.x) + Math.abs(targetPosition.y - historicalPosition.y);
+    facts.maxDistance = GRID_OBSERVATION_MAX_DISTANCE;
+  }
+  return observationPipeline.run({
+    targetId: event.eventId,
+    observerId,
+    lens: eventLens(event.type),
+    context: { time: event.timestamp, ...(contextPosition ? { position: contextPosition } : historicalPosition ? { position: historicalPosition } : {}) },
+    facts,
+  }).status === "complete";
+}
+
+function collectGroups(events: readonly DomainEvent[], observerId: string, worldTime: number): { groups: Map<string, Group>; visibleEventIds: ReadonlySet<string>; visibleEvents: readonly DomainEvent[] } {
   const groups = new Map<string, Group>();
+  const visibleEventIds = new Set<string>();
+  const visibleEvents: DomainEvent[] = [];
+  let historicalLocation: string | null = null;
+  let historicalPosition: HistoricalPosition | null = null;
   for (const event of events) {
-    const p = payload(event);
+    const eventPayload = payload(event);
+    const isMovement = event.type === "MovementSucceeded" || event.type === "PlayerLocationChanged";
+    if (event.type === "PlayerSpawned" || event.type === "MovementSucceeded") {
+      historicalPosition = gridPosition(eventPayload) ?? historicalPosition;
+    }
+    if (isMovement && typeof eventPayload.locationId === "string") {
+      historicalLocation = eventPayload.locationId;
+    }
+    if (!eventVisibleToObserver(event, observerId, historicalLocation, historicalPosition)) continue;
+    visibleEventIds.add(event.eventId);
+    visibleEvents.push(event);
+    const p = eventPayload;
     switch (event.type) {
       case "ObjectObserved":
       case "EntityExamined": {
@@ -99,7 +198,7 @@ function collectGroups(events: readonly DomainEvent[], worldTime: number): Map<s
         const delta = number(p.delta, number(p.newValue, 0));
         const direction = delta < 0 ? "negative" : "positive";
         addGroup(groups, event, `observation:${key}`, "emergence", "pattern-match", "inferred",
-          `Наблюдение «${key}» изменилось.`, 0.48, direction);
+          PLAYER_PATTERN_LABELS[key] ? `${PLAYER_PATTERN_LABELS[key]} становится заметнее.` : "В твоём опыте проявилось новое изменение.", 0.48, direction);
         break;
       }
       case "MovementSucceeded":
@@ -134,7 +233,6 @@ function collectGroups(events: readonly DomainEvent[], worldTime: number): Map<s
           `Связь с «${target}» изменилась.`, 0.62, number(p.value ?? p.delta, 0) < 0 ? "negative" : "positive");
         break;
       }
-      case "ConsequenceCreated":
       case "ConsequenceFired": {
         const kind = text(p.type ?? p.consequenceType, "unknown consequence");
         addGroup(groups, event, `consequence:${kind}`, "emergence", "anomaly", "inferred",
@@ -145,7 +243,7 @@ function collectGroups(events: readonly DomainEvent[], worldTime: number): Map<s
         break;
     }
   }
-  return groups;
+  return { groups, visibleEventIds, visibleEvents };
 }
 
 function interpretation(evidence: readonly InternalEvidence[]): string {
@@ -254,10 +352,21 @@ function freezeEvidence(item: InternalEvidence, observationId: string): Evidence
 export function buildBeliefModel(events: readonly DomainEvent[], world: ReadonlyWorld, observerId = "player"): BeliefModel {
   monotonicCheck(events);
   const now = events.length > 0 ? events[events.length - 1]!.timestamp : world.time;
-  const groups = collectGroups(events, now);
-  const discovery = buildDiscoveryJournal(events);
+  // Only the player observer is currently supported; fail closed for other identities.
+  if (observerId !== "player") {
+    return deepFreeze({ schemaVersion: 2 as const, observerId, beliefs: freezeMap(new Map()), activeHypotheses: [], knownRelations: [], contradictions: [], lastUpdated: now });
+  }
+  const collected = collectGroups(events, observerId, now);
+  const groups = collected.groups;
+  // Discovery classification must use the same observer-visible event stream
+  // as ordinary observations; hidden evidence cannot elevate a public card.
+  // ConsequenceCreated schedules an internal future effect; it is not an
+  // observer-visible fact and must not enter the normal BeliefModel.
+  const discovery = buildDiscoveryJournal(collected.visibleEvents.filter((event) => event.type !== "ConsequenceCreated"));
   for (const card of discovery.cards) {
-    const evidence = card.evidence.map((entry, index): InternalEvidence => ({
+    const visibleEvidence = card.evidence.filter((entry) => entry.sourceEventIds.some((id) => collected.visibleEventIds.has(id)));
+    if (visibleEvidence.length === 0) continue;
+    const evidence = visibleEvidence.map((entry, index): InternalEvidence => ({
       id: `evidence:${card.discoveryId}:${index}`,
       type: "inference",
       description: entry.text,
@@ -300,11 +409,13 @@ export function buildBeliefModel(events: readonly DomainEvent[], world: Readonly
     const openHypotheses = [...(previous?.openHypotheses ?? []), ...hypotheses];
     const belief: PatternBelief = {
       patternId: group.targetId,
+      displayName: playerPatternLabel(group.targetId),
       currentInterpretation: interpretation(group.evidence),
       confidence,
       supportingEvidence: allEvidence,
       openHypotheses,
       lastObserved: record.observedAt,
+      freshness,
     };
     beliefs.set(group.targetId, deepFreeze({ ...belief, existenceExplanation: explanation(group.targetId, belief, now) }));
   }
@@ -326,7 +437,7 @@ export function buildBeliefModel(events: readonly DomainEvent[], world: Readonly
       const belief = beliefs.get(patternId);
       contradictions.push(deepFreeze({
         id: `contradiction:${patternId}`,
-        description: `Свидетельства о «${patternId}» противоречат друг другу.`,
+        description: `Свидетельства о «${playerPatternLabel(patternId)}» противоречат друг другу.`,
         involvedHypothesisIds: belief?.openHypotheses.map((item) => item.id) ?? [],
         involvedEvidenceIds: directions.map((item) => item.id),
         detectedAt: now,
@@ -335,7 +446,7 @@ export function buildBeliefModel(events: readonly DomainEvent[], world: Readonly
   }
 
   return deepFreeze({
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     observerId,
     beliefs: freezeMap(beliefs),
     activeHypotheses: deepFreeze(activeHypotheses),
@@ -345,18 +456,53 @@ export function buildBeliefModel(events: readonly DomainEvent[], world: Readonly
   });
 }
 
-function findSourceEvent(model: BeliefModel, events: readonly DomainEvent[], rootId: string): string | null {
-  if (rootId.startsWith("observation:")) {
-    const target = rootId.split(":").slice(1).join(":");
-    const belief = model.beliefs.get(target);
-    const evidence = belief?.supportingEvidence[belief.supportingEvidence.length - 1];
-    return evidence?.id.replace(/^evidence:/, "") ?? null;
-  }
-  return events.some((event) => event.eventId === rootId) ? rootId : null;
+function discoveryStage(strength: number): DiscoveryStage {
+  if (strength >= 0.8) return "discovered";
+  if (strength >= 0.6) return "hypothesis";
+  return "trace";
 }
 
-function buildTrace(model: BeliefModel, events: readonly DomainEvent[], rootId: string, maxDepth: number): CausalChain {
-  const source = findSourceEvent(model, events, rootId);
+/** Build the player-facing discovery journal from the observer-scoped Belief Model. */
+export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel): DiscoveryJournal {
+  const cards: DiscoveryCard[] = [];
+  for (const belief of model.beliefs.values()) {
+    if (!belief.patternId.startsWith("discovery:")) continue;
+    const discoveryId = belief.patternId.slice("discovery:".length);
+    const definition = DEFINITIONS.find((item) => item.id === discoveryId);
+    const stage = belief.supportingEvidence.some((entry) => entry.strength >= 0.8)
+      ? "discovered" as const
+      : belief.supportingEvidence.length >= 2 || belief.supportingEvidence.some((entry) => entry.strength >= 0.6)
+        ? "hypothesis" as const : "trace" as const;
+    const rendered = definition?.render(stage) ?? {
+      title: belief.displayName, question: "Что это значит?", summary: belief.currentInterpretation,
+    };
+    const evidence: DiscoveryEvidence[] = belief.supportingEvidence.map((entry, index) => ({
+      evidenceId: discoveryId + ":belief:" + index,
+      kind: discoveryStage(entry.strength) === "discovered" ? "echo"
+        : discoveryStage(entry.strength) === "hypothesis" ? "omen" : "trace",
+      worldTime: entry.observedAt, text: entry.description, sourceEventIds: [],
+      journalTurnId: "turn:" + entry.observedAt,
+    }));
+    cards.push({
+      discoveryId, definitionVersion: definition?.version ?? 1, ...rendered, stage,
+      firstSeenAt: evidence[0]?.worldTime ?? model.lastUpdated,
+      lastSeenAt: evidence[evidence.length - 1]?.worldTime ?? model.lastUpdated,
+      evidenceCount: evidence.length, evidence,
+    });
+  }
+  const recentEvidence = cards.flatMap((card) => card.evidence)
+    .sort((a, b) => b.worldTime - a.worldTime).slice(0, 10);
+  return deepFreeze({ cards, recentEvidence, worldTime: model.lastUpdated });
+}
+
+function findSourceEvent(_model: BeliefModel, events: readonly DomainEvent[], visibleEventIds: ReadonlySet<string>, sourceByObservationId: ReadonlyMap<string, string>, rootId: string): string | null {
+  const observationSource = sourceByObservationId.get(rootId);
+  if (observationSource && visibleEventIds.has(observationSource)) return observationSource;
+  return events.some((event) => visibleEventIds.has(event.eventId) && event.eventId === rootId) ? rootId : null;
+}
+
+function buildTrace(model: BeliefModel, events: readonly DomainEvent[], visibleEventIds: ReadonlySet<string>, sourceByObservationId: ReadonlyMap<string, string>, rootId: string, maxDepth: number): CausalChain {
+  const source = findSourceEvent(model, events, visibleEventIds, sourceByObservationId, rootId);
   if (!source) return deepFreeze({ rootId, steps: [], confidence: 0, incomplete: true });
   const byCausation = new Map<string, DomainEvent[]>();
   for (const event of events) byCausation.set(event.causationId ?? "", [...(byCausation.get(event.causationId ?? "") ?? []), event]);
@@ -390,7 +536,33 @@ export function serializeBeliefModel(model: BeliefModel | import("./types.js").B
 
 export function createObservationAPI(events: readonly DomainEvent[], world: ReadonlyWorld, observerId = "player"): ObservationAPI {
   const model = buildBeliefModel(events, world, observerId);
-
+  const now = events.length > 0 ? events[events.length - 1]!.timestamp : world.time;
+  const visible = observerId === "player"
+    ? collectGroups(events, observerId, now)
+    : { groups: new Map<string, Group>(), visibleEventIds: new Set<string>(), visibleEvents: [] as readonly DomainEvent[] };
+  const sourceByObservationId = new Map<string, string>();
+  for (const belief of model.beliefs.values()) {
+    const latestEvidence = belief.supportingEvidence[belief.supportingEvidence.length - 1];
+    const latestEventId = latestEvidence?.id.replace(/^evidence:/, "");
+    if (!latestEventId || !visible.visibleEventIds.has(latestEventId)) continue;
+    const target = belief.patternId;
+    const lens = primaryLens(target);
+    sourceByObservationId.set(`observation:${target}:${lens}`, latestEventId);
+    sourceByObservationId.set(`observation:${target}:history`, latestEventId);
+    for (const evidence of belief.supportingEvidence) {
+      const eventId = evidence.id.replace(/^evidence:/, "");
+      if (visible.visibleEventIds.has(eventId)) {
+        sourceByObservationId.set(`observation:${target}:history:${evidence.id}`, eventId);
+      }
+    }
+  }
+  const discoveryEvents = visible.visibleEvents.filter((event) => event.type !== "ConsequenceCreated");
+  for (const card of buildDiscoveryJournal(discoveryEvents).cards) {
+    card.evidence.forEach((evidence) => {
+      const eventId = evidence.sourceEventIds.find((id) => visible.visibleEventIds.has(id));
+      if (eventId) sourceByObservationId.set(`observation:discovery:${card.discoveryId}:emergence`, eventId);
+    });
+  }
   const recordFor = (targetId: string, lens: LensId): ObservationRecord | null => {
     const belief = model.beliefs.get(targetId);
     if (!belief || (lens !== "history" && lens !== primaryLens(targetId))) return null;
@@ -458,6 +630,6 @@ export function createObservationAPI(events: readonly DomainEvent[], world: Read
       : model.beliefs.get(patternId)?.existenceExplanation ?? emptyExplanation(patternId),
     trace: (rootId, requestedObserver, maxDepth = 8) => requestedObserver !== observerId
       ? deepFreeze({ rootId, steps: [], confidence: 0, incomplete: true })
-      : buildTrace(model, events, rootId, maxDepth),
+      : buildTrace(model, visible.visibleEvents, visible.visibleEventIds, sourceByObservationId, rootId, maxDepth),
   };
 }

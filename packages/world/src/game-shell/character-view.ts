@@ -1,5 +1,6 @@
 import type { ReadonlyWorld } from "../projection.js";
 import type { CharacterView } from "./types.js";
+import { consequenceLabel, relationKindLabel, relationTargetLabel } from "./player-facing.js";
 
 interface CharacterProfileRecord {
   display_name: string;
@@ -15,13 +16,12 @@ export function buildCharacterView(profile: CharacterProfileRecord | null, world
   const principle = profile?.principle ?? "Не проходить мимо чужой беды.";
 
   const consequences = [...world.consequences.values()].map((c) => ({
-    label: `Последствие: ${c.type}`,
-    source: c.id,
+    label: consequenceLabel(c.type),
   }));
 
   const relations = [...world.relations.values()].filter((r) => r.from === "player").map((r) => ({
-    target: r.to,
-    kind: r.kind,
+    targetLabel: relationTargetLabel(r.to),
+    relationLabel: relationKindLabel(r.kind),
     value: r.value,
   }));
 

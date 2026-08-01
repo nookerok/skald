@@ -107,6 +107,42 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).toContain("export const renderDiagnostics");
   });
 
+  it("belief renderer enforces schemaVersion 2 before rendering", () => {
+    const code = readFileSync(resolve(PUBLIC, "belief-view.js"), "utf-8");
+    expect(code).toContain("export function isBeliefModelV2");
+    expect(code).toContain("model.schemaVersion === 2");
+    expect(code).toContain("belief-unavailable");
+  });
+
+  it("belief validator rejects malformed nested relations and contradictions", async () => {
+    const beliefViewPath = new URL("../public/belief-view.js", import.meta.url).href;
+    const { isBeliefModelV2 } = await import(beliefViewPath);
+    const base = { schemaVersion: 2, observerId: "player", beliefs: [], activeHypotheses: [], lastUpdated: 0 };
+    expect(isBeliefModelV2({ ...base, knownRelations: [null], contradictions: [] })).toBe(false);
+    expect(isBeliefModelV2({ ...base, knownRelations: [], contradictions: [null] })).toBe(false);
+  });
+
+  it("belief validator rejects malformed existence explanations", async () => {
+    const beliefViewPath = new URL("../public/belief-view.js", import.meta.url).href;
+    const { isBeliefModelV2 } = await import(beliefViewPath);
+    const base = { schemaVersion: 2, observerId: "player", beliefs: [], activeHypotheses: [], knownRelations: [], contradictions: [], lastUpdated: 0 };
+    const belief = { patternId: "x", displayName: "X", currentInterpretation: "x", confidence: 0.5, supportingEvidence: [], openHypotheses: [], lastObserved: 0, freshness: 1 };
+    const explanation = { patternId: "x", confidence: 0.5, supportingFactors: [], weakeningFactors: [], criticalDependencies: [], collapseConditions: [] };
+    expect(isBeliefModelV2({ ...base, beliefs: [{ ...belief, existenceExplanation: { ...explanation, collapseConditions: [null] } }] })).toBe(false);
+    expect(isBeliefModelV2({ ...base, beliefs: [{ ...belief, existenceExplanation: explanation }] })).toBe(true);
+  });
+
+  it("player-facing list renderers do not fall back to internal identifiers", () => {
+    const sidebar = readFileSync(resolve(PUBLIC, "world-sidebar-view.js"), "utf-8");
+    const rail = readFileSync(resolve(PUBLIC, "context-rail-view.js"), "utf-8");
+    expect(sidebar).not.toContain("item.id ||");
+    expect(sidebar).not.toContain("item.kind ||");
+    expect(sidebar).not.toContain("item.target ||");
+    expect(rail).not.toContain("value.kind ||");
+    expect(rail).not.toContain("value.target ||");
+    expect(rail).not.toContain("value.id ||");
+  });
+
   it("client-state.js exists and has expected exports", () => {
     const code = readFileSync(resolve(PUBLIC, "client-state.js"), "utf-8");
     expect(code).toContain("export const APP");

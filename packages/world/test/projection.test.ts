@@ -623,3 +623,27 @@ describe("WorldProjector ? World Interaction Model purity", () => {
     expect(rebuilt.getSnapshot().observations.get("curiosity")).toBe(1);
   });
 });
+
+
+describe("WorldProjector ? nested snapshot immutability", () => {
+  it("deep-freezes objects, locations and pending checks", () => {
+    const projector = rebuildProjection([
+      e("LocationDefined", "loc-immutable", { id: "loc", name: "Location", description: "", objectIds: ["obj"], connections: { enter: "inside" } }, 1),
+      e("WorldObjectPlaced", "obj-immutable", { id: "obj", name: "Object", description: "", material: "wood", locationId: "loc", integrity: 10, temperature: 20, state: { nested: { value: 1 } } }, 1),
+      e("CriticalCheckRequested", "check-immutable", { checkId: "check-1", actionEventId: "action-1", checkKind: "force", die: "d20", difficulty: 12, modifiers: [{ label: "grip", delta: 2 }], stakes: { success: "open", failure: "noise" }, targetObjectId: "obj", targetObjectName: "Object", locationId: "loc" }, 2),
+    ]);
+    const snapshot = projector.getSnapshot();
+    const [objectId, object] = [...snapshot.objects.entries()][0]!;
+    const [locationId, location] = [...snapshot.locations.entries()][0]!;
+    expect(() => { (object as any).integrity = 0; }).toThrow(TypeError);
+    expect(() => { (location.objectIds as any).push("forbidden"); }).toThrow(TypeError);
+    expect(() => { ((object as any).state.nested as any).value = 9; }).toThrow(TypeError);
+    expect(() => { ((location as any).connections.enter = "outside"); }).toThrow(TypeError);
+    const pending = [...snapshot.pendingChecks.values()][0]!;
+    expect(() => { (pending.modifiers as any).push({ label: "forbidden", delta: 99 }); }).toThrow(TypeError);
+    expect(() => { ((pending as any).stakes.success = "forbidden"); }).toThrow(TypeError);
+    expect(projector.getSnapshot().objects.get(objectId)!.integrity).toBe(object.integrity);
+    expect(projector.getSnapshot().locations.get(locationId)!.objectIds).toEqual(location.objectIds);
+    expect(projector.getSnapshot().pendingChecks.get("check-1")!.stakes.success).toBe("open");
+  });
+});

@@ -1,4 +1,4 @@
-# Observation Contract API v1.0
+# Observation Contract API v2.0
 
 `@skald/observation` is the boundary package for observer-scoped knowledge.
 It owns public types, runtime validation and JSON Schemas only. It does not

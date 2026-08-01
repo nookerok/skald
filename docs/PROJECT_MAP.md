@@ -23,7 +23,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Package | Responsibility |
 |---|---|
 | packages/patterns | Pattern Ontology v1.0 identities, boundaries and lifecycle state machine |
-| packages/observation | Observation Contract v1.0, zod validation, JSON Schemas and pipeline skeleton |
+| packages/observation | Observation Contract v2.0, zod validation, JSON Schemas and pipeline skeleton |
 | packages/lenses | Pure terrain/ecology/relations/emergence/history/prediction lens transforms |
 | packages/belief | Pure evidence -> hypothesis -> belief -> contradiction revisions and decay |
 | packages/explain | Structured existence explanations from BeliefModel only |

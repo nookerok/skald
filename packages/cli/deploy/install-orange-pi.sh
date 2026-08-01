@@ -56,10 +56,8 @@ echo "[OK] Paths verified."
 cd "${SKALD_CODE}"
 echo "npm ci..."
 npm ci
-echo "Typecheck..."
-npm run typecheck
-echo "Tests..."
-npm test -- --run
+echo "Validation..."
+npm run validate
 echo "[OK] Build and tests passed."
 
 # 5. Data directories

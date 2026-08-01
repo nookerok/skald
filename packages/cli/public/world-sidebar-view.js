@@ -5,8 +5,8 @@ function renderList(id, items, emptyText) {
   container.replaceChildren();
   if (!items || !items.length) { container.appendChild(emptyState(emptyText, "sidebar-empty")); return; }
   items.slice(0, 6).forEach((item) => {
-    const label = typeof item === "string" ? item : (item.name || item.title || item.target || item.text || item.id || "Без названия");
-    const detail = typeof item === "object" ? (item.text || item.kind || item.value) : "";
+    const label = typeof item === "string" ? item : (item.label || item.targetLabel || "Без названия");
+    const detail = typeof item === "object" ? (item.detail || item.relationLabel || "") : "";
     const button = makeNode("button", { className: "sidebar-entry", attrs: { type: "button", "aria-label": "Показать сведения: " + label } });
     button.appendChild(makeNode("span", { className: "sidebar-entry-icon", text: "✧" }));
     const copy = makeNode("span", { className: "sidebar-entry-copy" });

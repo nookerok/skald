@@ -21,6 +21,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-013 | Observation & Belief Model is the normative observer-scoped UI read contract; confidence/freshness/evidence/hypotheses/contradictions are deterministic and the normal renderer never reads World/Event Log directly | accepted | docs/OBSERVATION_BELIEF_MODEL.md; docs/adr/0006-observation-belief-read-model.md |
 | D-014 | Observation infrastructure is layered as Pattern Ontology -> Contract -> Observation -> Lenses -> Belief -> Explain/Trace -> reactive events; these packages are read-side and emit no canonical Domain Events | accepted | AGENTS.md; docs/ARCHITECTURE.md |
 | D-015 | Worldbuilding principles are a governed design layer; they add no runtime Events/Rules/persistence until a vertical-slice ADR maps them to current contracts | accepted | docs/adr/0007-worldbuilding-principles.md; docs/worldbuilding/README.md |
+| D-016 | BeliefModelDTO v2 makes PatternBelief.freshness explicit; freshness is recomputed from retained evidence and never compounds across read-model decay calls | accepted | docs/adr/0008-belief-model-freshness.md; docs/OBSERVATION_BELIEF_MODEL.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

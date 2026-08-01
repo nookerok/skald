@@ -2,16 +2,17 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "../projection.js";
 import type {
   GameShellSnapshot, ShellDelta, WorldContextView, CausalStep,
-  PlayerTurnView, WorldActivityItem, PlayerFacingScope, ActivityOrigin,
+  PlayerTurnView, PlayerFacingEntry, WorldActivityItem, PlayerFacingScope, ActivityOrigin,
 } from "./types.js";
 import { buildTurnJournal } from "../journal/builder.js";
-import { buildDiscoveryJournal, deepFreeze } from "../discovery/builder.js";
+import { deepFreeze } from "../discovery/builder.js";
 import { buildPlayerGuidance } from "../guidance/selector.js";
 import { buildCharacterView } from "./character-view.js";
 import { buildSituationView } from "./situation-view.js";
 import { buildAttentionView } from "./attention-view.js";
 import { buildKnowledgeSummary } from "./knowledge-view.js";
 import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
+import { blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 
 interface CharacterProfileRecord {
   display_name: string;
@@ -41,90 +42,40 @@ function classifyOriginFromEvent(type: string): ActivityOrigin | null {
 }
 
 export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: number): CausalStep[] {
-  const root = events.find(
-    (e) => e.timestamp === turnWorldTime &&
-      (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" || e.type === "TickPassed"),
-  );
+  const root = events.find((e) => e.timestamp === turnWorldTime &&
+    (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" || e.type === "TickPassed"));
   if (!root) return [];
-
-  const correlationId = root.correlationId;
-  const turnEvents = events.filter((e) => e.correlationId === correlationId && e.timestamp === turnWorldTime);
-
+  const turnEvents = events.filter((e) => e.correlationId === root.correlationId && e.timestamp === turnWorldTime);
   const visited = new Set<string>();
   const ordered: DomainEvent[] = [];
-  function walk(eventId: string) {
+  function walk(eventId: string): void {
     if (visited.has(eventId)) return;
     visited.add(eventId);
-    const ev = turnEvents.find((e) => e.eventId === eventId);
-    if (ev) ordered.push(ev);
-    for (const e of turnEvents) {
-      if (e.causationId === eventId) walk(e.eventId);
-    }
+    const event = turnEvents.find((item) => item.eventId === eventId);
+    if (event) ordered.push(event);
+    for (const child of turnEvents) if (child.causationId === eventId) walk(child.eventId);
   }
   walk(root.eventId);
-
   const steps: CausalStep[] = [];
-  for (const e of ordered) {
-    let text = "";
-    switch (e.type) {
+  for (const event of ordered) {
+    const p = event.payload as Record<string, unknown>;
+    let text: string;
+    switch (event.type) {
       case "MoveRequested": text = "Ты пытаешься сделать шаг."; break;
       case "GiveRequested": text = "Ты пытаешься повлиять на отношения."; break;
-      case "ActionAttempted": {
-        const p = e.payload as { operation: string; target?: { raw: string } | null };
-        const target = p.target?.raw ? ` → ${p.target.raw}` : "";
-        text = `Ты пытаешься: ${p.operation}${target}.`;
-        break;
-      }
+      case "ActionAttempted": text = "Ты пытаешься: " + operationLabel(p.operation) + "."; break;
       case "ActionValidated": case "GiveValidated": text = "Действие принято."; break;
-      case "ActionResolved": {
-        const p = e.payload as { result: string; description: string };
-        text = p.description || `Результат: ${p.result}.`;
-        break;
-      }
-      case "ActionBlocked": {
-        const p = e.payload as { reason: string };
-        text = `Действие заблокировано: ${p.reason}.`;
-        break;
-      }
-      case "ObjectObserved": {
-        const p = e.payload as { name: string; description: string };
-        text = p.description;
-        break;
-      }
-      case "ObjectTemperatureChanged": {
-        const p = e.payload as { name: string; temperature: number };
-        text = `${p.name} нагревается до ${p.temperature}°.`;
-        break;
-      }
-      case "SoundProduced": {
-        const p = e.payload as { source: string; kind: string };
-        text = `Звук: ${p.source} (${p.kind}).`;
-        break;
-      }
-      case "CriticalCheckRequested": {
-        const p = e.payload as { difficulty?: number; modifiers?: Array<{ label: string; delta: number }>; stakes: { success: string; failure: string } };
-        const modifiers = (p.modifiers || []).map((modifier) => modifier.label + " " + (modifier.delta >= 0 ? "+" : "") + modifier.delta).join(", ") || "нет";
-        text = `Критический момент: ${p.stakes.success} Сложность: ${p.difficulty ?? "—"}. Модификаторы: ${modifiers}.`;
-        break;
-      }
-      case "CriticalCheckRolled": {
-        const p = e.payload as { naturalRoll: number; modifierTotal?: number; total?: number };
-        const modifier = p.modifierTotal ?? 0;
-        text = `Бросок: ${p.naturalRoll}. Модификаторы: ${modifier >= 0 ? "+" : ""}${modifier}. Итого до разрешения: ${p.total ?? "—"}.`;
-        break;
-      }
-      case "CriticalCheckResolved": {
-        const p = e.payload as { outcome: string; total: number; difficulty?: number };
-        text = `Итого ${p.total} против ${p.difficulty ?? "—"}: ${p.outcome === "success" || p.outcome === "critical_success" ? "Успех!" : "Неудача."}`;
-        break;
-      }
+      case "ActionResolved": text = typeof p.description === "string" ? p.description : "Действие получило результат."; break;
+      case "ActionBlocked": text = "Действие заблокировано: " + blockedReasonLabel(p.reason) + "."; break;
+      case "ObjectObserved": text = typeof p.description === "string" ? p.description : "Ты заметил изменение."; break;
+      case "ObjectTemperatureChanged": text = "Предмет рядом нагревается."; break;
+      case "SoundProduced": text = "Раздался звук поблизости."; break;
+      case "CriticalCheckRequested": { const modifiers = Array.isArray(p.modifiers) ? (p.modifiers as Array<{ label?: unknown; delta?: unknown }>).map((item) => (typeof item.label === "string" ? item.label : "Модификатор") + " " + (typeof item.delta === "number" && item.delta >= 0 ? "+" : "") + (typeof item.delta === "number" ? item.delta : 0)).join(", ") : "нет"; text = "Критический момент. Сложность: " + (typeof p.difficulty === "number" ? p.difficulty : "—") + ". Модификаторы: " + modifiers; break; }
+      case "CriticalCheckRolled": text = "Бросок: " + (typeof p.naturalRoll === "number" ? p.naturalRoll : "—") + "."; break;
+      case "CriticalCheckResolved": text = "Итого " + (typeof p.total === "number" ? p.total : "—") + " против " + (typeof p.difficulty === "number" ? p.difficulty : "—") + ": " + (p.outcome === "success" || p.outcome === "critical_success" ? "Успех!" : "Неудача."); break;
       case "MovementSucceeded": text = "Путь оказался свободен."; break;
       case "MovementBlocked": text = "Путь преграждён."; break;
-      case "PlayerLocationChanged": {
-        const p = e.payload as { locationName: string };
-        text = `Ты перемещаешься: ${p.locationName}.`;
-        break;
-      }
+      case "PlayerLocationChanged": text = "Ты переместился в новое место."; break;
       case "ObservationUpdated": text = "Мир заметил твой поступок."; break;
       case "ConsequenceCreated": text = "Зародилось последствие."; break;
       case "ConsequenceFired": case "AudacityTriggered": text = "Последствие проявило себя."; break;
@@ -133,20 +84,19 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       default: continue;
     }
     const step: CausalStep = {
-      kind: e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" ? "intention"
-        : e.type === "ObservationUpdated" ? "observation"
-        : e.type === "ConsequenceCreated" || e.type === "ConsequenceFired" || e.type === "AudacityTriggered" ? "consequence"
-        : "outcome",
+      kind: event.type === "MoveRequested" || event.type === "GiveRequested" || event.type === "ActionAttempted" ? "intention"
+        : event.type === "ObservationUpdated" ? "observation"
+        : event.type === "ConsequenceCreated" || event.type === "ConsequenceFired" || event.type === "AudacityTriggered" ? "consequence" : "outcome",
       text,
-      sourceEventIds: [e.eventId],
     };
-    if (e.type === "CriticalCheckRequested") {
-      const p = e.payload as { difficulty?: number; modifiers?: Array<{ label: string; delta: number }>; stakes: { success: string; failure: string } };
+    if (event.type === "CriticalCheckRequested") {
+      const modifiers = Array.isArray(p.modifiers) ? p.modifiers as Array<{ label?: unknown; delta?: unknown }> : [];
+      const stakes = p.stakes as { success?: unknown; failure?: unknown } | undefined;
       step.critical = {
-        success: p.stakes.success,
-        failure: p.stakes.failure,
-        ...(p.difficulty === undefined ? {} : { difficulty: p.difficulty }),
-        modifiers: (p.modifiers || []).map((modifier) => ({ label: modifier.label, delta: modifier.delta })),
+        success: typeof stakes?.success === "string" ? stakes.success : "Успех меняет ситуацию.",
+        failure: typeof stakes?.failure === "string" ? stakes.failure : "Неудача меняет ситуацию.",
+        ...(typeof p.difficulty === "number" ? { difficulty: p.difficulty } : {}),
+        modifiers: modifiers.map((modifier) => ({ label: typeof modifier.label === "string" ? modifier.label : "Модификатор", delta: typeof modifier.delta === "number" ? modifier.delta : 0 })),
       };
     }
     steps.push(step);
@@ -162,12 +112,12 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
   const locationId = world.currentLocationId;
   const location = locationId ? world.locations.get(locationId) : undefined;
 
-  const connectedLocations: Array<{ id: string; name: string; description?: string }> = [];
+  const connectedLocations: Array<{ id: string; label: string; detail?: string }> = [];
   if (location) {
     for (const [, connTarget] of Object.entries(location.connections)) {
       const connLoc = world.locations.get(connTarget);
       if (connLoc) {
-        connectedLocations.push({ id: connLoc.id, name: connLoc.name, description: connLoc.description });
+        connectedLocations.push({ id: connLoc.id, label: connLoc.name, detail: connLoc.description });
       }
     }
   }
@@ -198,13 +148,32 @@ function classifyActivity(
   return null;
 }
 
+function playerFacingEntry(entry: import("../presentation/types.js").PresentationEntry): PlayerFacingEntry {
+  return {
+    kind: entry.kind,
+    importance: entry.importance,
+    discoveryMark: entry.discoveryMark,
+    text: sanitizePlayerFacingText(entry.text),
+    timestamp: entry.timestamp,
+  };
+}
+
+function buildDiscoverySignals(model: import("../observation/types.js").BeliefModel, worldTime: number): PlayerTurnView["discoverySignals"] {
+  return [...model.beliefs.values()]
+    .filter((belief) => belief.patternId.startsWith("discovery:") && belief.supportingEvidence.some((entry) => entry.observedAt === worldTime))
+    .map((belief) => ({
+      stage: belief.confidence >= 0.8 ? "discovered" as const : belief.confidence >= 0.6 ? "hypothesis" as const : "trace" as const,
+      title: belief.displayName,
+      text: belief.currentInterpretation,
+    }));
+}
+
 export function buildGameShellSnapshot(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
   characterProfile: CharacterProfileRecord | null,
   worldId: string,
 ): GameShellSnapshot {
-  const discovery = buildDiscoveryJournal(events);
   const journal = buildTurnJournal(events);
   const guidance = buildPlayerGuidance(events, world);
   const beliefModel = buildBeliefModel(events, world);
@@ -217,17 +186,13 @@ export function buildGameShellSnapshot(
   if (journal.turns.length > 0) {
     const latestTurn = journal.turns[journal.turns.length - 1]!;
     const chain = buildCausalChain(events, latestTurn.worldTime);
-    const signals = discovery.cards
-      .filter((c) => c.evidence.some((ev) => ev.worldTime === latestTurn.worldTime))
-      .map((c) => ({
-        stage: c.stage, title: c.title, text: c.summary, discoveryId: c.discoveryId,
-      }));
+    const signals = buildDiscoverySignals(beliefModel, latestTurn.worldTime);
     lastTurn = {
       turnId: latestTurn.turnId,
       worldTime: latestTurn.worldTime,
-      primary: latestTurn.presentation.primary,
-      notable: latestTurn.presentation.notable,
-      background: latestTurn.presentation.background,
+      primary: latestTurn.presentation.primary ? playerFacingEntry(latestTurn.presentation.primary) : null,
+      notable: latestTurn.presentation.notable.map(playerFacingEntry),
+      background: latestTurn.presentation.background.map(playerFacingEntry),
       causalChain: chain,
       discoverySignals: signals,
     };
@@ -241,11 +206,10 @@ export function buildGameShellSnapshot(
       if (!meta) continue; // skip unclassifiable
       activity.push({
         kind: entry.kind,
-        text: entry.text,
+        text: sanitizePlayerFacingText(entry.text),
         timestamp: turn.worldTime,
         scope: meta.scope,
         origin: meta.origin,
-        sourceEventIds: entry.sourceEventIds,
       });
       if (activity.length >= 5) break;
     }
@@ -262,7 +226,7 @@ export function buildGameShellSnapshot(
     attention: buildAttentionView(world, events),
     lastTurn,
     recentActivity: activity,
-    knowledge: buildKnowledgeSummary(discovery),
+    knowledge: buildKnowledgeSummary(beliefModel),
     beliefModel: serializeBeliefModel(beliefModel),
     suggestions: guidance.suggestions,
   });
@@ -272,7 +236,6 @@ export function buildShellDelta(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
 ): ShellDelta {
-  const discovery = buildDiscoveryJournal(events);
   const guidance = buildPlayerGuidance(events, world);
   const beliefModel = buildBeliefModel(events, world);
   const journal = buildTurnJournal(events);
@@ -283,15 +246,13 @@ export function buildShellDelta(
   let turn: PlayerTurnView | null = null;
   if (journal.turns.length > 0) {
     const latest = journal.turns[journal.turns.length - 1]!;
-    const signals = discovery.cards
-      .filter((c) => c.evidence.some((ev) => ev.worldTime === latest.worldTime))
-      .map((c) => ({ stage: c.stage, title: c.title, text: c.summary, discoveryId: c.discoveryId }));
+    const signals = buildDiscoverySignals(beliefModel, latest.worldTime);
     turn = {
       turnId: latest.turnId,
       worldTime: latest.worldTime,
-      primary: latest.presentation.primary,
-      notable: latest.presentation.notable,
-      background: latest.presentation.background,
+      primary: latest.presentation.primary ? playerFacingEntry(latest.presentation.primary) : null,
+      notable: latest.presentation.notable.map(playerFacingEntry),
+      background: latest.presentation.background.map(playerFacingEntry),
       causalChain: buildCausalChain(events, latest.worldTime),
       discoverySignals: signals,
     };
@@ -303,8 +264,8 @@ export function buildShellDelta(
       const meta = classifyActivity(entry.sourceEventIds, eventIndex);
       if (!meta) continue;
       activity.push({
-        kind: entry.kind, text: entry.text, timestamp: t.worldTime,
-        scope: meta.scope, origin: meta.origin, sourceEventIds: entry.sourceEventIds,
+        kind: entry.kind, text: sanitizePlayerFacingText(entry.text), timestamp: t.worldTime,
+        scope: meta.scope, origin: meta.origin,
       });
       if (activity.length >= 3) break;
     }
@@ -317,7 +278,7 @@ export function buildShellDelta(
     currentSituation: buildSituationView(world),
     attention: buildAttentionView(world, events),
     activity,
-    knowledge: buildKnowledgeSummary(discovery),
+    knowledge: buildKnowledgeSummary(beliefModel),
     beliefModel: serializeBeliefModel(beliefModel),
     suggestions: guidance.suggestions,
   });

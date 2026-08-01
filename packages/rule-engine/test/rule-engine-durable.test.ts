@@ -105,6 +105,48 @@ describe("RuleEngine — durable committer", () => {
     expect(projection.getSnapshot().count).toBe(1);
   });
 
+  it("derives continuation roots before the single durable commit", () => {
+    let commitCalls = 0;
+    let committed: DomainEvent[] = [];
+    const committer: DurableCommitter = (events) => { commitCalls++; committed = [...events]; };
+
+    const bus = new EventBus();
+    const projection = new CountStore({ count: 0, eventNumber: 0 });
+    const registry = new RuleRegistry<TestWorld>();
+    const engine = new RuleEngine(registry, projection, bus, committer);
+
+    const result = engine.process(evt("Start", "start"), {
+      commitContext: {} as CommitContext,
+      deriveEvents: (staged) => [evt("Count", "derived", { amount: staged.length }, "start")],
+    });
+
+    expect(commitCalls).toBe(1);
+    expect(result.committed.map((event) => event.eventId)).toEqual(["start", "derived"]);
+    expect(committed.map((event) => event.eventId)).toEqual(["start", "derived"]);
+    expect(projection.getSnapshot().count).toBe(1);
+  });
+
+  it("passes an immutable event snapshot to deriveEvents", () => {
+    const bus = new EventBus();
+    const projection = new CountStore({ count: 0, eventNumber: 0 });
+    const registry = new RuleRegistry<TestWorld>();
+    const engine = new RuleEngine(registry, projection, bus);
+    let seen: readonly DomainEvent[] = [];
+
+    engine.process(evt("Start", "start", { nested: { value: 1 } }), {
+      deriveEvents: (staged) => {
+        seen = staged;
+        expect(Object.isFrozen(staged)).toBe(true);
+        expect(Object.isFrozen(staged[0])).toBe(true);
+        expect(Object.isFrozen(staged[0]!.payload)).toBe(true);
+        expect(Object.isFrozen((staged[0]!.payload as { nested: object }).nested)).toBe(true);
+        return [];
+      },
+    });
+
+    expect(seen).toHaveLength(1);
+  });
+
   it("processSequence drains multiple roots atomically", () => {
     let committed: DomainEvent[] = [];
     const committer: DurableCommitter = (events) => { committed = [...events]; };

@@ -93,14 +93,8 @@ if ! npm ci; then
   echo "Rollback: git reset --hard ${PREV_COMMIT} && npm ci && sudo systemctl restart skald.service"
   exit 1
 fi
-echo "Typecheck..."
-if ! npm run typecheck; then
-  echo "ERROR: Typecheck failed."
-  echo "Rollback: git reset --hard ${PREV_COMMIT} && npm ci && sudo systemctl restart skald.service"
-  exit 1
-fi
-echo "Tests..."
-if ! npm test -- --run; then
+echo "Validation..."
+if ! npm run validate; then
   echo "ERROR: Tests failed."
   echo "Rollback: git reset --hard ${PREV_COMMIT} && npm ci && sudo systemctl restart skald.service"
   exit 1

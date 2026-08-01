@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { startServer } from "../src/http-server.js";
+import { createPoisonExitScheduler, startServer } from "../src/http-server.js";
+import { EventEmitter } from "node:events";
 
 let server: Awaited<ReturnType<typeof startServer>> | null = null;
 const dbDir = mkdtempSync(join(tmpdir(), "skald-server-test-"));
@@ -14,6 +15,29 @@ async function api(path: string, opts?: RequestInit) {
   });
   return { status: res.status, body: await res.json() as any };
 }
+
+describe("HTTP Server poison lifecycle", () => {
+  it("schedules exactly one exit after the response finishes", () => {
+    const exit = vi.fn();
+    const schedule = vi.fn((callback: () => void) => {
+      callback();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
+    const scheduleExit = createPoisonExitScheduler(exit, schedule);
+    const response = new EventEmitter() as EventEmitter & { writableFinished: boolean; destroyed: boolean };
+    response.writableFinished = false;
+    response.destroyed = false;
+
+    scheduleExit(response);
+    response.emit("finish");
+    response.emit("close");
+    scheduleExit(response);
+
+    expect(schedule).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledOnce();
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+});
 
 describe("HTTP Server", () => {
   beforeAll(async () => {
@@ -53,7 +77,7 @@ describe("HTTP Server", () => {
     const { status, body } = await api("/api/beliefs");
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.beliefModel.schemaVersion).toBe(1);
+    expect(body.beliefModel.schemaVersion).toBe(2);
     expect(Array.isArray(body.beliefModel.beliefs)).toBe(true);
     expect(JSON.stringify(body.beliefModel)).not.toMatch(/actual|true|real/i);
   });

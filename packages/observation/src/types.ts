@@ -1,4 +1,4 @@
-/** Observation & Belief Model v1.0 public contract. This module contains no engine. */
+/** Observation & Belief Model v2.0 public contract. This module contains no engine. */
 
 /** Simulation time, never wall-clock time. */
 export type SimTime = number;
@@ -93,13 +93,13 @@ export interface CausalStep { readonly fromId: string; readonly toId: string; re
 /** An incomplete-safe causal chain. */
 export interface CausalChain { readonly rootId: string; readonly steps: readonly CausalStep[]; readonly confidence: Confidence; readonly incomplete: boolean; }
 /** Current interpretation of one pattern. */
-export interface PatternBelief { readonly patternId: PatternId; readonly currentInterpretation: string; readonly confidence: Confidence; readonly supportingEvidence: readonly Evidence[]; readonly openHypotheses: readonly Hypothesis[]; readonly existenceExplanation?: ExistenceExplanation; readonly lastObserved: SimTime; }
+export interface PatternBelief { readonly patternId: PatternId; readonly displayName: string; readonly currentInterpretation: string; readonly confidence: Confidence; readonly supportingEvidence: readonly Evidence[]; readonly openHypotheses: readonly Hypothesis[]; readonly existenceExplanation?: ExistenceExplanation; readonly lastObserved: SimTime; readonly freshness: Confidence; }
 /** Persistent conflict between evidence and interpretation. */
 export interface Contradiction { readonly id: string; readonly description: string; readonly involvedHypothesisIds: readonly HypothesisId[]; readonly involvedEvidenceIds: readonly EvidenceId[]; readonly detectedAt: SimTime; }
 /** In-memory observer-scoped read model. */
-export interface BeliefModel { readonly schemaVersion: 1; readonly observerId: ObserverId; readonly beliefs: ReadonlyMap<PatternId, PatternBelief>; readonly activeHypotheses: readonly Hypothesis[]; readonly knownRelations: readonly RelationObservation[]; readonly contradictions: readonly Contradiction[]; readonly lastUpdated: SimTime; }
+export interface BeliefModel { readonly schemaVersion: 2; readonly observerId: ObserverId; readonly beliefs: ReadonlyMap<PatternId, PatternBelief>; readonly activeHypotheses: readonly Hypothesis[]; readonly knownRelations: readonly RelationObservation[]; readonly contradictions: readonly Contradiction[]; readonly lastUpdated: SimTime; }
 /** JSON-safe HTTP representation of BeliefModel. */
-export interface BeliefModelDTO { readonly schemaVersion: 1; readonly observerId: ObserverId; readonly beliefs: readonly PatternBelief[]; readonly activeHypotheses: readonly Hypothesis[]; readonly knownRelations: readonly RelationObservation[]; readonly contradictions: readonly Contradiction[]; readonly lastUpdated: SimTime; }
+export interface BeliefModelDTO { readonly schemaVersion: 2; readonly observerId: ObserverId; readonly beliefs: readonly PatternBelief[]; readonly activeHypotheses: readonly Hypothesis[]; readonly knownRelations: readonly RelationObservation[]; readonly contradictions: readonly Contradiction[]; readonly lastUpdated: SimTime; }
 /** An observable target summary. */
 export interface ObservablePattern { readonly patternId: PatternId; readonly confidence: Confidence; readonly lastSeen: SimTime; }
 

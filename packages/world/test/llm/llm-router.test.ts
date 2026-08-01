@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ModelRouter } from "../../src/llm/router.js";
 import type { ChatMessage } from "../../src/llm/types.js";
 
@@ -41,4 +41,52 @@ describe("ModelRouter", () => {
     const router = new ModelRouter({ apiKey: "test-key" });
     expect(() => router.decideModel("narrate", msg("my key is sk-or-v1-abc123"))).toThrow("Data policy blocked");
   });
+
+  it("keeps Ollama as a fallback when both providers are configured", () => {
+    const router = new ModelRouter({
+      apiKey: "zen-key",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_zen", "ollama_cloud"],
+    });
+    const decision = router.decideModel("narrate", msg("hello"));
+    expect(decision.candidateModels).toContain("gemma4:31b");
+    expect(decision.candidateModels[0]).toBe("deepseek-v4-flash-free");
+  });
+
+  it("falls back from Zen failures to Ollama and sends the provider key", async () => {
+    const previousKey = process.env.SKALD_OLLAMA_CLOUD_API_KEY;
+    process.env.SKALD_OLLAMA_CLOUD_API_KEY = "ollama-key";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 500, statusText: "Zen unavailable" })
+      .mockResolvedValueOnce({ ok: false, status: 503, statusText: "Zen unavailable" })
+      .mockResolvedValueOnce({ ok: true, status: 200, statusText: "OK", json: async () => ({ model: "gemma4:31b", message: { content: "fallback" } }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const router = new ModelRouter({
+        apiKey: "zen-key",
+        providerId: "opencode_zen",
+        availableProviders: ["opencode_zen", "ollama_cloud"],
+      });
+      const result = await router.chat("narrate", msg("hello"));
+      expect(result.provider).toBe("ollama_cloud");
+      expect(result.usedFallback).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls[0]![0]).toContain("opencode.ai");
+      expect(fetchMock.mock.calls[2]![0]).toContain("ollama.com");
+      expect(fetchMock.mock.calls[2]![1]?.headers).toMatchObject({ Authorization: "Bearer ollama-key" });
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousKey === undefined) delete process.env.SKALD_OLLAMA_CLOUD_API_KEY;
+      else process.env.SKALD_OLLAMA_CLOUD_API_KEY = previousKey;
+    }
+  });
+
+  it("supports Ollama-only routing without selecting Zen models", () => {
+    const router = new ModelRouter({ apiKey: "ollama-key", providerId: "ollama_cloud" });
+    const decision = router.decideModel("narrate", msg("hello"));
+    expect(decision.selectedModel).toBe("gemma4:31b");
+    expect(decision.provider).toBe("ollama_cloud");
+  });
+
 });

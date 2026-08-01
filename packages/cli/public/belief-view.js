@@ -4,10 +4,6 @@ function percent(value) {
   return Math.round(Math.max(0, Math.min(1, Number(value) || 0)) * 100);
 }
 
-function label(patternId) {
-  return patternId.replace(/^(object|entity|location|observation|discovery|relation|heat|sound|consequence|barrier):/, "");
-}
-
 function renderEvidence(entries) {
   const list = makeNode("ul", { className: "belief-evidence" });
   for (const entry of (entries || []).slice(-4).reverse()) {
@@ -48,9 +44,88 @@ function renderExplanation(belief) {
   return details;
 }
 
+
+function isBounded(value) {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+const EVIDENCE_TYPES = new Set(["sensory", "pattern-match", "testimony", "anomaly", "ritual", "inference"]);
+const HYPOTHESIS_STATUSES = new Set(["open", "strengthening", "weakening", "confirmed", "refuted"]);
+const RELATION_TYPES = new Set(["supports", "feeds", "threatens", "depends", "enables", "constrains"]);
+const TRENDS = new Set(["rising", "stable", "falling", "unknown"]);
+
+function isBeliefEvidence(value) {
+  return Boolean(value && typeof value.id === "string" && EVIDENCE_TYPES.has(value.type)
+    && typeof value.description === "string" && isBounded(value.strength)
+    && Number.isFinite(value.observedAt) && Array.isArray(value.linkedObservationIds)
+    && value.linkedObservationIds.every((id) => typeof id === "string"));
+}
+
+function isHypothesis(value) {
+  return Boolean(value && typeof value.id === "string" && typeof value.targetId === "string"
+    && typeof value.statement === "string" && isBounded(value.confidence)
+    && Array.isArray(value.supportingEvidenceIds) && value.supportingEvidenceIds.every((id) => typeof id === "string")
+    && Array.isArray(value.contradictingEvidenceIds) && value.contradictingEvidenceIds.every((id) => typeof id === "string")
+    && HYPOTHESIS_STATUSES.has(value.status) && Number.isFinite(value.createdAt) && Number.isFinite(value.lastUpdated));
+}
+
+function isRelation(value) {
+  return Boolean(value && typeof value.sourceId === "string" && typeof value.targetId === "string"
+    && RELATION_TYPES.has(value.type) && isBounded(value.observedStrength)
+    && isBounded(value.confidence) && TRENDS.has(value.trend)
+    && Number.isFinite(value.discoveredAt) && Array.isArray(value.evidenceIds)
+    && value.evidenceIds.every((id) => typeof id === "string"));
+}
+
+function isContradiction(value) {
+  return Boolean(value && typeof value.id === "string" && typeof value.description === "string"
+    && Array.isArray(value.involvedHypothesisIds) && value.involvedHypothesisIds.every((id) => typeof id === "string")
+    && Array.isArray(value.involvedEvidenceIds) && value.involvedEvidenceIds.every((id) => typeof id === "string")
+    && Number.isFinite(value.detectedAt));
+}
+
+function isFactor(value) {
+  return Boolean(value && typeof value.description === "string" && isBounded(value.strength)
+    && isBounded(value.confidence) && Array.isArray(value.evidenceIds)
+    && value.evidenceIds.every((id) => typeof id === "string")
+    && (value.relatedPatternId === undefined || typeof value.relatedPatternId === "string"));
+}
+
+function isCollapseCondition(value) {
+  return Boolean(value && typeof value.description === "string"
+    && typeof value.thresholdExpression === "string" && isBounded(value.currentProximity)
+    && isBounded(value.confidence));
+}
+
+function isExistenceExplanation(value) {
+  return Boolean(value && typeof value.patternId === "string" && isBounded(value.confidence)
+    && Array.isArray(value.supportingFactors) && value.supportingFactors.every(isFactor)
+    && Array.isArray(value.weakeningFactors) && value.weakeningFactors.every(isFactor)
+    && Array.isArray(value.criticalDependencies) && value.criticalDependencies.every(isFactor)
+    && Array.isArray(value.collapseConditions) && value.collapseConditions.every(isCollapseCondition));
+}
+
+export function isBeliefModelV2(model) {
+  const validBelief = (value) => Boolean(value && typeof value.patternId === "string"
+    && typeof value.displayName === "string" && typeof value.currentInterpretation === "string" && isBounded(value.confidence)
+    && Array.isArray(value.supportingEvidence) && value.supportingEvidence.every(isBeliefEvidence)
+    && Array.isArray(value.openHypotheses) && value.openHypotheses.every(isHypothesis)
+    && Number.isFinite(value.lastObserved) && isBounded(value.freshness)
+    && (value.existenceExplanation === undefined || isExistenceExplanation(value.existenceExplanation)));
+  return Boolean(model && model.schemaVersion === 2 && typeof model.observerId === "string"
+    && Array.isArray(model.beliefs) && model.beliefs.every(validBelief)
+    && Array.isArray(model.activeHypotheses) && model.activeHypotheses.every(isHypothesis)
+    && Array.isArray(model.knownRelations) && model.knownRelations.every(isRelation)
+    && Array.isArray(model.contradictions) && model.contradictions.every(isContradiction)
+    && Number.isFinite(model.lastUpdated));
+}
 export function renderBeliefModel(container, model) {
   if (!container) return;
   container.replaceChildren();
+  if (!isBeliefModelV2(model)) {
+    container.appendChild(emptyState("Наблюдения временно недоступны: несовместимая версия данных.", "belief-unavailable"));
+    return;
+  }
   const beliefs = Array.isArray(model?.beliefs) ? model.beliefs : [];
   const hypotheses = Array.isArray(model?.activeHypotheses) ? model.activeHypotheses : [];
   const contradictions = Array.isArray(model?.contradictions) ? model.contradictions : [];
@@ -76,14 +151,15 @@ export function renderBeliefModel(container, model) {
 
   const list = makeNode("div", { className: "belief-list", attrs: { role: "list" } });
   for (const belief of beliefs.slice(0, 8)) {
-    const card = makeNode("article", { className: "belief-card", attrs: { role: "listitem", "data-pattern-id": belief.patternId } });
+    const card = makeNode("article", { className: "belief-card", attrs: { role: "listitem" } });
     const header = makeNode("header", { className: "belief-card-header" });
     header.append(
-      makeNode("strong", { text: label(belief.patternId) }),
+      makeNode("strong", { text: belief.displayName }),
       makeNode("span", { className: "belief-confidence", text: percent(belief.confidence) + "%" }),
     );
-    const freshness = makeNode("div", { className: "belief-freshness", attrs: { role: "meter", "aria-label": "Свежесть свидетельств", "aria-valuenow": String(percent(1 - ((model.lastUpdated - belief.lastObserved) / 12)))} });
-    freshness.appendChild(makeNode("span", { attrs: { style: "width:" + percent(1 - ((model.lastUpdated - belief.lastObserved) / 12)) + "%" } }));
+    const freshnessPercent = percent(Number.isFinite(belief.freshness) ? belief.freshness : 0);
+    const freshness = makeNode("div", { className: "belief-freshness", attrs: { role: "meter", "aria-label": "Свежесть свидетельств", "aria-valuenow": String(freshnessPercent) } });
+    freshness.appendChild(makeNode("span", { attrs: { style: "width:" + freshnessPercent + "%" } }));
     const interpretation = makeNode("p", { className: "belief-interpretation", text: belief.currentInterpretation });
     const evidence = makeNode("details", { className: "belief-details" });
     evidence.appendChild(makeNode("summary", { text: "Свидетельства (" + (belief.supportingEvidence?.length || 0) + ")" }));

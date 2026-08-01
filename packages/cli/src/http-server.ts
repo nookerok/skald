@@ -96,6 +96,36 @@ function validateWorldId(id: string): boolean {
   return WORLD_ID_RE.test(id);
 }
 
+type PoisonResponse = {
+  readonly writableFinished?: boolean;
+  readonly destroyed?: boolean;
+  once(event: string, listener: () => void): unknown;
+};
+
+type PoisonSchedule = (callback: () => void, delay: number) => unknown;
+
+export function createPoisonExitScheduler(
+  exit: (code: number) => void = (code) => process.exit(code),
+  schedule: PoisonSchedule = (callback, delay) => setTimeout(callback, delay),
+): (res: PoisonResponse) => void {
+  let scheduled = false;
+  return (res) => {
+    if (scheduled) return;
+    scheduled = true;
+    let queued = false;
+    const exitAfterResponse = () => {
+      if (queued) return;
+      queued = true;
+      schedule(() => exit(1), 0);
+    };
+    if (res.writableFinished || res.destroyed) exitAfterResponse();
+    else {
+      res.once("finish", exitAfterResponse);
+      res.once("close", exitAfterResponse);
+    }
+  };
+}
+
 export async function startServer(options?: {
   host?: string;
   port?: number;
@@ -108,6 +138,9 @@ export async function startServer(options?: {
   const serverApp: ServerApp = { store, runtimes };
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
   let closed = false;
+  const schedulePoisonExit = process.env.NODE_ENV === "test"
+    ? (_res: PoisonResponse): void => {}
+    : createPoisonExitScheduler();
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const handle = (s: number, d: unknown) => writeJson(res, s, d, corsOrigin);
@@ -144,7 +177,8 @@ export async function startServer(options?: {
       if (method === "GET" && url.pathname === "/api/character-presets") { const r = handleCharacterPresets(); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/world-templates") { const r = handleWorldTemplates(); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/health") {
-        handle(200, { status: "ok", uptimeSeconds: Math.floor(process.uptime()), persistence: "sqlite", multiWorld: true });
+        const poisoned = runtimes.isAnyPoisoned();
+        handle(poisoned ? 503 : 200, { status: poisoned ? "poisoned" : "ok", uptimeSeconds: Math.floor(process.uptime()), persistence: "sqlite", multiWorld: true });
         return;
       }
 
@@ -187,7 +221,9 @@ export async function startServer(options?: {
 
         let runtime;
         try { runtime = await runtimes.get(worldId); } catch (err: any) {
-          errHandle(err.statusCode || 404, "world_not_found", err.message); return;
+          const status = err?.statusCode === 404 || err?.statusCode === 409 ? err.statusCode : 500;
+          if (status === 500) console.error(`[runtime-load-error] world="${worldId}"`, err);
+          errHandle(status, status === 500 ? "internal_error" : "world_not_found", status === 500 ? "internal error" : err.message); return;
         }
 
         if (method === "GET") {
@@ -225,7 +261,10 @@ export async function startServer(options?: {
 
       errHandle(404, "not_found", "not found");
     } catch (err) {
+      console.error("[http-error]", err);
       errHandle(500, "internal_error", "internal error");
+    } finally {
+      if (runtimes.isAnyPoisoned()) schedulePoisonExit(res);
     }
   });
 

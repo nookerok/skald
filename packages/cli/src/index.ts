@@ -39,7 +39,7 @@ function createRouter(): ModelRouter | null {
   const zenKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
   const ollamaKey = process.env["SKALD_OLLAMA_CLOUD_API_KEY"] ?? "";
   if (!zenKey && !ollamaKey) return null;
-  return new ModelRouter({ apiKey: zenKey, healthCachePath: "packages/cli/llm-health.json" });
+  return new ModelRouter({ apiKey: zenKey || ollamaKey, providerId: zenKey ? "opencode_zen" : "ollama_cloud", availableProviders: [zenKey ? "opencode_zen" : null, ollamaKey ? "ollama_cloud" : null].filter((provider): provider is "opencode_zen" | "ollama_cloud" => provider !== null), healthCachePath: "packages/cli/llm-health.json" });
 }
 
 export function createApp(): App {
@@ -141,8 +141,17 @@ export function runCommand(
 
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
   const options: ProcessOptions = app.store
-    ? { commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext }
-    : {};
+    ? {
+        commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
+        deriveEvents: (staged) => staged
+          .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
+          .map((event) => rollCriticalCheck(event)),
+      }
+    : {
+        deriveEvents: (staged) => staged
+          .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
+          .map((event) => rollCriticalCheck(event)),
+      };
 
   try {
     const { committed } = app.engine.process(firstEvent, options);
@@ -180,35 +189,6 @@ export function runTick(
 }
 
 /**
- * Process dice rolls for CriticalCheckRequested events.
- * Rolls dice and processes them through the engine to get resolution events.
- * This is the ONLY place where dice are rolled.
- */
-function processDiceRolls(
-  app: App,
-  committed: DomainEvent[],
-  _correlationId: string,
-): DomainEvent[] {
-  const allEvents = [...committed];
-  const rollEvents: DomainEvent[] = [];
-
-  for (const event of committed) {
-    if (event.type === "CriticalCheckRequested") {
-      const rollEvent = rollCriticalCheck(event);
-      rollEvents.push(rollEvent);
-    }
-  }
-
-  if (rollEvents.length > 0) {
-    // Process roll events through the engine to get resolution events
-    const { committed: rollCommitted } = app.engine.processSequence(rollEvents);
-    allEvents.push(...rollCommitted);
-  }
-
-  return allEvents;
-}
-
-/**
  * Run a full command cycle: parse intent, process through rules, roll dice, tick.
  */
 export function runCommandCycle(
@@ -237,22 +217,24 @@ export function runCommandCycle(
   };
 
   const options: ProcessOptions = app.store
-    ? { commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext }
-    : {};
+    ? {
+        commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
+        deriveEvents: (staged) => staged
+          .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
+          .map((event) => rollCriticalCheck(event)),
+      }
+    : {
+        deriveEvents: (staged) => staged
+          .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
+          .map((event) => rollCriticalCheck(event)),
+      };
 
   try {
     const { committed } = app.engine.processSequence([firstEvent, tickEvent], options);
     app.processedKeys.add(idempotencyKey);
 
-    // Process dice rolls for any CriticalCheckRequested events
-    const allCommandEvents = processDiceRolls(
-      app,
-      committed.filter((e) => e.correlationId === correlationId),
-      correlationId,
-    );
-
     return {
-      events: allCommandEvents,
+      events: committed.filter((e) => e.correlationId === correlationId),
       tickEvents: committed.filter((e) => e.correlationId === `tick-${ts}`),
       position: { ...app.projection.getSnapshot().player },
     };

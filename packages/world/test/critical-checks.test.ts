@@ -327,22 +327,15 @@ describe("checks.outcome", () => {
 
     const out = criticalCheckOutcome.handle(event, w);
 
-    // Should have 3 events: ObjectIntegrityChanged (damage), ObjectIntegrityChanged (unlock), PassageOpened
+    // One integrity mutation carries the unlock; PassageOpened is separate.
     const integrityEvents = out.filter((e) => e.type === "ObjectIntegrityChanged");
-    expect(integrityEvents).toHaveLength(2);
+    expect(integrityEvents).toHaveLength(1);
 
     // First: damage to 0
     expect(integrityEvents[0]!.payload).toMatchObject({
       objectId: "tower_door",
       previousIntegrity: 15,
       integrity: 0,
-    });
-
-    // Second: unlock
-    expect(integrityEvents[1]!.payload).toMatchObject({
-      objectId: "tower_door",
-      integrity: 0,
-      stateChange: { locked: false },
     });
 
     const passageEvent = out.find((e) => e.type === "PassageOpened");
@@ -373,6 +366,16 @@ describe("checks.outcome", () => {
           temperature: 20,
           state: Object.freeze({}),
         }],
+        ["tower_door", {
+          id: "tower_door",
+          name: "Дверь",
+          description: "Замок",
+          material: "wood" as const,
+          locationId: "tower_entrance",
+          integrity: 80,
+          temperature: 20,
+          state: Object.freeze({ locked: true }),
+        }],
       ]),
     });
 
@@ -381,10 +384,10 @@ describe("checks.outcome", () => {
     const passageEvent = out.find((e) => e.type === "PassageOpened");
     expect(passageEvent).toBeDefined();
 
-    // Should NOT unlock tower_door when hinge is destroyed
     const integrityEvents = out.filter((e) => e.type === "ObjectIntegrityChanged");
-    expect(integrityEvents).toHaveLength(1);
-    expect(integrityEvents[0]!.payload).toMatchObject({ objectId: "tower_hinge" });
+    expect(integrityEvents).toHaveLength(2);
+    expect(integrityEvents.find((e) => (e.payload as { objectId: string }).objectId === "tower_hinge")!.payload).toMatchObject({ objectId: "tower_hinge", integrity: 0 });
+    expect(integrityEvents.find((e) => (e.payload as { objectId: string }).objectId === "tower_door")!.payload).toMatchObject({ objectId: "tower_door", previousIntegrity: 80, integrity: 80, stateChange: { locked: false } });
   });
 
   it("always emits ActionResolved", () => {

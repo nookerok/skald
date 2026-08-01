@@ -1,3 +1,3 @@
-export { buildBeliefModel, createObservationAPI, serializeBeliefModel } from "./builder.js";
+export { buildBeliefModel, buildDiscoveryJournalFromBeliefModel, createObservationAPI, serializeBeliefModel } from "./builder.js";
 export type * from "./types.js";
 

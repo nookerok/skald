@@ -34,8 +34,13 @@ export const predictionLens = createLens("prediction");
 /** Creates a configurable pure lens engine. */
 export function createLensEngine(lenses: readonly LensFunction[] = [terrainLens, ecologyLens, relationsLens, emergenceLens, historyLens, predictionLens]): LensEngine {
   const registry = new Map(lenses.map((lens) => [lens.lens, lens] as const));
+  const frozenRegistry = new Proxy(registry, { get(target, property: string | symbol) {
+    if (property === "set" || property === "delete" || property === "clear") return () => { throw new TypeError("immutable"); };
+    const value = Reflect.get(target, property);
+    return typeof value === "function" ? value.bind(target) : value;
+  } }) as ReadonlyMap<LensId, LensFunction>;
   return Object.freeze({
-    lenses: registry,
+    lenses: frozenRegistry,
     view(record: ObservationRecord, lens: LensId = record.lens): LensViewModel | null {
       return registry.get(lens)?.transform(record) ?? null;
     },

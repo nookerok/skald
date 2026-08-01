@@ -1,45 +1,21 @@
-import type { DiscoveryJournal } from "../discovery/types.js";
+import type { BeliefModel } from "../observation/types.js";
 import type { KnowledgeSummary } from "./types.js";
+import { sanitizePlayerFacingText } from "./player-facing.js";
 
-export function buildKnowledgeSummary(discovery: DiscoveryJournal): KnowledgeSummary {
+export function buildKnowledgeSummary(model: BeliefModel): KnowledgeSummary {
   const facts: KnowledgeSummary["facts"] = [];
   const hypotheses: KnowledgeSummary["hypotheses"] = [];
   const traces: KnowledgeSummary["traces"] = [];
   const recentEvidence: KnowledgeSummary["recentEvidence"] = [];
-
-  for (const card of discovery.cards) {
-    if (card.stage === "discovered") {
-      facts.push({
-        title: card.title,
-        text: card.summary,
-        discoveryId: card.discoveryId,
-        journalTurnId: card.evidence.length > 0 ? card.evidence[card.evidence.length - 1]!.journalTurnId : "",
-      });
-    } else if (card.stage === "hypothesis") {
-      hypotheses.push({
-        title: card.title,
-        text: card.summary,
-        discoveryId: card.discoveryId,
-        journalTurnId: card.evidence.length > 0 ? card.evidence[card.evidence.length - 1]!.journalTurnId : "",
-      });
-    } else if (card.stage === "trace") {
-      traces.push({
-        title: card.title,
-        text: card.summary,
-        discoveryId: card.discoveryId,
-        journalTurnId: card.evidence.length > 0 ? card.evidence[card.evidence.length - 1]!.journalTurnId : "",
-      });
+  for (const belief of model.beliefs.values()) {
+    const item = { title: sanitizePlayerFacingText(belief.displayName), text: sanitizePlayerFacingText(belief.currentInterpretation) };
+    if (belief.confidence >= 0.8) facts.push(item);
+    else if (belief.confidence >= 0.6) hypotheses.push(item);
+    else traces.push(item);
+    for (const evidence of belief.supportingEvidence) {
+      recentEvidence.push({ text: sanitizePlayerFacingText(evidence.description), worldTime: evidence.observedAt, kind: evidence.type });
     }
   }
-
-  for (const ev of discovery.recentEvidence.slice(0, 5)) {
-    recentEvidence.push({
-      text: ev.text,
-      worldTime: ev.worldTime,
-      kind: ev.kind,
-      journalTurnId: ev.journalTurnId,
-    });
-  }
-
-  return { facts, hypotheses, traces, recentEvidence };
+  recentEvidence.sort((a, b) => b.worldTime - a.worldTime);
+  return { facts, hypotheses, traces, recentEvidence: recentEvidence.slice(0, 5) };
 }

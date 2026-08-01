@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { beliefModelDTOSchema, beliefModelDTOJsonSchema, parseBeliefModelDTO, parseObservationRecord } from "@skald/observation";
 
-describe("Observation Contract v1.0", () => {
+describe("Observation Contract v2.0", () => {
   it("validates the exact DTO boundary", () => {
-    const dto = { schemaVersion: 1, observerId: "player", beliefs: [], activeHypotheses: [], knownRelations: [], contradictions: [], lastUpdated: 0 };
+    const dto = { schemaVersion: 2, observerId: "player", beliefs: [], activeHypotheses: [], knownRelations: [], contradictions: [], lastUpdated: 0 };
     expect(parseBeliefModelDTO(dto)).toEqual(dto);
     expect(() => beliefModelDTOSchema.parse({ ...dto, actualWorld: true })).toThrow();
+  });
+
+  it("validates a non-empty belief DTO including freshness", () => {
+    const belief = {
+      patternId: "ridge",
+      displayName: "Ridge",
+      currentInterpretation: "A ridge is changing.",
+      confidence: 0.8,
+      supportingEvidence: [],
+      openHypotheses: [],
+      lastObserved: 3,
+      freshness: 0.5,
+    };
+    const dto = { schemaVersion: 2, observerId: "player", beliefs: [belief], activeHypotheses: [], knownRelations: [], contradictions: [], lastUpdated: 3 };
+    expect(parseBeliefModelDTO(dto)).toEqual(dto);
   });
 
   it("validates an observation record payload", () => {

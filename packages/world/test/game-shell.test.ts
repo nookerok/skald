@@ -57,7 +57,7 @@ describe("Game Shell read model", () => {
     expect(result.character.displayName).toBe("Ирина");
     expect(result.character.wound).toBe(profile.wound);
     expect(result.character.consequences).toHaveLength(1);
-    expect(result.character.relations).toContainEqual({ target: "guild", kind: "respect", value: 3 });
+    expect(result.character.relations).toContainEqual({ targetLabel: "Местная община", relationLabel: "Уважение", value: 3 });
   });
 
   it.each([
@@ -74,7 +74,7 @@ describe("Game Shell read model", () => {
     const result = buildGameShellSnapshot(events, world(events), null, "attention-world");
 
     expect(result.attention).toMatchObject({ level, marks, maxMarks: 5 });
-    expect(result.attention.sourceEventIds).toEqual(risk === 0 ? [] : ["risk"]);
+    expect(result.attention).not.toHaveProperty("sourceEventIds");
   });
 
   it("renders and then removes an authoritative situation", () => {
@@ -100,8 +100,8 @@ describe("Game Shell read model", () => {
       event("TickPassed", "other", 1, { delta: 1 }, "other-turn"),
     ];
 
-    expect(buildCausalChain(events, 1).flatMap((step) => step.sourceEventIds)).toEqual([
-      "root", "moved", "risk",
+    expect(buildCausalChain(events, 1).map((step) => step.text)).toEqual([
+      "Ты пытаешься сделать шаг.", "Путь оказался свободен.", "Мир заметил твой поступок.",
     ]);
   });
 
@@ -122,10 +122,10 @@ describe("Game Shell read model", () => {
     const result = buildGameShellSnapshot(events, world(events), null, "activity-world");
 
     expect(result.recentActivity).toEqual(expect.arrayContaining([
-      expect.objectContaining({ origin: "consequence", scope: "visible", sourceEventIds: ["cons"] }),
-      expect.objectContaining({ origin: "world_tick", scope: "known", sourceEventIds: ["tick"] }),
+      expect.objectContaining({ origin: "consequence", scope: "visible" }),
+      expect.objectContaining({ origin: "world_tick", scope: "known" }),
     ]));
-    expect(result.recentActivity.flatMap((item) => item.sourceEventIds)).not.toContain("risk");
+    expect(result.recentActivity.every((item) => !Object.hasOwn(item, "sourceEventIds"))).toBe(true);
   });
 
   it("shows discovery signals only for the latest turn", () => {
@@ -140,6 +140,24 @@ describe("Game Shell read model", () => {
     expect(result.lastTurn?.worldTime).toBe(2);
     expect(result.lastTurn?.discoverySignals).toEqual([]);
     expect(result.knowledge.traces.length).toBeGreaterThan(0);
+  });
+
+  it("never exposes internal keys in player-facing shell DTO", () => {
+    const events = [
+      event("ObservationUpdated", "risk", 1, { key: "risk_taken", delta: 1 }),
+      event("ObservationUpdated", "fear", 1, { key: "world_reaction_fear", delta: 1 }),
+      event("ObservationUpdated", "edge", 1, { key: "edge_awareness", delta: 1 }),
+      event("HeatRadiated", "heat", 1, { source: "heat:nearby", delta: 1 }),
+      event("ConsequenceCreated", "cons", 1, { id: "audacity-1", type: "audacity", severity: 1, createdAt: 1, expiresAt: 8, data: {} }),
+      event("MovementBlocked", "blocked", 1, { reason: "boundary" }),
+      event("RelationChanged", "relation", 1, { from: "player", to: "guild", kind: "help", delta: 1 }),
+    ];
+    const snapshot = buildGameShellSnapshot(events, world(events), null, "privacy-world");
+    const playerFacing = { character: snapshot.character, world: snapshot.world, currentSituation: snapshot.currentSituation, lastTurn: snapshot.lastTurn, recentActivity: snapshot.recentActivity, knowledge: snapshot.knowledge };
+    const serialized = JSON.stringify(playerFacing);
+    for (const key of ["risk_taken", "heat:nearby", "audacity", "world_reaction_fear", "boundary", "edge_awareness", "guild"]) {
+      expect(serialized).not.toContain(key);
+    }
   });
 
   it("is replay deterministic and emits a frozen current-revision delta", () => {

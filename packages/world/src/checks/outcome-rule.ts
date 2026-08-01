@@ -88,20 +88,24 @@ export const criticalCheckOutcome: Rule<ReadonlyWorld> = {
             },
           });
 
-          // Also unlock the door if it's the door itself
-          if (targetObj.id === "tower_door" || (targetObj.id.includes("hinge") && world.objects.has("tower_door"))) {
-            events.push({
-              ...base,
-              eventId: ruleEventId(event.eventId, "ObjectIntegrityChanged", 2),
-              type: "ObjectIntegrityChanged",
-              payload: {
-                objectId: "tower_door",
-                name: "Башенная дверь",
-                previousIntegrity: newIntegrity,
-                integrity: newIntegrity,
-                stateChange: { locked: false },
-              },
-            });
+          // A destroyed hinge unlocks the associated door without damaging it.
+          // A direct door hit was already emitted above and must not be duplicated.
+          if (targetObj.id.includes("hinge")) {
+            const door = world.objects.get("tower_door");
+            if (door) {
+              events.push({
+                ...base,
+                eventId: ruleEventId(event.eventId, "ObjectIntegrityChanged", 2),
+                type: "ObjectIntegrityChanged",
+                payload: {
+                  objectId: door.id,
+                  name: door.name,
+                  previousIntegrity: door.integrity,
+                  integrity: door.integrity,
+                  stateChange: { locked: false },
+                },
+              });
+            }
           }
         }
       } else {

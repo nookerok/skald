@@ -112,12 +112,14 @@ const explanationSchema = z.object({
 
 const patternBeliefSchema = z.object({
   patternId: z.string(),
+  displayName: z.string(),
   currentInterpretation: z.string(),
   confidence,
   supportingEvidence: z.array(evidenceSchema),
   openHypotheses: z.array(hypothesisSchema),
   existenceExplanation: explanationSchema.optional(),
   lastObserved: simTime,
+  freshness: confidence,
 }).strict();
 
 const contradictionSchema = z.object({
@@ -130,7 +132,7 @@ const contradictionSchema = z.object({
 
 /** Runtime-safe schema for the public BeliefModelDTO boundary. */
 export const beliefModelDTOSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   observerId: z.string(),
   beliefs: z.array(patternBeliefSchema),
   activeHypotheses: z.array(hypothesisSchema),

@@ -85,8 +85,13 @@ async function handle(input, overrideKey) {
       await refreshJournal();
       await refreshDiscoveries();
     } else if (result.status === 409) {
+      // The original request may have committed before its response was lost.
+      // Reconcile all authoritative read models before hiding retry.
       dispatch("COMMAND_DUPLICATE");
       setRetryVisible(false);
+      await refreshShell();
+      await refreshJournal();
+      await refreshDiscoveries();
     } else {
       dispatch("COMMAND_REJECTED");
     }

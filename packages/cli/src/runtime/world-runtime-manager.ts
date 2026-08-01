@@ -28,17 +28,30 @@ function createRouter(): ModelRouter | null {
   const zenKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
   const ollamaKey = process.env["SKALD_OLLAMA_CLOUD_API_KEY"] ?? "";
   if (!zenKey && !ollamaKey) return null;
-  return new ModelRouter({ apiKey: zenKey, healthCachePath: "packages/cli/llm-health.json" });
+  return new ModelRouter({ apiKey: zenKey || ollamaKey, providerId: zenKey ? "opencode_zen" : "ollama_cloud", availableProviders: [zenKey ? "opencode_zen" : null, ollamaKey ? "ollama_cloud" : null].filter((provider): provider is "opencode_zen" | "ollama_cloud" => provider !== null), healthCachePath: "packages/cli/llm-health.json" });
 }
 
 export class WorldRuntimeManager {
   private runtimes = new Map<WorldId, WorldRuntime>();
+  private initializing = new Map<WorldId, Promise<WorldRuntime>>();
 
   constructor(private readonly store: MultiWorldStore) {}
 
   async get(worldId: WorldId): Promise<WorldRuntime> {
     const cached = this.runtimes.get(worldId);
     if (cached) return cached;
+    const pending = this.initializing.get(worldId);
+    if (pending) return pending;
+    const load = this.load(worldId);
+    this.initializing.set(worldId, load);
+    try {
+      return await load;
+    } finally {
+      if (this.initializing.get(worldId) === load) this.initializing.delete(worldId);
+    }
+  }
+
+  private async load(worldId: WorldId): Promise<WorldRuntime> {
 
     const record = this.store.getWorldRecord(worldId);
     if (!record) throw Object.assign(new Error(`World not found: ${worldId}`), { statusCode: 404 });
@@ -103,6 +116,13 @@ export class WorldRuntimeManager {
   has(worldId: WorldId): boolean {
     return this.runtimes.has(worldId);
   }
+
+  isAnyPoisoned(): boolean {
+    for (const runtime of this.runtimes.values()) {
+      if ((runtime.engine as { isPoisoned?: () => boolean }).isPoisoned?.() === true) return true;
+    }
+    return false;
+  }
 }
 
 /**
@@ -110,7 +130,7 @@ export class WorldRuntimeManager {
  * Finds CriticalCheckRequested events without corresponding CriticalCheckRolled
  * and rolls them exactly once.
  */
-async function recoverPendingChecks(runtime: WorldRuntime): Promise<void> {
+export async function recoverPendingChecks(runtime: WorldRuntime): Promise<void> {
   const pendingChecks = runtime.projection.getSnapshot().pendingChecks;
   if (pendingChecks.size === 0) return;
 

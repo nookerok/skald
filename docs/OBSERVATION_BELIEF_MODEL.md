@@ -1,6 +1,6 @@
 # SKALD Observation & Belief Model
 
-Status: **normative UI contract, v1.0**
+Status: **normative UI contract, v2.0**
 
 This document is the source of truth for what the normal player UI may read
 and how it represents incomplete knowledge. The executable TypeScript contract
@@ -46,7 +46,7 @@ parallel labels.
 
 `BeliefModel` contains:
 
-- `schemaVersion: 1`;
+- `schemaVersion: 2`;
 - `observerId` and `lastUpdated` in simulation time;
 - `beliefs: Map<PatternId, PatternBelief>` internally, serialized as an array
   of `PatternBelief` objects in HTTP `BeliefModelDTO`;
@@ -54,9 +54,9 @@ parallel labels.
 - `knownRelations` with observed strength, trend, confidence and evidence IDs;
 - `contradictions`, which remain visible and are never silently removed.
 
-Every `PatternBelief` contains a player-readable interpretation, confidence,
-supporting evidence, open hypotheses, optional existence explanation and the
-last observed simulation time. Every `ObservationRecord` contains observer,
+Every `PatternBelief` contains a player-readable display name and interpretation, confidence,
+supporting evidence, open hypotheses, optional existence explanation, the
+last observed simulation time and deterministic freshness. Every `ObservationRecord` contains observer,
 target, lens, observation time, confidence, freshness, source, evidence,
 hypothesis IDs and a lens-specific payload. Payloads contain only observed or
 inferred presentation values; they never contain `actual*`, `true*` or `real*`
@@ -66,7 +66,7 @@ The exact JSON boundary is:
 
 ```ts
 interface BeliefModelDTO {
-  schemaVersion: 1;
+  schemaVersion: 2;
   observerId: string;
   beliefs: PatternBelief[];
   activeHypotheses: Hypothesis[];
@@ -87,6 +87,7 @@ The pure `ObservationAPI` exposes these read operations:
 - `explainExistence(patternId, observerId)`;
 - `trace(rootId, observerId, maxDepth?)`.
 
+The current runtime supports only the `player` observer identity; every other identity fails closed with an empty model.
 An observer that is outside the supported perception scope receives no record,
 relation or trace. The API must not widen scope merely because an event exists
 in the canonical log.

@@ -50,12 +50,13 @@ export type {
   NarrativeSnapshot,
 } from "./narrative.js";
 export { selectTurnPresentation } from "./presentation/selector.js";
+export { parseBeliefModelDTO, parseObservationRecord } from "@skald/observation";
 export type * from "./presentation/types.js";
 export { buildTurnJournal } from "./journal/builder.js";
 export type * from "./journal/types.js";
 export { buildDiscoveryJournal, DEFINITIONS } from "./discovery/index.js";
 export type * from "./discovery/types.js";
-export { buildBeliefModel, createObservationAPI, serializeBeliefModel } from "./observation/index.js";
+export { buildBeliefModel, buildDiscoveryJournalFromBeliefModel, createObservationAPI, serializeBeliefModel } from "./observation/index.js";
 export type {
   SimTime, Confidence, PatternId, ObserverId, EvidenceId, HypothesisId, ObservationId,
   LensId, EvidenceType, ObservationSource, HypothesisStatus, RelationType, Trend, EmergenceStage,
@@ -71,6 +72,7 @@ export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplat
 export type { CharacterPreset, WorldTemplate } from "./setup/types.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
+export { observationLabel, consequenceLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel } from "./game-shell/player-facing.js";
 export { narrateLLM } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
 export { ModelRouter } from "./llm/router.js";

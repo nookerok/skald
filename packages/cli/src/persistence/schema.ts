@@ -4,6 +4,7 @@ export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = FULL");
   db.exec("PRAGMA busy_timeout = 5000");
+  db.exec("PRAGMA foreign_keys = ON");
 }
 
 export function execSchemaV2(db: { exec(sql: string): void }): void {

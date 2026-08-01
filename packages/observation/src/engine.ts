@@ -49,14 +49,28 @@ export function createObservationStage(id: ObservationStageId): ObservationStage
   });
 }
 
-/** Pass-through stage for the perception gate. */
-export const canPerceiveStage = createObservationStage("can-perceive");
-/** Pass-through stage for distance attenuation. */
-export const distanceStage = createObservationStage("distance");
-/** Pass-through stage for occlusion. */
-export const occlusionStage = createObservationStage("occlusion");
-/** Pass-through stage for weather. */
-export const weatherStage = createObservationStage("weather");
+function gateStage(id: ObservationStageId, blocked: (facts: Readonly<Record<string, unknown>>) => string | null): ObservationStage {
+  return Object.freeze({
+    id,
+    run: (input: ObservationStageInput): ObservationStageResult => {
+      const reason = blocked(input.facts);
+      return reason ? { status: "blocked", facts: input.facts, reason } : { status: "continue", facts: input.facts };
+    },
+  });
+}
+
+/** Blocks facts explicitly marked as outside the observer's perception. */
+export const canPerceiveStage = gateStage("can-perceive", (facts) => facts.canPerceive === false ? "observer cannot perceive target" : null);
+/** Blocks facts whose supplied distance exceeds the observer's range. */
+export const distanceStage = gateStage("distance", (facts) => {
+  const distance = facts.distance;
+  const maxDistance = facts.maxDistance;
+  return typeof distance === "number" && typeof maxDistance === "number" && distance > maxDistance ? "target is out of range" : null;
+});
+/** Blocks facts explicitly marked as occluded. */
+export const occlusionStage = gateStage("occlusion", (facts) => facts.occluded === true ? "target is occluded" : null);
+/** Blocks facts explicitly hidden by weather. */
+export const weatherStage = gateStage("weather", (facts) => facts.weatherBlocked === true ? "weather blocks observation" : null);
 /** Pass-through stage for prior knowledge. */
 export const priorKnowledgeStage = createObservationStage("prior-knowledge");
 /** Pass-through stage for cultural interpretation. */

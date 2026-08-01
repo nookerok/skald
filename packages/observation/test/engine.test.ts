@@ -40,3 +40,13 @@ describe("Observation Engine skeleton", () => {
     expect(result.reason).toBe("not visible");
   });
 });
+
+
+describe("Observation gates", () => {
+  it("blocks explicit perception, distance, occlusion and weather failures", () => {
+    expect(createObservationPipeline().run({ ...input, facts: { canPerceive: false } }).status).toBe("blocked");
+    expect(createObservationPipeline().run({ ...input, facts: { distance: 10, maxDistance: 3 } }).status).toBe("blocked");
+    expect(createObservationPipeline().run({ ...input, facts: { occluded: true } }).status).toBe("blocked");
+    expect(createObservationPipeline().run({ ...input, facts: { weatherBlocked: true } }).status).toBe("blocked");
+  });
+});

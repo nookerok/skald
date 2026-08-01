@@ -19,3 +19,11 @@ describe("Lens Engine", () => {
     expect(createLensEngine().view(record, "ecology")).toBeNull();
   });
 });
+
+
+describe("Lens registry immutability", () => {
+  it("rejects runtime registry mutation", () => {
+    const engine = createLensEngine();
+    expect(() => (engine.lenses as any).clear()).toThrow(TypeError);
+  });
+});

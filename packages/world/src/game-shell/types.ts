@@ -1,4 +1,3 @@
-import type { PresentationEntry } from "../presentation/types.js";
 import type { GuidanceSuggestion } from "../guidance/types.js";
 
 export interface CharacterView {
@@ -12,12 +11,11 @@ export interface CharacterView {
 
 export interface CharacterEffectView {
   label: string;
-  source: string;
 }
 
 export interface RelationView {
-  target: string;
-  kind: string;
+  targetLabel: string;
+  relationLabel: string;
   value: number;
 }
 
@@ -28,7 +26,7 @@ export interface WorldContextView {
   locationId?: string | undefined;
   locationName?: string | undefined;
   locationDescription?: string | undefined;
-  connectedLocations?: Array<{ id: string; name: string; description?: string }> | undefined;
+  connectedLocations?: Array<{ id: string; label: string; detail?: string }> | undefined;
 }
 
 export type AttentionLevel = "calm" | "stirring" | "noticed" | "watched" | "pressured";
@@ -38,7 +36,6 @@ export interface AttentionView {
   marks: number;
   maxMarks: 5;
   explanation: string;
-  sourceEventIds: readonly string[];
 }
 
 export interface SituationView {
@@ -53,7 +50,6 @@ export interface SituationView {
 export interface CausalStep {
   kind: "intention" | "action" | "outcome" | "observation" | "consequence";
   text: string;
-  sourceEventIds: readonly string[];
   critical?: {
     success: string;
     failure: string;
@@ -66,15 +62,22 @@ export interface DiscoverySignalView {
   stage: "trace" | "hypothesis" | "discovered";
   title: string;
   text: string;
-  discoveryId: string;
+}
+
+export interface PlayerFacingEntry {
+  kind: string;
+  importance: "primary" | "notable" | "background";
+  discoveryMark: "trace" | "omen" | "echo" | null;
+  text: string;
+  timestamp: number;
 }
 
 export interface PlayerTurnView {
   turnId: string;
   worldTime: number;
-  primary: PresentationEntry | null;
-  notable: readonly PresentationEntry[];
-  background: readonly PresentationEntry[];
+  primary: PlayerFacingEntry | null;
+  notable: readonly PlayerFacingEntry[];
+  background: readonly PlayerFacingEntry[];
   causalChain: readonly CausalStep[];
   discoverySignals: readonly DiscoverySignalView[];
 }
@@ -88,14 +91,13 @@ export interface WorldActivityItem {
   timestamp: number;
   scope: PlayerFacingScope;
   origin: ActivityOrigin;
-  sourceEventIds: readonly string[];
 }
 
 export interface KnowledgeSummary {
-  facts: { title: string; text: string; discoveryId: string; journalTurnId: string }[];
-  hypotheses: { title: string; text: string; discoveryId: string; journalTurnId: string }[];
-  traces: { title: string; text: string; discoveryId: string; journalTurnId: string }[];
-  recentEvidence: { text: string; worldTime: number; kind: string; journalTurnId: string }[];
+  facts: { title: string; text: string }[];
+  hypotheses: { title: string; text: string }[];
+  traces: { title: string; text: string }[];
+  recentEvidence: { text: string; worldTime: number; kind: string }[];
 }
 
 export interface GameShellSnapshot {

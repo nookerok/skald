@@ -101,6 +101,27 @@ export type DurableCommitter = (
 
 export interface ProcessOptions {
   readonly commitContext?: CommitContext;
+  /** Derive continuation roots from staged events before one durable commit. */
+  readonly deriveEvents?: (staged: readonly DomainEvent[]) => readonly DomainEvent[];
+}
+
+function cloneAndFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((item) => cloneAndFreeze(item))) as T;
+  }
+  const clone: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    clone[key] = cloneAndFreeze((value as Record<string, unknown>)[key]);
+  }
+  return Object.freeze(clone) as T;
+}
+
+function immutableEventBatch(events: readonly DomainEvent[]): readonly DomainEvent[] {
+  return Object.freeze(events.map((event) => Object.freeze({
+    ...event,
+    payload: cloneAndFreeze(event.payload),
+  })));
 }
 
 export class PostCommitConsistencyError extends Error {
@@ -153,9 +174,7 @@ export class RuleEngine<W> {
 
     let failed: { ruleId: string; eventType: string; cause: unknown } | null = null;
 
-    for (const root of firstEvents) {
-      queue.push(root);
-
+    const drainQueue = (): void => {
       outer: while (queue.length > 0) {
         iterations++;
         if (iterations > MAX_ITERATIONS) {
@@ -185,16 +204,27 @@ export class RuleEngine<W> {
         working.apply(event);
         staged.push(event);
       }
+    };
 
+    for (const root of firstEvents) {
+      queue.push(root);
+      drainQueue();
       if (failed) break;
     }
 
-    if (failed) {
+    if (!failed && options?.deriveEvents) {
+      const continuation = options.deriveEvents(immutableEventBatch(staged));
+      for (const event of continuation) queue.push(event);
+      drainQueue();
+    }
+
+    const failure = failed as { ruleId: string; eventType: string; cause: unknown } | null;
+    if (failure) {
       throw new RuleProcessingError(
-        failed.ruleId,
-        failed.eventType,
+        failure.ruleId,
+        failure.eventType,
         staged,
-        failed.cause,
+        failure.cause,
       );
     }
 
