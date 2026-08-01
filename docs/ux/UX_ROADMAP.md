@@ -52,10 +52,18 @@ own vertical slice with Events, Rules, Projection and API mapping.
 Backend presence reconstruction shipped: known-worlds entry path
 (`observer-session`), drift over observer-scoped belief reconstruction,
 operational checkpoint written only by explicit acknowledge, offline ticks
-not observable. Open item: the browser entry-path UI (reconstruction screen
-and focus transition) is not yet wired to the endpoints.
-Write-capable offline actions still require an explicit synchronization and
-conflict-resolution design.
+not observable.
+
+Browser entry path shipped (UX-6.0D-F): Known Worlds menu with lazy presence
+cards, deterministic presence entry state machine (idle → requesting_session
+→ presence → focus → acknowledging → ready, with retryable_error /
+stale_revision / unavailable), durable same-key acknowledge retry in
+sessionStorage, one truthful loading phrase, DTO-only presence montage and
+focus screens, Game Shell locked until acknowledge succeeds. Entry routing
+lives on `#/world/:id/return`.
+
+Open item: write-capable offline actions still require an explicit
+synchronization and conflict-resolution design.
 
 ## UX-7 — Visual, audio and accessibility polish
 

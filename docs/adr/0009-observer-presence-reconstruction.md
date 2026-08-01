@@ -181,6 +181,53 @@ backend never invents a time of day. `focus.ambientDescription` is derived
 only from observable heat evidence, otherwise `null`; the world has no weather
 subsystem, so nothing is invented.
 
+### Browser entry path (UX-6.0D-F)
+
+The Known Worlds screen is the shell of the return path. Each world card is
+rendered from the backend `WorldPresenceSummary` (`GET /presence`), loaded
+lazily with at most three parallel fetches; one failed card degrades to
+"unavailable" without hiding the other worlds. The card shows only
+server-authored lines (`presenceStatus`, `knowledgeStatus`); raw ids,
+timestamps and event numbers never appear as card content. Menu wording is
+player-facing: «Известные миры», «Вернуться», «Последнее присутствие»,
+«Открыть новый мир».
+
+Entering a world routes to `#/world/:id/return` and runs the deterministic
+entry state machine (`presence-entry-state.js`, a pure reducer):
+
+```text
+idle → requesting_session → presence → focus → acknowledging → ready
+        ↘ retryable_error / stale_revision / unavailable
+```
+
+The controller performs the I/O implied by each phase: session fetch,
+presence/focus rendering, acknowledge with an idempotency key, and retries.
+There is exactly one truthful loading phrase («Восстанавливаем твоё
+присутствие…») and no fake progress; the previous fake busy-stage cycling in
+the Game Shell was removed. The Game Shell stays locked (no command input)
+until `ACK_SUCCESS`; only then does the app switch to `#/world/:id` and
+unlock.
+
+Acknowledge durability: the pending idempotency key is stored in
+`sessionStorage` under `skald:presence-ack:1:<worldId>` before the request
+leaves. A transport failure keeps the same key for the retry; after a reload
+the pending key is replayed first (the server answers the stored result by
+key+hash). `stale_revision` and `duplicate_request` drop the pending key and
+re-fetch the session — the state machine never auto-acks and never reuses a
+key under a different body. The player acknowledges again with a fresh key
+(graceful return).
+
+The presence screen renders only DTO content: montage sentences
+(`session.statements`), drift reasons and reobservation doubts — never event
+names or client-side sentences. Modes (`first | invalid | valid-none |
+valid-low | valid-medium | valid-high`) map backend `checkpointState` and
+`drift.level` to presentation only; the browser classifies no truth. The
+focus screen renders `PresenceFocus` blocks that are present and skips null
+blocks (e.g. `timeDescription`). «Я здесь» is the single interactive element;
+it acknowledges and never modifies state otherwise. The screen is a modal
+dialog (`role=dialog`, labelled, focus-trapped, 44px targets) and respects
+`prefers-reduced-motion`.
+
 ## Consequences and gates
 
 - Contract types live in `packages/world/src/presence/types.ts`; builders in
@@ -189,9 +236,13 @@ subsystem, so nothing is invented.
   migration is additive, keeps Event Log untouched, verified by integrity
   check.
 - API: `GET /api/worlds/:id/observer-session`,
-  `GET /api/worlds/:id/presence`,
+  `GET /api/worlds/:id/presence` (player-facing presence plus the
+  `WorldPresenceSummary` known-worlds card),
   `POST /api/worlds/:id/presence/acknowledge` (idempotency key required;
   replay by key+request hash, 409 on body/key conflicts).
+- Browser: `known-worlds-view.js`/`presence-card-view.js` (cards),
+  `presence-entry-state.js` (pure reducer), `presence-entry-controller.js`
+  (I/O), `presence-view.js`/`focus-view.js` (DTO-only renderers).
 - Tests cover the drift thresholds and per-factor caps, reconstruction
   determinism, checkpoint integrity (`valid`/`incompatible`), offline
   observability, checkpoint persistence across restarts, absence of hidden

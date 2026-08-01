@@ -2,10 +2,10 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
-Updated: 2026-08-01
+Updated: 2026-08-02
 Branch: main
-Working tree: clean; HEAD == origin/main == 26e515f (UX-6 shipped, validated,
-deployed, API smoke passed; visual QA recorded separately per skill)
+Working tree: clean; HEAD == f0ada36 (UX-6.0D-F entry path shipped; validated,
+not yet pushed or deployed — final gate in progress)
 
 ## Current milestone
 
@@ -32,8 +32,36 @@ facing presence DTOs are display-safe (no internal IDs); internal identifiers
 exist only on `PresenceDiagnosticsDTO` (P1-8). Events during `playerOffline`
 ticks are not observable and never enter the Belief Model, discoveries,
 drift, focus or threads (P0-1). `focus.timeDescription` is always null — no
-World Clock law. Validation: 59 test files, 846 passed, 1 skipped via
+World Clock law. Validation: 59 test files, 885 passed, 1 skipped via
 npm run validate (typecheck, diff-check clean).
+
+UX-6.0D-F browser entry path shipped on top (commits b9c02cd, b997058,
+f0ada36, all behind origin):
+- UX-6.0D: `GET /presence` now also returns the ready-to-render
+  `WorldPresenceSummary` card (schemaVersion 1, worldId, checkpointState,
+  currentWorldTime, worldTimeDelta, driftLevel, stale/dormant counts,
+  `presenceStatus`/`knowledgeStatus` player-facing lines). Known Worlds menu
+  rewritten: «Известные миры», «Вернуться», «Открыть новый мир»;
+  `known-worlds-view.js` + `presence-card-view.js` render cards from the DTO
+  with lazy /presence fetches at parallelism 3 and loading/available/
+  unavailable/corrupt states; one failed card never hides the others; no raw
+  ids/timestamps/event numbers in card content.
+- UX-6.0E: deterministic `presence-entry-state.js` pure reducer (idle →
+  requesting_session → presence → focus → acknowledging → ready; retryable_
+  error, stale_revision, unavailable) with 16 unit tests; API client
+  `fetchObserverSession`/`acknowledgePresence`; fake BUSY_STAGES cycling and
+  setInterval removed from the Game Shell (single truthful loading phrase
+  «Восстанавливаем твоё присутствие…»).
+- UX-6.0F: `presence-view.js` (six modes from checkpointState + drift.level,
+  DTO-only montage, reobservation doubts without buttons), `focus-view.js`
+  (real PresenceFocus blocks only, null blocks skipped, single «Я здесь»
+  acknowledge button), `presence-entry-controller.js` (session fetch, durable
+  same-key retry via sessionStorage `skald:presence-ack:1:<worldId>`, reload
+  recovery, stale/duplicate → drop key + re-fetch session, graceful return
+  with a fresh key). Entry lives on `#/world/:id/return`; the Game Shell
+  stays locked until ACK_SUCCESS fires `skald:presence-ready`, then the app
+  switches to `#/world/:id` and connects. Dialog a11y (role=dialog, labelled,
+  focus trap, 44px targets) and prefers-reduced-motion.
 
 ## Completed
 
@@ -62,11 +90,13 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-UX-6.0D-F: wire the browser entry-path UI (reconstruction screen and focus
-transition are still not connected to `observer-session`/`presence`/
-`acknowledge`), then design write-capable offline actions with explicit
-synchronization and conflict-resolution semantics (roadmap open item). The
-five npm audit findings (3 moderate, 1 high, 1 critical) remain a separate
+Final gate for UX-6.0D-F: push the three commits, run the NTFS browser QA
+(screenshots of Known Worlds cards, entry screen, focus, ack, shell unlock),
+then deploy to the Orange Pi via $skald-orange-pi-deploy and repeat the API
+smoke plus an idempotent game smoke against production. After that: design
+write-capable offline actions with explicit synchronization and
+conflict-resolution semantics (roadmap open item). The five npm audit
+findings (3 moderate, 1 high, 1 critical) remain a separate
 dependency-security task; Vitest UI must not be exposed to LAN.
 
 ## Known blockers

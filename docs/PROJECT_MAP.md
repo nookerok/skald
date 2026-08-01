@@ -47,8 +47,14 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> Belief -> Explain/Trace -> reactive Belief notifications
     -> normal Knowledge renderer (observer-scoped, uncertainty-preserving)
 
-    Known Worlds -> connect -> observer-session (checkpoint + drift + presence)
-    -> explicit presence/acknowledge (idempotent, writes checkpoint only here)
+    Known Worlds (lazy presence cards, parallelism 3) -> #/world/:id/return
+    -> presence entry state machine (idle -> requesting_session -> presence
+    -> focus -> acknowledging -> ready; retryable_error / stale_revision /
+    unavailable) -> observer-session (checkpoint + drift + presence)
+    -> explicit presence/acknowledge (idempotent, durable same-key retry in
+    sessionStorage, writes checkpoint only here; stale/duplicate drop the key
+    and re-fetch) -> presence/focus renderers (DTO-only, no client
+    classification) -> ACK_SUCCESS -> #/world/:id -> shell unlocked
     -> Belief Reconstruction -> Presence Reconstruction -> Focus -> World
 
     SQLite open -> Event Log replay -> Projection rebuild -> HTTP readiness
