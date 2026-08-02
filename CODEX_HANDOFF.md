@@ -4,11 +4,14 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: clean; HEAD == origin/main == d7ce256 (UX-6.0D-F entry path
-deployed + a11y 44px touch-target fix deployed; 906 tests green). UX-6.1
-"Presence Lifecycle Completion" implementation complete and validate-green
-(948 passed, 1 skipped) — commit + push + Orange Pi deploy + NTFS visual QA
-are the remaining steps of this milestone.
+Working tree: clean; HEAD == origin/main == 76f609c (UX-6.1 committed and
+deployed to Orange Pi: update + backup/integrity + 948 tests on-device +
+health/state + lifecycle smoke + idempotency edge cases PASS). Visual QA for
+UX-6.1: dispatched to the fixed NTFS browser task (thread
+019fa52b-1610-7b23-9567-37891d24c782) — BLOCKED: Codex backend refuses
+requests (chatgpt.com/backend-api returns HTTP 403 via Cloudflare,
+"Unable to load site"); the assignment is queued in the thread and must be
+run once the backend is reachable again. All non-visual gates PASS.
 
 ## Current milestone
 
@@ -92,16 +95,16 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Commit UX-6.1, push, run `npm run validate` once more, then deploy to the
-Orange Pi (nooker@192.168.0.5, backup + integrity check + fast-forward
-update, health + state + idempotent game smoke, lifecycle smoke: presence
-entry → ack → shell → exit → re-entry zero drift). Visual QA must go through
-the fixed NTFS browser task ($skald-ntfs-browser-qa) with an authorized
-click budget — production URL http://192.168.0.5:3000. Record PASS/FAIL/
-BLOCKED independently. After that: design write-capable offline actions with
-explicit synchronization and conflict-resolution semantics (roadmap open
-item). The five npm audit findings (3 moderate, 1 high, 1 critical) remain a
-separate dependency-security task; Vitest UI must not be exposed to LAN.
+Deployment of UX-6.1 is complete (commit 76f609c live on the Orange Pi;
+worldTime 204, checkpoint pinned at 204; stale/duplicate 409 gates verified
+on production). Run the queued NTFS visual QA assignment once the Codex
+backend is reachable (the prompt is already the last message in thread
+019fa52b-1610-7b23-9567-37891d24c782; it carries the authorized click
+budget: 4 commands, 2 acks, 2 exits). After that: design write-capable
+offline actions with explicit synchronization and conflict-resolution
+semantics (roadmap open item). The five npm audit findings (3 moderate, 1
+high, 1 critical) remain a separate dependency-security task; Vitest UI must
+not be exposed to LAN.
 
 Note: ssh from WSL to 192.168.0.5 is currently broken (lands on a stale
 endpoint with user `nook`); use the Windows OpenSSH client with
