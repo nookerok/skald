@@ -4,13 +4,27 @@ import {
   PHASE,
   ACTION,
   LOADING_TEXT,
+  ACK_LOADING_TEXT,
+  loadingTextForPhase,
   initialState,
   ackStorageKey,
   transitionPresenceEntry,
 } from "../public/presence-entry-state.js";
 
 const session = { revision: { worldTime: 4, eventNumber: 5 }, presence: { drift: { level: "low" } }, checkpointState: "missing" };
-const summary = { schemaVersion: 1, worldId: "w", presenceStatus: "Ты ещё не входил в этот мир." };
+const summary = { schemaVersion: 1, worldId: "w", presenceStatus: "Мир кажется таким, каким ты его помнишь." };
+
+function entered(s = initialState(), worldId = "w") {
+  return transitionPresenceEntry(s, ACTION.ENTER, { worldId });
+}
+
+function onPresence() {
+  return transitionPresenceEntry(entered(), ACTION.SESSION_OK, { session, summary });
+}
+
+function onFocus() {
+  return transitionPresenceEntry(onPresence(), ACTION.PRESENCE_CONTINUE);
+}
 
 describe("presence-entry-state.js", () => {
   it("starts idle with no entry artifacts", () => {
@@ -23,14 +37,13 @@ describe("presence-entry-state.js", () => {
   });
 
   it("ENTER starts requesting the observer session for the world", () => {
-    const s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
+    const s = entered();
     expect(s.phase).toBe(PHASE.REQUESTING_SESSION);
     expect(s.worldId).toBe("w");
   });
 
   it("SESSION_OK moves to the presence montage with the session stored", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
+    const s = onPresence();
     expect(s.phase).toBe(PHASE.PRESENCE);
     expect(s.session).toBe(session);
     expect(s.summary).toBe(summary);
@@ -38,33 +51,53 @@ describe("presence-entry-state.js", () => {
   });
 
   it("SESSION_FAIL is a retryable error, not a crash", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_FAIL, { message: "сеть" });
+    const s = transitionPresenceEntry(entered(), ACTION.SESSION_FAIL, { message: "сеть" });
     expect(s.phase).toBe(PHASE.RETRYABLE_ERROR);
     expect(s.error.code).toBe("session_transport");
   });
 
-  it("PRESENCE_RENDERED moves to the focus screen", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
+  it("PRESENCE never auto-advances: only PRESENCE_CONTINUE leaves it", () => {
+    // A fresh session lands on the montage; neither acknowledge nor any
+    // timer is possible here — ACK_START is ignored in PRESENCE.
+    const s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
+    expect(s.phase).toBe(PHASE.PRESENCE);
+    expect(s.ackKey).toBeNull();
+  });
+
+  it("PRESENCE_CONTINUE is the explicit player road to focus", () => {
+    const s = onFocus();
     expect(s.phase).toBe(PHASE.FOCUS);
   });
 
+  it("PRESENCE_CONTINUE is ignored outside the presence phase", () => {
+    const s = transitionPresenceEntry(entered(), ACTION.PRESENCE_CONTINUE);
+    expect(s.phase).toBe(PHASE.REQUESTING_SESSION);
+  });
+
   it("ACK_START enters acknowledging and keeps the pending key", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
-    expect(s.phase).toBe(PHASE.ACKNOWLEDGING);
+    const s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    expect(s.phase).toBe(PHASE.ACKNOWLEDGING_ENTRY);
     expect(s.ackKey).toBe("ack-1");
   });
 
-  it("ACK_SUCCESS is ready and clears the pending key", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
+  it("ACK_START can resume a durable pending acknowledge during a reload", () => {
+    const s = transitionPresenceEntry(entered(), ACTION.ACK_START, { key: "ack-1" });
+    expect(s.phase).toBe(PHASE.ACKNOWLEDGING_ENTRY);
+    expect(s.ackKey).toBe("ack-1");
+  });
+
+  it("ACK_START re-acknowledges with the same durable key after a transport failure", () => {
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    s = transitionPresenceEntry(s, ACTION.ACK_FAIL, { message: "сеть" });
+    expect(s.phase).toBe(PHASE.RETRYABLE_ERROR);
+    expect(s.ackKey).toBe("ack-1");
+    s = transitionPresenceEntry(s, ACTION.ACK_START);
+    expect(s.phase).toBe(PHASE.ACKNOWLEDGING_ENTRY);
+    expect(s.ackKey).toBe("ack-1");
+  });
+
+  it("ACK_SUCCESS is ready, clears the pending key and keeps the checkpoint", () => {
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.ACK_SUCCESS, { checkpoint: { worldId: "w" } });
     expect(s.phase).toBe(PHASE.READY);
     expect(s.ackKey).toBeNull();
@@ -72,32 +105,15 @@ describe("presence-entry-state.js", () => {
   });
 
   it("ACK_FAIL keeps the durable key for a same-key retry", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.ACK_FAIL, { message: "сеть" });
     expect(s.phase).toBe(PHASE.RETRYABLE_ERROR);
     expect(s.ackKey).toBe("ack-1");
     expect(s.error.code).toBe("ack_transport");
   });
 
-  it("retrying after ack failure resumes with the same key", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
-    s = transitionPresenceEntry(s, ACTION.ACK_FAIL);
-    s = transitionPresenceEntry(s, ACTION.ACK_START);
-    expect(s.phase).toBe(PHASE.ACKNOWLEDGING);
-    expect(s.ackKey).toBe("ack-1");
-  });
-
   it("STALE_REVISION drops the pending key; no automatic re-ack", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.STALE_REVISION);
     expect(s.phase).toBe(PHASE.STALE_REVISION);
     expect(s.ackKey).toBeNull();
@@ -105,10 +121,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("DUPLICATE_REQUEST is a controlled error that also reloads, never re-uses the key", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.DUPLICATE_REQUEST);
     expect(s.phase).toBe(PHASE.STALE_REVISION);
     expect(s.ackKey).toBeNull();
@@ -116,14 +129,12 @@ describe("presence-entry-state.js", () => {
   });
 
   it("RELOAD_SESSION re-requests the session after staleness", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.STALE_REVISION);
     s = transitionPresenceEntry(s, ACTION.RELOAD_SESSION);
     expect(s.phase).toBe(PHASE.REQUESTING_SESSION);
     expect(s.session).toBeNull();
+    expect(s.summary).toBeNull();
   });
 
   it("UNAVAILABLE is a terminal phase with an honest message", () => {
@@ -133,16 +144,17 @@ describe("presence-entry-state.js", () => {
   });
 
   it("RESET returns to the idle state", () => {
-    let s = transitionPresenceEntry(initialState(), ACTION.ENTER, { worldId: "w" });
-    s = transitionPresenceEntry(s, ACTION.SESSION_OK, { session, summary });
-    s = transitionPresenceEntry(s, ACTION.PRESENCE_RENDERED);
-    s = transitionPresenceEntry(s, ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.RESET);
     expect(s).toEqual(initialState());
   });
 
-  it("exposes the single truthful loading phrase", () => {
-    expect(LOADING_TEXT).toBe("Восстанавливаем твоё присутствие…");
+  it("exposes the two honest loading phrases mapped to phases", () => {
+    expect(LOADING_TEXT).toBe("Восстанавливаем твои наблюдения…");
+    expect(ACK_LOADING_TEXT).toBe("Подтверждаем твоё присутствие…");
+    expect(loadingTextForPhase(PHASE.REQUESTING_SESSION)).toBe(LOADING_TEXT);
+    expect(loadingTextForPhase(PHASE.ACKNOWLEDGING_ENTRY)).toBe(ACK_LOADING_TEXT);
+    expect(loadingTextForPhase(PHASE.PRESENCE)).toBe(LOADING_TEXT);
   });
 
   it("derives the durable storage key from the world id", () => {

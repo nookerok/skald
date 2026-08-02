@@ -1,30 +1,55 @@
 // focus-view.js — renders the moment-of-return focus strictly from the
-// backend PresenceFocus. Blocks that are null (e.g. timeDescription, which
-// has no World Clock law yet) are skipped; nothing is invented. The single
-// interactive element is the «Я здесь» acknowledge button.
+// backend PresenceSnapshot: observer-scoped location context, ambient
+// description, sensory cues and remembered context. Blocks that are null
+// (e.g. timeDescription, which has no World Clock law yet) are skipped;
+// nothing is invented. The single interactive element is the «Я здесь»
+// acknowledge button.
 
 export function renderFocusView(session) {
   const fragment = document.createDocumentFragment();
-  const focus = session.presence && session.presence.focus;
-  if (!focus) return fragment;
+  const presence = session.presence;
+  if (!presence) return fragment;
+  const focus = presence.focus;
 
   const section = document.createElement("section");
   section.className = "presence-focus";
   section.setAttribute("aria-label", "Момент возвращения");
 
-  const heading = document.createElement("h3");
+  const heading = document.createElement("h2");
   heading.className = "presence-focus-heading";
-  heading.textContent = "Момент возвращения";
+  heading.id = "focus-phase-title";
+  heading.setAttribute("data-phase-title", "true");
+  heading.tabIndex = -1;
+  heading.textContent = "Ты здесь";
   section.appendChild(heading);
 
-  if (focus.ambientDescription) {
+  const location = presence.location || {};
+  if (location.title || location.description) {
+    const place = document.createElement("div");
+    place.className = "presence-focus-place";
+    if (location.title) {
+      const placeTitle = document.createElement("p");
+      placeTitle.className = "presence-focus-place-title";
+      placeTitle.textContent = location.title;
+      place.appendChild(placeTitle);
+    }
+    if (location.description) {
+      const placeDesc = document.createElement("p");
+      placeDesc.className = "presence-focus-place-description";
+      placeDesc.textContent = location.description;
+      place.appendChild(placeDesc);
+    }
+    section.appendChild(place);
+  }
+
+  if (focus && focus.ambientDescription) {
     const ambient = document.createElement("p");
     ambient.className = "presence-focus-ambient";
     ambient.textContent = focus.ambientDescription;
     section.appendChild(ambient);
   }
 
-  if (focus.sensoryCues && focus.sensoryCues.length > 0) {
+  if (focus && focus.sensoryCues && focus.sensoryCues.length > 0) {
     const cues = document.createElement("ul");
     cues.className = "presence-focus-cues";
     for (const cue of focus.sensoryCues) {
@@ -35,7 +60,7 @@ export function renderFocusView(session) {
     section.appendChild(cues);
   }
 
-  if (focus.rememberedContext && focus.rememberedContext.length > 0) {
+  if (focus && focus.rememberedContext && focus.rememberedContext.length > 0) {
     const remembered = document.createElement("p");
     remembered.className = "presence-focus-remembered";
     remembered.textContent = focus.rememberedContext.join(" ");

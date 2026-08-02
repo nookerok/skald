@@ -1,0 +1,12 @@
+feat: complete presence lifecycle (UX-6.1 A-F)
+
+Atomic observer-session+summary Entry DTO (one derivation pass, revision
+invariants by construction). Presence phase is now its own moment: explicit
+Osмотреться/Войти -> Focus -> Я здесь acknowledge; no auto-advance.
+Browser-session lease gates the game shell (sessionStorage, written only
+after acknowledge 200); new game lands on /return; reload keeps the lease,
+new tab re-enters presence. Graceful exit: durable pending acknowledge,
+single stale auto-refetch, wait-for-in-flight-command, commands blocked
+while leaving. Honest loading phrases mapped to reducer phases only.
+Tests: entry-state 19, exit-state 12, route 5, lifecycle integration 7,
+view/controller/wiring checks, static whitelist updated.

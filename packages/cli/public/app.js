@@ -5,6 +5,9 @@ import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadMenu } from "./menu-view.js";
 import { initNewGame } from "./new-game-view.js";
 import { startPresenceEntry } from "./presence-entry-controller.js";
+import { hasPresenceLease } from "./presence-lease.js";
+import { resolveWorldRoute, ROUTE } from "./presence-route.js";
+import { initExitFlow, requestLeave, isExitInProgress } from "./presence-exit-controller.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
@@ -12,6 +15,7 @@ import { showContextLocation } from "./context-rail-view.js";
 
 let state = createInitialState();
 let interactionReady = false;
+let currentWorldId = null;
 
 function dispatch(action, payload) {
   state = transition(state, action, payload);
@@ -68,7 +72,7 @@ async function refreshDev() {
   if (pipeline) pipeline.textContent = "Event Log → Projection → Game Shell → Narrative → UI";
 }
 async function handle(input, overrideKey) {
-  if (!interactionReady || state.command === CMD.PENDING) return;
+  if (!interactionReady || state.command === CMD.PENDING || isExitInProgress()) return;
   const key = overrideKey || createRequestKey();
   setRetryVisible(false);
   dispatch("COMMAND_START", { input, key });
@@ -134,29 +138,56 @@ function showPanel(name) {
 }
 async function route() {
   const hash = window.location.hash || "#/menu";
-  const returnMatch = hash.match(/^#\/world\/([^/]+)\/return$/);
-  if (returnMatch) {
-    setCurrentWorld(decodeURIComponent(returnMatch[1]));
-    showPanel("presence");
-    await startPresenceEntry(document.getElementById("presence-entry-container"), decodeURIComponent(returnMatch[1]));
-    return;
-  }
-  if (hash.startsWith("#/world/")) {
-    setCurrentWorld(decodeURIComponent(hash.slice(8)));
-    showPanel("game");
-    await connect();
-    return;
+  const worldMatch = hash.match(/^#\/world\/([^/]+)(\/return)?$/);
+  if (worldMatch) {
+    const worldId = decodeURIComponent(worldMatch[1]);
+    const requestedRoute = "/world/" + worldId + (worldMatch[2] || "");
+    const decision = resolveWorldRoute({ requestedRoute, worldId, hasLease: hasPresenceLease(worldId) });
+    if (decision === ROUTE.PRESENCE) {
+      if (requestedRoute !== "/world/" + worldId + "/return") {
+        // No browser-session lease: never render the shell frame; redirect
+        // so history cannot land back on the shell without presence.
+        window.location.replace("#/world/" + worldId + "/return");
+        return;
+      }
+      currentWorldId = worldId;
+      setCurrentWorld(worldId);
+      showPanel("presence");
+      await startPresenceEntry(document.getElementById("presence-entry-container"), worldId);
+      return;
+    }
+    if (decision === ROUTE.GAME) {
+      currentWorldId = worldId;
+      setCurrentWorld(worldId);
+      showPanel("game");
+      await connect();
+      return;
+    }
   }
   if (hash.startsWith("#/new/")) {
     showPanel("new");
     await initNewGame();
     return;
   }
+  currentWorldId = null;
   showPanel("menu");
   await loadMenu();
 }
+function waitForPendingCommand() {
+  return new Promise((resolve) => {
+    if (state.command !== CMD.PENDING) { resolve(); return; }
+    const timer = setTimeout(done, 5000);
+    const interval = setInterval(() => { if (state.command !== CMD.PENDING) done(); }, 150);
+    function done() { clearTimeout(timer); clearInterval(interval); resolve(); }
+  });
+}
+
 function bindGlobal() {
   initShellView(handle);
+  initExitFlow({ onWaitForPendingCommand: waitForPendingCommand });
+  document.getElementById("exit-world-btn")?.addEventListener("click", () => {
+    if (currentWorldId) requestLeave(currentWorldId);
+  });
   document.getElementById("btn-to-menu")?.addEventListener("click", () => { interactionReady = false; window.location.hash = "#/menu"; });
   document.getElementById("open-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   document.getElementById("open-discoveries-btn")?.addEventListener("click", () => openShellOverlay("discoveries-overlay"));
@@ -167,6 +198,10 @@ function bindGlobal() {
   window.addEventListener("skald:presence-ready", (event) => {
     const readyWorldId = event.detail?.worldId;
     if (readyWorldId) window.location.hash = "#/world/" + readyWorldId;
+  });
+  window.addEventListener("skald:exit-ready", (event) => {
+    interactionReady = false;
+    window.location.hash = "#/menu";
   });
   window.addEventListener("skald:return-to-world", (event) => {
     const worldId = event.detail?.worldId;

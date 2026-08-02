@@ -548,7 +548,7 @@ describe("buildWorldPresenceSummary", () => {
     const fresh = buildWorldPresenceSummary({ worldId: "w", events: short, world: shortWorld, checkpoint: checkpointAtTime(short, 4) });
     expect(fresh.checkpointState).toBe("valid");
     expect(fresh.driftLevel).toBe("none");
-    expect(fresh.presenceStatus).toBe("Мир почти такой, каким ты его помнишь.");
+    expect(fresh.presenceStatus).toBe("Мир кажется таким, каким ты его помнишь.");
     expect(fresh.knowledgeStatus).toBeNull();
 
     // Checkpoint at t=3 with 13 ticks of offline decay: stale knowledge.
@@ -561,7 +561,7 @@ describe("buildWorldPresenceSummary", () => {
       worldId: "w", events, world,
       checkpoint: { ...checkpointAtTime(events, 3), beliefRevision: -1 },
     });
-    expect(incompatible.presenceStatus).toBe("Прежнее присутствие не удалось восстановить.");
+    expect(incompatible.presenceStatus).toBe("Твои прежние воспоминания нельзя надёжно восстановить. Мир приходится воспринимать заново.");
     expect(incompatible.knowledgeStatus).toBeNull();
   });
 

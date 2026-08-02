@@ -58,9 +58,9 @@ describe("focus-view.js", () => {
 
   it("renders only real focus fields and skips null blocks", () => {
     const src = code("focus-view.js");
-    expect(src).toContain("if (focus.ambientDescription)");
-    expect(src).toContain("if (focus.sensoryCues && focus.sensoryCues.length > 0)");
-    expect(src).toContain("if (focus.rememberedContext && focus.rememberedContext.length > 0)");
+    expect(src).toContain("if (focus && focus.ambientDescription)");
+    expect(src).toContain("if (focus && focus.sensoryCues && focus.sensoryCues.length > 0)");
+    expect(src).toContain("if (focus && focus.rememberedContext && focus.rememberedContext.length > 0)");
     expect(src).not.toMatch(/focus\.timeDescription/);
   });
 
@@ -115,11 +115,18 @@ describe("presence-entry-controller.js", () => {
     expect(src).not.toContain("interactionReady = true");
   });
 
-  it("uses the single truthful loading phrase", () => {
+  it("uses the honest loading phrases mapped to phases", () => {
     const src = code("presence-entry-controller.js");
-    expect(src).toContain("LOADING_TEXT");
+    expect(src).toContain("loadingTextForPhase");
     expect(src).not.toContain("Разбираем намерение");
     expect(src).not.toContain("Собираем последствия");
+  });
+
+  it("never auto-advances: the continue event is the only road to focus", () => {
+    const src = code("presence-entry-controller.js");
+    expect(src).toContain("skald:presence-continue");
+    expect(src).toContain("state.phase !== PHASE.PRESENCE");
+    expect(src).not.toContain("setTimeout");
   });
 });
 
@@ -135,5 +142,34 @@ describe("app.js return route", () => {
     const src = code("app.js");
     expect(src).toContain("skald:presence-ready");
     expect(src).toContain('#/world/" + readyWorldId');
+  });
+
+  it("gates the game shell behind the browser-session lease", () => {
+    const src = code("app.js");
+    expect(src).toContain("hasPresenceLease");
+    expect(src).toContain("resolveWorldRoute");
+    expect(src).toContain('window.location.replace("#/world/" + worldId + "/return")');
+  });
+
+  it("routes the new world to the return path after creation", () => {
+    const src = code("new-game-view.js");
+    expect(src).toContain('"#/world/" + targetWorldId + "/return"');
+  });
+
+  it("wires the graceful exit flow and blocks commands while leaving", () => {
+    const src = code("app.js");
+    expect(src).toContain("initExitFlow");
+    expect(src).toContain("requestLeave");
+    expect(src).toContain("isExitInProgress()");
+    expect(src).toContain("exit-world-btn");
+    expect(src).toContain("skald:exit-ready");
+  });
+
+  it("serves the presence modules from the static whitelist", () => {
+    const src = code("../src/http-server.ts");
+    expect(src).toContain('"/presence-lease.js"');
+    expect(src).toContain('"/presence-route.js"');
+    expect(src).toContain('"/presence-exit-state.js"');
+    expect(src).toContain('"/presence-exit-controller.js"');
   });
 });

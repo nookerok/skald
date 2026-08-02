@@ -2,13 +2,17 @@
 // "Return to a Living World" path. Pure reducer: no fetch, no timers, no
 // storage side effects here. The controller drives it with actions and
 // performs the I/O implied by each phase.
+//
+// Entry flow (UX-6.1B): PRESENCE is its own moment; the player explicitly
+// moves to FOCUS (PRESENCE_CONTINUE) and only then acknowledges. Nothing
+// auto-advances and no timeout changes the phase.
 
 export const PHASE = {
   IDLE: "idle",
   REQUESTING_SESSION: "requesting_session",
   PRESENCE: "presence",
   FOCUS: "focus",
-  ACKNOWLEDGING: "acknowledging",
+  ACKNOWLEDGING_ENTRY: "acknowledging_entry",
   READY: "ready",
   RETRYABLE_ERROR: "retryable_error",
   STALE_REVISION: "stale_revision",
@@ -19,7 +23,7 @@ export const ACTION = {
   ENTER: "ENTER",
   SESSION_OK: "SESSION_OK",
   SESSION_FAIL: "SESSION_FAIL",
-  PRESENCE_RENDERED: "PRESENCE_RENDERED",
+  PRESENCE_CONTINUE: "PRESENCE_CONTINUE",
   ACK_START: "ACK_START",
   ACK_SUCCESS: "ACK_SUCCESS",
   ACK_FAIL: "ACK_FAIL",
@@ -30,8 +34,18 @@ export const ACTION = {
   RESET: "RESET",
 };
 
-/** The single truthful loading phrase used on every entry wait. */
-export const LOADING_TEXT = "Восстанавливаем твоё присутствие…";
+/**
+ * Honest loading phrases; each maps to exactly one reducer phase
+ * (UX-6.1E). REQUESTING_SESSION and ACKNOWLEDGING_ENTRY are the only
+ * loading phases of the entry path.
+ */
+export const LOADING_TEXT = "Восстанавливаем твои наблюдения…";
+export const ACK_LOADING_TEXT = "Подтверждаем твоё присутствие…";
+
+export function loadingTextForPhase(phase) {
+  if (phase === PHASE.ACKNOWLEDGING_ENTRY) return ACK_LOADING_TEXT;
+  return LOADING_TEXT;
+}
 
 export function initialState() {
   return {
@@ -68,20 +82,29 @@ export function transitionPresenceEntry(state, action, payload = {}) {
       if (state.phase !== PHASE.REQUESTING_SESSION) return state;
       return { ...state, phase: PHASE.RETRYABLE_ERROR, error: { code: "session_transport", message: payload.message || "Не удалось восстановить присутствие." } };
 
-    case ACTION.PRESENCE_RENDERED:
+    // The only road to FOCUS: an explicit player action. Presence never
+    // auto-advances and no timeout changes the phase.
+    case ACTION.PRESENCE_CONTINUE:
       if (state.phase !== PHASE.PRESENCE) return state;
-      return { ...state, phase: PHASE.FOCUS };
+      return { ...state, phase: PHASE.FOCUS, error: null };
 
+    // Acknowledge is allowed only from FOCUS (or from REQUESTING_SESSION
+    // while resuming a durable pending acknowledge the player already
+    // approved before a reload, or from a transport-failure retry that
+    // reuses the same durable key).
     case ACTION.ACK_START:
-      if (state.phase === PHASE.ACKNOWLEDGING) return state;
-      return { ...state, phase: PHASE.ACKNOWLEDGING, ackKey: payload.key || state.ackKey, error: null };
+      if (state.phase !== PHASE.FOCUS && state.phase !== PHASE.REQUESTING_SESSION) {
+        const ackRetry = state.phase === PHASE.RETRYABLE_ERROR && state.error && state.error.code === "ack_transport";
+        if (!ackRetry) return state;
+      }
+      return { ...state, phase: PHASE.ACKNOWLEDGING_ENTRY, ackKey: payload.key || state.ackKey, error: null };
 
     case ACTION.ACK_SUCCESS:
-      if (state.phase !== PHASE.ACKNOWLEDGING) return state;
+      if (state.phase !== PHASE.ACKNOWLEDGING_ENTRY) return state;
       return { ...state, phase: PHASE.READY, ackKey: null, checkpoint: payload.checkpoint || null, error: null };
 
     case ACTION.ACK_FAIL:
-      if (state.phase !== PHASE.ACKNOWLEDGING) return state;
+      if (state.phase !== PHASE.ACKNOWLEDGING_ENTRY) return state;
       return { ...state, phase: PHASE.RETRYABLE_ERROR, error: { code: "ack_transport", message: payload.message || "Не удалось подтвердить присутствие." } };
 
     case ACTION.STALE_REVISION:

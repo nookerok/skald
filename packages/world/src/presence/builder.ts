@@ -484,7 +484,15 @@ export function buildObserverSession(input: {
   playerContext: PlayerContext;
   checkpoint: ObserverCheckpoint | null;
 }): ObserverSessionDTO {
-  const internals = buildPresenceInternals(input);
+  return assembleObserverSession(buildPresenceInternals(input), input);
+}
+
+function assembleObserverSession(internals: PresenceInternals, input: {
+  events: readonly DomainEvent[];
+  world: ReadonlyWorld;
+  playerContext: PlayerContext;
+  checkpoint: ObserverCheckpoint | null;
+}): ObserverSessionDTO {
   const presence = buildPresenceSnapshot({
     playerContext: input.playerContext,
     revision: internals.revision,
@@ -510,6 +518,28 @@ export function buildObserverSession(input: {
       source: statement.source,
     }))),
   });
+}
+
+/**
+ * Builds the entry session and the known-worlds summary in a single
+ * derivation pass over one Event Log snapshot and one ReadonlyWorld. The two
+ * DTOs therefore always agree on revision and checkpointState by
+ * construction: `session.revision.worldTime === summary.currentWorldTime`
+ * and `session.checkpointState === summary.checkpointState` are invariants,
+ * not coincidences.
+ */
+export function buildObserverSessionAndSummary(input: {
+  worldId: string;
+  events: readonly DomainEvent[];
+  world: ReadonlyWorld;
+  playerContext: PlayerContext;
+  checkpoint: ObserverCheckpoint | null;
+}): { session: ObserverSessionDTO; summary: WorldPresenceSummary } {
+  const internals = buildPresenceInternals(input);
+  return {
+    session: assembleObserverSession(internals, input),
+    summary: assembleWorldPresenceSummary(internals, input.worldId, input.checkpoint?.lastPresenceWorldTime ?? null),
+  };
 }
 
 /** Diagnostics-only reconstruction with internal identifiers. */
@@ -555,9 +585,9 @@ export function buildPresenceDiagnostics(input: {
 /** Ready player-facing presence status; classification stays on the backend. */
 function presenceStatusText(state: CheckpointState, driftLevel: BeliefDriftLevel): string {
   if (state === "missing") return "Ты ещё не входил в этот мир.";
-  if (state === "incompatible") return "Прежнее присутствие не удалось восстановить.";
+  if (state === "incompatible") return "Твои прежние воспоминания нельзя надёжно восстановить. Мир приходится воспринимать заново.";
   switch (driftLevel) {
-    case "none": return "Мир почти такой, каким ты его помнишь.";
+    case "none": return "Мир кажется таким, каким ты его помнишь.";
     case "low": return "В мире появились едва заметные расхождения.";
     case "medium": return "Некоторые знания требуют повторной проверки.";
     case "high": return "Многое изменилось. Доверься новым наблюдениям.";
@@ -589,13 +619,18 @@ export function buildWorldPresenceSummary(input: {
   checkpoint: ObserverCheckpoint | null;
 }): WorldPresenceSummary {
   const internals = buildPresenceInternals({ ...input, playerContext: { locationTitle: "", locationDescription: "" } });
+  const checkpointTime = input.checkpoint?.lastPresenceWorldTime ?? null;
+  return assembleWorldPresenceSummary(internals, input.worldId, checkpointTime);
+}
+
+function assembleWorldPresenceSummary(internals: PresenceInternals, worldId: string, checkpointTime: number | null): WorldPresenceSummary {
   const valid = internals.checkpointState === "valid";
   return deepFreeze({
     schemaVersion: 1 as const,
-    worldId: input.worldId,
+    worldId,
     // A missing or unverifiable checkpoint has no trustworthy presence time.
-    lastPresenceWorldTime: valid ? (input.checkpoint?.lastPresenceWorldTime ?? null) : null,
-    currentWorldTime: input.world.time,
+    lastPresenceWorldTime: valid ? checkpointTime : null,
+    currentWorldTime: internals.revision.worldTime,
     worldTimeDelta: internals.drift.worldTimeDelta,
     checkpointState: internals.checkpointState,
     driftLevel: internals.drift.level,

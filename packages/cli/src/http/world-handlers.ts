@@ -6,8 +6,7 @@ import {
   buildPlayerGuidance,
   buildGameShellSnapshot,
   buildBeliefModel,
-  buildObserverSession,
-  buildWorldPresenceSummary,
+  buildObserverSessionAndSummary,
   computeBeliefRevision,
   parseBeliefModelDTO,
   serializeBeliefModel,
@@ -283,10 +282,13 @@ export function handleObserverSession(runtime: WorldRuntime, worldId: string): J
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
-  const session = buildObserverSession({ events, world, playerContext: resolvePlayerContext(world), checkpoint });
+  const { session, summary } = buildObserverSessionAndSummary({
+    worldId, events, world, playerContext: resolvePlayerContext(world), checkpoint,
+  });
   return json({
     ok: true,
     session: { ...session, beliefModel: parseBeliefModelDTO(session.beliefModel) },
+    summary,
   });
 }
 
@@ -294,8 +296,9 @@ export function handleWorldPresence(runtime: WorldRuntime, worldId: string): Jso
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
-  const session = buildObserverSession({ events, world, playerContext: resolvePlayerContext(world), checkpoint });
-  const summary = buildWorldPresenceSummary({ worldId, events, world, checkpoint });
+  const { session, summary } = buildObserverSessionAndSummary({
+    worldId, events, world, playerContext: resolvePlayerContext(world), checkpoint,
+  });
   return json({ ok: true, checkpoint, presence: session.presence, summary });
 }
 

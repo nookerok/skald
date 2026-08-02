@@ -1,19 +1,22 @@
 // presence-entry-controller.js — drives the deterministic entry state
-// machine: session fetch, presence/focus rendering, durable acknowledge
-// retry, reload recovery and graceful return. I/O lives here; all decisions
-// live in presence-entry-state.js.
+// machine: atomic session fetch (session + summary on one revision),
+// presence/focus phases with explicit player transitions, durable
+// acknowledge retry, reload recovery and the presence lease. I/O lives
+// here; all decisions live in presence-entry-state.js.
 
 import {
   transitionPresenceEntry,
   initialState,
   PHASE,
   ACTION,
-  LOADING_TEXT,
+  loadingTextForPhase,
   ackStorageKey,
 } from "./presence-entry-state.js";
 import { fetchObserverSession, acknowledgePresence, createRequestKey } from "./world-api-client.js";
 import { renderPresenceView } from "./presence-view.js";
 import { renderFocusView } from "./focus-view.js";
+import { savePresenceLease } from "./presence-lease.js";
+import { clearExitPending } from "./presence-exit-controller.js";
 
 let state = initialState();
 let container = null;
@@ -44,17 +47,28 @@ function focusables() {
 function trapFocus() {
   const list = focusables();
   if (list.length === 0) return;
-  list[0].focus();
+  const first = list[0];
+  first.focus();
 }
 
-function renderLoading() {
+function focusPhaseTitle() {
+  const title = container.querySelector("[data-phase-title]");
+  if (title) title.focus();
+  else trapFocus();
+}
+
+function setBusy(busy) {
+  if (container) container.setAttribute("aria-busy", String(busy));
+}
+
+function renderLoading(phase) {
   const card = document.createElement("div");
   card.className = "presence-entry-card";
   const line = document.createElement("p");
   line.className = "presence-entry-loading";
   line.setAttribute("role", "status");
   line.setAttribute("aria-live", "polite");
-  line.textContent = LOADING_TEXT;
+  line.textContent = loadingTextForPhase(phase);
   card.appendChild(line);
   container.replaceChildren(card);
 }
@@ -82,28 +96,29 @@ function renderError(title, message, retryLabel, onRetry) {
   trapFocus();
 }
 
-function renderEntry() {
-  const fragment = document.createDocumentFragment();
-  fragment.appendChild(renderPresenceView(state.session, state.summary));
-  fragment.appendChild(renderFocusView(state.session));
-  container.replaceChildren(fragment);
-  trapFocus();
-}
-
 function render() {
   if (!container) return;
   switch (state.phase) {
     case PHASE.REQUESTING_SESSION:
-    case PHASE.ACKNOWLEDGING:
-      renderLoading();
+      setBusy(true);
+      renderLoading(PHASE.REQUESTING_SESSION);
+      return;
+    case PHASE.ACKNOWLEDGING_ENTRY:
+      setBusy(true);
+      renderLoading(PHASE.ACKNOWLEDGING_ENTRY);
       return;
     case PHASE.PRESENCE:
+      setBusy(false);
       container.replaceChildren(renderPresenceView(state.session, state.summary));
+      focusPhaseTitle();
       return;
     case PHASE.FOCUS:
-      renderEntry();
+      setBusy(false);
+      container.replaceChildren(renderFocusView(state.session));
+      focusPhaseTitle();
       return;
     case PHASE.RETRYABLE_ERROR:
+      setBusy(false);
       if (state.error && state.error.code === "ack_transport") {
         renderError("Не удалось подтвердить присутствие.", state.error.message, "Попробовать снова", retryAck);
       } else {
@@ -111,9 +126,11 @@ function render() {
       }
       return;
     case PHASE.STALE_REVISION:
+      setBusy(false);
       renderError("Мир успел измениться.", "Возвращаемся к свежим наблюдениям…", "Продолжить", retrySession);
       return;
     case PHASE.UNAVAILABLE:
+      setBusy(false);
       renderError("Мир сейчас недоступен.", state.error && state.error.message, "Вернуться в меню", () => { window.location.hash = "#/menu"; });
       return;
     default:
@@ -128,9 +145,10 @@ async function loadSession() {
     render();
     return;
   }
-  state = transitionPresenceEntry(state, ACTION.SESSION_OK, { session: result.body.session });
-  render();
-  state = transitionPresenceEntry(state, ACTION.PRESENCE_RENDERED);
+  state = transitionPresenceEntry(state, ACTION.SESSION_OK, {
+    session: result.body.session,
+    summary: result.body.summary,
+  });
   render();
 }
 
@@ -141,6 +159,7 @@ async function ack(key, worldTime, eventNumber) {
   const result = await acknowledgePresence(worldId, key, worldTime, eventNumber);
   if (result.body && result.body.ok) {
     clearPending();
+    savePresenceLease(worldId, { worldTime, eventNumber });
     state = transitionPresenceEntry(state, ACTION.ACK_SUCCESS, { checkpoint: result.body.checkpoint });
     window.dispatchEvent(new CustomEvent("skald:presence-ready", { detail: { worldId } }));
     return;
@@ -172,14 +191,21 @@ async function ack(key, worldTime, eventNumber) {
 export async function startPresenceEntry(targetContainer, targetWorldId) {
   container = targetContainer;
   worldId = targetWorldId;
+  // A fresh entry voids any unfinished graceful-return intent.
+  clearExitPending(worldId);
+  window.addEventListener("skald:presence-continue", () => {
+    if (state.phase !== PHASE.PRESENCE) return;
+    state = transitionPresenceEntry(state, ACTION.PRESENCE_CONTINUE);
+    render();
+  });
   window.addEventListener("skald:presence-ack", () => {
-    if (state.phase === PHASE.FOCUS) {
-      const revision = state.session && state.session.revision;
-      if (revision) ack(createRequestKey("presence-ack"), revision.worldTime, revision.eventNumber);
-    }
+    if (state.phase !== PHASE.FOCUS) return;
+    const revision = state.session && state.session.revision;
+    if (revision) ack(createRequestKey("presence-ack"), revision.worldTime, revision.eventNumber);
   });
   window.addEventListener("keydown", (event) => {
-    if (state.phase !== PHASE.FOCUS && state.phase !== PHASE.RETRYABLE_ERROR && state.phase !== PHASE.STALE_REVISION) return;
+    const interactive = [PHASE.PRESENCE, PHASE.FOCUS, PHASE.RETRYABLE_ERROR, PHASE.STALE_REVISION];
+    if (!interactive.includes(state.phase)) return;
     if (event.key !== "Tab") return;
     const list = focusables();
     if (list.length < 2) return;

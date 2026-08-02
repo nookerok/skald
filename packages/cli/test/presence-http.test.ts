@@ -2,7 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import { startServer } from "../src/http-server.js";
+
+const nodeRequire = createRequire(import.meta.url);
 
 let server: Awaited<ReturnType<typeof startServer>>;
 const dbPath = join(mkdtempSync(join(tmpdir(), "skald-presence-http-")), "events.sqlite");
@@ -124,7 +127,7 @@ describe("Observer presence HTTP contract", () => {
     expect(summary.lastPresenceWorldTime).toBe(s.session.revision.worldTime);
     expect(summary.worldTimeDelta).toBe(0);
     expect(summary.driftLevel).toBe("none");
-    expect(summary.presenceStatus).toBe("Мир почти такой, каким ты его помнишь.");
+    expect(summary.presenceStatus).toBe("Мир кажется таким, каким ты его помнишь.");
     expect(summary.knowledgeStatus).toBeNull();
   });
 
@@ -297,5 +300,80 @@ describe("Observer presence HTTP contract", () => {
     expect(post.status).toBe(405);
     const get = await api("/api/worlds/presence-world/presence/acknowledge");
     expect(get.status).toBe(405);
+  });
+
+  it("observer-session carries session and summary together", async () => {
+    const { status, body } = await session();
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.session.schemaVersion).toBe(1);
+    expect(body.summary.schemaVersion).toBe(1);
+    expect(body.summary.worldId).toBe("presence-world");
+  });
+
+  it("session and summary are derived from one revision", async () => {
+    const { body } = await session();
+    expect(body.session.revision.worldTime).toBe(body.summary.currentWorldTime);
+    expect(body.session.revision.eventNumber).toBeGreaterThanOrEqual(0);
+  });
+
+  it("session and summary report the same checkpoint state", async () => {
+    const { body } = await session();
+    expect(body.session.checkpointState).toBe(body.summary.checkpointState);
+    if (body.session.checkpoint) {
+      expect(body.summary.lastPresenceWorldTime).toBe(body.session.checkpoint.lastPresenceWorldTime);
+    }
+  });
+
+  it("an incompatible checkpoint is reflected identically in session and summary", async () => {
+    // Corrupt the stored belief revision through a second SQLite connection.
+    const { DatabaseSync } = nodeRequire("node:sqlite") as { DatabaseSync: new (path: string) => {
+      exec(sql: string): void;
+      close(): void;
+    } };
+    const corrupt = new DatabaseSync(dbPath);
+    corrupt.exec("UPDATE observer_checkpoints SET belief_revision = belief_revision + 1 WHERE world_id = 'presence-world'");
+    corrupt.close();
+
+    const { body } = await session();
+    expect(body.session.checkpointState).toBe("incompatible");
+    expect(body.summary.checkpointState).toBe("incompatible");
+    expect(body.summary.lastPresenceWorldTime).toBeNull();
+    expect(body.session.checkpoint).not.toBeNull();
+    expect(body.session.drift.level).toBe("none");
+    expect(body.session.statements).toEqual([]);
+    expect(body.summary.presenceStatus).toContain("Мир приходится воспринимать заново.");
+
+    // Restore so later suites see a valid checkpoint again.
+    const restore = new DatabaseSync(dbPath);
+    restore.exec("UPDATE observer_checkpoints SET belief_revision = belief_revision - 1 WHERE world_id = 'presence-world'");
+    restore.close();
+  });
+
+  it("the atomic response carries no forbidden truth fields", async () => {
+    const { body } = await session();
+    const text = JSON.stringify({ session: body.session, summary: body.summary });
+    expect(text).not.toContain("eventId");
+    expect(text).not.toContain("correlationId");
+    expect(text).not.toContain("causationId");
+    expect(text).not.toContain("activeSituations");
+    expect(text).not.toContain("consequences");
+    expect(text).not.toContain("trueState");
+    expect(text).not.toContain("actualState");
+    expect(text).not.toContain("threadKey");
+    // targetId/patternId/evidenceId are observer-scoped BeliefModelDTO
+    // contract fields; only hidden world truth and log plumbing are banned.
+  });
+
+  it("fetching the session never changes the Event Log or the checkpoint", async () => {
+    const beforeState = await api("/api/worlds/presence-world/state");
+    const beforeSession = await session();
+    await session();
+    await session();
+    const afterState = await api("/api/worlds/presence-world/state");
+    const afterSession = await session();
+    expect(afterState.body.state.eventNumber).toBe(beforeState.body.state.eventNumber);
+    expect(afterState.body.state.worldTime).toBe(beforeState.body.state.worldTime);
+    expect(afterSession.body.session.checkpoint).toEqual(beforeSession.body.session.checkpoint);
   });
 });

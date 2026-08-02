@@ -102,6 +102,7 @@ export type { CriticalCheckState, CheckKind, CheckOutcome, DieType, CriticalModi
 // UX-6 — Observer presence reconstruction (read-only)
 export {
   buildObserverSession,
+  buildObserverSessionAndSummary,
   buildWorldPresenceSummary,
   buildPresenceDiagnostics,
   computePresenceDrift,

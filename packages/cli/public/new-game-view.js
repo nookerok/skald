@@ -379,7 +379,7 @@ async function submitPendingRequest() {
       clearDraft();
       clearPendingRequest();
       pendingReq = null;
-      window.location.hash = "#/world/" + targetWorldId;
+      window.location.hash = "#/world/" + targetWorldId + "/return";
     } else if (result.error && (result.error.code === "conflict" || result.error.code === "invalid_request")) {
       // Terminal error — show message and offer start-over
       pendingReq.state = "terminal";
