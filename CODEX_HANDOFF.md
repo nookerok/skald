@@ -4,20 +4,28 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: clean. UX-6.2 committed as 84e1011 and pushed; deployed to
-Orange Pi via update-orange-pi.sh (fast-forward from e156122, backup +
-integrity OK, on-device 1003 tests PASS, health/state OK, 10-turn smoke PASS:
-200×10 with ok:true, presentation.primary non-null, worldTime +1 per turn,
-409 on duplicate idempotency key). NTFS visual QA for UX-6.1 and UX-6.2
-remains BLOCKED (Codex backend 403 via Cloudflare); assignments are queued
-in thread 019fa52b-1610-7b23-9567-37891d24c782 and must be run once the
+Working tree: dirty (UX-6.2.1 hardening uncommitted — see Current
+milestone; UX-6.2 is deployed as 84e1011). Deployment record: Orange Pi
+update-orange-pi.sh (fast-forward from e156122, backup + integrity OK,
+on-device 1003 tests PASS, health/state OK, 10-turn smoke PASS: 200×10 with
+ok:true, presentation.primary non-null, worldTime +1 per turn, 409 on
+duplicate idempotency key). NTFS visual QA for UX-6.1 and UX-6.2 remains
+BLOCKED (Codex backend 403 via Cloudflare); assignments are queued in
+thread 019fa52b-1610-7b23-9567-37891d24c782 and must be run once the
 backend is reachable.
 
 ## Current milestone
 
-UX-6.2 "Observer Active Threads" implemented, validated (`npm run validate`
-PASS: typecheck + 69 files / 1003 tests, 1 pre-existing skip), committed
-84e1011, pushed, and deployed to Orange Pi (see top section).
+UX-6.2.1 hardening (in progress, validated locally): incompatible
+checkpoints handled explicitly by `buildObserverThreadDelta` — a checkpoint
+that presence resolves as `incompatible` is no memory at all (empty delta,
+current threads treated as a fresh reconstruction); CLI call site passes the
+resolved `checkpointState` through. 4 regression tests: no false `changed`,
+no false `resolved`, no offline-event leak (fully offline fire playthrough
+yields an empty journal and delta, no event names in the DTO), and the
+delta/journal match the missing-checkpoint result. `npm run validate` PASS
+(69 files / 1007 tests, 1 pre-existing skip). Dependency audit classified
+(see Next #3).
 - ADR-0010 `docs/adr/0010-observer-active-threads.md` (accepted, 10 points)
   + GLOSSARY terms (World Process, Observer Thread, Thread Evidence, Known
   Lifecycle, Knowledge State, Re-observation, Observer Thread Journal).
@@ -34,8 +42,9 @@ PASS: typecheck + 69 files / 1003 tests, 1 pre-existing skip), committed
   orthogonal; memory only from a `valid` observer checkpoint.
   `buildObserverThreadJournal({events, beliefModel, checkpoint,
   checkpointState, revision})` — checkpointState is a required caller input;
-  `buildObserverThreadDelta({events, journal, checkpoint})` → opened /
-  changed / resolved / becameUncertain.
+  `buildObserverThreadDelta({events, journal, checkpoint, checkpointState})`
+  → opened / changed / resolved / becameUncertain; incompatible checkpoint
+  is treated as no memory (UX-6.2.1).
 - HTTP: `GET /api/worlds/:id/observer-threads` (200/405/404/503),
   `/observer-session` gains `threads` (same revision as session),
   command/wait/`advance N` responses gain `observerThreads` +
@@ -60,6 +69,12 @@ PASS: typecheck + 69 files / 1003 tests, 1 pre-existing skip), committed
   tests, CLI 28 files / 376 tests (1 pre-existing skip).
 
 ## Completed
+
+UX-6.2.1 hardening: `buildObserverThreadDelta` treats `checkpointState ===
+"incompatible"` identically to a missing checkpoint — no remembered
+baseline, no comparison against corrupted memory; regression tests cover
+false `changed`/`resolved`, offline-event non-disclosure and equality with
+the no-checkpoint result. Dependency audit classified (see Next #3).
 
 UX-6.1 "Presence Lifecycle Completion" (commits through 76f609c, deployed
 to Orange Pi: update + backup/integrity + 948 tests on-device + health/state
@@ -106,11 +121,33 @@ World Interaction Model v0 first vertical slice:
    thread. Record PASS/FAIL/BLOCKED in this file independently of validate.
 2. Design write-capable offline actions with explicit synchronization and
    conflict-resolution semantics (roadmap open item).
-3. The five npm audit findings (3 moderate, 1 high, 1 critical) remain a
-   separate dependency-security task; Vitest UI must not be exposed to LAN.
-4. Consider hardening `buildObserverThreadDelta` against incompatible
-   checkpoints (it currently only guards `checkpoint === null`) with a
-   regression test.
+3. Dependency audit (separate task, not mixed with game iteration).
+   Classification completed 2026-08-02:
+   - Production tree is clean: root package.json has zero `dependencies`;
+     `npm audit --omit=dev` reports 0 findings. Runtime deps are only
+     `zod`/`zod-to-json-schema` (packages/observation) plus internal
+     `@skald/*` workspace links.
+   - All 5 findings are dev-only test tooling: `vitest@2.1.9` (critical,
+     advisory 1120126, fixed in 3.2.6+), `vite@5.4.21` (high, fixed
+     6.4.3+), `esbuild` (moderate; installed 0.28.1 via tsx — the flagged
+     range is <=0.24.2, so this entry is stale), `vite-node@2.1.9` and
+     `@vitest/mocker@2.1.9` (moderate, via vitest).
+   - LAN reachability: NOT reachable. `skald.service` on the Pi runs the
+     Node server only; vite/vitest are never started by the service; `npm
+     test` runs only during an authorized update and binds nothing. Vitest
+     UI must never be exposed to LAN.
+   - Fix decision deferred by design (no blind major bump): npm's only
+     complete `fixAvailable` is `vitest@4.1.10` (semver-major); the
+     critical alone is fixed by `vitest@3.2.6` in the current major, but
+     that still resolves an affected vite unless overridden. The task must
+     evaluate vitest 4 migration (Node 22 OK; CLI/config deltas) vs pinned
+     vitest 3.2.6 + vite 6.4.3 override, then run the full suite (1007+
+     tests) and `npm run validate` before any change is accepted.
+4. UX-6.2.1 hardening is DONE (see Completed): `buildObserverThreadDelta`
+   now takes `checkpointState` and treats `incompatible` exactly like a
+   missing checkpoint (no remembered baseline, no false changed/resolved,
+   no offline leak, delta equals the no-checkpoint result); 4 regression
+   tests added.
 
 Note: ssh from WSL to 192.168.0.5 is currently broken (lands on a stale
 endpoint with user `nook`); use the Windows OpenSSH client with
