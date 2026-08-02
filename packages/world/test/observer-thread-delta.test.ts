@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { BeliefModelDTO } from "../src/observation/types.js";
 import { bootstrapWorldEvents } from "../src/bootstrap.js";
-import { reconstructCheckpointModel, computeBeliefRevision } from "../src/presence/index.js";
-import type { ObserverCheckpoint } from "../src/presence/types.js";
+import { reconstructCheckpointModel, computeBeliefRevision, resolveCheckpointState } from "../src/presence/index.js";
+import type { CheckpointState, ObserverCheckpoint } from "../src/presence/types.js";
 import { buildObserverThreadJournal, buildObserverThreadDelta } from "../src/observer-threads/index.js";
 
 function e(eventId: string, type: string, timestamp: number, payload: Record<string, unknown>): DomainEvent {
@@ -50,16 +50,21 @@ function checkpointAt(events: readonly DomainEvent[], time: number): ObserverChe
   };
 }
 
-function journalAndDelta(events: readonly DomainEvent[], time: number, checkpoint: ObserverCheckpoint | null) {
+function journalAndDelta(
+  events: readonly DomainEvent[],
+  time: number,
+  checkpoint: ObserverCheckpoint | null,
+  checkpointState: CheckpointState = checkpoint ? "valid" : "missing",
+) {
   const revision = { worldTime: time, eventNumber: events.filter((ev) => ev.timestamp <= time).length };
   const journal = buildObserverThreadJournal({
     events,
     beliefModel: EMPTY_MODEL,
     checkpoint,
-    checkpointState: checkpoint ? "valid" : "missing",
+    checkpointState,
     revision,
   });
-  const delta = buildObserverThreadDelta({ events, journal, checkpoint });
+  const delta = buildObserverThreadDelta({ events, journal, checkpoint, checkpointState });
   return { journal, delta };
 }
 
@@ -135,5 +140,62 @@ describe("buildObserverThreadDelta", () => {
     const json = JSON.stringify(delta);
     expect(json).not.toContain("situation:");
     expect(json).not.toContain("ForestFireStarted");
+  });
+
+  it("an incompatible checkpoint claims nothing changed", () => {
+    const events = [...bootstrapWorldEvents(), fireStarted(1), tick(1)];
+    const checkpoint = checkpointAt(events, 1);
+    const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
+    expect(resolveCheckpointState(events, corrupted).state).toBe("incompatible");
+    const more = [...events, e("tb-3", "TreeBurned", 3, { burnedAt: 3, treeIndex: 0 }), tick(3)];
+    const valid = journalAndDelta(more, 3, checkpoint);
+    const incompatible = journalAndDelta(more, 3, corrupted, "incompatible");
+    expect(valid.delta.changed).toHaveLength(1);
+    expect(incompatible.delta).toEqual({ opened: [], changed: [], resolved: [], becameUncertain: [] });
+  });
+
+  it("an incompatible checkpoint claims nothing resolved", () => {
+    const events = [...bootstrapWorldEvents(), fireStarted(1), tick(1)];
+    const checkpoint = checkpointAt(events, 1);
+    const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
+    expect(resolveCheckpointState(events, corrupted).state).toBe("incompatible");
+    const more = [...events, fireEnded(8), tick(8)];
+    const valid = journalAndDelta(more, 8, checkpoint);
+    const incompatible = journalAndDelta(more, 8, corrupted, "incompatible");
+    expect(valid.delta.resolved).toHaveLength(1);
+    expect(incompatible.delta.resolved).toEqual([]);
+  });
+
+  it("an incompatible checkpoint never reveals offline events", () => {
+    const events = [
+      ...bootstrapWorldEvents(),
+      fireStarted(1), tick(1, true),
+      e("tb-2", "TreeBurned", 2, { burnedAt: 2, treeIndex: 0 }), tick(2, true),
+      fireEnded(8), tick(8, true),
+    ];
+    const checkpoint = checkpointAt(events, 0);
+    const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
+    expect(resolveCheckpointState(events, corrupted).state).toBe("incompatible");
+    const { journal, delta } = journalAndDelta(events, 8, corrupted, "incompatible");
+    expect(journal.threads).toEqual([]);
+    expect(delta).toEqual({ opened: [], changed: [], resolved: [], becameUncertain: [] });
+    const json = JSON.stringify({ journal, delta });
+    expect(json).not.toContain("ForestFireStarted");
+    expect(json).not.toContain("SituationEnded");
+    expect(json).not.toContain("situation:");
+  });
+
+  it("an incompatible checkpoint matches the missing-checkpoint result", () => {
+    const events = [
+      ...bootstrapWorldEvents(),
+      fireStarted(1), tick(1),
+      e("tb-3", "TreeBurned", 3, { burnedAt: 3, treeIndex: 0 }), tick(3),
+    ];
+    const checkpoint = checkpointAt(events, 1);
+    const corrupted = { ...checkpoint, beliefRevision: checkpoint.beliefRevision + 1 };
+    const missing = journalAndDelta(events, 3, null, "missing");
+    const incompatible = journalAndDelta(events, 3, corrupted, "incompatible");
+    expect(JSON.stringify(incompatible.delta)).toBe(JSON.stringify(missing.delta));
+    expect(JSON.stringify(incompatible.journal)).toBe(JSON.stringify(missing.journal));
   });
 });

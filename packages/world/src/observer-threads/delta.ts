@@ -5,12 +5,14 @@
  *
  * The delta is derived from the returned (capped) journal DTO and the
  * checkpoint memory: a missing or incompatible checkpoint yields empty
- * arrays (no memory, no change claims).
+ * arrays (no memory, no change claims). The caller passes the same
+ * `checkpointState` that presence resolved for the same events, so a
+ * corrupted memory is never compared against.
  */
 
 import type { DomainEvent } from "@skald/event-bus";
 import { buildTurnJournal } from "../journal/builder.js";
-import type { ObserverCheckpoint } from "../presence/types.js";
+import type { CheckpointState, ObserverCheckpoint } from "../presence/types.js";
 import { computeThreadRef } from "./definitions.js";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "./types.js";
 
@@ -32,8 +34,13 @@ export function buildObserverThreadDelta(input: {
   events: readonly DomainEvent[];
   journal: ObserverThreadJournalDTO;
   checkpoint: ObserverCheckpoint | null;
+  checkpointState: CheckpointState;
 }): ObserverThreadDelta {
-  if (!input.checkpoint) return emptyDelta();
+  // Only a checkpoint that presence resolved as `valid` provides a remembered
+  // baseline. A missing or incompatible checkpoint is no memory at all: the
+  // current observable threads are a fresh reconstruction, so the delta
+  // claims nothing changed, resolved or became uncertain against it.
+  if (!input.checkpoint || input.checkpointState !== "valid") return emptyDelta();
   const checkpointJournal = buildTurnJournal(
     input.events.slice(0, input.checkpoint.lastPresenceEventNumber),
     { skipOfflineTurns: true },

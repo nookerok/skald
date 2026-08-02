@@ -105,14 +105,15 @@ function buildObserverThreadsForRuntime(runtime: WorldRuntime): { journal: Obser
   const world = runtime.projection.getSnapshot();
   const checkpoint = runtime.store.getObserverCheckpoint(runtime.worldId, "player");
   const beliefModel = serializeBeliefModel(buildBeliefModel(events, world, "player"));
+  const checkpointState = resolveCheckpointState(events, checkpoint).state;
   const journal = buildObserverThreadJournal({
     events,
     beliefModel,
     checkpoint,
-    checkpointState: resolveCheckpointState(events, checkpoint).state,
+    checkpointState,
     revision: { worldTime: world.time, eventNumber: world.eventNumber },
   });
-  const delta = buildObserverThreadDelta({ events, journal, checkpoint });
+  const delta = buildObserverThreadDelta({ events, journal, checkpoint, checkpointState });
   return { journal, delta };
 }
 
