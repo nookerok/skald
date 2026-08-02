@@ -4,22 +4,20 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: dirty (UX-6.2.1 hardening uncommitted — see Current
-milestone; UX-6.2 is deployed as 84e1011). Deployment record: Orange Pi
-update-orange-pi.sh (fast-forward from e156122, backup + integrity OK,
-on-device 1003 tests PASS, health/state OK, 10-turn smoke PASS: 200×10 with
-ok:true, presentation.primary non-null, worldTime +1 per turn, 409 on
-duplicate idempotency key). NTFS visual QA for UX-6.1 and UX-6.2 remains
-BLOCKED (Codex backend 403 via Cloudflare); assignments are queued in
-thread 019fa52b-1610-7b23-9567-37891d24c782 and must be run once the
-backend is reachable.
+Working tree: clean. UX-6.2.1 hardening deployed as 5f95eeb (71f1b9f code
++ 5f95eeb docs; fast-forward update, backup + integrity OK, on-device 1007
+tests PASS, health/state OK, idempotent smoke PASS: 200 ok:true + 409 on
+duplicate key). UX-6.2 deployed as 84e1011 (see Completed). NTFS visual QA
+for UX-6.1 and UX-6.2 remains BLOCKED (Codex backend 403 via Cloudflare);
+assignments are queued in thread 019fa52b-1610-7b23-9567-37891d24c782 and
+must be run once the backend is reachable.
 
 ## Current milestone
 
-UX-6.2.1 hardening (in progress, validated locally): incompatible
-checkpoints handled explicitly by `buildObserverThreadDelta` — a checkpoint
-that presence resolves as `incompatible` is no memory at all (empty delta,
-current threads treated as a fresh reconstruction); CLI call site passes the
+UX-6.2.1 hardening (deployed 5f95eeb): incompatible checkpoints handled
+explicitly by `buildObserverThreadDelta` — a checkpoint that presence
+resolves as `incompatible` is no memory at all (empty delta, current
+threads treated as a fresh reconstruction); CLI call site passes the
 resolved `checkpointState` through. 4 regression tests: no false `changed`,
 no false `resolved`, no offline-event leak (fully offline fire playthrough
 yields an empty journal and delta, no event names in the DTO), and the
