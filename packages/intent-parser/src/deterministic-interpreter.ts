@@ -11,39 +11,50 @@ import type {
   IntentReference,
   IntentResult,
   ClarificationRequest,
+  InteractionCommand,
+  InteractionVerb,
+  UnsupportedIntent,
 } from "./types.js";
 
 interface VerbEntry {
   readonly verb: string;
   readonly mode: IntentMode;
   readonly operation: IntentOperation;
+  /**
+   * Set for verbs routed through the canonical Interaction Model v1 pipeline
+   * (ADR-0013). Verbs without a canonical value keep the legacy
+   * ActionIntentCommand path and migrate per vertical slice.
+   */
+  readonly canonical?: InteractionVerb | undefined;
 }
 
 const VERBS: readonly VerbEntry[] = [
-  // observe
-  { verb: "осмотреть", mode: "perceive", operation: "observe" },
-  { verb: "изучить", mode: "perceive", operation: "observe" },
-  { verb: "рассмотреть", mode: "perceive", operation: "observe" },
-  { verb: "оглядеть", mode: "perceive", operation: "observe" },
-  { verb: "оглянуть", mode: "perceive", operation: "observe" },
-  { verb: "посмотреть", mode: "perceive", operation: "observe" },
-  { verb: "взглянуть", mode: "perceive", operation: "observe" },
-  { verb: "проверить", mode: "perceive", operation: "observe" },
+  // observe (canonical v1, Slice 1 — ADR-0013 §2)
+  { verb: "осмотреть", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "осматрива", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "рассмотреть", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "оглядеть", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "оглянуть", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "посмотреть", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "взглянуть", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "проверить", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "осмотр", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "рассматрив", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "посмотр", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "взгляд", mode: "perceive", operation: "observe", canonical: "observe" },
+  // inspect (canonical v1, Slice 1)
+  { verb: "изучить", mode: "perceive", operation: "observe", canonical: "inspect" },
+  { verb: "изуч", mode: "perceive", operation: "observe", canonical: "inspect" },
   { verb: "роздать", mode: "perceive", operation: "observe" },
-  { verb: "осмотр", mode: "perceive", operation: "observe" },
-  { verb: "изуч", mode: "perceive", operation: "observe" },
-  { verb: "рассматрив", mode: "perceive", operation: "observe" },
-  { verb: "посмотр", mode: "perceive", operation: "observe" },
-  { verb: "взгляд", mode: "perceive", operation: "observe" },
-  // listen
-  { verb: "слушать", mode: "perceive", operation: "listen" },
-  { verb: "прислушаться", mode: "perceive", operation: "listen" },
-  { verb: "прислушать", mode: "perceive", operation: "listen" },
-  { verb: "подслушать", mode: "perceive", operation: "listen" },
-  { verb: "вслушаться", mode: "perceive", operation: "listen" },
-  { verb: "вслушать", mode: "perceive", operation: "listen" },
-  { verb: "прислушива", mode: "perceive", operation: "listen" },
-  { verb: "слуш", mode: "perceive", operation: "listen" },
+  // listen (canonical v1, Slice 2 — ADR-0013 §2)
+  { verb: "слушать", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "прислушаться", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "прислушать", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "подслушать", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "вслушаться", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "вслушать", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "прислушива", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "слуш", mode: "perceive", operation: "listen", canonical: "listen" },
   // touch
   { verb: "тронуть", mode: "perceive", operation: "touch" },
   { verb: "трогать", mode: "perceive", operation: "touch" },
@@ -130,19 +141,47 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "охладить", mode: "interact", operation: "cool" },
   { verb: "залить", mode: "interact", operation: "cool" },
   { verb: "накрыть", mode: "interact", operation: "cool" },
-  // take
-  { verb: "взять", mode: "interact", operation: "take" },
-  { verb: "поднять", mode: "interact", operation: "take" },
-  { verb: "забрать", mode: "interact", operation: "take" },
-  { verb: "достать", mode: "interact", operation: "take" },
-  { verb: "собрать", mode: "interact", operation: "take" },
-  { verb: "взял", mode: "interact", operation: "take" },
-  { verb: "беру", mode: "interact", operation: "take" },
-  { verb: "берешь", mode: "interact", operation: "take" },
-  { verb: "берет", mode: "interact", operation: "take" },
-  { verb: "берем", mode: "interact", operation: "take" },
-  { verb: "берете", mode: "interact", operation: "take" },
-  { verb: "собира", mode: "interact", operation: "take" },
+  // take (canonical v1)
+  { verb: "взять", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "поднять", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "забрать", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "достать", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "собрать", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "взял", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "беру", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "берешь", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "берет", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "берем", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "берете", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "собира", mode: "interact", operation: "take", canonical: "take" },
+  // open (canonical v1)
+  { verb: "открыть", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "открыва", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "открою", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "открой", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "открыл", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "приоткрыть", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "приоткрыва", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "распахнуть", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "распахива", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "раскрыть", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "раскрыва", mode: "interact", operation: "open", canonical: "open" },
+  // give (canonical v1)
+  { verb: "отдать", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдам", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдай", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдаю", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдава", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдает", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдаешь", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "передать", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "передам", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "передай", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "передаю", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "передава", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "передает", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "вручить", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "вруча", mode: "interact", operation: "give", canonical: "give" },
   // place
   { verb: "положить", mode: "interact", operation: "place" },
   { verb: "поставить", mode: "interact", operation: "place" },
@@ -215,6 +254,35 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "подожд", mode: "wait", operation: "wait" },
   { verb: "погод", mode: "wait", operation: "wait" },
 ] as const;
+
+/**
+ * ё→е normalization for matching. Raw player text is never rewritten;
+ * `rawText` always carries the original input.
+ */
+function normalizeForMatch(text: string): string {
+  return text.toLowerCase().replace(/ё/g, "е");
+}
+
+/** Length-sorted verb table used for longest-stem-first matching. */
+const NORMALIZED_VERBS: readonly VerbEntry[] = [...VERBS]
+  .map((entry) => ({ ...entry, verb: normalizeForMatch(entry.verb) }))
+  .sort((a, b) => b.verb.length - a.verb.length);
+
+/** Canonical-only stem index for compound-intent rejection (ADR-0013 §8). */
+const CANONICAL_VERBS: readonly VerbEntry[] = NORMALIZED_VERBS.filter(
+  (entry) => entry.canonical !== undefined,
+);
+
+function findCanonicalStem(text: string): VerbEntry | undefined {
+  const lower = normalizeForMatch(text);
+  for (const entry of CANONICAL_VERBS) {
+    if (lower.includes(entry.verb)) return entry;
+  }
+  return undefined;
+}
+
+/** Leading softener words («попытаться открыть сундук») are stripped before verb matching. */
+const SOFTENER_PREFIX = /^(?:попытаться|попытаюсь|попытайтесь|попробовать|попробую|попробуй|попробуйте|пытаюсь|пытался)\s+/i;
 
 const INSTRUMENT_MARKERS = [
   "с помощью",
@@ -330,10 +398,8 @@ function extractTarget(text: string): IntentReference | undefined {
 }
 
 function findBestVerb(text: string): VerbEntry | undefined {
-  const lower = text.toLowerCase();
-  const sorted = [...VERBS].sort((a, b) => b.verb.length - a.verb.length);
-
-  for (const entry of sorted) {
+  const lower = normalizeForMatch(text);
+  for (const entry of NORMALIZED_VERBS) {
     if (lower.includes(entry.verb)) {
       return entry;
     }
@@ -403,6 +469,136 @@ export interface InterpreterOptions {
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.4;
 
+interface CanonicalParts {
+  readonly target?: IntentReference | undefined;
+  readonly secondaryTarget?: IntentReference | undefined;
+}
+
+/**
+ * give splits the remainder into item (first word) and recipient (the rest):
+ * «отдать пепел торговцу» → пепел / торговцу. v1 keeps the fixed word order
+ * item-first; other orders report ambiguity through interpretation.
+ */
+function splitGiveTargets(afterVerb: string): CanonicalParts {
+  const trimmed = afterVerb.trim();
+  if (trimmed.length === 0) return {};
+  const words = trimmed.split(/\s+/);
+  const rest = words.slice(1).join(" ").replace(/^(?:и|а|к|для|до)\s+/i, "").trim();
+  if (rest.length > 0) {
+    return { target: { raw: words[0]! }, secondaryTarget: { raw: rest } };
+  }
+  return { target: { raw: words[0]! } };
+}
+
+/** Concrete-target extraction with trailing punctuation and leading preposition stripped. */
+function canonicalTarget(afterVerb: string): IntentReference | undefined {
+  const cleaned = afterVerb.trim().replace(/[?!.,;:]+$/u, "");
+  if (cleaned.length === 0) return undefined;
+  const withoutPrep = cleaned
+    .replace(/^(?:к|в|на|у|из|от|до|по|про|для|между|перед|над|под|за|через)\s+/i, "")
+    .trim();
+  if (withoutPrep.length > 0 && withoutPrep !== cleaned) return { raw: withoutPrep };
+  return { raw: cleaned };
+}
+function isAmbientListenTarget(target: IntentReference | undefined): boolean {
+  if (!target) return false;
+  const value = target.raw.trim().toLowerCase();
+  return ["звук", "звуки", "звуков", "шум", "шумы", "окружение", "окрестности", "вокруг", "тишина"].includes(value);
+}
+
+
+/**
+ * A stem match may leave a conjugation remnant («осматрива» → «ю дверь»,
+ * «изуч» → «аю петли»). Deterministic v1: strip one leading verb ending
+ * (longest first) when the remnant starts a target phrase. Never applied to
+ * the raw text, only to the derived target fields.
+ */
+const VERB_ENDINGS = [
+  "ешься", "етесь", "ите", "ешь", "ется", "аете", "ают", "ять",
+  "аем", "ает", "аю", "емся", "ит", "им", "ат", "ют", "ить",
+  "ать", "ила", "или", "ил", "ал", "ала", "али", "ло", "ял",
+  "ся", "сь", "ю", "л",
+] as const;
+
+function stripConjugationRemnant(afterVerb: string): string {
+  const trimmed = afterVerb.trim();
+  if (trimmed.length === 0) return trimmed;
+  for (const ending of VERB_ENDINGS) {
+    const pattern = new RegExp(`^${ending}(?=\\s|$)`, "i");
+    if (pattern.test(trimmed)) {
+      return trimmed.slice(ending.length).trim();
+    }
+  }
+  return trimmed;
+}
+
+function buildInteractionCommand(
+  verb: InteractionVerb,
+  parts: CanonicalParts,
+  instrument: IntentReference | undefined,
+  goal: string | undefined,
+  rawText: string,
+  ambiguities: readonly string[],
+): InteractionCommand {
+  let confidence = 0.7;
+  if (parts.target) confidence += 0.1;
+  if (parts.secondaryTarget) confidence += 0.1;
+  if (instrument) confidence += 0.05;
+  if (goal) confidence += 0.05;
+  confidence = Math.min(1.0, Math.round(confidence * 100) / 100);
+  return {
+    type: "InteractionCommand",
+    verb,
+    target: parts.target,
+    secondaryTarget: parts.secondaryTarget,
+    instrument,
+    rawText,
+    interpretation: { source: "deterministic", confidence, ambiguities },
+  };
+}
+
+/**
+ * Canonical Interaction Model v1 branch (ADR-0013 §2): maps the matched verb
+ * stem to the canonical InteractionVerb and reports structural problems
+ * (empty target, give without recipient, compound intents) through
+ * interpretation meta or UnsupportedIntent — never through world checks.
+ */
+function buildCanonical(
+  verb: InteractionVerb,
+  afterVerb: string,
+  context: { instrument: IntentReference | undefined; goal: string | undefined; rawText: string },
+): InteractionCommand | UnsupportedIntent {
+  const compound = findCanonicalStem(afterVerb);
+  const remainder = stripConjugationRemnant(afterVerb);
+
+  const parts: CanonicalParts =
+    verb === "give"
+      ? splitGiveTargets(remainder)
+      : (() => {
+          const target = canonicalTarget(remainder);
+          return verb === "listen" && isAmbientListenTarget(target) ? {} : target ? { target } : {};
+        })();
+
+  const ambiguities: string[] = [];
+  if (!parts.target) {
+    ambiguities.push(verb === "give" ? "give without an item" : "no clear target identified");
+  }
+  if (verb === "give" && parts.target && !parts.secondaryTarget) {
+    ambiguities.push("give without a recipient");
+  }
+
+  const command = buildInteractionCommand(verb, parts, context.instrument, context.goal, context.rawText, ambiguities);
+
+  if (compound) {
+    return {
+      type: "UnsupportedButUnderstood",
+      intent: command,
+      message: "Одна команда — одно намерение.",
+    };
+  }
+  return command;
+}
+
 export function interpretIntent(
   rawText: string,
   options?: InterpreterOptions,
@@ -420,13 +616,13 @@ export function interpretIntent(
     };
   }
 
-  let text = trimmed.toLowerCase();
+  let text = normalizeForMatch(trimmed);
   const { instrument, cleaned: afterInstrument } = extractInstrument(text);
   text = afterInstrument;
   const { goal, cleaned: afterGoal } = extractGoal(text);
   text = afterGoal;
   const { utterance, cleaned: afterUtterance } = extractUtterance(text);
-  text = afterUtterance;
+  text = afterUtterance.replace(SOFTENER_PREFIX, "").trim();
 
   const verb = findBestVerb(text);
 
@@ -489,6 +685,10 @@ export function interpretIntent(
       rawText,
       interpretation: { source: "deterministic", confidence: 0.9, ambiguities: [] },
     };
+  }
+
+  if (verb.canonical) {
+    return buildCanonical(verb.canonical, afterVerb, { instrument, goal, rawText });
   }
 
   const target = extractTarget(afterVerb);

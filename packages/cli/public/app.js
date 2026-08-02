@@ -1,6 +1,6 @@
 import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderTurnHistory, renderShellConnection, setShellBusy, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
+import { renderGameShell, renderTurnHistory, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadMenu } from "./menu-view.js";
@@ -167,10 +167,15 @@ async function handle(input, overrideKey) {
 async function connect() {
   interactionReady = false;
   dispatch("RECONNECT");
+  // Cover the static shell frame (hardcoded «Ход 0» placeholders) with the
+  // loading dialog until the first snapshot renders — without this the shell
+  // flashes with a T0 frame right after the acknowledge completes.
+  setShellLoading(true);
   setShellBusy(true, "Читаем летопись…");
   const stateResult = await fetchState();
   const shellOk = await refreshShell();
   if (!stateResult.body || !shellOk) {
+    setShellLoading(false);
     dispatch("BOOT_FAILURE");
     renderShellConnection("error", "Нет связи");
     setShellBusy(false);
@@ -184,6 +189,7 @@ async function connect() {
   dispatch("RECONNECT_SUCCESS");
   renderShellConnection("ready", "Мир слушает");
   await flushOfflineQueue();
+  setShellLoading(false);
   setShellBusy(false);
 }
 function showPanel(name) {

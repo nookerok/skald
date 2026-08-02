@@ -323,6 +323,19 @@ never lifecycle. Thread keys map to existing Presentation Template keys;
 id. Memory comes from the same `observer_checkpoints` as presence; a missing
 or incompatible checkpoint means no memory of threads.
 
+### 5.3.5 First living region and observer-scoped map
+
+ADR-0012 and `docs/LIVING_WORLD_REGION_ARCHITECTURE.md` accept the spatial
+architecture for the 20×20 km pilot region. Authored geography becomes
+canonical only through deterministic bootstrap Domain Events; the backend
+reconstructs a disposable `SpatialWorldProjection`. The normal browser never
+receives this truth projection. It receives only an `ObserverMapDTO` derived
+through Observation and Belief, with uncertainty and freshness preserved.
+
+This is an architecture proposal, not a runtime claim. Region Events, Rules,
+Projection fields, map DTOs, streaming and UI require explicit vertical slices
+and replay/non-disclosure tests before they may be reported as implemented.
+
 ### 5.4 Situations — долгоживущие правила во времени
 
 **Решение:** Situation — не объект, не менеджер, не сценарий. Это обычное Rule, которое активируется/деактивируется событиями и действует на `TickPassed`.

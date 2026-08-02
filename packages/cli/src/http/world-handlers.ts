@@ -151,13 +151,13 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         if ("type" in r && (r as any).type === "IdempotencyReject")
           return error("duplicate_request", "duplicate idempotencyKey", 409);
         const tickResult = r as { tickEvents: DomainEvent[] };
-      const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
-      const guidance = buildGuidance(runtime);
-      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-      const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
-    }
-    if (input.startsWith("advance ")) {
+        const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
+        const guidance = buildGuidance(runtime);
+        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+        const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+      }
+      if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
         const n = Number(raw);
         if (!Number.isSafeInteger(n) || n < 1 || n > 100) return error("invalid_request", "advance N (1-100, integer)");
@@ -169,7 +169,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const guidance = buildGuidance(runtime);
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
@@ -189,10 +189,9 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       return json({
         ok: true,
-        events: cmdResult.events,
-        tickEvents: cmdResult.tickEvents,
-        position: cmdResult.position,
         state: serializeWorldStateFromRuntime(runtime),
+        position: cmdResult.position,
+        // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
         presentation: pres,
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
@@ -235,7 +234,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       if (parsed.type === "ParseError") {
         return json({ ok: true, resolution: "rejected", message: "Не удалось понять намерение. Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unparsable" });
       }
-      if (parsed.type !== "IntentCommand") {
+      if (parsed.type !== "InteractionCommand") {
         return json({ ok: true, resolution: "rejected", message: "Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unsupported_offline_intent" });
       }
 
@@ -265,10 +264,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         resolution: "accepted",
         message: null,
         reason: null,
-        events: cmdResult.events,
-        tickEvents: cmdResult.tickEvents,
-        position: cmdResult.position,
         state: serializeWorldStateFromRuntime(runtime),
+        // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
         presentation: pres,
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
@@ -363,12 +360,12 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       const result = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: false });
       if ("type" in result && (result as IdempotencyReject).type === "IdempotencyReject")
         return error("duplicate_request", "duplicate idempotencyKey", 409);
-      const r = result as { tickEvents: DomainEvent[] };
-      const pres = selectTurnPresentation(r.tickEvents, runtime.projection.getSnapshot());
+      const tickResult = result as { tickEvents: DomainEvent[] };
+      const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+      return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }
@@ -522,7 +519,7 @@ export async function runCommandCycleForRuntime(
   }
 
   const parsed = parseIntent(input);
-  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "IntentCommand") return error("parse_error", "Could not understand input", 400);
+  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand") return error("parse_error", "Could not understand input", 400);
 
   const ts = runtime.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;

@@ -2,6 +2,7 @@ import { commandEventId } from "../ids.js";
 import type { DomainEvent } from "@skald/event-bus";
 import { getWorldTemplate } from "./world-templates.js";
 import { OLD_TOWER_OBJECTS, OLD_TOWER_LOCATIONS } from "../objects/definitions.js";
+import { LEGACY_LOCATIONS, LEGACY_OBJECTS } from "../objects/definitions.js";
 
 export function buildBootstrapEvents(templateId: string): readonly DomainEvent[] {
   const template = getWorldTemplate(templateId);
@@ -125,6 +126,7 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
         payload: {
           id: obj.id,
           name: obj.name,
+          aliases: obj.aliases ?? [],
           description: obj.description,
           material: obj.material,
           locationId: obj.locationId,
@@ -167,6 +169,68 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
       causationId: null,
     });
   } else {
+    // Legacy grid world with a single location for compatibility
+    const objectsByLocation = new Map<string, string[]>();
+    for (const obj of LEGACY_OBJECTS) {
+      const list = objectsByLocation.get(obj.locationId) ?? [];
+      list.push(obj.id);
+      objectsByLocation.set(obj.locationId, list);
+    }
+
+    let locIdx = 0;
+    for (const loc of LEGACY_LOCATIONS) {
+      events.push({
+        eventId: commandEventId(`bootstrap-loc-${locIdx}`, "LocationDefined"),
+        type: "LocationDefined",
+        schemaVersion: 1,
+        payload: {
+          id: loc.id,
+          name: loc.name,
+          description: loc.description,
+          objectIds: objectsByLocation.get(loc.id) ?? [],
+          connections: loc.connections,
+        },
+        timestamp: 0,
+        correlationId: "bootstrap",
+        causationId: null,
+      });
+      locIdx++;
+    }
+
+    events.push({
+      eventId: commandEventId("bootstrap-loc-player", "PlayerLocationChanged"),
+      type: "PlayerLocationChanged",
+      schemaVersion: 1,
+      payload: { locationId: "legacy_overworld" },
+      timestamp: 0,
+      correlationId: "bootstrap",
+      causationId: null,
+    });
+
+    let objIdx = 0;
+    for (const obj of LEGACY_OBJECTS) {
+      events.push({
+        eventId: commandEventId(`bootstrap-obj-${objIdx}`, "WorldObjectPlaced"),
+        type: "WorldObjectPlaced",
+        schemaVersion: 1,
+        payload: {
+          id: obj.id,
+          name: obj.name,
+          aliases: obj.aliases ?? [],
+          description: obj.description,
+          material: obj.material,
+          locationId: obj.locationId,
+          integrity: obj.integrity,
+          temperature: obj.temperature,
+          state: obj.initialState,
+        },
+        timestamp: 0,
+        correlationId: "bootstrap",
+        causationId: null,
+      });
+      objIdx++;
+    }
+
     events.push({
       eventId: commandEventId("bootstrap-wall-1", "WallPlaced"),
       type: "WallPlaced",

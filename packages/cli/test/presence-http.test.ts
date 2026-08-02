@@ -17,6 +17,11 @@ async function api(path: string, opts?: RequestInit) {
   });
   return { status: response.status, body: await response.json() as any };
 }
+async function events(worldId: string) {
+  const result = await api(`/api/worlds/${worldId}/events?limit=200`);
+  return result.body.events as any[];
+}
+
 
 async function createWorld(worldId: string, name: string) {
   return api("/api/worlds", {
@@ -199,7 +204,9 @@ describe("Observer presence HTTP contract", () => {
       body: JSON.stringify({ input: "wait", idempotencyKey: "pres-wait-present" }),
     });
     expect(w.status).toBe(200);
-    const waitTicks = w.body.tickEvents.filter((e: any) => e.type === "TickPassed");
+    // Query events via diagnostics endpoint instead of command response.
+    const evWait = await events("presence-world");
+    const waitTicks = evWait.filter((e: any) => e.type === "TickPassed" && e.correlationId === `tick-${w.body.state.worldTime}`);
     expect(waitTicks.length).toBe(1);
     expect(waitTicks[0].payload.playerOffline).toBeUndefined();
 
@@ -208,7 +215,8 @@ describe("Observer presence HTTP contract", () => {
       body: JSON.stringify({ input: "advance 2", idempotencyKey: "pres-advance-offline" }),
     });
     expect(a.status).toBe(200);
-    const advTicks = a.body.tickEvents.filter((e: any) => e.type === "TickPassed");
+    const evAdv = await events("presence-world");
+    const advTicks = evAdv.filter((e: any) => e.type === "TickPassed" && e.payload.playerOffline === true && e.timestamp > w.body.state.worldTime);
     expect(advTicks.length).toBe(2);
     for (const tick of advTicks) expect(tick.payload.playerOffline).toBe(true);
 
@@ -217,7 +225,8 @@ describe("Observer presence HTTP contract", () => {
       body: JSON.stringify({ count: 1, idempotencyKey: "pres-wait-endpoint" }),
     });
     expect(p.status).toBe(200);
-    const postTicks = p.body.tickEvents.filter((e: any) => e.type === "TickPassed");
+    const evPost = await events("presence-world");
+    const postTicks = evPost.filter((e: any) => e.type === "TickPassed" && e.correlationId === `tick-${p.body.state.worldTime}`);
     expect(postTicks.length).toBe(1);
     expect(postTicks[0].payload.playerOffline).toBeUndefined();
   });
@@ -233,7 +242,9 @@ describe("Observer presence HTTP contract", () => {
       body: JSON.stringify({ input: "wait", idempotencyKey: "heat-wait" }),
     });
     expect(w.status).toBe(200);
-    expect(w.body.tickEvents.some((e: any) => e.type === "HeatRadiated")).toBe(true);
+    // Verify HeatRadiated fired via events endpoint.
+    const evWait = await events("presence-world");
+    expect(evWait.some((e: any) => e.type === "HeatRadiated" && e.timestamp === w.body.state.worldTime)).toBe(true);
 
     const s1 = await session();
     expect(s1.body.session.drift.newlyObservedChangeCount).toBeGreaterThan(0);
@@ -247,7 +258,8 @@ describe("Observer presence HTTP contract", () => {
       body: JSON.stringify({ input: "advance 2", idempotencyKey: "heat-advance" }),
     });
     expect(a.status).toBe(200);
-    expect(a.body.tickEvents.some((e: any) => e.type === "HeatRadiated")).toBe(true);
+    const evAdv = await events("presence-world");
+    expect(evAdv.some((e: any) => e.type === "HeatRadiated" && e.timestamp > w.body.state.worldTime)).toBe(true);
 
     const s2 = await session();
     // The advance-N heat events are not observable: no changes, no

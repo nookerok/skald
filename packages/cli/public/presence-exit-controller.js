@@ -113,6 +113,17 @@ async function performAck() {
       if (state.phase === EXIT_PHASE.LEAVE_REQUESTED) await performExit();
       return;
     }
+    if (code === "duplicate_request") {
+      // The exit acknowledge was already processed by the server (e.g. a
+      // replay after the response was lost): the return point exists, so the
+      // leave is complete. Never show a false error dialog for a duplicate.
+      clearExitPending(worldId);
+      clearPresenceLease(worldId);
+      state = transitionExitState(state, EXIT_ACTION.ACK_SUCCESS);
+      hideOverlay();
+      window.dispatchEvent(new CustomEvent("skald:exit-ready", { detail: { worldId } }));
+      return;
+    }
     state = transitionExitState(state, EXIT_ACTION.CONFLICT);
     renderOverlay();
     return;

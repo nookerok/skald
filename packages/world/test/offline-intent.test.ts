@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
-import type { IntentCommand } from "@skald/intent-parser";
+import type { InteractionCommand } from "@skald/intent-parser";
 import { bootstrapWorldEvents } from "../src/bootstrap.js";
 import { rebuildProjection } from "../src/projection.js";
 import { resolveOfflineIntent } from "../src/offline-intent/index.js";
@@ -10,14 +10,20 @@ function e(eventId: string, type: string, timestamp: number, payload: Record<str
   return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: `cmd-${timestamp}`, causationId: null };
 }
 
-function examine(object: string): IntentCommand {
-  return { type: "IntentCommand", verb: "examine", object };
+function inspect(object: string): InteractionCommand {
+  return {
+    type: "InteractionCommand",
+    verb: "inspect",
+    target: { raw: object },
+    rawText: `examine ${object}`,
+    interpretation: { source: "deterministic", confidence: 1, ambiguities: [] },
+  };
 }
 
 function classify(
   events: readonly DomainEvent[],
   envelope: OfflineIntentEnvelope,
-  parsed: IntentCommand = examine("cart"),
+  parsed: InteractionCommand = inspect("cart"),
 ) {
   const world = rebuildProjection(events).getSnapshot();
   return resolveOfflineIntent(envelope, { events, world, parsed });
@@ -49,7 +55,7 @@ describe("resolveOfflineIntent", () => {
   });
 
   it("rejects when the target never resolved anywhere", () => {
-    const dto = classify(BOOTSTRAP, envelope(BOOTSTRAP_REVISION), examine("nothing"));
+    const dto = classify(BOOTSTRAP, envelope(BOOTSTRAP_REVISION), inspect("nothing"));
     expect(dto).toEqual({
       resolution: "rejected",
       message: "Рядом нет такого объекта.",
@@ -79,7 +85,14 @@ describe("resolveOfflineIntent", () => {
   });
 
   it("rejects intents outside the offline slice", () => {
-    const dto = classify(BOOTSTRAP, envelope(BOOTSTRAP_REVISION), { type: "IntentCommand", verb: "take", object: "cart" });
+    const take: InteractionCommand = {
+      type: "InteractionCommand",
+      verb: "take",
+      target: { raw: "cart" },
+      rawText: "взять телегу",
+      interpretation: { source: "deterministic", confidence: 0.8, ambiguities: [] },
+    };
+    const dto = classify(BOOTSTRAP, envelope(BOOTSTRAP_REVISION), take);
     expect(dto.resolution).toBe("rejected");
     expect(dto.reason).toBe("unsupported_offline_intent");
   });

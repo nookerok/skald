@@ -15,6 +15,12 @@ export function setShellBusy(busy, stage = "Мир отвечает…") {
 }
 export function showShellError(message) { const element = document.getElementById("shell-error"); if (element) { element.hidden = false; element.setAttribute("aria-hidden", "false"); setText("shell-error-message", message || "Не удалось подключиться к миру"); } }
 export function clearShellError() { const element = document.getElementById("shell-error"); if (element) { element.hidden = true; element.setAttribute("aria-hidden", "true"); } }
+export function setShellLoading(visible) {
+  const element = document.getElementById("shell-loading");
+  if (!element) return;
+  element.hidden = !visible;
+  element.setAttribute("aria-hidden", String(!visible));
+}
 export function openShellOverlay(id, opener = document.activeElement) {
   const element = document.getElementById(id);
   if (!element) return;

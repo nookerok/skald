@@ -19,6 +19,11 @@ async function session() {
   return api("/api/worlds/lifecycle-world/observer-session");
 }
 
+async function events(worldId: string) {
+  const result = await api(`/api/worlds/${worldId}/events?limit=200`);
+  return result.body.events as any[];
+}
+
 async function ack(key: string, worldTime: number, eventNumber: number) {
   return api("/api/worlds/lifecycle-world/presence/acknowledge", {
     method: "POST",
@@ -138,14 +143,16 @@ describe("Presence checkpoint lifecycle (UX-6.1D/F)", () => {
     expect(after.body.session.checkpoint).toEqual(stored);
   });
 
-  it("offline ticks after a graceful exit produce observer-scoped absence, not hidden facts", async () => {
+it("offline ticks after a graceful exit produce observer-scoped absence, not hidden facts", async () => {
     const before = await session();
     const rev = before.body.session.revision;
     expect(before.body.summary.checkpointState).toBe("valid");
 
     const off = await advance(3, "offline-advance");
     expect(off.status).toBe(200);
-    expect(off.body.tickEvents.filter((e: any) => e.type === "TickPassed").length).toBe(3);
+    // Verify tick events via events endpoint.
+    const ev = await events("lifecycle-world");
+    expect(ev.filter((e: any) => e.type === "TickPassed" && e.payload.playerOffline === true && e.timestamp > rev.worldTime).length).toBe(3);
 
     const returned = await session();
     expect(returned.body.summary.worldTimeDelta).toBe(3);

@@ -38,6 +38,10 @@
 | DiscoveryDefinition | Static code mapping Domain Events to evidence and stages | A Rule or Event emitter |
 | DiscoveryCard | A read-model DTO for one discoverable world law with stage and evidence | A stored entity or projection component |
 | WorldId | UUID identifying one independent game world and its Event Log | A save slot or account |
+| InteractionCommand | Canonical transient player intent (verb + target fields), never a Domain Event (ADR-0013) | A persisted command |
+| InteractionVerb | Fixed canonical verb set: observe/inspect/listen/touch/take/open/apply_force/give; examine is a parser alias of inspect | An arbitrary action word |
+| TargetResolution | Result of the unified resolver: resolved / environment / missing / ambiguous(candidates) | A guess or clarification dialog |
+| ambiguous_target | Honest ActionRejected reason with player-facing candidate names; no internal IDs, no guessing | A long-lived clarification state |
 | WorldRecord | Catalog metadata (label, status, timestamps) for one world | A game state source of truth |
 | CharacterProfile | Immutable literary traits (wound, promise, principle) snapshotted at world creation | A character sheet or stat block |
 | World Process | A time-bounded chain of world activity (fire, situation, consequence) | A UI thread or quest |
@@ -56,3 +60,24 @@ The normal Knowledge UI is defined by docs/OBSERVATION_BELIEF_MODEL.md.
 | Offline Intent Envelope | The only thing the browser stores without a connection: { input, idempotencyKey, baseRevision } | A local Domain Event or optimistic projection |
 | Base Revision | The world event number the player last saw; the server replays up to it to reconstruct the base world | A client-claimed truth |
 | Offline Intent Resolution | Server decision for an envelope: accepted, rejected, conflict or already_processed | A browser-side guess |
+
+## Living-region spatial terms
+
+**Region** — a stable spatial boundary within a World. Region truth is
+initialized and changed by Domain Events; it is not a level file loaded as a
+second authority.
+
+**Terrain Tile** — a fine spatial unit used by derived terrain, visibility and
+rendering calculations. A tile is not itself a simulation scheduler.
+
+**Simulation Cell** — a coarser unit for grouping deterministic world
+processes and causal neighbours. Scheduling must not pause the world based on
+player distance.
+
+**Spatial World Projection** — backend-only replayable truth about current
+geography, routes, crossings and spatial processes.
+
+**Observer Map** — observer-scoped read model of known, uncertain and stale
+spatial beliefs. It is not a masked copy of the truth map.
+
+**Landmark** — a physical spatial subject, not a quest marker.

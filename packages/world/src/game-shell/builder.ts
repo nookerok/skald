@@ -70,6 +70,8 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       case "ObjectObserved": text = typeof p.description === "string" ? p.description : "Ты заметил изменение."; break;
       case "ObjectTemperatureChanged": text = "Предмет рядом нагревается."; break;
       case "SoundProduced": text = "Раздался звук поблизости."; break;
+      case "SoundObserved": text = typeof p.description === "string" ? p.description : "Ты прислушиваешься."; break;
+      case "ActionHadNoObservableEffect": text = "Ты не замечаешь ничего особенного."; break;
       case "CriticalCheckRequested": { const modifiers = Array.isArray(p.modifiers) ? (p.modifiers as Array<{ label?: unknown; delta?: unknown }>).map((item) => (typeof item.label === "string" ? item.label : "Модификатор") + " " + (typeof item.delta === "number" && item.delta >= 0 ? "+" : "") + (typeof item.delta === "number" ? item.delta : 0)).join(", ") : "нет"; text = "Критический момент. Сложность: " + (typeof p.difficulty === "number" ? p.difficulty : "—") + ". Модификаторы: " + modifiers; break; }
       case "CriticalCheckRolled": text = "Бросок: " + (typeof p.naturalRoll === "number" ? p.naturalRoll : "—") + "."; break;
       case "CriticalCheckResolved": text = "Итого " + (typeof p.total === "number" ? p.total : "—") + " против " + (typeof p.difficulty === "number" ? p.difficulty : "—") + ": " + (p.outcome === "success" || p.outcome === "critical_success" ? "Успех!" : "Неудача."); break;

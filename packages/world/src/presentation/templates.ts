@@ -205,6 +205,27 @@ export const ENTITY_EXAMINED: PresentationTemplate = {
   },
 };
 
+export const SOUND_OBSERVED: PresentationTemplate = {
+  id: "sound_observed", listens: ["SoundObserved"],
+  present: (event, _world) => {
+    const p = event.payload as { description: string };
+    return cand("sound_observed", "observation", "notable", 85, p.description, event);
+  },
+};
+
+export const ACTION_HAD_NO_OBSERVABLE_EFFECT: PresentationTemplate = {
+  id: "action_had_no_observable_effect", listens: ["ActionHadNoObservableEffect"],
+  present: (event, _world) => {
+    const p = event.payload as { reason?: string };
+    if (p.reason === "silence" || p.reason === "silent_target") {
+      return cand("action_had_no_observable_effect", "observation", "background", 60,
+        "Тихо. Слышно только собственное дыхание.", event);
+    }
+    return cand("action_had_no_observable_effect", "observation", "background", 60,
+      "Ничего особенного не происходит.", event);
+  },
+};
+
 export const OBJECT_TEMPERATURE_CHANGED: PresentationTemplate = {
   id: "object_temperature_changed", listens: ["ObjectTemperatureChanged"],
   present: (event, _world) => {
@@ -291,6 +312,8 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   ACTION_BLOCKED,
   OBJECT_OBSERVED,
   ENTITY_EXAMINED,
+  SOUND_OBSERVED,
+  ACTION_HAD_NO_OBSERVABLE_EFFECT,
   OBJECT_TEMPERATURE_CHANGED,
   SOUND_PRODUCED,
   CRITICAL_CHECK_REQUESTED,

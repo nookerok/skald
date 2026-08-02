@@ -11,6 +11,8 @@ export type Material = "wood" | "iron" | "stone" | "glass" | "ash" | "fabric";
 export interface WorldObject {
   readonly id: string;
   readonly name: string;
+  /** Player-facing alternative names («пепел» for «Кучка пепла»), ADR-0013 §3. */
+  readonly aliases: readonly string[];
   readonly description: string;
   readonly material: Material;
   readonly locationId: string;

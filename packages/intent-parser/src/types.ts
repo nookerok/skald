@@ -30,6 +30,8 @@ export type IntentOperation =
   | "speak"
   | "call"
   | "wait"
+  | "open"
+  | "give"
   | "unknown";
 
 export interface IntentReference {
@@ -58,17 +60,40 @@ export interface ActionIntentCommand {
 }
 
 /**
- * Narrow World Interaction Model command. It is intentionally separate from
- * ActionIntentCommand so the first vertical slice can prove its own gate
- * pipeline without widening the existing open-intent operation catalog.
+ * Canonical Interaction Model v1 verb set (ADR-0013 §2). The parser
+ * normalizes synonyms and Russian word forms to exactly one of these values;
+ * `examine` is an alias of `inspect`.
  */
-export interface IntentCommand {
-  readonly type: "IntentCommand";
-  readonly verb: string;
-  readonly object: string;
-  readonly instrument?: string | undefined;
-  readonly location?: string | undefined;
-  readonly modifiers?: readonly string[] | undefined;
+export type InteractionVerb =
+  | "observe"
+  | "inspect"
+  | "listen"
+  | "touch"
+  | "take"
+  | "open"
+  | "apply_force"
+  | "give";
+
+/**
+ * Canonical transient Interaction Model v1 command (ADR-0013 §1).
+ *
+ * Produced by the parser for the v1 verb set and consumed by the Command
+ * Handler, which converts it into the first Domain Event
+ * (`InteractionRequested`). It is NOT a Domain Event and is never persisted.
+ * The parser never resolves world-dependent ambiguity — target resolution
+ * is a Validation Rule over ReadonlyWorld.
+ */
+export interface InteractionCommand {
+  readonly type: "InteractionCommand";
+  readonly verb: InteractionVerb;
+  /** The target as the player named it (raw text, not an entity id). */
+  readonly target?: IntentReference | undefined;
+  /** give: the recipient as the player named it. */
+  readonly secondaryTarget?: IntentReference | undefined;
+  readonly instrument?: IntentReference | undefined;
+  readonly utterance?: string | undefined;
+  readonly rawText: string;
+  readonly interpretation: InterpretationMeta;
 }
 
 export interface ClarificationRequest {
@@ -80,13 +105,13 @@ export interface ClarificationRequest {
 
 export interface UnsupportedIntent {
   readonly type: "UnsupportedButUnderstood";
-  readonly intent: ActionIntentCommand;
+  readonly intent: ActionIntentCommand | InteractionCommand;
   readonly message: string;
 }
 
 export type IntentResult =
   | ActionIntentCommand
-  | IntentCommand
+  | InteractionCommand
   | ClarificationRequest
   | UnsupportedIntent;
 

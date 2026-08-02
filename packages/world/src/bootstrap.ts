@@ -1,5 +1,6 @@
 import { type DomainEvent, EventBus } from "@skald/event-bus";
 import { START_POSITION, WALLS } from "./map.js";
+import { LEGACY_LOCATIONS, LEGACY_OBJECTS } from "./objects/definitions.js";
 
 /**
  * World bootstrap. For MVP-0 the fixed map (player start + walls) must be
@@ -45,6 +46,45 @@ export function bootstrapWorldEvents(): DomainEvent[] {
     correlationId: "boot",
     causationId: "boot#PlayerSpawned",
   });
+  // Preserve the location interaction model for the historical legacy world.
+  for (const location of LEGACY_LOCATIONS) {
+    events.push({
+      eventId: `boot#LocationDefined#${location.id}`,
+      type: "LocationDefined",
+      schemaVersion: 1,
+      payload: {
+        id: location.id,
+        name: location.name,
+        description: location.description,
+        objectIds: LEGACY_OBJECTS.filter((object) => object.locationId === location.id).map((object) => object.id),
+        connections: location.connections,
+      },
+      timestamp: 0,
+      correlationId: "boot",
+      causationId: "boot#PlayerSpawned",
+    });
+  }
+  for (const object of LEGACY_OBJECTS) {
+    events.push({
+      eventId: `boot#WorldObjectPlaced#${object.id}`,
+      type: "WorldObjectPlaced",
+      schemaVersion: 1,
+      payload: {
+        id: object.id,
+        name: object.name,
+        aliases: object.aliases ?? [],
+        description: object.description,
+        material: object.material,
+        locationId: object.locationId,
+        integrity: object.integrity,
+        temperature: object.temperature,
+        state: object.initialState,
+      },
+      timestamp: 0,
+      correlationId: "boot",
+      causationId: "boot#PlayerSpawned",
+    });
+  }
   WALLS.forEach((w, i) => {
     events.push({
       eventId: `boot#WallPlaced#${i}`,

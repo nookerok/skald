@@ -258,10 +258,27 @@
 .presence-ack-btn:hover { background: var(--accent-dim); }
 .presence-ack-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
+.presence-continue-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  background: var(--bg-accent);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.presence-continue-btn:hover { background: var(--accent); color: white; }
+.presence-continue-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
 @media (max-width: 480px) {
   .presence-entry { margin: 1rem auto; padding: 0.5rem; }
   .presence-entry-panel { padding: 1rem; }
   .presence-ack-btn { width: 100%; }
+  .presence-continue-btn { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

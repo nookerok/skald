@@ -625,6 +625,20 @@ describe("WorldProjector ? World Interaction Model purity", () => {
 });
 
 
+describe("WorldProjector - terminal observation outcomes", () => {
+  it("advances lastActionTick for observable and honest-silence outcomes", () => {
+    const outcomes = [
+      ["SoundObserved", { sourceId: "ambient", source: "окружение", description: "Треск.", loudness: "quiet", distance: 0, distanceBand: "same_location", locationId: "legacy_overworld" }],
+      ["ActionHadNoObservableEffect", { reason: "silence" }],
+      ["ObjectObserved", { objectId: "old-cart", name: "old cart", description: "x" }],
+    ] as const;
+    for (const [type, payload] of outcomes) {
+      const projector = new WorldProjector();
+      projector.apply(e(type, `terminal-${type}`, payload, 5));
+      expect(projector.getSnapshot().lastActionTick).toBe(5);
+    }
+  });
+});
 describe("WorldProjector ? nested snapshot immutability", () => {
   it("deep-freezes objects, locations and pending checks", () => {
     const projector = rebuildProjection([

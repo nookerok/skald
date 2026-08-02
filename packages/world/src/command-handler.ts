@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { ActionIntentCommand, IntentCommand } from "@skald/intent-parser";
+import type { ActionIntentCommand, InteractionCommand } from "@skald/intent-parser";
 import { commandEventId } from "./ids.js";
 import { isKnownInteractionVerb } from "./interaction-registry.js";
 
@@ -10,7 +10,8 @@ import { isKnownInteractionVerb } from "./interaction-registry.js";
  * - Performs ONLY structural validation (known command type, required fields
  *   present). No gameplay decisions, no wall checks, no time checks.
  * - Produces exactly one Domain Event:
- *     valid   → ActionAttempted (payload: normalized intent + raw text)
+ *     InteractionCommand → InteractionRequested (canonical v1 path, ADR-0013)
+ *     valid ActionIntentCommand → ActionAttempted (legacy verbs only)
  *     invalid → CommandRejected (payload: { reason })
  * - The event is the root of its chain: causationId === null.
  *
@@ -19,7 +20,7 @@ import { isKnownInteractionVerb } from "./interaction-registry.js";
  * counter — never Date.now()).
  */
 export function handleCommand(
-  command: ActionIntentCommand | IntentCommand,
+  command: ActionIntentCommand | InteractionCommand,
   correlationId: string,
   timestamp: number,
 ): DomainEvent {
@@ -32,7 +33,7 @@ export function handleCommand(
 
   // Validate required fields
   const commandType = (command as { type?: unknown }).type;
-  if (commandType !== "ActionIntentCommand" && commandType !== "IntentCommand") {
+  if (commandType !== "ActionIntentCommand" && commandType !== "InteractionCommand") {
     const eventId = commandEventId(correlationId, "CommandRejected");
     return {
       ...base,
@@ -42,7 +43,7 @@ export function handleCommand(
     };
   }
 
-  if (command.type === "IntentCommand") {
+  if (command.type === "InteractionCommand") {
     if (!isKnownInteractionVerb(command.verb)) {
       return {
         ...base,
@@ -51,7 +52,11 @@ export function handleCommand(
         payload: { reason: `unknown interaction verb: ${command.verb}` },
       };
     }
-    if (command.object.trim().length === 0) {
+    const object = command.target?.raw.trim() ?? "";
+    // observe/listen may describe the surroundings without a named target;
+    // all other v1 verbs require a concrete target.
+    const allowsNoTarget = command.verb === "observe" || command.verb === "listen";
+    if (object.length === 0 && !allowsNoTarget) {
       return {
         ...base,
         eventId: commandEventId(correlationId, "CommandRejected"),
@@ -65,10 +70,10 @@ export function handleCommand(
       type: "InteractionRequested",
       payload: {
         verb: command.verb,
-        object: command.object,
-        instrument: command.instrument ?? null,
-        location: command.location ?? null,
-        modifiers: command.modifiers ?? [],
+        object,
+        instrument: command.instrument?.raw ?? null,
+        location: null,
+        modifiers: [],
       },
     };
   }

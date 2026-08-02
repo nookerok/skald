@@ -8,8 +8,9 @@
  * on event-bus: a PlayerCommand is a plain in-memory object and is NEVER
  * appended to the Event Log.
  *
- * Iteration 15: Supports both legacy commands (MoveCommand, GiveCommand)
- * and the new Open Intent model (ActionIntentCommand).
+ * Iteration 15: Supports both legacy commands (MoveCommand, GiveCommand),
+ * the Open Intent model (ActionIntentCommand) and the canonical Interaction
+ * Model v1 command (InteractionCommand, ADR-0013).
  */
 
 // ── Legacy types (backward compatible) ──────────────────────────────
@@ -46,7 +47,8 @@ export type {
   IntentReference,
   InterpretationMeta,
   ActionIntentCommand,
-  IntentCommand,
+  InteractionVerb,
+  InteractionCommand,
   ClarificationRequest,
   UnsupportedIntent,
   IntentResult,
@@ -109,12 +111,14 @@ export function parseCommand(input: string): LegacyParseResult {
 // ── Unified parse (Iteration 15 entry point) ────────────────────────
 
 import { interpretIntent } from "./deterministic-interpreter.js";
-import type { IntentCommand, IntentResult } from "./types.js";
+import type { InteractionCommand, IntentResult } from "./types.js";
 
 /**
- * Parse player input into an ActionIntentCommand.
- * Tries legacy parser first (for "move north" / "give help to guild"),
- * then falls through to the deterministic Russian interpreter.
+ * Parse player input into an ActionIntentCommand or, for the canonical v1
+ * verb set, an InteractionCommand (ADR-0013). Tries the exact interaction
+ * syntax first (English "examine"/"inspect"), then legacy commands
+ * ("move north" / "give help to guild"), then falls through to the
+ * deterministic Russian interpreter.
  */
 export function parseIntent(input: string): IntentResult {
   const interaction = parseExactInteraction(input);
@@ -150,16 +154,25 @@ export function parseIntent(input: string): IntentResult {
 }
 
 /**
- * First World Interaction Model vertical slice: exact English syntax only.
- * Natural-language/LLM vocabulary is deliberately not widened in this path.
+ * Exact English syntax for the canonical Interaction Model v1 verb set.
+ * `examine` and `inspect` both normalize to the canonical `inspect` verb
+ * (ADR-0013 §2); natural-language/LLM vocabulary is deliberately not widened
+ * in this path.
  */
-function parseExactInteraction(input: string): IntentCommand | null {
-  const match = /^examine(?:\s+(.*))?$/i.exec(input.trim());
+function parseExactInteraction(input: string): InteractionCommand | null {
+  const match = /^(?:examine|inspect)(?:\s+(.*))?$/i.exec(input.trim());
   if (!match) return null;
+  const object = (match[1] ?? "").trim();
   return {
-    type: "IntentCommand",
-    verb: "examine",
-    object: (match[1] ?? "").trim(),
+    type: "InteractionCommand",
+    verb: "inspect",
+    target: object.length > 0 ? { raw: object } : undefined,
+    rawText: input,
+    interpretation: {
+      source: "deterministic",
+      confidence: 1,
+      ambiguities: object.length > 0 ? [] : ["no clear target identified"],
+    },
   };
 }
 

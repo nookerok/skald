@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld, Consequence, FiredConsequence, ActiveSituation, RelationEdge } from "@skald/world";
-import { formatEvent, formatWorldState, buildNarrative } from "@skald/world";
+import { formatEvent, formatWorldState, buildNarrative, situationLabel, sanitizePlayerFacingText } from "@skald/world";
 
 function e(eventId: string, type: string, payload: unknown = {}, timestamp = 1): DomainEvent {
   return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: "cmd-1", causationId: null };
@@ -58,13 +58,16 @@ describe("formatEvent", () => {
 
   it("ObservationUpdated delta=1", () => {
     const result = formatEvent(e("o-1", "ObservationUpdated", { key: "risk_taken", delta: 1 }, 3));
-    expect(result!.text).toContain("risk_taken");
+    expect(result!.text).toContain("Тревожный след");
     expect(result!.text).toContain("возросло на 1");
+    expect(result!.text).not.toContain("risk_taken");
   });
 
   it("ObservationUpdated delta=-1", () => {
     const result = formatEvent(e("o-2", "ObservationUpdated", { key: "wall_caution", delta: -1 }, 3));
+    expect(result!.text).toContain("Память преграды");
     expect(result!.text).toContain("убыло на 1");
+    expect(result!.text).not.toContain("wall_caution");
   });
 
   it("ConsequenceCreated", () => {
@@ -92,13 +95,16 @@ describe("formatEvent", () => {
 
   it("SituationStarted", () => {
     const result = formatEvent(e("ss-1", "SituationStarted", { situationId: "forest_fire", type: "forest_fire", startedAt: 5, duration: 8 }, 5));
-    expect(result!.text).toContain("forest_fire");
+    expect(result!.text).toContain("Лесной пожар");
     expect(result!.text).toContain("8");
+    expect(result!.text).not.toContain("forest_fire");
   });
 
   it("SituationEnded", () => {
     const result = formatEvent(e("se-1", "SituationEnded", { situationId: "forest_fire" }, 13));
     expect(result!.text).toContain("завершилась");
+    expect(result!.text).toContain("Лесной пожар");
+    expect(result!.text).not.toContain("forest_fire");
   });
 
   it("ForestFireStarted", () => {
@@ -170,9 +176,10 @@ describe("formatWorldState", () => {
     const w = Object.freeze({ ...emptyWorld(), observations: obs }) as unknown as ReadonlyWorld;
     const entries = formatWorldState(w);
     const texts = entries.map((e) => e.text);
-    expect(texts.some((t) => t.includes("risk_taken = 3"))).toBe(true);
-    expect(texts.some((t) => t.includes("wall_caution = 1"))).toBe(true);
+    expect(texts.some((t) => t.includes("Тревожный след = 3"))).toBe(true);
+    expect(texts.some((t) => t.includes("Память преграды = 1"))).toBe(true);
     expect(texts.some((t) => t.includes("internal = 5"))).toBe(false);
+    expect(texts.some((t) => t.includes("wall_caution"))).toBe(false);
   });
 
   it("includes consequences", () => {
@@ -196,7 +203,8 @@ describe("formatWorldState", () => {
     const map = new Map<string, ActiveSituation>([["forest_fire", s]]);
     const w = Object.freeze({ ...emptyWorld(), activeSituations: map }) as unknown as ReadonlyWorld;
     const entries = formatWorldState(w);
-    expect(entries.some((e) => e.text.includes("активна") && e.text.includes("forest_fire"))).toBe(true);
+    expect(entries.some((e) => e.text.includes("активна") && e.text.includes("Лесной пожар"))).toBe(true);
+    expect(entries.some((e) => e.text.includes("forest_fire"))).toBe(false);
   });
 
   it("includes burned trees", () => {
@@ -218,6 +226,23 @@ describe("formatWorldState", () => {
     const obsBefore = w.observations.size;
     formatWorldState(w);
     expect(w.observations.size).toBe(obsBefore);
+  });
+});
+
+describe("situationLabel + sanitize", () => {
+  it("maps known situation types to player-facing titles", () => {
+    expect(situationLabel("forest_fire")).toBe("Лесной пожар");
+  });
+
+  it("humanizes unknown types without leaking raw snake_case keys", () => {
+    expect(situationLabel("unknown_process")).toBe("unknown process");
+    expect(situationLabel("")).toBe("Ситуация");
+  });
+
+  it("sanitize replaces internal situation and observation keys in any text", () => {
+    expect(sanitizePlayerFacingText("forest_fire начался")).toContain("лесной пожар");
+    expect(sanitizePlayerFacingText("след: wall_caution")).toContain("память преграды");
+    expect(sanitizePlayerFacingText("чистый текст")).toBe("чистый текст");
   });
 });
 

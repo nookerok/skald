@@ -107,9 +107,13 @@ describe("Offline intent queue HTTP contract", () => {
     const r = await offline("offline-world", { input: "examine cart", idempotencyKey: "k-accept", baseRevision: before.eventNumber });
     expect(r.status).toBe(200);
     expect(r.body.resolution).toBe("accepted");
-    expect(r.body.events.map((e: { type: string }) => e.type)).toContain("EntityExamined");
-    expect(r.body.state.eventNumber).toBeGreaterThan(before.eventNumber);
+    // Check presentation for EntityExamined outcome instead of raw events.
     expect(r.body.presentation).toBeTruthy();
+    const pres = r.body.presentation as any;
+    const entries = [pres.primary, ...(pres.notable ?? [])].filter(Boolean);
+    const examined = entries.some((p: any) => p.kind === "observation" && p.text.includes("рассматриваешь") && p.text.includes("cart"));
+    expect(examined).toBe(true);
+    expect(r.body.state.eventNumber).toBeGreaterThan(before.eventNumber);
   });
 
   it("replays a processed key as already_processed without new events", async () => {

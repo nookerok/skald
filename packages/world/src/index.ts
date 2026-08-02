@@ -72,7 +72,7 @@ export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplat
 export type { CharacterPreset, WorldTemplate } from "./setup/types.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
-export { observationLabel, consequenceLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel } from "./game-shell/player-facing.js";
+export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { narrateLLM } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
 export { ModelRouter } from "./llm/router.js";
@@ -89,16 +89,23 @@ export {
   interactionResolveTarget,
   interactionResolveLaw,
   resolveInteractionLaw,
-  perceptionExamine,
-  examinedCuriosity,
-  findExamineTarget,
   worldInteractionRules,
 } from "./rules/world-interaction.js";
+export { perceptionObserve, examinedCuriosity, perceptionRules } from "./rules/interactions/perception.js";
+export { listeningListen, listeningRules } from "./rules/interactions/listening.js";
 export { interactionRegistry, getInteractionDefinition, isKnownInteractionVerb } from "./interaction-registry.js";
 export { interactionRules } from "./rules/interaction.js";
 export { criticalCheckRules, criticalCheckOutcomeRules } from "./checks/index.js";
 export { createRules } from "./rules/registry.js";
 export type { CriticalCheckState, CheckKind, CheckOutcome, DieType, CriticalModifier } from "./checks/types.js";
+
+// Interaction Model v1 — unified target resolver and adapter (ADR-0013)
+export { resolveInteractionTarget, targetFromEntity, targetFromObject } from "./interactions/index.js";
+export type {
+  InteractionTarget,
+  PlayerFacingCandidate,
+  TargetResolution,
+} from "./interactions/index.js";
 
 // UX-6 — Observer presence reconstruction (read-only)
 export {

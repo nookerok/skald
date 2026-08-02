@@ -1,16 +1,28 @@
 import type { EntityComponentName } from "./entities/types.js";
 
+export type InteractionLaw = "perception" | "listening";
+
 export interface InteractionDefinition {
   readonly verb: string;
   readonly requiredComponents: readonly EntityComponentName[];
-  readonly law: "perception";
+  readonly law: InteractionLaw;
 }
 
 const DEFINITIONS: readonly InteractionDefinition[] = Object.freeze([
   Object.freeze({
-    verb: "examine",
+    verb: "inspect",
     requiredComponents: Object.freeze([]),
     law: "perception",
+  }),
+  Object.freeze({
+    verb: "observe",
+    requiredComponents: Object.freeze([]),
+    law: "perception",
+  }),
+  Object.freeze({
+    verb: "listen",
+    requiredComponents: Object.freeze([]),
+    law: "listening",
   }),
 ]);
 

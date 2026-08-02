@@ -99,6 +99,24 @@ living process «Следы чужого присутствия» will give the 
 resolution a naturally reachable scenario (entities appearing and vanishing
 while the player is away).
 
+### UX-6.3.1 — Interaction Model v1, stages 0–2 + Slices 1–2 (in progress)
+
+One canonical interaction pipeline (ADR-0013, DECISIONS D-020): the parser
+yields `InteractionCommand` (canonical verbs; observe/inspect RU stems
+normalized in Slice 1, изучить → inspect; listen RU stems normalized in
+Slice 2); the shared ambiguous-aware Target Resolver (exact beats alias,
+single-partial-only, two-equal → ambiguous, environment fallback for
+observe/listen) is used by the runtime gate, the offline classifier and the
+HTTP tests; `WorldObject` gained player-facing aliases («пепел» for «Кучка
+пепла»). The perception law rule lives in `rules/interactions/perception.ts`
+(EntityExamined / ObjectObserved / surroundings ActionResolved); the
+listening law rule lives in `rules/interactions/listening.ts` (SoundObserved
+with loudness/distance in observer scope, honest
+ActionHadNoObservableEffect for silent surroundings and cold targets, hot
+objects crackle). Remaining slices (touch, take, open, apply_force+checks,
+give) migrate the legacy `interaction.*` rules gradually; offline stays
+inspect-only until UX-6.4.
+
 ### UX-6.4 — Offline movement, force and item intents
 
 Later vertical slices widen the offline slice (movement, force, item

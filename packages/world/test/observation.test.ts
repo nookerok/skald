@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import { rebuildProjection } from "../src/projection.js";
+import { bootstrapWorldEvents } from "../src/bootstrap.js";
 import { buildBeliefModel, buildDiscoveryJournalFromBeliefModel, createObservationAPI, serializeBeliefModel } from "../src/observation/index.js";
 
 function event(type: string, eventId: string, timestamp: number, payload: Record<string, unknown> = {}, correlationId = "turn-" + timestamp, causationId: string | null = null): DomainEvent {
@@ -15,6 +16,28 @@ describe("Observation & Belief read model", () => {
     expect(belief?.currentInterpretation).toContain("fresh marks");
     expect(belief?.supportingEvidence[0]?.type).toBe("sensory");
     expect(JSON.stringify(model)).not.toMatch(/actual|true|real/i);
+  });
+
+  it("projects SoundObserved into the observer Belief Model without internal source fields", () => {
+    const events = [
+      ...bootstrapWorldEvents(),
+      event("SoundObserved", "sound-observed-1", 1, {
+        sourceId: "ambient",
+        source: "окружение",
+        description: "Где-то рядом слышен тихий треск.",
+        loudness: "quiet",
+        distance: 0,
+        distanceBand: "same_location",
+        locationId: "legacy_overworld",
+      }),
+    ];
+    const model = buildBeliefModel(events, rebuildProjection(events).getSnapshot());
+    const belief = model.beliefs.get("sound:nearby");
+    expect(belief).toBeDefined();
+    expect(belief!.supportingEvidence[0]!.description).toContain("треск");
+    const humanText = [belief!.displayName, belief!.currentInterpretation, ...belief!.supportingEvidence.map((item) => item.description)].join(" ");
+    expect(humanText).not.toContain("ambient");
+    expect(humanText).not.toContain("sourceId");
   });
 
   it("applies event-time observation gates without using final player location", () => {

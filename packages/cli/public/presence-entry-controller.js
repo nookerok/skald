@@ -208,11 +208,36 @@ export async function startPresenceEntry(targetContainer, targetWorldId) {
     if (!interactive.includes(state.phase)) return;
     if (event.key !== "Tab") return;
     const list = focusables();
-    if (list.length < 2) return;
+    if (list.length === 0) return;
+    const title = container.querySelector("[data-phase-title]");
     const first = list[0];
     const last = list[list.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    const active = document.activeElement;
+    // The phase title is script-focusable but not in the natural tab order.
+    // Tab from the title must land on the primary action («Осмотреться» /
+    // «Я здесь» / retry), never browser chrome or the shell behind it.
+    if (!event.shiftKey && active === title) {
+      event.preventDefault();
+      first.focus();
+      return;
+    }
+    // Shift+Tab from the primary action returns to the phase title.
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      if (title) title.focus();
+      else last.focus();
+      return;
+    }
+    if (!event.shiftKey && active === last && list.length > 1) {
+      event.preventDefault();
+      first.focus();
+      return;
+    }
+    if (event.shiftKey && active === title && list.length > 1) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
   });
   state = transitionPresenceEntry(state, ACTION.ENTER, { worldId });
   render();

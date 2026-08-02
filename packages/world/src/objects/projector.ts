@@ -27,6 +27,7 @@ export function applyObjectEvent(
       const p = event.payload as {
         id: string;
         name: string;
+        aliases?: string[];
         description: string;
         material: string;
         locationId: string;
@@ -37,6 +38,7 @@ export function applyObjectEvent(
       state.objects.set(p.id, {
         id: p.id,
         name: p.name,
+        aliases: Object.freeze([...(p.aliases ?? [])]),
         description: p.description,
         material: p.material as WorldObject["material"],
         locationId: p.locationId,

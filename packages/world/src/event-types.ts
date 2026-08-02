@@ -51,6 +51,9 @@ export const EventType = {
   TargetResolved: "TargetResolved",
   InteractionValidated: "InteractionValidated",
   EntityExamined: "EntityExamined",
+
+  // Interaction Model v1 — Slice 2 (listening law)
+  SoundObserved: "SoundObserved",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

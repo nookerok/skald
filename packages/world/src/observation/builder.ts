@@ -122,7 +122,7 @@ const observationPipeline = createObservationPipeline();
 
 function eventLens(eventType: string): LensId {
   if (eventType === "RelationChanged") return "relations";
-  if (eventType === "ObjectTemperatureChanged" || eventType === "HeatRadiated" || eventType === "SoundProduced") return "ecology";
+  if (eventType === "ObjectTemperatureChanged" || eventType === "HeatRadiated" || eventType === "SoundProduced" || eventType === "SoundObserved") return "ecology";
   if (eventType === "MovementSucceeded" || eventType === "PlayerLocationChanged" || eventType === "MovementBlocked" || eventType === "ActionBlocked") return "terrain";
   return "emergence";
 }
@@ -233,6 +233,11 @@ function collectGroups(events: readonly DomainEvent[], observerId: string, world
         const source = text(p.source, "unknown source");
         addGroup(groups, event, `sound:${source}`, "ecology", "sensory", "direct",
           `Ты услышал звук из области «${source}».`, 0.64);
+        break;
+      }
+      case "SoundObserved": {
+        addGroup(groups, event, "sound:nearby", "ecology", "sensory", "direct",
+          text(p.description, "Ты услышал звук поблизости."), 0.78);
         break;
       }
       case "RelationChanged": {

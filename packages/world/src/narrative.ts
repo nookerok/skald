@@ -2,6 +2,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "./projection.js";
 import { selectTurnPresentation } from "./presentation/selector.js";
 import type { TurnPresentation } from "./presentation/types.js";
+import { observationLabel, situationLabel } from "./game-shell/player-facing.js";
 
 export interface NarrativeEntry {
   readonly kind: "action" | "observation" | "consequence" | "situation" | "world" | "tick" | "relation" | "time";
@@ -60,7 +61,7 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
       } else {
         change = `изменилось на ${delta}`;
       }
-      return { ...base, kind: "observation", text: `Мир заметил: ${key} ${change}.` };
+      return { ...base, kind: "observation", text: `Мир заметил: ${observationLabel(key)} (${change}).` };
     }
     case "ConsequenceCreated": {
       const p = event.payload as { type: string; expiresAt: number };
@@ -79,11 +80,11 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
     }
     case "SituationStarted": {
       const p = event.payload as { type: string; duration: number };
-      return { ...base, kind: "situation", text: `Начинается ситуация: ${p.type} (продлится ${p.duration} тиков).` };
+      return { ...base, kind: "situation", text: `Начинается ситуация: ${situationLabel(p.type)} (продлится ${p.duration} тиков).` };
     }
     case "SituationEnded": {
       const p = event.payload as { situationId: string };
-      return { ...base, kind: "situation", text: `Ситуация ${p.situationId} завершилась.` };
+      return { ...base, kind: "situation", text: `Ситуация «${situationLabel(p.situationId)}» завершилась.` };
     }
     case "ForestFireStarted": {
       return { ...base, kind: "situation", text: "Лесной пожар начался." };
@@ -103,6 +104,10 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
     case "EntityExamined": {
       const { name, description } = event.payload as { name: string; description: string };
       return { ...base, kind: "observation", text: `Ты рассматриваешь ${name}. ${description}` };
+    }
+    case "SoundObserved": {
+      const p = event.payload as { description: string };
+      return { ...base, kind: "observation", text: `Ты прислушиваешься. ${p.description}` };
     }
     case "TickPassed": {
       const p = event.payload as { playerOffline?: boolean };
@@ -133,7 +138,7 @@ export function formatWorldState(world: ReadonlyWorld): NarrativeEntry[] {
     if (OBSERVATION_KEYS.has(key) && value > 0) {
       entries.push({
         kind: "world", timestamp,
-        text: `Мир замечает в тебе: ${key} = ${value}.`,
+        text: `Мир замечает в тебе: ${observationLabel(key)} = ${value}.`,
         sourceEventIds: [], importance: "background", discoveryMark: null,
       });
     }
@@ -158,7 +163,7 @@ export function formatWorldState(world: ReadonlyWorld): NarrativeEntry[] {
   for (const s of world.activeSituations.values()) {
     entries.push({
       kind: "world", timestamp,
-      text: `В мире активна ситуация: ${s.type}.`,
+      text: `В мире активна ситуация: ${situationLabel(s.type)}.`,
       sourceEventIds: [], importance: "background", discoveryMark: null,
     });
   }

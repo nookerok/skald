@@ -13,6 +13,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Terms | docs/GLOSSARY.md |
 | Accepted decisions | docs/DECISIONS.md |
 | Worldbuilding principles and checklists | docs/worldbuilding/README.md; docs/adr/0007-worldbuilding-principles.md |
+| First living region and observer map | docs/LIVING_WORLD_REGION_ARCHITECTURE.md; docs/adr/0012-first-living-region.md |
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
 | Orange Pi operations | .agents/skills/skald-orange-pi-deploy/SKILL.md |
@@ -71,6 +72,10 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     and re-fetch) -> presence/focus renderers (DTO-only, no client
     classification) -> ACK_SUCCESS -> #/world/:id -> shell unlocked
     -> Belief Reconstruction -> Presence Reconstruction -> Focus -> World
+
+    Region bootstrap authoring bundle -> deterministic bootstrap Domain Events
+    -> SpatialWorldProjection (backend truth) -> Observation/Belief
+    -> ObserverMapDTO (known/uncertain space only) -> normal Player Map UI
 
     SQLite open -> Event Log replay -> Projection rebuild -> HTTP readiness
 

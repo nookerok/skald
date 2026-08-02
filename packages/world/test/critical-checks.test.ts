@@ -11,6 +11,7 @@ function world(overrides: Partial<ReadonlyWorld> = {}): ReadonlyWorld {
     ["tower_door", {
       id: "tower_door",
       name: "Башенная дверь",
+      aliases: [],
       description: "Дубовая дверь",
       material: "wood" as const,
       locationId: "tower_entrance",
@@ -21,6 +22,7 @@ function world(overrides: Partial<ReadonlyWorld> = {}): ReadonlyWorld {
     ["tower_hinge", {
       id: "tower_hinge",
       name: "Петля двери",
+      aliases: [],
       description: "Ржавая петля",
       material: "iron" as const,
       locationId: "tower_entrance",
@@ -314,7 +316,8 @@ describe("checks.outcome", () => {
       objects: new Map([
         ["tower_door", {
           id: "tower_door",
-          name: "Башенная дверь",
+      name: "Башенная дверь",
+      aliases: [],
           description: "Дубовая дверь",
           material: "wood" as const,
           locationId: "tower_entrance",
@@ -358,7 +361,8 @@ describe("checks.outcome", () => {
       objects: new Map([
         ["tower_hinge", {
           id: "tower_hinge",
-          name: "Петля двери",
+      name: "Петля двери",
+      aliases: [],
           description: "Ржавая петля",
           material: "iron" as const,
           locationId: "tower_entrance",
@@ -369,6 +373,7 @@ describe("checks.outcome", () => {
         ["tower_door", {
           id: "tower_door",
           name: "Дверь",
+          aliases: [],
           description: "Замок",
           material: "wood" as const,
           locationId: "tower_entrance",

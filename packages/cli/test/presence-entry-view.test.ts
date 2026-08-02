@@ -130,6 +130,58 @@ describe("presence-entry-controller.js", () => {
   });
 });
 
+describe("presence-entry.css", () => {
+  it("gives the continue button («Осмотреться»/«Войти») a 44px touch target", () => {
+    const css = code("presence-entry.css");
+    expect(css).toContain(".presence-continue-btn");
+    expect(css).toMatch(/\.presence-continue-btn\s*\{[^}]*min-height:\s*44px/s);
+    expect(css).toMatch(/\.presence-continue-btn\s*\{[^}]*min-width:\s*44px/s);
+    expect(css).toMatch(/\.presence-continue-btn\s*\{[^}]*font-size:\s*1rem/s);
+  });
+
+  it("extends the full-width mobile layout to the continue button", () => {
+    const css = code("presence-entry.css");
+    const mobile = css.slice(css.indexOf("@media (max-width: 480px)"));
+    expect(mobile).toContain(".presence-continue-btn { width: 100%; }");
+  });
+});
+
+describe("presence-entry-controller.js tab flow", () => {
+  it("sends Tab from the phase title straight to the primary action", () => {
+    const src = code("presence-entry-controller.js");
+    expect(src).toContain('const title = container.querySelector("[data-phase-title]")');
+    expect(src).toContain("!event.shiftKey && active === title");
+    expect(src).toContain("first.focus()");
+  });
+
+  it("returns Shift+Tab from the primary action to the phase title", () => {
+    const src = code("presence-entry-controller.js");
+    expect(src).toContain("event.shiftKey && active === first");
+    expect(src).toContain("title.focus()");
+  });
+});
+
+describe("app.js boot flash", () => {
+  it("covers the static shell frame with the loading dialog until the first snapshot", () => {
+    const src = code("app.js");
+    expect(src).toContain("setShellLoading(true)");
+    expect(src).toContain("refreshShell()");
+    expect(src).toContain("setShellLoading(false)");
+  });
+});
+
+describe("presence-exit-controller.js duplicate handling", () => {
+  it("treats a 409 duplicate_request as an already-recorded exit, never a false error", () => {
+    const src = code("presence-exit-controller.js");
+    expect(src).toContain('if (code === "duplicate_request")');
+    const duplicateBranch = src.slice(src.indexOf('code === "duplicate_request"'));
+    expect(duplicateBranch).toContain("hideOverlay()");
+    expect(duplicateBranch).toContain("skald:exit-ready");
+    expect(duplicateBranch).toContain("clearExitPending");
+    expect(duplicateBranch).not.toContain("Не удалось зафиксировать точку возвращения.");
+  });
+});
+
 describe("app.js return route", () => {
   it("routes /return into the presence entry panel", () => {
     const src = code("app.js");

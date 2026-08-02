@@ -41,6 +41,8 @@ top-level package without revising this file and docs/ARCHITECTURE.md.
 8. docs/worldbuilding/README.md and docs/adr/0007-worldbuilding-principles.md:
    worldbuilding vocabulary, checklists and adoption boundaries.
 9. packages/ and tests: executable behavior.
+10. docs/LIVING_WORLD_REGION_ARCHITECTURE.md and ADR-0012: accepted spatial
+    architecture proposal; runtime claims still require vertical-slice code/tests.
 
 If sources disagree, stop and surface the contradiction. Do not silently choose
 the convenient interpretation.

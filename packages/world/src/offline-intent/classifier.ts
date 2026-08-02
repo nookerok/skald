@@ -1,7 +1,7 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { IntentCommand } from "@skald/intent-parser";
+import type { InteractionCommand } from "@skald/intent-parser";
 import { rebuildProjection, type ReadonlyWorld } from "../projection.js";
-import { findExamineTarget } from "../rules/world-interaction.js";
+import { resolveInteractionTarget } from "../interactions/index.js";
 import type {
   OfflineIntentEnvelope,
   OfflineIntentResolutionDTO,
@@ -14,7 +14,7 @@ export interface OfflineClassificationContext {
   /** The current world snapshot, read synchronously with `events`. */
   readonly world: ReadonlyWorld;
   /** The server's own re-interpretation of the envelope text. */
-  readonly parsed: IntentCommand;
+  readonly parsed: InteractionCommand;
 }
 
 function rejected(reason: OfflineRejectReason, message: string): OfflineIntentResolutionDTO {
@@ -28,7 +28,8 @@ function rejected(reason: OfflineRejectReason, message: string): OfflineIntentRe
  * classifier replays the event prefix up to that revision through
  * WorldProjector to reconstruct it, then compares target resolvability
  * between the base world and the current world using the exact same
- * predicate as the examine gate (findExamineTarget — never a copy).
+ * resolver as the inspect gate (resolveInteractionTarget — never a copy,
+ * ADR-0013 §3).
  *
  * No network, no SQLite, no Date.now(), no Math.random(), no LLM. Calling
  * it twice with the same inputs returns identical, deeply frozen results.
@@ -44,13 +45,18 @@ export function resolveOfflineIntent(
     return rejected("invalid_envelope", "Заявленная версия мира недействительна.");
   }
 
-  if (context.parsed.verb !== "examine") {
+  if (context.parsed.verb !== "inspect") {
     return rejected("unsupported_offline_intent", "Сейчас без связи можно отправить только «осмотреть <объект>».");
+  }
+
+  const object = context.parsed.target?.raw ?? "";
+  if (object.length === 0) {
+    return rejected("no_such_target", "Рядом нет такого объекта.");
   }
 
   // Accepted: the intent is still executable against what is true now. The
   // world may have changed elsewhere — the player reads the actual result.
-  if (findExamineTarget(context.world, context.parsed.object) !== undefined) {
+  if (resolveInteractionTarget(context.world, "inspect", object).kind === "resolved") {
     return Object.freeze({ resolution: "accepted", message: null, reason: null });
   }
 
@@ -58,10 +64,10 @@ export function resolveOfflineIntent(
   // been executable at the envelope's base revision; otherwise it was
   // inadmissible all along and is an ordinary rejection.
   const base = rebuildProjection(context.events.slice(0, baseRevision)).getSnapshot();
-  if (findExamineTarget(base, context.parsed.object) !== undefined) {
+  if (resolveInteractionTarget(base, "inspect", object).kind === "resolved") {
     return Object.freeze({
       resolution: "conflict",
-      message: `Ты хотел осмотреть «${context.parsed.object}», но теперь это невозможно.`,
+      message: `Ты хотел осмотреть «${object}», но теперь это невозможно.`,
       reason: null,
     });
   }

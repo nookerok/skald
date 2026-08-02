@@ -134,7 +134,11 @@ function deepCloneUnknown(value: unknown): unknown {
 }
 
 function deepCloneWorldObject(object: WorldObject): WorldObject {
-  return Object.freeze({ ...object, state: deepCloneUnknown(object.state) as Readonly<Record<string, unknown>> });
+  return Object.freeze({
+    ...object,
+    aliases: Object.freeze([...object.aliases]),
+    state: deepCloneUnknown(object.state) as Readonly<Record<string, unknown>>,
+  });
 }
 
 function deepCloneLocation(location: Location): Location {
@@ -427,6 +431,13 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       case "CriticalCheckResolved": {
         const p = event.payload as { checkId: string };
         s.pendingChecks.delete(p.checkId);
+        break;
+      }
+      case "SoundObserved":
+      case "ActionHadNoObservableEffect":
+      case "ObjectObserved": {
+        // Terminal interaction outcomes consume the action budget.
+        s.lastActionTick = event.timestamp;
         break;
       }
       default:

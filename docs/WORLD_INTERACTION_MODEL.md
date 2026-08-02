@@ -1,154 +1,143 @@
-# World Interaction Model — v0 (draft, требует ревью)
+# World Interaction Model — v1 (accepted contract)
 
-Продолжение `docs/ARCHITECTURE.md`, не замена. Описывает, как узкий фиксированный
-словарь команд (`move`/`give`/`wait`/`advance`) вырастает в открытый набор
-взаимодействий (`melt`, `push`, `examine`, `persuade`, ...) без нарушения ни
-одного инварианта из основной конституции. Этот документ — первая версия,
-ожидается несколько раундов ревью перед переносом в AGENTS.md, как и было с
-основной архитектурой.
+Продолжение `docs/ARCHITECTURE.md`, не замена. v1 — принятая спецификация
+взаимодействия игрока с миром через свободный текст. Решения зафиксированы
+в `docs/adr/0013-interaction-model-v1.md`; этот документ — рабочий контракт
+для реализации (срезы вертикальной разработки).
 
 ## Статус
 
-Черновик. Для первого вертикального среза `examine/perception` отдельно
-согласован implementation gate ниже; остальные решения по-прежнему требуют
-того же цикла ревью, что и остальная конституция.
+**Accepted (v1).** Вводится единый канонический пайплайн взаимодействия,
+фиксированный набор глаголов v1, единый Target Resolver и выравнивание
+Entity/WorldObject. Реализация — строго по срезам §9; каждый срез
+закрывается focused-тестами, полным `npm run validate` и ревью.
 
 ---
 
 ## 1. Зачем это нужно
 
-Текущая модель: каждое новое действие — новый `PlayerCommand` + новый `Rule`
-с нуля (`MoveCommand`/`physics.movement`, `GiveCommand`/`relations.give`).
-Работает, но линейно растёт: N действий = N наборов Command/Rule/Event с нуля,
-классическая ловушка RPG-движков.
-
-Цель: игрок формулирует намерение свободно ("расплавить замок"), мир
-сопоставляет его с уже существующими законами (Heat, Force, Light, ...),
-применёнными к конкретной цели — вместо того чтобы для каждой комбинации
-глагол+цель писать отдельный Rule.
+Игрок формулирует намерение свободно («осмотреть дверь», «попытаться
+открыть сундук», «отдать пепел торговцу»); мир детерминированно определяет
+намерение, цель, применимый закон и последствия. Без палитры действий, без
+угадывания, без скрытых решений. Текущее состояние имело два параллельных
+пайплайна (`ActionIntentCommand → ActionAttempted` и `IntentCommand →
+InteractionRequested`), русский текст никогда не попадал в узкий пайплайн,
+а разрешение цели было first-by-id без неоднозначностей (ADR-0013, Context).
 
 ## 2. Терминология
 
 ```
-IntentCommand → InteractionRequested → InteractionTimeValidated → TargetResolved → InteractionValidated → Domain Events
+Player text → InteractionCommand (transient) → InteractionRequested
+  → InteractionTimeValidated → TargetResolved | ActionRejected(ambiguous_target…)
+  → InteractionValidated → Domain Events (fact outcomes) → Projection → Narrative
 ```
 
-- **Intent** — то, что хочет игрок. Существует как расширение уже принятой
-  философии (§2.4 ARCHITECTURE.md: "игрок описывает намерение, не выбирает
-  способность"). На уровне данных — `IntentCommand`, новый вариант
-  `PlayerCommand` (наравне с `MoveCommand`/`GiveCommand`), не их замена.
-- **Interaction** — не новая архитектурная сущность и не новый тип объекта.
-  Это имя для всей цепочки обработки одного `IntentCommand` от первого
-  Domain Event до финального исхода. Инварианты Interaction (см. §6) —
-  переформулировка уже существующих инвариантов Command/Event/Rule
-  применительно к этой цепочке, не новые правила.
+- **InteractionCommand** — каноническая transient-команда (не Domain Event,
+  не пишется в Event Log), создаётся до Command Handler'а из
+  интерпретированного текста.
+- **Interaction** — не новая архитектурная сущность: имя всей цепочки
+  обработки одной InteractionCommand от первого Domain Event до финального
+  исхода. Инварианты §6 — переформулировка существующих инвариантов
+  Command/Event/Rule применительно к этой цепочке.
 - **Law** — логическая группировка Rule по физическому или социальному
-  принципу (`rules/heat/*`, `rules/force/*`). Law не имеет собственного
-  жизненного цикла, интерфейса исполнения или отдельного Registry — это
-  namespace, не архитектурный уровень поверх Rule Registry. `Rule`
-  остаётся единственным исполняемым контрактом
-  `(Event, ReadonlyWorld) → Event[]`.
-- **Gate Event** — подкатегория Domain Event (не новая категория Event Log,
-  см. §9.3 ARCHITECTURE.md): **Domain Event, который фиксирует успешное
-  прохождение архитектурной контрольной точки. Он может не описывать
-  изменение мира непосредственно, но является частью наблюдаемой доменной
-  истории, так как влияет на дальнейшее применение Rules, Replay и
-  Projection.** Примеры уже в проекте: `ActionValidated`/`GiveValidated`
-  (Iteration 7); новые примеры этого документа: `TargetResolved`/
-  `InteractionValidated`. Остаётся каноническим Domain Event по уже
-  действующему критерию §9.3, просто Narrative Adapter не обязан иметь для
-  него шаблон. Не выносится в отдельный internal/non-canonical лог — это
-  создало бы прецедент, ретроактивно противоречащий уже реализованному
-  `ActionValidated`/`GiveValidated`.
+  принципу; namespace, не исполняемый слой. `Rule` остаётся единственным
+  контрактом `(Event, ReadonlyWorld) → Event[]`.
+- **Gate Event** — подкатегория Domain Event: фиксирует успешное прохождение
+  контрольной точки, влияет на дальнейшее применение Rules/Replay/Projection,
+  остаётся каноническим событием (не отдельный лог). Narrative Adapter не
+  обязан иметь для него шаблон. Примеры: `TargetResolved`,
+  `InteractionValidated`, `ActionValidated`.
 
-Явно избегаем слова "Intent" в именах Domain Events (см. §9.9
-ARCHITECTURE.md, почему `IntentCreated` был отклонён ранее) — только на
-Command-стороне. `InteractionRequested` сохраняет то же имя (симметрично
-`MoveRequested`/`GiveRequested` — оба уже означают "запрос, не факт мира",
-переименование создало бы асимметрию без выгоды).
+Слово "Intent" в именах Domain Events не используется (см. §9.9
+ARCHITECTURE.md) — только на Command-стороне. `InteractionRequested`
+сохраняет имя симметрично `MoveRequested`/`GiveRequested`.
 
 ## 3. Data shapes
 
 ```ts
 // Command-side, никогда не пишется в Event Log
-interface IntentCommand {
-  type: "IntentCommand"
-  verb: string          // из конечного реестра, см. §5
-  object: string        // как игрок назвал цель (текст, не EntityId — резолвится Rule'ом)
-  instrument?: string
-  location?: string
-  modifiers?: string[]
+interface InteractionCommand {
+  readonly type: "InteractionCommand";
+  readonly verb: InteractionVerb;              // канонический глагол, см. §5
+  readonly target?: IntentReference;           // как игрок назвал цель (текст, не ID)
+  readonly secondaryTarget?: IntentReference;  // give: получатель
+  readonly instrument?: IntentReference;
+  readonly utterance?: string;
+  readonly rawText: string;
+  readonly interpretation: InterpretationMeta; // source, confidence, ambiguities
 }
 ```
 
-Component-based модель Entity вместо property bag (устраняет риск
-нетипизированного ECS):
+`InteractionVerb` — объединение восьми канонических значений:
+`"observe" | "inspect" | "listen" | "touch" | "take" | "open" |
+"apply_force" | "give"`; `examine` — синоним `inspect` на уровне парсера.
+
+Entity — component-based модель (типизированные доменные аспекты, конечный
+набор, без универсального ECS; новые типы компонентов — только через
+обычный цикл правки схемы):
 
 ```ts
 interface Entity {
   id: EntityId
   components: {
     material?: MaterialComponent      // { kind: "iron" | "wood" | ... }
-    thermal?: ThermalComponent        // { temperature: number, meltingPoint?: number }
-    physical?: PhysicalComponent      // { weight: number, intact: boolean }
-    relation?: RelationComponent      // уже существует как Relation Edges (§5.11)
+    thermal?: ThermalComponent        // { temperature, meltingPoint? }
+    physical?: PhysicalComponent      // { weight, intact }
+    relation?: RelationComponent      // Relation Edges (§5.11)
     inventory?: InventoryComponent
   }
 }
 ```
 
-Rule декларирует, каким компонентам он соответствует (расширение `produces`
-из §12.6 ARCHITECTURE.md, не новый Registry) — правило `heat.melting`
-регистрируется с пометкой "применимо к Entity с `thermal` + `material`".
+**Выравнивание Entity/WorldObject (ADR-0013 §4):** `WorldObject` остаётся
+мутабельной физической моделью; `Entity` остаётся совместимым общим
+read-view; `InteractionTarget` — чистый адаптер над `ReadonlyWorld`;
+`WorldObjectPlaced` даёт и компоненты цели. Оба read model строятся из
+одних и тех же событий, без ручной синхронизации. Мутабельное действие на
+generic `Entity` без физического `WorldObject` → `not_applicable`. Третьей
+канонической модели объектов нет.
 
-**Ограничение (снимает риск дрейфа в нетипизированный ECS):** Components —
-типизированные доменные аспекты Entity, заранее определённый конечный набор
-(`MaterialComponent`, `ThermalComponent`, `PhysicalComponent`,
-`RelationComponent`, `InventoryComponent`, ...), а не универсальная
-ECS-модель. Rules не могут динамически создавать или удалять типы
-компонентов во время выполнения — новый тип компонента добавляется тем же
-процессом, что новый Domain Event (правка кода, ревью, не runtime).
+## 4. Pipeline — единый канонический пайплайн (ADR-0013 §1)
 
-## 4. Pipeline — цепочка Validation Gate, без специального механизма Resolver
-
-Ключевое решение: разрешение цели и применимости закона — это **обычные
-Validation-phase Rules**, использующие уже принятый паттерн Validation Gate
-(§5.12 ARCHITECTURE.md, `simulation.duration_check` → `ActionValidated`), не
-новый инфраструктурный компонент.
+Обе старые команды (`ActionIntentCommand` и узкий `IntentCommand`)
+схлопываются в единую transient-форму `InteractionCommand` **до** Command
+Handler'а. `InteractionRequested` — канонический старт любого
+взаимодействия; `ActionAttempted` остаётся только для легаси-глаголов
+(`move`/`wait`/социальные), новые глаголы через него не ходят.
 
 ```
-Player → IntentCommand (не хранится)
-  → Command Handler (структурная валидация: известен ли verb, есть ли object)
-      ├─ невалидна → CommandRejected
+Player → InteractionCommand (transient, не хранится)
+  → Command Handler (структурная валидация: известен ли verb)
+      ├─ невалидна → CommandRejected (без Domain Event с игровой семантикой)
       └─ валидна   → InteractionRequested (первый Domain Event)
 
   → Rule "simulation.duration_check" (фаза Validation, ЕДИНСТВЕННЫЙ
      владелец InteractionRequested): проверяет action budget
       ├─ времени нет → ActionRejected(reason: "insufficient_time")
-      └─ есть время → InteractionTimeValidated (pass-through)
+      └─ есть время → InteractionTimeValidated
 
   → Rule "interaction.resolve_target" (фаза Validation, ЕДИНСТВЕННЫЙ
-     владелец InteractionTimeValidated): читает ReadonlyWorld, ищет Entity
-     рядом/видимую, соответствующую object
-      ├─ не найдена → ActionRejected(reason: "no_such_target")
-      └─ найдена    → TargetResolved (pass-through, несёт entityId + verb + modifiers)
+     владелец InteractionTimeValidated): единый Target Resolver (§7)
+      ├─ missing     → ActionRejected(reason: "no_such_target")
+      ├─ ambiguous   → ActionRejected(reason: "ambiguous_target",
+      │                 candidateNames: ["Башенная дверь", "Дверные петли"])
+      ├─ environment → TargetResolved(locationId)  // observe/listen без цели
+      └─ resolved    → TargetResolved(entityId)
 
   → Rule "interaction.resolve_law" (фаза Validation, ЕДИНСТВЕННЫЙ владелец
-     TargetResolved): смотрит verb + компоненты найденной Entity против
-     interaction-registry.ts (см. §5)
+     TargetResolved): verb + компоненты цели против interaction-registry.ts
       ├─ не применимо → ActionRejected(reason: "not_applicable")
-      └─ применимо    → InteractionValidated (pass-through, несёт закон + Entity)
+      └─ применимо    → InteractionValidated { law, entityId, verb }
 
   → downstream Law rules (фазы Physics/Consequence, слушают
-     InteractionValidated, финальные владельцы исхода) → реальные Domain
-     Events (`MeltingStarted`, `ObjectIgnited`, ...)
+     InteractionValidated, финальные владельцы исхода) → фактические
+     Domain Events (EntityExamined, SoundObserved, ItemTaken, …)
 
-  → World Projection → Narrative
+  → World Projection → Narrative (PresentationTemplate, без gate-событий)
 ```
 
-Никакого "Intent Resolver" как отдельного механизма не существует — это
-такая же очередь событий, что и всегда (RuleEngine ничего не знает об
-Interaction как о концепции, видит только очередной Event).
+Никакого специального механизма "Intent Resolver" не существует — это
+обычная очередь событий; RuleEngine видит только очередной Event.
 
 ## 5. `interaction-registry.ts` — конечная compile-time таблица
 
@@ -157,93 +146,137 @@ Interaction как о концепции, видит только очередн
 
 ```ts
 interactionRegistry.register({
-  verb: "melt",
-  requiresComponents: ["thermal", "material"],
-  law: "heat",   // namespace/label, НЕ конкретный исход — см. §6 Law
+  verb: "inspect",
+  requiredTarget: "concrete",   // observe/listen: "optional" (разрешается в environment)
+  law: "perception",            // namespace/label, НЕ конкретный исход
 })
 ```
 
-**Важно:** Registry не знает и не должен знать `producesEvent` или любой
-другой конкретный исход. Это была бы утечка доменной логики в диспетчер —
-Registry отвечает только "какой Law применим", а какой именно Domain Event
-получится (`MeltingStarted` / `NothingHappened` / `ObjectDestroyed`) —
-решает конкретное Rule внутри `rules/heat/*` в рантайме, читая состояние
-Entity. `InteractionValidated` несёт `{ law: "heat", entityId, verb,
-modifiers }`; Rules внутри `rules/heat/*` сами фильтруют по `law` в теле
-правила (или через `listens`, если это станет узким местом — деталь
-реализации, не архитектурное решение).
+Registry отвечает только "какой Law применим"; какой именно Domain Event
+получится — решает Rule в рантайме. Registry не знает `producesEvent`.
+Поле `law` — часть доменной модели, стабильный курируемый словарь.
 
-**Поле `law` — часть доменной модели, не технический идентификатор
-Registry.** То, что значение вычислено диспетчером (Registry), не делает
-само значение инфраструктурным — так же, как `direction` в `MoveRequested`
-вычислен `IntentParser`, но остаётся доменным полем. Значения `law`
-(`heat`/`force`/`light`/...) — такой же стабильный, специально
-курируемый словарь, как имена самих Domain Event `type`. Изменение состава
-этого словаря — обычное изменение схемы, уже покрытое Event Schema
-Evolution (§9.7 ARCHITECTURE.md); отдельного механизма развязки
-(`interactionKind` → `law`) не вводится, так как он не убирает связность, а
-просто переносит её на шаг дальше без выгоды.
-
-**Нормализация verb.** `verb` — канонический идентификатор взаимодействия.
-Любые синонимы, языковые варианты и свободные формулировки ("ignite",
-"burn", "set fire to") нормализуются Parser/LLM-классификатором до
-канонического `verb` **до** появления `IntentCommand` — так же, как в Шаге 1
-LLM-классификатор уже нормализует "иду на север"/"двигаюсь к северу" до
-единого `MoveCommand{direction: "north"}`. `interaction-registry.ts` знает
-только канонические `verb`, никогда синонимы — расширение словаря
-синонимов (тюнинг классификатора) не требует изменения Registry.
-
-LLM-классификатор (расширение Шага 1) мапит свободный текст на `verb` **из
-этого реестра** — не изобретает новые verb'ы, ровно так же, как раньше мапил
-на 4 фиксированные команды. Размер словаря растёт, механизм классификации —
-нет.
+**Нормализация verb.** Парсер приводит синонимы и свободные формулировки
+(включая русские словоформы и `examine`) к каноническому `verb` **до**
+появления `InteractionCommand`. Registry знает только канонические verb'ы;
+расширение словаря синонимов не требует изменения Registry.
 
 ## 6. Interaction invariants
 
 Переформулировка существующих инвариантов, не новые правила:
 
-- Interaction (цепочка от `IntentCommand` до финального исхода) сама по себе
-  не изменяет мир — меняют только Rules, эмитящие Domain Events (уже
-  §2.2/§9.9 ARCHITECTURE.md).
-- `IntentCommand` не содержит результатов — как и любой `PlayerCommand`, он
-  transient, не в Event Log (§9.9).
+- Interaction сама по себе не изменяет мир — меняют только Rules, эмитящие
+  Domain Events.
+- `InteractionCommand` не содержит результатов и не пишется в Event Log.
 - Interaction может быть отклонена на любом gate (`CommandRejected` /
-  `ActionRejected(no_such_target)` / `ActionRejected(not_applicable)`) — как
-  и любой другой Domain Event отказа (§9.4).
+  `ActionRejected(no_such_target)` / `ActionRejected(ambiguous_target)` /
+  `ActionRejected(not_applicable)` / `ActionRejected(insufficient_time)`).
+  Неоднозначность — отказ с честным списком кандидатов, не долгоживущее
+  состояние уточнения и не угадывание.
 - Разрешение цели и применимости закона — обычные Validation Rules с
-  доступом к `ReadonlyWorld`, не инфраструктура (прямое следствие §12.8:
-  Parser не имеет права разрешать неоднозначность, требующую знания мира —
-  значит это не может быть частью Parser/Command Handler).
-- Только Rules порождают финальные Domain Events (§2.2).
-- **Single owner для любого Validation/Gate Event** (не новый принцип —
-  прямое применение уже действующего §12.3 ARCHITECTURE.md):
-  `InteractionRequested` имеет ровно одного владельца
-  (`simulation.duration_check`), `InteractionTimeValidated` — одного
-  (`interaction.resolve_target`), `TargetResolved` — одного
-  (`interaction.resolve_law`), `InteractionValidated` — одного на каждый
-  `law` (при появлении конфликта — разделять правило, не вводить приоритет).
+  доступом к `ReadonlyWorld`, не инфраструктура (Парсер не имеет права
+  разрешать неоднозначность, требующую знания мира).
+- **Single owner** для любого Validation/Gate Event и для каждого исхода:
+  один владелец у `InteractionRequested`, один у `InteractionTimeValidated`,
+  один у `TargetResolved`, один у `InteractionValidated` на каждый `law`,
+  один владелец у `ActionResolved` и финальных fact-событий.
+- **Одна команда — одно намерение.** Топ-уровневая команда соответствует
+  ровно одному Intent; композитные intent'ы не поддерживаются в v1.
+- **Один Target Resolver** у runtime-гейта, offline-классификатора и
+  HTTP/интеграционных тестов (продолжение принципа ADR-0011: runtime и
+  offline не могут разойтись).
 
-## 7. Явное архитектурное ограничение v1: один Intent на Command
+## 7. Target Resolver (ADR-0013 §3)
 
-> В v1 top-level Command соответствует ровно одному Intent. Композитные
-> intent'ы ("подожги масло и столкни бочку") не поддерживаются — это
-> сознательное ограничение, не недоработка. Требует отдельной модели
-> транзакций (порядок исполнения нескольких Interaction внутри одной
-> команды, поведение при частичном отказе) и рассматривается отдельным
-> документом, когда актуализируется.
+```ts
+type TargetResolution =
+  | { kind: "resolved"; target: InteractionTarget }
+  | { kind: "environment"; locationId: string }
+  | { kind: "missing" }
+  | { kind: "ambiguous"; candidates: readonly PlayerFacingCandidate[] };
+```
 
-## 8. Открытые вопросы (по аналогии с §11 ARCHITECTURE.md — сознательно отложено)
+Правила:
 
-- **Версионирование компонентной схемы Entity** при добавлении новых
-  компонентов — вероятно решается тем же принципом, что Event Schema
-  Evolution (§9.7), но не прорабатывается заранее.
-- **UX для "неприменимо" vs "цель не найдена"** — оба сейчас `ActionRejected`
-  с разным `reason`, но нарративная подача, вероятно, должна отличаться
-  (см. Шаг 1, честный редирект вместо системной ошибки) — решается на
-  Narrative-слое, не архитектурно.
+- Только observer/player scope; точное имя сильнее алиаса; частичное
+  совпадение — только если единственный кандидат; два равных совпадения →
+  `ambiguous`; невидимые/недоступные цели исключаются; кандидаты не содержат
+  внутренних ID.
+- `observe`/`listen` могут разрешаться в `environment` без цели;
+  `take`/`open`/`touch`/`apply_force` требуют конкретную цель; `give`
+  требует предмет из инвентаря игрока плюс наблюдаемого получателя.
+- Неоднозначность → `ActionRejected { reason: "ambiguous_target",
+  candidateNames: [...] }` с читаемыми именами.
 
----
+## 8. Явное архитектурное ограничение v1
 
-*Черновик. Следующий шаг — ревью (аналогично циклу для основной
-конституции), затем перенос согласованных решений в ARCHITECTURE.md/AGENTS.md
-до начала реализации.*
+> Один Intent на Command; отсутствие палитры действий (composer — единый
+> элемент управления: textarea + «Отправить»; никаких D-pad, кнопок-глаголов,
+> action chips или автодополнений, подменяющих намерение). LLM может только
+> перефразировать факты, выбранные сервером; выбор фактов, важности и
+> действий — за бэкендом. Критический бросок кубика — только после успешного
+> переподключения/классификации (offline); конфликт никогда не молчаливый
+> rebase.
+
+## 9. Вертикальные срезы (порядок обязателен)
+
+Каждый срез: focused-тесты → `npm run validate` → ревью; следующий срез
+начинается только после закрытия предыдущего.
+
+| # | Срез | Каноническая цепочка | События |
+|---|------|----------------------|---------|
+| 1 | observe + inspect | `InteractionRequested → InteractionTimeValidated → TargetResolved → InteractionValidated(law: perception) → EntityExamined / ObjectObserved → ObservationRecord` | `EntityExamined`, `ObjectObserved` (существующее), `ObservationRecord` |
+| 2 | listen | аудиальный закон | `SoundObserved`, `ActionHadNoObservableEffect` |
+| 3 | touch | тактильный закон | `EntityTouched`, `ObservationUpdated`, `ConsequenceCreated` (только реальная опасность) |
+| 4 | take + инвентарь | possession-закон | `ItemTaken`, `ItemDropped` |
+| 5 | open | access-закон | `ObjectOpened`, `ObjectClosed`, `PassageOpened` |
+| 6 | apply_force + критическая проверка | force-закон, миграция | `CriticalCheckRequested → CriticalCheckRolled → CriticalCheckResolved → ObjectIntegrityChanged / PassageOpened / ConsequenceCreated` |
+| 7 | give | transfer-закон | `ItemTransferred { itemId, fromOwnerId, toOwnerId }` |
+
+Требования к срезам:
+
+- **Срез 1:** осмотр без цели описывает только окружение; inspect требует
+  конкретную цель; скрытые свойства не раскрываются; повторный осмотр
+  обновляет свежесть ObservationRecord; неоднозначность в словах;
+  существующий `examine` продолжает работать; offline-`examine` использует
+  тот же новый резолвер после нормализации.
+- **Срез 2:** событие несёт читаемое описание источника, громкость и
+  дистанцию в доменных единицах, observer scope; скрытая причина никогда
+  не раскрывается.
+- **Срез 3:** тактильные свойства: горячее/холодное, шероховатость,
+  подвижность, влажность, вибрация, целостность поверхности; кубик — только
+  при реальной неопределённости со ставками.
+- **Срез 4:** проверки: существует/рядом/доступен/собираем/не
+  принадлежит/не закреплён/вес допустим; инвентарь — проекция из Event Log
+  (не SQLite, не состояние браузера); UI показывает только наблюдаемое
+  содержимое.
+- **Срез 5:** исходы: открывается свободно/заперто/заклинило/уже открыто/не
+  открывается/нужен инструмент или сила; open НЕ переходит автоматически в
+  apply_force; честное сообщение.
+- **Срез 6:** бросок только после всех гейтов; один модификатор применяется
+  один раз; DC фиксирован моделью; восстановление после падения
+  (durable roll); один владелец `ActionResolved`; нет двойного урона/шума;
+  replay использует записанный бросок; у провала тоже есть понятное
+  последствие.
+- **Срез 7:** два разрешённых target'а (предмет игрока + наблюдаемый
+  получатель); Transfer Rule никогда не назначает благодарность/страх/
+  доверие — это могут делать только downstream Rules.
+
+## 10. Offline-граница (ADR-0013 §7)
+
+`inspect`/`examine` переходят на новый общий резолвер немедленно.
+`listen`/`touch`/`take`/`open`/`apply_force`/`give` — онлайн-only на
+старте; офлайн-расширение — отдельная работа UX-6.4. Критический бросок —
+никогда до успешного переподключения/классификации; конфликт — никогда
+молчаливый rebase.
+
+## 11. Definition of Done
+
+Полный словесный цикл «осмотреться → прислушаться → изучить дверь →
+коснуться петель → взять пепел → попытаться открыть дверь → навалиться на
+неё → пройти внутрь → отдать найденный предмет персонажу» исполняется через
+единый канонический пайплайн: факты и последствия, без угадывания
+неоднозначности, кубик только при реальном риске, UI не предлагает
+действий, Event Log — единственная истина, replay/restart идентичны,
+полный `npm run validate` проходит, реальный браузерный QA записан (PASS /
+FAIL / BLOCKED).

@@ -4,21 +4,150 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: UX-6.3 offline intent queue — vertical slice implemented, not
-yet committed/deployed (see Current milestone). UX-6.2.1 hardening deployed
-as 5f95eeb (71f1b9f code + 5f95eeb docs; fast-forward update, backup +
-integrity OK, on-device 1007 tests PASS, health/state OK, idempotent smoke
-PASS: 200 ok:true + 409 on duplicate key). UX-6.2 deployed as 84e1011 (see
-Completed). NTFS visual QA for UX-6.1 and UX-6.2 remains BLOCKED (Codex
-backend 403 via Cloudflare); assignments are queued in thread
-019fa52b-1610-7b23-9567-37891d24c782 and must be run once the backend is
-reachable.
+Working tree: UX-6.3.1 UI hardening — the five browser-QA defects are fixed
+and unit-covered, not yet committed/deployed (see Current milestone).
+Also in the working tree: Interaction Model v1 stages 0–2 + Slices 1–2
+(ADR-0013, DECISIONS D-020) — canonical InteractionCommand pipeline,
+observe/inspect/listen canonicalization, shared Target Resolver, WorldObject
+aliases, perception and listening laws in `rules/interactions/`;
+`npm run validate` PASS (76 files / 1122 tests, 1 pre-existing skip), still
+uncommitted together with UX-6.3.1. UX-6.3 is deployed as 428072d:
+local/on-device validation 1037 passed + 1 skipped,
+backup/integrity/health/state PASS, ten-turn smoke T218→T228 and duplicate
+key 409 PASS. UX-6.2.1 remains deployed as 5f95eeb. The NTFS visual-QA
+backend is reachable after the Codex update. The latest production run
+completed with 0 console errors and found application defects: undersized
+Presence CTA, broken Focus Tab order, premature T0 shell flash, misleading
+transient exit dialog, and internal `forest_fire`/`wall_caution` labels —
+all fixed in UX-6.3.1 (Current milestone); mobile viewport override remains
+tool-blocked.
 
 ## Current milestone
 
+UX-6.3.1 "UI hardening" — the five application defects from the last NTFS
+browser QA run, all fixed with unit coverage (not yet committed/deployed):
+1. «Осмотреться»/«Войти» was an unstyled default button (~19px):
+   `.presence-continue-btn` now has a 44px touch target (min-height/min-width
+   44px, font-size 1rem) and full-width mobile layout, matching
+   `.presence-ack-btn`.
+2. Tab from the focus phase title skipped the primary action: the entry
+   controller now handles Tab/Shift+Tab explicitly — Tab from the phase
+   title always lands on «Я здесь»/«Осмотреться»/retry (never browser chrome
+   or the shell behind), Shift+Tab returns to the title.
+3. Brief shell flash with the static «Ход 0» frame after acknowledge:
+   `connect()` shows the `#shell-loading` dialog from its first synchronous
+   line until snapshot + journal + discoveries render (`setShellLoading` in
+   game-shell-view.js), covering the hardcoded T0 markup on boot and
+   reconnect.
+4. False error-dialog during graceful exit: a 409 `duplicate_request` on the
+   exit acknowledge (request already processed server-side, e.g. replay
+   after a lost response) was misclassified as CONFLICT and showed
+   «Не удалось зафиксировать точку возвращения.» The exit controller now
+   treats `duplicate_request` as an already-recorded exit: clear pending +
+   lease, `skald:exit-ready`, no error text.
+5. `forest_fire`/`wall_caution` leaked as raw keys into player text:
+   `narrative.ts` now emits `situationLabel(type)` («Лесной пожар», unknown
+   types humanized instead of raw snake_case) and `observationLabel(key)`
+   («Память преграды», «Тревожный след», …) in ObservationUpdated /
+   SituationStarted / SituationEnded / formatWorldState; the
+   `sanitizePlayerFacingText` INTERNAL_LABELS net gained `forest_fire` and
+   `wall_caution` for defence in depth. `situationLabel` +
+   `sanitizePlayerFacingText` exported from @skald/world.
+- Tests: narrative.test.ts asserts the labels and the ABSENCE of raw keys
+  (+3 situationLabel/sanitize tests); presence-entry-view.test.ts +6
+  (44px CTA CSS + mobile width, tab title→action hop, Shift+Tab return,
+  shell-loading boot coverage, exit duplicate_request → exit-ready without
+  the error literal). Full suites: world 28 files / 450 tests, CLI 28 files
+  / 380 tests (1 pre-existing skip). `npm run validate` PASS.
+- Pending: NTFS re-QA (desktop + mobile where the viewport override allows)
+  of all five fixes plus the offline banner flow (queue → reconnect →
+  accepted/rejected/conflict), then commit and deploy via the Orange Pi
+  skill from a clean branch.
+
+First living region architecture — accepted documentation proposal in
+`docs/LIVING_WORLD_REGION_ARCHITECTURE.md` and ADR-0012. It separates backend
+spatial truth from observer-scoped map knowledge, defines Event-bootstrap
+authority, 20×20 km pilot resolution, process-driven spatial simulation,
+fog/discovery, first entry, living-map updates and continent-scale boundaries.
+No runtime Events, Rules, Projection, persistence or UI are implemented yet.
+
+Interaction Model v1 — stages 0–2 + Slices 1–2 (ADR-0013, DECISIONS D-020;
+in the working tree, not yet committed):
+- Stage 0 docs: ADR-0013 written (context/alternatives/decision/7-slice
+  table/DoD), `docs/WORLD_INTERACTION_MODEL.md` promoted v0 draft → accepted
+  v1 contract, `docs/ux/INTERACTION_GRAMMAR.md` registers the v1 intentions,
+  GLOSSARY gains InteractionCommand/InteractionVerb/TargetResolution/
+  ambiguous_target, UX_ROADMAP slots UX-6.3.1 between UX-6.3 and UX-6.4.
+- Stage 1 pipeline convergence: `IntentCommand` renamed `InteractionCommand`
+  (never an Event); `InteractionVerb` fixed set
+  observe/inspect/listen/touch/take/open/apply_force/give; parser yields
+  canonical commands for RU stems with ё→е normalization, softener
+  stripping («попытаться открыть сундук»), give item/recipient split,
+  compound-intent rejection («Одна команда — одно намерение.»), confidence
+  rounding; the English `examine|inspect` regex also parses canonical.
+  `command-handler.ts` routes InteractionCommand → InteractionRequested with
+  a registry gate; CLI guards (index.ts + world-handlers.ts) and
+  `perceptionExamine` migrated to the canonical verb.
+- Stage 2 shared Target Resolver (ADR-0013 §3): `resolveInteractionTarget`
+  over ReadonlyWorld — grid entities must be nearby (Manhattan ≤ 1),
+  WorldObjects must be in the player's current location; exact name/alias
+  beats partial, partial only when it selects a single candidate, two equal
+  → `ambiguous` with player-facing candidate names (never internal IDs);
+  observe/listen without a target → `environment`. One resolver serves the
+  runtime gate, the offline classifier and the HTTP/integration tests.
+  `InteractionTarget` is a pure adapter (`targetFromEntity`/`targetFromObject`)
+  over Entity/WorldObject; `WorldObjectPlaced` gained an optional
+  `aliases` field («пепел» for «Кучка пепла») read by the object
+  projector (additive, replay-safe).
+- Slice 1 observe+inspect: RU observe stems (осмотреть/осматриваю/
+  рассмотреть/оглядеть/посмотреть/взглянуть/проверить/…) →
+  canonical `observe`; изучить/изучаю → canonical `inspect`; conjugation
+  remnants stripped deterministically («осматриваю дверь» → дверь).
+  Registry registers observe+inspect (law perception). Gates handle
+  WorldObject targets and the environment fallback
+  (TargetResolved { environment: true, locationId } →
+  InteractionValidated { law: perception, locationId }). New
+  `rules/interactions/perception.ts` (`perceptionObserve`): inspect/observe
+  with an entity → EntityExamined, with an object → ObjectObserved,
+  observe without a target → surroundings ActionResolved. Command Handler
+  accepts observe without a named target; other verbs still require one.
+  Offline classifier stays inspect-only (ADR-0013 §7) — «изучить петли»
+  now parses to inspect and works offline.
+- Tests: intent-parser 145 (observe/inspect canonical forms, legacy-kept
+  listen/touch/apply_force/heat, compound rejection, remnants); world
+  target-resolver.test.ts 16 (exact/alias/partial/ambiguous/missing/
+  environment/location-scope), perception.test.ts 10 (object target,
+  environment chain, full chain end-to-end), world-interaction.test.ts 11,
+  critical-checks + interaction-force updated for `WorldObject.aliases`;
+  full `npm run validate` PASS (74 files / 1101 tests).
+- Slice 2 listen: RU listen stems (слушать/прислушаться/прислушать/
+  подслушать/вслушаться/вслушать/прислушива/слуш) → canonical `listen`;
+  `InteractionLaw` union grows to `"perception" | "listening"`; Command
+  Handler accepts listen without a named target. New
+  `rules/interactions/listening.ts` (`listeningListen`): environment listens
+  scan `location.objectIds`, an object with temperature > `TEMPERATURE_HOT`
+  (60) crackles `SoundObserved { sourceId, source, description, loudness:
+  "quiet", distance, locationId }`, everything else is honest
+  `ActionHadNoObservableEffect { reason: "silence" }`; concrete targets:
+  hot object → SoundObserved, cold/heatless entity → `reason:
+  "silent_target"`; hidden cause never revealed. `SoundObserved` added to
+  event-types, narrative, game-shell builder and presentation
+  (`SOUND_OBSERVED` + silent-target `ACTION_HAD_NO_OBSERVABLE_EFFECT`
+  templates). Tower alias «окна» added for «Разбитое окно».
+- Tests (Slice 2): intent-parser 148 (listen canonical forms incl.
+  «прислушаться у окна»/«слушать звуки»/bare «прислушаться»; legacy test
+  now uses touch), world listening.test.ts 11 (environment silence, hot
+  object audible with loudness/distance, cold/hot concrete targets, grid
+  entity Manhattan distance, non-listening-law ignore, command handler, two
+  full chains end-to-end); focused runner
+  `C:\Temp\opencode\slice2.test.sh`; full `npm run validate` PASS
+  production HTTP + SQLite restart integration (3 tests), legacy composition
+  root compatibility, SoundObserved → Belief Model coverage, and terminal
+  projection coverage; full `npm run validate` PASS (76 files / 1122 tests,
+  1 pre-existing skip).
+
 UX-6.3 "Offline Intent Queue & Conflict Resolution" — first vertical slice
-(implemented, `npm run validate` PASS: 72 files / 1037 tests, 1 pre-existing
-skip; not yet committed/deployed):
+(deployed as 428072d, production smoke T218→T228 PASS):
 - ADR-0011 `docs/adr/0011-offline-intent-queue.md` (accepted) + DECISIONS
   D-018 + GLOSSARY (Offline Intent Envelope, Base Revision, Offline Intent
   Resolution). Browser stores only a Command envelope
@@ -151,23 +280,30 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-1. Dispatch the UX-6.2 visual QA prompt to the NTFS Codex thread (separate
-   QA world: 5 commands / 6 offline ticks / 3 acks; desktop 1440×900 +
-   mobile 390×844; 5 screenshots: threads tab empty, threads tab with fire
-   thread, offline advance then re-entry — thread still active/uncertain and
-   not resolved, mobile threads nav, journal overlay). Authorized click
-   budget stated in the prompt; UX-6.1 assignment still queued in the same
-   thread. Record PASS/FAIL/BLOCKED in this file independently of validate.
-   UX-6.3 adds a browser offline-queue UI path — the same NTFS QA run should
-   later cover the offline banner flow (transport failure → envelope saved →
-   reconnect flush → accepted/rejected/conflict banner).
-2. Commit the UX-6.3 vertical slice (msg.txt), then deploy via the Orange Pi
-   skill from a clean branch after `npm run validate` (already PASS locally).
-3. Interaction Model v1 (sequenced after the offline slice): observe →
-   listen → inspect → touch → take → open → apply force → give, each with a
-   deterministic gate + tests; RU verb-form normalization («осмотреть
-   телегу») and target-resolution/ambiguity answers in words; the offline
-   slice stays exact English `examine <object>` until then.
+1. Dispatch the UX-6.3.1 re-QA prompt to the NTFS Codex thread: verify the
+   five fixes (44px «Осмотреться» CTA, Tab from Focus title → «Я здесь»,
+   no T0 shell flash during acknowledge, no false error dialog on graceful
+   exit, no raw `forest_fire`/`wall_caution` in journal/shell texts) and run
+   the offline banner flow visually (transport failure → envelope saved →
+   reconnect flush → accepted/rejected/conflict banner; the offline
+   `conflict` needs a scenario where an examine target disappears — e.g.
+   queue `examine` while moving the player away in another tab, or a
+   fire-starting playthrough). Desktop 1440×900 + mobile 390×844; mobile is
+   recorded as BLOCKED if the viewport override still does not apply.
+   Authorized click budget stated in the prompt; earlier UX-6.1/6.2
+   assignments remain queued in the same thread. Record PASS/FAIL/BLOCKED in
+   this file independently of validate.
+2. Commit the UX-6.3.1 slice (msg.txt), then deploy via the Orange Pi skill
+   from a clean branch after `npm run validate` (already PASS locally:
+   72 files / 1046 tests).
+3. Interaction Model v1 — remaining vertical slices in order (ADR-0013 §5):
+   Slice 3 touch → Slice 4 take+inventory → Slice 5 open →
+   Slice 6 apply_force+critical checks (migrates interactionForce) → Slice 7
+   give; each migrates its RU stems to canonical InteractionCommand, grows
+   `interaction-registry.ts`, and lands in `rules/interactions/*.ts` with
+   focused tests + `npm run validate`. Offline stays inspect-only until
+   UX-6.4; the «осмотреть <объект>» offline promise is now partially real
+   (изучить → inspect works; осмотреть → observe is online-only).
 4. Second living world process «Следы чужого присутствия»: noise → tracks →
    aging → observation → hypothesis → re-observation confirms/refutes;
    exercises Observation/Belief/freshness/contradiction/Active Threads/free
@@ -208,8 +344,9 @@ endpoint with user `nook`); use the Windows OpenSSH client with
 
 ## Known blockers
 
-NTFS/Codex visual QA backend: 403 (`chatgpt.com/backend-api` via
-Cloudflare); HTTP to the Pi and the WSL workaround path are unaffected.
+Mobile viewport override in the NTFS browser task did not apply (requested
+390×844, actual 1440×900). Desktop browser QA works; record mobile status as
+BLOCKED until the browser runtime supports the override.
 
 LLM/chat-shell vocabulary wiring for Russian free-text forms such as
 "осмотреть телегу" is intentionally out of scope. Small follow-up after the
