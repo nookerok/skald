@@ -4,16 +4,20 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: dirty (UX-6.2 backend + browser uncommitted; UX-6.1 was
-deployed as 76f609c). NTFS visual QA for UX-6.1 remains BLOCKED (Codex
-backend 403 via Cloudflare); the assignment is queued in thread
-019fa52b-1610-7b23-9567-37891d24c782 and must be run once the backend is
-reachable.
+Working tree: clean. UX-6.2 committed as 84e1011 and pushed; deployed to
+Orange Pi via update-orange-pi.sh (fast-forward from e156122, backup +
+integrity OK, on-device 1003 tests PASS, health/state OK, 10-turn smoke PASS:
+200×10 with ok:true, presentation.primary non-null, worldTime +1 per turn,
+409 on duplicate idempotency key). NTFS visual QA for UX-6.1 and UX-6.2
+remains BLOCKED (Codex backend 403 via Cloudflare); assignments are queued
+in thread 019fa52b-1610-7b23-9567-37891d24c782 and must be run once the
+backend is reachable.
 
 ## Current milestone
 
-UX-6.2 "Observer Active Threads" is implemented in code and all unit/HTTP
-tests pass; not yet validated/committed/deployed:
+UX-6.2 "Observer Active Threads" implemented, validated (`npm run validate`
+PASS: typecheck + 69 files / 1003 tests, 1 pre-existing skip), committed
+84e1011, pushed, and deployed to Orange Pi (see top section).
 - ADR-0010 `docs/adr/0010-observer-active-threads.md` (accepted, 10 points)
   + GLOSSARY terms (World Process, Observer Thread, Thread Evidence, Known
   Lifecycle, Knowledge State, Re-observation, Observer Thread Journal).
@@ -93,22 +97,20 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-1. Run `npm run validate` (bash -n deploy scripts + typecheck + ~810 tests
-   + git diff --check), then `git diff --check` again if needed; commit UX-6.2
-   via msg.txt; deploy with the Orange Pi skill (clean branch, fast-forward
-   update, backup/integrity gates, health + state + idempotent smoke incl.
-   entry `threads`, `/observer-threads`, command delta).
-2. Dispatch the UX-6.2 visual QA prompt to the NTFS Codex thread (separate
+1. Dispatch the UX-6.2 visual QA prompt to the NTFS Codex thread (separate
    QA world: 5 commands / 6 offline ticks / 3 acks; desktop 1440×900 +
    mobile 390×844; 5 screenshots: threads tab empty, threads tab with fire
    thread, offline advance then re-entry — thread still active/uncertain and
    not resolved, mobile threads nav, journal overlay). Authorized click
    budget stated in the prompt; UX-6.1 assignment still queued in the same
    thread. Record PASS/FAIL/BLOCKED in this file independently of validate.
-3. Design write-capable offline actions with explicit synchronization and
+2. Design write-capable offline actions with explicit synchronization and
    conflict-resolution semantics (roadmap open item).
-4. The five npm audit findings (3 moderate, 1 high, 1 critical) remain a
+3. The five npm audit findings (3 moderate, 1 high, 1 critical) remain a
    separate dependency-security task; Vitest UI must not be exposed to LAN.
+4. Consider hardening `buildObserverThreadDelta` against incompatible
+   checkpoints (it currently only guards `checkpoint === null`) with a
+   regression test.
 
 Note: ssh from WSL to 192.168.0.5 is currently broken (lands on a stale
 endpoint with user `nook`); use the Windows OpenSSH client with
