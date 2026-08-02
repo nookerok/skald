@@ -79,6 +79,7 @@
       </div>
       <section id="turn-history" class="turn-history" aria-label="Что произошло"><header class="panel-heading"><div><span class="eyebrow">PLAYER-FACING HISTORY</span><h2>Что произошло</h2></div><button id="timeline-journal-btn" class="text-button">Вся хроника →</button></header><div id="turn-history-list" class="turn-history-list"></div></section>
       <section id="controls-section" class="command-dock" aria-busy="true">
+        <p id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></p>
         <form id="command-form" class="command-line"><span class="command-prompt" aria-hidden="true">›</span><textarea id="command-input" class="command-input" rows="1" autocomplete="off" placeholder="Опиши, что ты хочешь сделать…"></textarea><button id="send-btn" class="command-send" type="submit">Отправить</button><button id="retry-btn" class="command-retry" type="button" hidden>Повторить</button></form>
       </section>
       <nav class="mobile-nav" aria-label="Мобильная навигация"><button data-mobile-target="world-stage" class="active" aria-label="Мир" aria-pressed="true">Мир</button><button data-mobile-target="activity-panel" aria-label="Вокруг тебя" aria-pressed="false">Вокруг</button><button data-mobile-target="context-knowledge" aria-label="Знания" aria-pressed="false">Знания</button><button data-mobile-target="context-threads" aria-label="Нити" aria-pressed="false">Нити</button><button data-mobile-target="journal-overlay" aria-label="Журнал" aria-pressed="false">Журнал</button></nav>

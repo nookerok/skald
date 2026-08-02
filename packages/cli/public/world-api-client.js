@@ -95,6 +95,23 @@ export async function sendCommand(input, overrideKey) {
   }
 }
 
+export async function submitOfflineEnvelope(worldId, envelope) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`/api/worlds/${encodeURIComponent(worldId)}/offline-command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(envelope),
+      signal: controller.signal,
+    });
+    const body = await res.json().catch(() => null);
+    return { status: res.status, body };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function fetchGameShell() {
   try {
     const res = await fetch(`${apiBase()}/game-shell`, { signal: AbortSignal.timeout(5000) });

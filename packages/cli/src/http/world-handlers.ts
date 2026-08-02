@@ -15,6 +15,7 @@ import {
   serializeBeliefModel,
   buildShellDelta,
   selectTurnPresentation,
+  resolveOfflineIntent,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -188,6 +189,82 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       return json({
         ok: true,
+        events: cmdResult.events,
+        tickEvents: cmdResult.tickEvents,
+        position: cmdResult.position,
+        state: serializeWorldStateFromRuntime(runtime),
+        presentation: pres,
+        guidance,
+        shellDelta: serializeShellDelta(shellDelta),
+        observerThreads,
+        observerThreadDelta,
+      });
+    } catch (err) {
+      return error("internal_error", safeError(err), 500);
+    }
+  });
+}
+
+// --- Offline intent queue (UX-6.3) ---
+
+export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown): Promise<JsonResponse> {
+  if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
+  if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
+  const { input, idempotencyKey, baseRevision } = body as Record<string, unknown>;
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 1 || idempotencyKey.length > 128)
+    return error("missing_idempotency_key", "idempotencyKey required (1-128 chars)", 400);
+  if (typeof input !== "string" || input.length === 0)
+    return error("invalid_request", "input required", 400);
+  if (typeof baseRevision !== "number" || !Number.isSafeInteger(baseRevision) || baseRevision < 0)
+    return error("invalid_request", "baseRevision must be a non-negative integer", 400);
+
+  return runtime.queue.enqueue(async () => {
+    try {
+      // Idempotency replay wins: a processed key is already_processed and the
+      // browser reconciles authoritative read models instead of re-sending.
+      if (runtime.processedKeys.has(idempotencyKey)) {
+        return json({ ok: true, resolution: "already_processed", message: "Это намерение уже было обработано.", reason: null });
+      }
+
+      // parseIntent's typed contract today never yields ParseError, but the
+      // offline endpoint must survive parser evolution without silently
+      // reclassifying unparsable text; the union cast keeps the guard live.
+      const parsed = parseIntent(input) as
+        | ReturnType<typeof parseIntent>
+        | { type: "ParseError"; reason: string; input: string };
+      if (parsed.type === "ParseError") {
+        return json({ ok: true, resolution: "rejected", message: "Не удалось понять намерение. Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unparsable" });
+      }
+      if (parsed.type !== "IntentCommand") {
+        return json({ ok: true, resolution: "rejected", message: "Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unsupported_offline_intent" });
+      }
+
+      const dto = resolveOfflineIntent(
+        { input, idempotencyKey, baseRevision },
+        { events: runtime.bus.query(), world: runtime.projection.getSnapshot(), parsed },
+      );
+      if (dto.resolution !== "accepted") {
+        return json({ ok: true, resolution: dto.resolution, message: dto.message, reason: dto.reason });
+      }
+
+      // Accepted: execute the normal command cycle with the same envelope.
+      // Classification and execution share one snapshot inside the queue, so
+      // the accepted target still resolves and the time gate passes
+      // (ts = time + 1 > lastActionTick by construction).
+      const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
+      if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
+      if ("statusCode" in r) return r as JsonResponse;
+      const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
+      const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
+      const pres = selectTurnPresentation(allCycleEvents, runtime.projection.getSnapshot());
+      const guidance = buildGuidance(runtime);
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      return json({
+        ok: true,
+        resolution: "accepted",
+        message: null,
+        reason: null,
         events: cmdResult.events,
         tickEvents: cmdResult.tickEvents,
         position: cmdResult.position,

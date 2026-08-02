@@ -4,26 +4,67 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: clean. UX-6.2.1 hardening deployed as 5f95eeb (71f1b9f code
-+ 5f95eeb docs; fast-forward update, backup + integrity OK, on-device 1007
-tests PASS, health/state OK, idempotent smoke PASS: 200 ok:true + 409 on
-duplicate key). UX-6.2 deployed as 84e1011 (see Completed). NTFS visual QA
-for UX-6.1 and UX-6.2 remains BLOCKED (Codex backend 403 via Cloudflare);
-assignments are queued in thread 019fa52b-1610-7b23-9567-37891d24c782 and
-must be run once the backend is reachable.
+Working tree: UX-6.3 offline intent queue — vertical slice implemented, not
+yet committed/deployed (see Current milestone). UX-6.2.1 hardening deployed
+as 5f95eeb (71f1b9f code + 5f95eeb docs; fast-forward update, backup +
+integrity OK, on-device 1007 tests PASS, health/state OK, idempotent smoke
+PASS: 200 ok:true + 409 on duplicate key). UX-6.2 deployed as 84e1011 (see
+Completed). NTFS visual QA for UX-6.1 and UX-6.2 remains BLOCKED (Codex
+backend 403 via Cloudflare); assignments are queued in thread
+019fa52b-1610-7b23-9567-37891d24c782 and must be run once the backend is
+reachable.
 
 ## Current milestone
 
-UX-6.2.1 hardening (deployed 5f95eeb): incompatible checkpoints handled
-explicitly by `buildObserverThreadDelta` — a checkpoint that presence
-resolves as `incompatible` is no memory at all (empty delta, current
-threads treated as a fresh reconstruction); CLI call site passes the
-resolved `checkpointState` through. 4 regression tests: no false `changed`,
-no false `resolved`, no offline-event leak (fully offline fire playthrough
-yields an empty journal and delta, no event names in the DTO), and the
-delta/journal match the missing-checkpoint result. `npm run validate` PASS
-(69 files / 1007 tests, 1 pre-existing skip). Dependency audit classified
-(see Next #3).
+UX-6.3 "Offline Intent Queue & Conflict Resolution" — first vertical slice
+(implemented, `npm run validate` PASS: 72 files / 1037 tests, 1 pre-existing
+skip; not yet committed/deployed):
+- ADR-0011 `docs/adr/0011-offline-intent-queue.md` (accepted) + DECISIONS
+  D-018 + GLOSSARY (Offline Intent Envelope, Base Revision, Offline Intent
+  Resolution). Browser stores only a Command envelope
+  `{ input, idempotencyKey, baseRevision }`; the server re-runs the Intent
+  Parser and classifies `accepted | rejected | conflict | already_processed`;
+  only accepted executes the normal command cycle; conflicts are text; no
+  auto-rebase, no silent merge, no local Domain Events.
+- `packages/world/src/offline-intent/{types,classifier,index}.ts`: pure
+  deterministic `resolveOfflineIntent(envelope, { events, world, parsed })`
+  — replays the event prefix up to `baseRevision` through WorldProjector,
+  compares target resolvability between base and current world with the
+  shared `findExamineTarget` predicate (extracted from the examine gate so
+  classifier and Rule can never diverge). Frozen DTOs, no internal
+  identifiers in player-facing text.
+- API: `POST /api/worlds/:worldId/offline-command` (400 invalid envelope /
+  415 / 405 / 404 / 503; `already_processed` uses the durable
+  `processed_keys` table, restart-safe). Accepted responses carry the full
+  command-cycle payload (events, state, presentation, shellDelta,
+  observerThreads + delta).
+- Browser: `offline-queue.js` (localStorage envelopes per world, bounded at
+  20, dedupe by idempotencyKey, DOM-free + node-testable), `submitOfflineEnvelope`
+  in world-api-client.js, `#offline-banner` in the command dock; on transport
+  failure the composer saves the envelope, on (re)connect `flushOfflineQueue`
+  re-submits, accepted → refresh shell/journal/discoveries, rejected/conflict
+  → server text, transport failure → remaining queue waits.
+- Tests: world `offline-intent.test.ts` 11 (accept/reject/conflict/
+  invalid_envelope matrix, base-vs-current replay, determinism, frozen DTO,
+  no leaks); CLI `offline-intent-http.test.ts` 9 (400s, accepted + executes
+  EntityExamined, already_processed incl. restart durability, rejected
+  unsupported/no_such_target, conflict via crossroads world where the player
+  moved away, 405); `offline-queue.test.ts` 9 (parse/trim/enqueue/dedupe/
+  bound/remove/degradation). NOTE: with the current rule set an examine
+  target can only vanish if the player moves (grid worlds) or future events
+  remove entities — conflict classification is live and tested, the second
+  living process («следы чужого присутствия») will make it reachable
+  organically. «осмотреть <объект>» RU forms are Interaction Model v1
+  (next), the slice is exact English `examine <object>`.
+- UX-6.2.1 hardening (deployed 5f95eeb): incompatible checkpoints handled
+  explicitly by `buildObserverThreadDelta` — a checkpoint that presence
+  resolves as `incompatible` is no memory at all (empty delta, current
+  threads treated as a fresh reconstruction); CLI call site passes the
+  resolved `checkpointState` through. 4 regression tests: no false `changed`,
+  no false `resolved`, no offline-event leak (fully offline fire playthrough
+  yields an empty journal and delta, no event names in the DTO), and the
+  delta/journal match the missing-checkpoint result. Dependency audit
+  classified (see Next #3).
 - ADR-0010 `docs/adr/0010-observer-active-threads.md` (accepted, 10 points)
   + GLOSSARY terms (World Process, Observer Thread, Thread Evidence, Known
   Lifecycle, Knowledge State, Re-observation, Observer Thread Journal).
@@ -117,9 +158,23 @@ World Interaction Model v0 first vertical slice:
    not resolved, mobile threads nav, journal overlay). Authorized click
    budget stated in the prompt; UX-6.1 assignment still queued in the same
    thread. Record PASS/FAIL/BLOCKED in this file independently of validate.
-2. Design write-capable offline actions with explicit synchronization and
-   conflict-resolution semantics (roadmap open item).
-3. Dependency audit (separate task, not mixed with game iteration).
+   UX-6.3 adds a browser offline-queue UI path — the same NTFS QA run should
+   later cover the offline banner flow (transport failure → envelope saved →
+   reconnect flush → accepted/rejected/conflict banner).
+2. Commit the UX-6.3 vertical slice (msg.txt), then deploy via the Orange Pi
+   skill from a clean branch after `npm run validate` (already PASS locally).
+3. Interaction Model v1 (sequenced after the offline slice): observe →
+   listen → inspect → touch → take → open → apply force → give, each with a
+   deterministic gate + tests; RU verb-form normalization («осмотреть
+   телегу») and target-resolution/ambiguity answers in words; the offline
+   slice stays exact English `examine <object>` until then.
+4. Second living world process «Следы чужого присутствия»: noise → tracks →
+   aging → observation → hypothesis → re-observation confirms/refutes;
+   exercises Observation/Belief/freshness/contradiction/Active Threads/free
+   Intent/Presence; its entity life cycle will make the offline `conflict`
+   resolution reachable organically (entities appearing/vanishing while the
+   player is away).
+5. Dependency audit (separate task, not mixed with game iteration).
    Classification completed 2026-08-02:
    - Production tree is clean: root package.json has zero `dependencies`;
      `npm audit --omit=dev` reports 0 findings. Runtime deps are only
@@ -139,9 +194,9 @@ World Interaction Model v0 first vertical slice:
      critical alone is fixed by `vitest@3.2.6` in the current major, but
      that still resolves an affected vite unless overridden. The task must
      evaluate vitest 4 migration (Node 22 OK; CLI/config deltas) vs pinned
-     vitest 3.2.6 + vite 6.4.3 override, then run the full suite (1007+
+     vitest 3.2.6 + vite 6.4.3 override, then run the full suite (1000+
      tests) and `npm run validate` before any change is accepted.
-4. UX-6.2.1 hardening is DONE (see Completed): `buildObserverThreadDelta`
+6. UX-6.2.1 hardening is DONE (see Completed): `buildObserverThreadDelta`
    now takes `checkpointState` and treats `incompatible` exactly like a
    missing checkpoint (no remembered baseline, no false changed/resolved,
    no offline leak, delta equals the no-checkpoint result); 4 regression

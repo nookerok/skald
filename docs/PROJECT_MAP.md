@@ -58,6 +58,14 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> presence entry state machine (idle -> requesting_session -> presence
     -> focus -> acknowledging -> ready; retryable_error / stale_revision /
     unavailable) -> observer-session (checkpoint + drift + presence)
+
+    Browser offline (envelope { input, idempotencyKey, baseRevision } only,
+    localStorage queue bounded 20) -> reconnect
+    -> POST /api/worlds/:id/offline-command
+    -> server re-parses + pure resolveOfflineIntent (base-vs-current world
+    replay, shared findExamineTarget predicate)
+    -> accepted (normal command cycle) | rejected | conflict |
+    already_processed (durable processed_keys) -> offline banner in shell
     -> explicit presence/acknowledge (idempotent, durable same-key retry in
     sessionStorage, writes checkpoint only here; stale/duplicate drop the key
     and re-fetch) -> presence/focus renderers (DTO-only, no client

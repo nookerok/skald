@@ -91,6 +91,7 @@ export {
   resolveInteractionLaw,
   perceptionExamine,
   examinedCuriosity,
+  findExamineTarget,
   worldInteractionRules,
 } from "./rules/world-interaction.js";
 export { interactionRegistry, getInteractionDefinition, isKnownInteractionVerb } from "./interaction-registry.js";
@@ -133,3 +134,13 @@ export {
   REMEMBERED_MAX_AGE,
 } from "./observer-threads/index.js";
 export type * from "./observer-threads/types.js";
+
+// UX-6.3 — Offline intent queue (pure classification)
+export { resolveOfflineIntent } from "./offline-intent/index.js";
+export type {
+  OfflineClassificationContext,
+  OfflineIntentResolution,
+  OfflineRejectReason,
+  OfflineIntentEnvelope,
+  OfflineIntentResolutionDTO,
+} from "./offline-intent/index.js";

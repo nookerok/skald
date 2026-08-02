@@ -16,6 +16,7 @@ import {
   handleWorldState,
   handleWorldCommand,
   handleWorldWait,
+  handleOfflineCommand,
   handleWorldJournal,
   handleWorldDiscoveries,
   handleWorldGuidance,
@@ -168,7 +169,7 @@ export async function startServer(options?: {
       // Static files
       if (method === "GET") {
         if (url.pathname === "/" || url.pathname === "/index.html") { serveStatic("/index.html", res, corsOrigin); return; }
-        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/threads-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js", "/known-worlds-view.js", "/presence-card-view.js", "/presence-entry-state.js", "/presence-entry-controller.js", "/presence-view.js", "/focus-view.js", "/presence-lease.js", "/presence-route.js", "/presence-exit-state.js", "/presence-exit-controller.js"];
+        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/offline-queue.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/threads-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js", "/known-worlds-view.js", "/presence-card-view.js", "/presence-entry-state.js", "/presence-entry-controller.js", "/presence-view.js", "/focus-view.js", "/presence-lease.js", "/presence-route.js", "/presence-exit-state.js", "/presence-exit-controller.js"];
         if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
         const cssFiles = ["/styles.css", "/guidance.css", "/menu.css", "/new-game.css", "/game-shell.css", "/living-world.css", "/presence-entry.css"];
         if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
@@ -268,11 +269,22 @@ export async function startServer(options?: {
             const r = await handlePresenceAcknowledge(runtime, worldId, body);
             handle(r.statusCode, JSON.parse(r.body)); return;
           }
+          if (sub === "/offline-command") {
+            if (parseContentType(req.headers["content-type"]) !== "application/json") {
+              errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return;
+            }
+            let body: unknown;
+            try { body = await readJsonBody(req); } catch (err) {
+              errHandle((err as any)?.message?.includes("too large") ? 413 : 400, "invalid_request", "invalid body"); return;
+            }
+            const r = await handleOfflineCommand(runtime, body);
+            handle(r.statusCode, JSON.parse(r.body)); return;
+          }
         }
 
         // Known sub-path but wrong method → 405
         const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence", "/observer-threads"];
-        const knownPostSubs = ["/command", "/wait", "/presence/acknowledge"];
+        const knownPostSubs = ["/command", "/wait", "/presence/acknowledge", "/offline-command"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
       }

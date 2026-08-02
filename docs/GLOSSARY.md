@@ -53,3 +53,6 @@ trees or talents. Express behavior through Events, Rules, Consequences,
 Situations, Observations, Relations and existing world laws.
 
 The normal Knowledge UI is defined by docs/OBSERVATION_BELIEF_MODEL.md.
+| Offline Intent Envelope | The only thing the browser stores without a connection: { input, idempotencyKey, baseRevision } | A local Domain Event or optimistic projection |
+| Base Revision | The world event number the player last saw; the server replays up to it to reconstruct the base world | A client-claimed truth |
+| Offline Intent Resolution | Server decision for an envelope: accepted, rejected, conflict or already_processed | A browser-side guess |

@@ -79,6 +79,32 @@ thread.
 Open item: write-capable offline actions still require an explicit
 synchronization and conflict-resolution design.
 
+### UX-6.3 — Offline Intent Queue (vertical slice shipped)
+
+Offline intent queue shipped (ADR-0011, DECISIONS D-018): the browser stores
+only a Command envelope `{ input, idempotencyKey, baseRevision }` in
+localStorage (bounded 20, dedupe by key); on reconnect `POST
+/api/worlds/:worldId/offline-command` re-runs the Intent Parser and
+classifies `accepted | rejected | conflict | already_processed`
+(`resolveOfflineIntent` is a pure classifier over base-vs-current world
+replay with the shared `findExamineTarget` predicate). Only `accepted`
+executes the normal command cycle; conflicts are server text, never silent
+rebases; `already_processed` is durable across restarts. Browser flushes the
+queue on (re)connect with a banner for each outcome.
+
+Slice scope: exact English `examine <object>` only; everything else is
+rejected with an honest text. RU verb forms («осмотреть <объект>»), target
+resolution and ambiguity handling are Interaction Model v1. The second
+living process «Следы чужого присутствия» will give the conflict
+resolution a naturally reachable scenario (entities appearing and vanishing
+while the player is away).
+
+### UX-6.4 — Offline movement, force and item intents
+
+Later vertical slices widen the offline slice (movement, force, item
+transfer, critical checks) using the same envelope + resolution contract;
+critical checks must keep the "dice only after acceptance" invariant.
+
 ## UX-7 — Visual, audio and accessibility polish
 
 Animation, sound, assets, reduced-motion, responsive QA and performance gates.

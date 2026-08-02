@@ -23,6 +23,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-015 | Worldbuilding principles are a governed design layer; they add no runtime Events/Rules/persistence until a vertical-slice ADR maps them to current contracts | accepted | docs/adr/0007-worldbuilding-principles.md; docs/worldbuilding/README.md |
 | D-016 | BeliefModelDTO v2 makes PatternBelief.freshness explicit; freshness is recomputed from retained evidence and never compounds across read-model decay calls | accepted | docs/adr/0008-belief-model-freshness.md; docs/OBSERVATION_BELIEF_MODEL.md |
 | D-017 | Observer Thread Journal is a pure observer-scoped read model of long-lived processes; lifecycle/certainty/change are classified on the backend; absence of observation never resolves a thread and hidden offline state never becomes player-facing truth | accepted | docs/adr/0010-observer-active-threads.md |
+| D-018 | Offline intent queue: the browser stores only a Command envelope (input + idempotency key + base revision), never Events/Projection; on reconnect the server re-runs the Intent Parser and classifies accepted / rejected / conflict / already_processed; only accepted executes, conflicts are text, no auto-rebase or silent merge | accepted | docs/adr/0011-offline-intent-queue.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

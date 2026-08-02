@@ -43,6 +43,18 @@ function namesMatch(entity: Entity, object: string): boolean {
 }
 
 /**
+ * Shared examine target resolution predicate. Both the examine gate and the
+ * offline intent classifier use this exact function so that a classified
+ * "accepted" offline intent can never resolve to a different target at
+ * execution time.
+ */
+export function findExamineTarget(world: ReadonlyWorld, object: string): Entity | undefined {
+  return [...world.entities.values()]
+    .filter((candidate) => isNearby(candidate, world) && namesMatch(candidate, object))
+    .sort((a, b) => a.id.localeCompare(b.id))[0];
+}
+
+/**
  * Validation gate after InteractionTimeValidated. It is the sole owner of this
  * event and never performs law selection or outcome generation.
  */
@@ -53,9 +65,7 @@ export const interactionResolveTarget: Rule<ReadonlyWorld> = {
   produces: ["TargetResolved", "ActionRejected"],
   handle: (event, world) => {
     const payload = event.payload as { verb?: string; object?: string };
-    const entity = [...world.entities.values()]
-      .filter((candidate) => isNearby(candidate, world) && namesMatch(candidate, payload.object ?? ""))
-      .sort((a, b) => a.id.localeCompare(b.id))[0];
+    const entity = findExamineTarget(world, payload.object ?? "");
 
     if (!entity || !payload.verb) return [reject(event, "no_such_target")];
     return [{

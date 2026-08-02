@@ -1,4 +1,5 @@
-import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey } from "./world-api-client.js";
+import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
+import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
 import { renderGameShell, renderTurnHistory, renderShellConnection, setShellBusy, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -16,6 +17,55 @@ import { showContextLocation } from "./context-rail-view.js";
 let state = createInitialState();
 let interactionReady = false;
 let currentWorldId = null;
+let lastKnownRevision = 0;
+
+function renderOfflineBanner(text) {
+  const banner = document.getElementById("offline-banner");
+  if (!banner) return;
+  if (!text) { banner.hidden = true; banner.textContent = ""; return; }
+  banner.textContent = text;
+  banner.hidden = false;
+}
+
+/** Re-submit queued Command envelopes; the server alone decides the outcome. */
+async function flushOfflineQueue() {
+  if (!currentWorldId) return;
+  const pending = readQueue(currentWorldId);
+  if (pending.length === 0) { renderOfflineBanner(null); return; }
+  renderOfflineBanner(`Отложенных намерений: ${pending.length}. Возвращаем их миру…`);
+  const done = [];
+  let failed = false;
+  for (const envelope of pending) {
+    let result;
+    try {
+      result = await submitOfflineEnvelope(currentWorldId, envelope);
+    } catch {
+      failed = true;
+      break;
+    }
+    const resolution = result?.body?.resolution;
+    if (!resolution) { failed = true; break; }
+    done.push(envelope.idempotencyKey);
+    if (resolution === "accepted") {
+      if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
+      renderOfflineBanner(`«${envelope.input}» — записано с опозданием.`);
+      await refreshShell();
+      await refreshJournal();
+      await refreshDiscoveries();
+    } else if (resolution === "already_processed") {
+      renderOfflineBanner(`«${envelope.input}» — уже было записано ранее.`);
+    } else {
+      renderOfflineBanner(`«${envelope.input}» — ${result.body.message || "не записано."}`);
+    }
+  }
+  removeProcessed(currentWorldId, done);
+  const remaining = readQueue(currentWorldId).length;
+  if (failed || remaining > 0) {
+    renderOfflineBanner(remaining > 0 ? `Отложенных намерений: ${remaining}. Они ждут связи.` : "Часть намерений ждёт связи.");
+  } else {
+    renderOfflineBanner(null);
+  }
+}
 
 function dispatch(action, payload) {
   state = transition(state, action, payload);
@@ -82,6 +132,7 @@ async function handle(input, overrideKey) {
   try {
     const result = await sendCommand(input, key);
     if (result.body?.ok) {
+      if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
       const inputElement = document.getElementById("command-input");
       if (inputElement) inputElement.value = "";
       dispatch("COMMAND_SUCCESS");
@@ -104,6 +155,10 @@ async function handle(input, overrideKey) {
     dispatch(error?.name === "AbortError" ? "COMMAND_TIMEOUT" : "COMMAND_TRANSPORT_FAIL");
     renderShellConnection("error", "Связь прервана");
     setRetryVisible(true);
+    if (currentWorldId) {
+      enqueueOfflineIntent(currentWorldId, { input, idempotencyKey: key, baseRevision: lastKnownRevision });
+      renderOfflineBanner(`«${input}» сохранено — отправим, когда связь вернётся.`);
+    }
   } finally {
     setControlsBusy(false);
     setShellBusy(false);
@@ -122,11 +177,13 @@ async function connect() {
     return;
   }
   dispatch("BOOT_SUCCESS", { turns: stateResult.body.state?.eventNumber || 0 });
+  if (stateResult.body.state?.eventNumber) lastKnownRevision = stateResult.body.state.eventNumber;
   await refreshJournal();
   await refreshDiscoveries();
   interactionReady = true;
   dispatch("RECONNECT_SUCCESS");
   renderShellConnection("ready", "Мир слушает");
+  await flushOfflineQueue();
   setShellBusy(false);
 }
 function showPanel(name) {
