@@ -302,6 +302,27 @@ nonlocal topology and emergence thresholds require a dedicated vertical-slice
 ADR before they can alter Events, Rules, Projection or DTOs. See
 `docs/adr/0007-worldbuilding-principles.md`.
 
+#### 5.3.4 Observer Thread Journal (UX-6.2)
+
+Long-lived processes as the player knows them are a pure observer-scoped read
+model (`packages/world/src/observer-threads/`, ADR-0010):
+
+```
+player-facing journal (skipOfflineTurns)
+    -> observer-threads definitions (start/develop/resolve signals)
+    -> aging (observed -> remembered -> uncertain) + checkpoint memory
+    -> ObserverThreadJournalDTO -> /api/worlds/:id/observer-threads
+    -> Game Shell "Активные нити" panel
+```
+
+It is not a Rule, emits no Domain Events and never confirms hidden world state:
+a thread's `knownLifecycle` is only what the observer saw, a hidden Situation
+end never resolves a thread, and absence of observation decays certainty but
+never lifecycle. Thread keys map to existing Presentation Template keys;
+`ref = fnv1a("observer-thread:v1:" + threadKey)` is the opaque player-facing
+id. Memory comes from the same `observer_checkpoints` as presence; a missing
+or incompatible checkpoint means no memory of threads.
+
 ### 5.4 Situations — долгоживущие правила во времени
 
 **Решение:** Situation — не объект, не менеджер, не сценарий. Это обычное Rule, которое активируется/деактивируется событиями и действует на `TickPassed`.

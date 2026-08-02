@@ -84,9 +84,17 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
     allEntries.push(...presentation.notable);
     allEntries.push(...presentation.background);
 
+    const typeById = new Map<string, string>();
+    for (const e of currentTurnEvents) typeById.set(e.eventId, e.type);
+
     for (const entry of allEntries) {
       if (!entry.threadKey) continue;
       const list = threadMap.get(entry.threadKey) ?? [];
+      const sourceEventTypes = [...new Set(
+        entry.sourceEventIds
+          .map((id) => typeById.get(id))
+          .filter((type): type is string => type !== undefined),
+      )];
       list.push({
         turnId,
         worldTime: ts,
@@ -94,6 +102,7 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
         importance: entry.importance,
         discoveryMark: entry.discoveryMark,
         sourceEventIds: entry.sourceEventIds,
+        sourceEventTypes,
       });
       threadMap.set(entry.threadKey, list);
       if (entry.threadLabel) threadLabels.set(entry.threadKey, sanitizePlayerFacingText(entry.threadLabel));

@@ -31,7 +31,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | packages/events | Non-canonical reactive Belief notifications over EventBus |
 | packages/event-bus | Event envelope, append, publish, query and persistence interfaces |
 | packages/rule-engine | Queue, phases, staged batch and atomic commit |
-| packages/world | Projection, world Rules, Narrative and Presentation |
+| packages/world | Projection, world Rules, Narrative, Presentation, observer-threads read model, presence/journal builders |
 | packages/intent-parser | Syntax and semantic parsing without world decisions |
 | packages/cli | Composition roots, REPL, HTTP, SQLite, UI and deployment |
 | docs/ux | UX capability, authority, screen and state contracts |
@@ -46,6 +46,13 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     Pattern Ontology -> Observation Contract -> Observation Engine -> Lenses
     -> Belief -> Explain/Trace -> reactive Belief notifications
     -> normal Knowledge renderer (observer-scoped, uncertainty-preserving)
+
+    Domain Events + ReadonlyWorld -> player-facing journal (skipOfflineTurns)
+    -> observer-threads (definitions + aging + checkpoint memory)
+    -> ObserverThreadJournalDTO -> /api/worlds/:id/observer-threads,
+    entry `threads` field, command `observerThreads` + `observerThreadDelta`
+    -> Game Shell "Активные нити" panel (DTO-only cards, montage tags,
+    honest lifecycle/certainty labels, no command chips)
 
     Known Worlds (lazy presence cards, parallelism 3) -> #/world/:id/return
     -> presence entry state machine (idle -> requesting_session -> presence

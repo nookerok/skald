@@ -7,12 +7,16 @@ import {
   buildGameShellSnapshot,
   buildBeliefModel,
   buildObserverSessionAndSummary,
+  buildObserverThreadJournal,
+  buildObserverThreadDelta,
+  resolveCheckpointState,
   computeBeliefRevision,
   parseBeliefModelDTO,
   serializeBeliefModel,
   buildShellDelta,
   selectTurnPresentation,
 } from "@skald/world";
+import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 
@@ -89,6 +93,29 @@ function checkPoisoned(runtime: WorldRuntime): boolean {
   return (runtime.engine as any).isPoisoned?.() ?? false;
 }
 
+/**
+ * Observer Thread Journal at the current world revision, plus the delta
+ * against the checkpoint memory. Synchronous over one snapshot, so the
+ * journal revision always equals the concurrent state revision. Only a
+ * checkpoint that resolves valid provides thread memory; the resolved state
+ * is passed down so the journal never trusts an unverifiable memory.
+ */
+function buildObserverThreadsForRuntime(runtime: WorldRuntime): { journal: ObserverThreadJournalDTO; delta: ObserverThreadDelta } {
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const checkpoint = runtime.store.getObserverCheckpoint(runtime.worldId, "player");
+  const beliefModel = serializeBeliefModel(buildBeliefModel(events, world, "player"));
+  const journal = buildObserverThreadJournal({
+    events,
+    beliefModel,
+    checkpoint,
+    checkpointState: resolveCheckpointState(events, checkpoint).state,
+    revision: { worldTime: world.time, eventNumber: world.eventNumber },
+  });
+  const delta = buildObserverThreadDelta({ events, journal, checkpoint });
+  return { journal, delta };
+}
+
 function parseStrictInt(raw: string | null, def: number, min: number, max: number): { value: number; ok: true } | { ok: false } {
   if (raw === null) return { value: def, ok: true };
   const n = Number(raw);
@@ -125,7 +152,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta) });
+      const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
     }
     if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
@@ -138,7 +166,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
         const guidance = buildGuidance(runtime);
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta) });
+        const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+        return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
@@ -155,6 +184,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const pres = selectTurnPresentation(allCycleEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       return json({
         ok: true,
         events: cmdResult.events,
@@ -164,6 +194,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         presentation: pres,
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
+        observerThreads,
+        observerThreadDelta,
       });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
@@ -219,7 +251,17 @@ export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): Js
   const record = runtime.store.getWorldRecord(worldId);
   const charProfile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
   const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId);
-  return json({ ok: true, snapshot: { ...snapshot, beliefModel: parseBeliefModelDTO(serializeBeliefModel(snapshot.beliefModel)) } });
+  const { journal: observerThreads } = buildObserverThreadsForRuntime(runtime);
+  return json({
+    ok: true,
+    snapshot: {
+      ...snapshot,
+      beliefModel: parseBeliefModelDTO(serializeBeliefModel(snapshot.beliefModel)),
+      // One consistent revision: the thread journal derives synchronously
+      // from the same events/world as the rest of the snapshot.
+      observerThreads,
+    },
+  });
 }
 
 export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
@@ -247,7 +289,8 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       const pres = selectTurnPresentation(r.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
-      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta) });
+      const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }
@@ -285,11 +328,28 @@ export function handleObserverSession(runtime: WorldRuntime, worldId: string): J
   const { session, summary } = buildObserverSessionAndSummary({
     worldId, events, world, playerContext: resolvePlayerContext(world), checkpoint,
   });
+  const beliefModel = serializeBeliefModel(buildBeliefModel(events, world, "player"));
+  const threads = buildObserverThreadJournal({
+    events,
+    beliefModel,
+    checkpoint,
+    checkpointState: resolveCheckpointState(events, checkpoint).state,
+    revision: { worldTime: world.time, eventNumber: world.eventNumber },
+  });
   return json({
     ok: true,
     session: { ...session, beliefModel: parseBeliefModelDTO(session.beliefModel) },
     summary,
+    // One consistent revision: session.revision === threads.revision by
+    // construction — both derive synchronously from the same snapshot.
+    threads,
   });
+}
+
+export function handleObserverThreads(runtime: WorldRuntime, _worldId: string): JsonResponse {
+  if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
+  const { journal } = buildObserverThreadsForRuntime(runtime);
+  return json({ ok: true, journal });
 }
 
 export function handleWorldPresence(runtime: WorldRuntime, worldId: string): JsonResponse {

@@ -501,7 +501,7 @@ describe("findDormantThreads", () => {
       lastWorldTime: last,
       entries: [{
         turnId: "t", worldTime: last, text: "x", importance: "notable" as const,
-        discoveryMark: null, sourceEventIds: ["e1"],
+        discoveryMark: null, sourceEventIds: ["e1"], sourceEventTypes: ["SituationStarted"],
       }],
     });
     const checkpointThreads = [mkThread("a", "Караван", 4), mkThread("b", "Лес", 3)];

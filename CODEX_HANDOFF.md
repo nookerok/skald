@@ -4,78 +4,76 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: clean; HEAD == origin/main == 76f609c (UX-6.1 committed and
-deployed to Orange Pi: update + backup/integrity + 948 tests on-device +
-health/state + lifecycle smoke + idempotency edge cases PASS). Visual QA for
-UX-6.1: dispatched to the fixed NTFS browser task (thread
-019fa52b-1610-7b23-9567-37891d24c782) — BLOCKED: Codex backend refuses
-requests (chatgpt.com/backend-api returns HTTP 403 via Cloudflare,
-"Unable to load site"); the assignment is queued in the thread and must be
-run once the backend is reachable again. All non-visual gates PASS.
+Working tree: dirty (UX-6.2 backend + browser uncommitted; UX-6.1 was
+deployed as 76f609c). NTFS visual QA for UX-6.1 remains BLOCKED (Codex
+backend 403 via Cloudflare); the assignment is queued in thread
+019fa52b-1610-7b23-9567-37891d24c782 and must be run once the backend is
+reachable.
 
 ## Current milestone
 
-UX-6.1 "Presence Lifecycle Completion" is implemented (uncommitted; validate
-PASS 948 tests):
-- 6.1A atomic Entry DTO: `buildObserverSessionAndSummary` in
-  packages/world/src/presence/builder.ts derives session + summary in one
-  pass (invariant: `session.revision.worldTime === summary.currentWorldTime`,
-  checkpointState agrees by construction); both `/observer-session` and
-  `/presence` return `{session, summary}`. Honest statuses: none — «Мир
-  кажется таким, каким ты его помнишь.»; incompatible — «Твои прежние
-  воспоминания нельзя надёжно восстановить. Мир приходится воспринимать
-  заново.» 22 presence-http tests.
-- 6.1B entry state machine rework: PRESENCE is its own phase; only the
-  explicit «Осмотреться»/«Войти» button (client-only `skald:presence-
-  continue`) moves to FOCUS; acknowledge («Я здесь») is possible only from
-  FOCUS (or durable-pending resume / transport retry). `presence-entry-
-  state.js` phases: idle → requesting_session → presence → focus →
-  acknowledging_entry → ready, retryable_error, stale_revision, unavailable.
-  `presence-view.js`/`focus-view.js` render DTO-only montage + focus blocks
-  (location, ambient, cues, remembered context) with 44px targets, one
-  landmark per phase, aria-live status, focus trap, `data-phase-title` focus
-  handoff.
-- 6.1C lease routing: `presence-lease.js` (sessionStorage
-  `skald:presence:lease:1:<worldId>`, written only after acknowledge HTTP
-  200), `presence-route.js` (pure `resolveWorldRoute`), app.js gates
-  `#/world/:id` on the lease and `location.replace`s to `/return` without
-  one (no shell frame ever renders); new game → `#/world/:id/return`;
-  `skald:presence-ready` → `#/world/:id`; reload keeps lease, new tab
-  re-enters presence.
-- 6.1D graceful exit: «Выйти» button, `presence-exit-state.js` reducer
-  (leave_requested → fetching_current_session → acknowledging_exit →
-  leave_ready; stale auto-refetch capped at MAX_STALE_RETRIES=1; transport
-  fail keeps the durable `skald:presence:exit-pending:1:<worldId>` body;
-  stay/retry), `presence-exit-controller.js` with `initExitFlow({
-  onWaitForPendingCommand })`; app.js blocks commands while
-  `isExitInProgress()`, waits for the in-flight command before syncing,
-  `skald:exit-ready` → menu (lease cleared, checkpoint pinned server-side).
-- 6.1E honest loading texts mapped to reducer phases only:
-  «Восстанавливаем твои наблюдения…», «Подтверждаем твоё присутствие…»,
-  «Сверяем последнее состояние мира…», «Сохраняем точку возвращения…»;
-  no timed/fake stages.
-- 6.1F tests: entry-state 19, exit-state 12, presence-route 5, view/
-  controller/app wiring checks, static whitelist gains the four new JS
-  modules, `presence-lifecycle.test.ts` 7 integration tests (entry ack pins
-  checkpoint, re-entry zero drift, same-key replay, key+different-body 409,
-  stale never overwrites, offline ticks observer-scoped, restart replay).
+UX-6.2 "Observer Active Threads" is implemented in code and all unit/HTTP
+tests pass; not yet validated/committed/deployed:
+- ADR-0010 `docs/adr/0010-observer-active-threads.md` (accepted, 10 points)
+  + GLOSSARY terms (World Process, Observer Thread, Thread Evidence, Known
+  Lifecycle, Knowledge State, Re-observation, Observer Thread Journal).
+- `packages/world/src/observer-threads/{types,definitions,builder,delta,index}.ts`:
+  pure deterministic thread journal. Definitions map existing presentation
+  thread keys to lifecycle signals: FOREST_FIRE (`situation:forest_fire`,
+  start ForestFireStarted/SituationStarted, develop TreeBurned, resolve
+  SituationEnded), GENERIC_SITUATION (`situation:*`), CONSEQUENCE
+  (`consequence:*`, resolveEventTypes: [] — TODO: no visible completion
+  signal exists, so consequences never claim an ending). `ref =
+  fnv1a("observer-thread:v1:"+key)` → `ot-<base36>`, raw keys never in the
+  player DTO. Aging observed → remembered (≤3) → uncertain (4+);
+  `knownLifecycle` (active/resolved/unknown) and `knowledgeState` are
+  orthogonal; memory only from a `valid` observer checkpoint.
+  `buildObserverThreadJournal({events, beliefModel, checkpoint,
+  checkpointState, revision})` — checkpointState is a required caller input;
+  `buildObserverThreadDelta({events, journal, checkpoint})` → opened /
+  changed / resolved / becameUncertain.
+- HTTP: `GET /api/worlds/:id/observer-threads` (200/405/404/503),
+  `/observer-session` gains `threads` (same revision as session),
+  command/wait/`advance N` responses gain `observerThreads` +
+  `observerThreadDelta`; `/game-shell` snapshot gains `observerThreads`;
+  `WorldPresenceSummary` gains `uncertainThreadCount`/`changedThreadCount`
+  (card hint «Некоторые из твоих сведений могли устареть.»).
+- Browser: «Активные нити» panel — 4th context tab + `threads-view.js`
+  (DTO-only cards, montage tags «Новая нить»/«Изменилось»/«Завершилось»/
+  «Требует проверки», honest labels «Есть противоречие»/«Эта нить требует
+  нового наблюдения.», evidence with turn numbers, no buttons/chips), mobile
+  nav button, registered in http-server.js jsFiles.
+- Tests: world `observer-threads.test.ts` 26 + `observer-thread-delta.test.ts`
+  9 (classification determinism, aging, offline hiddenness, never resolves
+  from a hidden end, caps MAX_THREADS 8 / MAX_EVIDENCE 3 /
+  MAX_RECENTLY_RESOLVED 3, no internal-id leaks, replay, deep-freeze);
+  CLI `observer-threads-http.test.ts` 10 (uses in-process legacy-template
+  worlds — HTTP worlds are location-based where "move north" is blocked and
+  no fire can start; full playthrough: 3 moves → audacity t8 → move t9 →
+  fire t14; waits advance exactly 1 tick, spread burns at even offsets);
+  `threads-view.test.ts` 7 (DOM-mock renderer tests); client-modules +
+  game-shell/http integrity additions. Full suites: world 28 files / 437
+  tests, CLI 28 files / 376 tests (1 pre-existing skip).
 
 ## Completed
 
-UX-6.0D-F browser entry path (commits b9c02cd, b997058, f0ada36, f044743,
-1cbd1ac, d7ce256, deployed): Known Worlds cards from `WorldPresenceSummary`,
-deterministic presence entry reducer + view + controller on
-`#/world/:id/return`, shell unlock via `skald:presence-ready`, a11y
+UX-6.1 "Presence Lifecycle Completion" (commits through 76f609c, deployed
+to Orange Pi: update + backup/integrity + 948 tests on-device + health/state
++ lifecycle smoke + idempotency edges PASS): atomic Entry DTO, entry state
+machine with explicit «Осмотреться»/«Войти»/«Я здесь», lease routing
+(`#/world/:id/return`), graceful exit with durable pending body, honest
+phase-mapped loading texts, 6.1A-F tests.
+
+UX-6.0D-F browser entry path (commits b9c02cd … d7ce256, deployed): Known
+Worlds cards from `WorldPresenceSummary`, deterministic presence entry
+reducer + view + controller, shell unlock via `skald:presence-ready`, a11y
 touch-target fix (44px).
-
-## Completed
 
 UX-6.0A-C: ADR-0009, `packages/world/src/presence/` (types, drift, builder),
 SQLite schema v4 (`observer_checkpoints`, `acknowledge_requests`,
 additive migration), three HTTP endpoints, offline observability filter in
-the observation builder, both review-remediation rounds above. The existing
-world/src/observation builder remains the compatibility adapter consuming the
-canonical @skald/observation types.
+the observation builder. The existing world/src/observation builder remains
+the compatibility adapter consuming the canonical @skald/observation types.
 
 Iteration 16.0 — Visual Shell: dark atmospheric game shell, contextual world stage, world/you/knowledge rail, honest activity and causal views, free-text composer only, responsive layout and generated map asset. Frontend-only; no new Domain Events, Rules, Projection or API contract changes.
 
@@ -95,16 +93,22 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-Deployment of UX-6.1 is complete (commit 76f609c live on the Orange Pi;
-worldTime 204, checkpoint pinned at 204; stale/duplicate 409 gates verified
-on production). Run the queued NTFS visual QA assignment once the Codex
-backend is reachable (the prompt is already the last message in thread
-019fa52b-1610-7b23-9567-37891d24c782; it carries the authorized click
-budget: 4 commands, 2 acks, 2 exits). After that: design write-capable
-offline actions with explicit synchronization and conflict-resolution
-semantics (roadmap open item). The five npm audit findings (3 moderate, 1
-high, 1 critical) remain a separate dependency-security task; Vitest UI must
-not be exposed to LAN.
+1. Run `npm run validate` (bash -n deploy scripts + typecheck + ~810 tests
+   + git diff --check), then `git diff --check` again if needed; commit UX-6.2
+   via msg.txt; deploy with the Orange Pi skill (clean branch, fast-forward
+   update, backup/integrity gates, health + state + idempotent smoke incl.
+   entry `threads`, `/observer-threads`, command delta).
+2. Dispatch the UX-6.2 visual QA prompt to the NTFS Codex thread (separate
+   QA world: 5 commands / 6 offline ticks / 3 acks; desktop 1440×900 +
+   mobile 390×844; 5 screenshots: threads tab empty, threads tab with fire
+   thread, offline advance then re-entry — thread still active/uncertain and
+   not resolved, mobile threads nav, journal overlay). Authorized click
+   budget stated in the prompt; UX-6.1 assignment still queued in the same
+   thread. Record PASS/FAIL/BLOCKED in this file independently of validate.
+3. Design write-capable offline actions with explicit synchronization and
+   conflict-resolution semantics (roadmap open item).
+4. The five npm audit findings (3 moderate, 1 high, 1 critical) remain a
+   separate dependency-security task; Vitest UI must not be exposed to LAN.
 
 Note: ssh from WSL to 192.168.0.5 is currently broken (lands on a stale
 endpoint with user `nook`); use the Windows OpenSSH client with
@@ -112,6 +116,9 @@ endpoint with user `nook`); use the Windows OpenSSH client with
 
 ## Known blockers
 
+NTFS/Codex visual QA backend: 403 (`chatgpt.com/backend-api` via
+Cloudflare); HTTP to the Pi and the WSL workaround path are unaffected.
+
 LLM/chat-shell vocabulary wiring for Russian free-text forms such as
-"осмотреть телегу" is intentionally out of scope for this slice. It is a
-small follow-up after the deterministic gate pipeline is accepted.
+"осмотреть телегу" is intentionally out of scope. Small follow-up after the
+deterministic gate pipeline is accepted.

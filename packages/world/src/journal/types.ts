@@ -14,6 +14,13 @@ export interface PresentationThreadEntry {
   readonly importance: PresentationImportance;
   readonly discoveryMark: DiscoveryMark;
   readonly sourceEventIds: readonly string[];
+  /**
+   * Canonical Domain Event types behind the entry's sourceEventIds, in
+   * deterministic order. Observer-scoped read models (e.g. the Observer
+   * Thread Journal) classify lifecycle signals from these types; the types
+   * are never exposed to the player.
+   */
+  readonly sourceEventTypes: readonly string[];
 }
 
 export interface PresentationThread {

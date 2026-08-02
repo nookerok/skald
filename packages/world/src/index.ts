@@ -116,3 +116,20 @@ export {
   STALE_FRESHNESS_THRESHOLD,
 } from "./presence/index.js";
 export type * from "./presence/types.js";
+
+// UX-6.2 — Observer active threads (pure read model)
+export {
+  buildObserverThreadJournal,
+  buildObserverThreadDelta,
+  OBSERVER_THREAD_DEFINITIONS,
+  definitionForThreadKey,
+  classifyThread,
+  computeThreadRef,
+  threadKeyToPatternId,
+  signalRank,
+  MAX_THREADS,
+  MAX_EVIDENCE,
+  MAX_RECENTLY_RESOLVED,
+  REMEMBERED_MAX_AGE,
+} from "./observer-threads/index.js";
+export type * from "./observer-threads/types.js";

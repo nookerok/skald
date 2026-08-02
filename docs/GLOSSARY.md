@@ -40,6 +40,13 @@
 | WorldId | UUID identifying one independent game world and its Event Log | A save slot or account |
 | WorldRecord | Catalog metadata (label, status, timestamps) for one world | A game state source of truth |
 | CharacterProfile | Immutable literary traits (wound, promise, principle) snapshotted at world creation | A character sheet or stat block |
+| World Process | A time-bounded chain of world activity (fire, situation, consequence) | A UI thread or quest |
+| Observer Thread | Observer-scoped reconstruction of a World Process from player-facing journal entries | The hidden process itself |
+| Thread Evidence | One player-facing journal entry attached to a thread | A raw Event Log dump |
+| Known Lifecycle | What the observer can claim about a process: active, resolved, unknown | A projection state read |
+| Knowledge State | How current the observer's knowledge is: observed, remembered, uncertain | A claim about the world |
+| Re-observation | A new observation that refreshes or contradicts thread knowledge | A navigation command |
+| Observer Thread Journal | Pure read model of long-lived processes as the player knows them | A second source of truth |
 
 Do not introduce quests, missions, XP, levels, classes, mana, cooldowns, skill
 trees or talents. Express behavior through Events, Rules, Consequences,

@@ -1,5 +1,6 @@
 import { byId, emptyState, makeNode } from "./dom-helpers.js";
 import { renderBeliefModel } from "./belief-view.js";
+import { renderThreadsPanel } from "./threads-view.js";
 let currentSnapshot = null;
 function addSection(parent, title, content) {
   const section = makeNode("section", { className: "context-section" });
@@ -22,6 +23,8 @@ export function renderContextRail(snapshot = {}) {
   const worldPanel = byId("context-world");
   const characterPanel = byId("context-character");
   const knowledgePanel = byId("context-knowledge");
+  const threadsPanel = byId("context-threads");
+  if (threadsPanel) renderThreadsPanel(threadsPanel, snapshot.observerThreads);
   if (worldPanel) {
     worldPanel.replaceChildren();
     const placeCard = makeNode("div", { className: "place-card" });

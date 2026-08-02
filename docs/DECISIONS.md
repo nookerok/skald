@@ -22,6 +22,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-014 | Observation infrastructure is layered as Pattern Ontology -> Contract -> Observation -> Lenses -> Belief -> Explain/Trace -> reactive events; these packages are read-side and emit no canonical Domain Events | accepted | AGENTS.md; docs/ARCHITECTURE.md |
 | D-015 | Worldbuilding principles are a governed design layer; they add no runtime Events/Rules/persistence until a vertical-slice ADR maps them to current contracts | accepted | docs/adr/0007-worldbuilding-principles.md; docs/worldbuilding/README.md |
 | D-016 | BeliefModelDTO v2 makes PatternBelief.freshness explicit; freshness is recomputed from retained evidence and never compounds across read-model decay calls | accepted | docs/adr/0008-belief-model-freshness.md; docs/OBSERVATION_BELIEF_MODEL.md |
+| D-017 | Observer Thread Journal is a pure observer-scoped read model of long-lived processes; lifecycle/certainty/change are classified on the backend; absence of observation never resolves a thread and hidden offline state never becomes player-facing truth | accepted | docs/adr/0010-observer-active-threads.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

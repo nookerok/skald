@@ -17,6 +17,7 @@ import type {
 import { rebuildProjection, type ReadonlyWorld } from "../projection.js";
 import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
 import { buildTurnJournal, type PresentationThread } from "../journal/index.js";
+import { buildObserverThreadJournal } from "../observer-threads/index.js";
 import { computeBeliefDrift, computeBeliefRevision, STALE_FRESHNESS_THRESHOLD } from "./drift.js";
 import type {
   BeliefDriftDTO,
@@ -99,6 +100,8 @@ interface PresenceInternals {
   readonly dormantThreads: readonly InternalDormantThread[];
   readonly statements: readonly InternalStatement[];
   readonly focus: PresenceFocus;
+  readonly uncertainThreadCount: number;
+  readonly changedThreadCount: number;
 }
 
 function evidenceAfter(model: BeliefModelDTO, time: number): InternalObservedChange[] {
@@ -462,6 +465,20 @@ function buildPresenceInternals(input: {
   });
   const focus = buildFocus(currentModel, checkpointModel, input.world.time);
 
+  // Observer Thread Journal counts for the Known Worlds card. Threads exist
+  // without a checkpoint too, but a card without memory must not suggest
+  // staleness of remembered knowledge, so the count reflects the checkpoint
+  // memory: 0 when there is none.
+  const threadJournal = effectiveCheckpoint
+    ? buildObserverThreadJournal({
+      events: input.events,
+      beliefModel: currentModel,
+      checkpoint: effectiveCheckpoint,
+      checkpointState: "valid" as const,
+      revision: { worldTime: input.world.time, eventNumber: input.world.eventNumber },
+    })
+    : null;
+
   return {
     revision: { worldTime: input.world.time, eventNumber: input.world.eventNumber },
     checkpointState: resolved.state,
@@ -474,6 +491,8 @@ function buildPresenceInternals(input: {
     dormantThreads: dormantSummaries,
     statements,
     focus,
+    uncertainThreadCount: threadJournal?.counts.uncertain ?? 0,
+    changedThreadCount: threadJournal?.counts.changedSincePresence ?? 0,
   };
 }
 
@@ -603,11 +622,12 @@ function nitiCountText(count: number): string {
 }
 
 /** Ready player-facing knowledge doubts, or null when nothing needs attention. */
-function knowledgeStatusText(staleBeliefCount: number, dormantThreadCount: number): string | null {
+function knowledgeStatusText(staleBeliefCount: number, dormantThreadCount: number, uncertainThreadCount: number): string | null {
   const parts: string[] = [];
   if (staleBeliefCount > 0) parts.push("Некоторые знания требуют проверки.");
   if (dormantThreadCount === 1) parts.push("Одна нить давно не отзывалась.");
   if (dormantThreadCount > 1) parts.push(`${nitiCountText(dormantThreadCount)} давно не отзывались.`);
+  if (uncertainThreadCount > 0) parts.push("Некоторые из твоих сведений могли устареть.");
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
@@ -636,8 +656,10 @@ function assembleWorldPresenceSummary(internals: PresenceInternals, worldId: str
     driftLevel: internals.drift.level,
     staleBeliefCount: internals.drift.staleBeliefCount,
     dormantThreadCount: internals.dormantThreads.length,
+    uncertainThreadCount: internals.uncertainThreadCount,
+    changedThreadCount: internals.changedThreadCount,
     presenceStatus: presenceStatusText(internals.checkpointState, internals.drift.level),
-    knowledgeStatus: knowledgeStatusText(internals.drift.staleBeliefCount, internals.dormantThreads.length),
+    knowledgeStatus: knowledgeStatusText(internals.drift.staleBeliefCount, internals.dormantThreads.length, internals.uncertainThreadCount),
   });
 }
 

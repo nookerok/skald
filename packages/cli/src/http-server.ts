@@ -24,6 +24,7 @@ import {
   handleWorldGameShell,
   handleWorldBeliefModel,
   handleObserverSession,
+  handleObserverThreads,
   handleWorldPresence,
   handlePresenceAcknowledge,
 } from "./http/world-handlers.js";
@@ -167,7 +168,7 @@ export async function startServer(options?: {
       // Static files
       if (method === "GET") {
         if (url.pathname === "/" || url.pathname === "/index.html") { serveStatic("/index.html", res, corsOrigin); return; }
-        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js", "/known-worlds-view.js", "/presence-card-view.js", "/presence-entry-state.js", "/presence-entry-controller.js", "/presence-view.js", "/focus-view.js", "/presence-lease.js", "/presence-route.js", "/presence-exit-state.js", "/presence-exit-controller.js"];
+        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/threads-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js", "/known-worlds-view.js", "/presence-card-view.js", "/presence-entry-state.js", "/presence-entry-controller.js", "/presence-view.js", "/focus-view.js", "/presence-lease.js", "/presence-route.js", "/presence-exit-state.js", "/presence-exit-controller.js"];
         if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
         const cssFiles = ["/styles.css", "/guidance.css", "/menu.css", "/new-game.css", "/game-shell.css", "/living-world.css", "/presence-entry.css"];
         if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
@@ -240,6 +241,7 @@ export async function startServer(options?: {
           if (sub === "/beliefs") { const r = handleWorldBeliefModel(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/observer-session") { const r = handleObserverSession(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/presence") { const r = handleWorldPresence(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/observer-threads") { const r = handleObserverThreads(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
         }
 
         if (method === "POST") {
@@ -269,7 +271,7 @@ export async function startServer(options?: {
         }
 
         // Known sub-path but wrong method → 405
-        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence"];
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence", "/observer-threads"];
         const knownPostSubs = ["/command", "/wait", "/presence/acknowledge"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }

@@ -126,6 +126,19 @@ The Knowledge surface must make uncertainty legible:
 - keep the command composer free-text. A belief card may suggest a question in
   prose, but it must not become a preselected action button.
 
+### Active threads surface (UX-6.2)
+
+The Game Shell "Активные нити" panel renders `ObserverThreadJournalDTO`
+(ADR-0010) only. The backend classifies lifecycle (`active | resolved |
+unknown`), certainty (`observed | remembered | uncertain | contradicted`),
+importance and change (`appeared | developed | resolved | contradicted`);
+the browser maps DTO values to honest player-facing text and never derives a
+classification. Cards carry no command chips and no buttons; the only allowed
+interaction is re-observation, stated neutrally. Absence of a new observation
+never becomes a claim ("завершилось") and never confirms a hidden process
+("до сих пор горит"). Raw thread keys, event ids and correlation ids never
+reach this surface.
+
 Developer Diagnostics is a separate trusted-LAN surface. It may show raw
 events and traces only after explicit user opening and must never be used as
 the data source for the normal Knowledge renderer.

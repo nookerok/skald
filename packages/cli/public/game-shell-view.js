@@ -58,6 +58,9 @@ export function initShellView(onCommand) {
     if (target === "context-knowledge") {
       document.querySelector('.context-tab[data-context="knowledge"]')?.click();
     }
+    if (target === "context-threads") {
+      document.querySelector('.context-tab[data-context="threads"]')?.click();
+    }
     document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }));
   document.addEventListener("keydown", (event) => {

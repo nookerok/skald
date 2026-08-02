@@ -62,6 +62,20 @@ sessionStorage, one truthful loading phrase, DTO-only presence montage and
 focus screens, Game Shell locked until acknowledge succeeds. Entry routing
 lives on `#/world/:id/return`.
 
+### UX-6.2 — Observer Active Threads (completed)
+
+Observer Thread Journal shipped: pure observer-scoped read model of
+long-lived processes as the player knows them (ADR-0010). `observer-threads`
+definitions map existing journal thread keys to lifecycle signals
+(start/develop/resolve/contradict); threads age observed → remembered →
+uncertain; the checkpoint is memory, not a world copy. `GET
+/api/worlds/:id/observer-threads`, entry `threads` field, command
+`observerThreads` + `observerThreadDelta`, WorldPresenceSummary thread
+counts. Game Shell "Активные нити" panel (context tab; mobile nav button)
+renders DTO-only cards with montage tags and honest labels, no command
+chips. Never confirms hidden truth: a hidden Situation end never resolves a
+thread.
+
 Open item: write-capable offline actions still require an explicit
 synchronization and conflict-resolution design.
 

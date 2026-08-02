@@ -97,3 +97,14 @@ button.
 
 Developer Diagnostics is outside normal player presentation and may show raw
 events only after explicit opening on the trusted LAN.
+
+## 7. Absence of observation is never completion
+
+Long-lived processes (fires, situations, consequences) are shown to the player
+through the Observer Thread Journal (ADR-0010). A thread reports only what was
+observed: "При последнем наблюдении пожар продолжался." is honest;
+"пожар до сих пор горит" confirms hidden truth, and "пожар закончился"
+invents an ending the player did not see. When the player has been away, a
+thread's certainty decays but its lifecycle never changes from silence.
+Re-observation is the only suggested interaction, and it is stated as a
+neutral invitation, never as a fixed action chip.

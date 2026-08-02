@@ -173,6 +173,34 @@ describe("Browser ES modules — import link integrity", () => {
     expect(css).not.toContain(".command-retry{display:none}");
   });
 
+  it("threads-view.js exists, exposes the panel renderer and never classifies or leaks internals", () => {
+    const code = readFileSync(resolve(PUBLIC, "threads-view.js"), "utf-8");
+    expect(code).toContain("export function renderThreadsPanel");
+    expect(code).toContain("export function threadChangeTag");
+    expect(code).toContain("Пока ты не заметил процессов, которые продолжаются во времени.");
+    expect(code).toContain("Новая нить");
+    expect(code).toContain("Изменилось");
+    expect(code).toContain("Завершилось");
+    expect(code).toContain("Требует проверки");
+    expect(code).toContain("Есть противоречие");
+    expect(code).toContain("Эта нить требует нового наблюдения.");
+    expect(code).not.toContain("threadKey");
+    expect(code).not.toContain("situation:");
+    expect(code).not.toContain("onCommand");
+  });
+
+  it("game shell registers the threads tab and mobile target", () => {
+    const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
+    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
+    const rail = readFileSync(resolve(PUBLIC, "context-rail-view.js"), "utf-8");
+    expect(html).toContain('data-context="threads"');
+    expect(html).toContain('aria-controls="context-threads"');
+    expect(html).toContain('data-mobile-target="context-threads"');
+    expect(shell).toContain('target === "context-threads"');
+    expect(rail).toContain('renderThreadsPanel');
+    expect(rail).toContain('snapshot.observerThreads');
+  });
+
   it("visual shell has no shipped D-pad or social CSS selectors", () => {
     const css = readFileSync(resolve(PUBLIC, "styles.css"), "utf-8");
     expect(css).not.toMatch(/#dpad|\.dir-btn|\.social-btn|#social-actions/);

@@ -170,6 +170,10 @@ export interface WorldPresenceSummary {
   readonly driftLevel: BeliefDriftLevel;
   readonly staleBeliefCount: number;
   readonly dormantThreadCount: number;
+  /** Threads whose knowledge is not current; 0 without a trustworthy checkpoint. */
+  readonly uncertainThreadCount: number;
+  /** Threads that changed since the last presence; 0 without a checkpoint. */
+  readonly changedThreadCount: number;
   /** Ready player-facing status; the browser never classifies drift itself. */
   readonly presenceStatus: string;
   /** Ready player-facing knowledge doubts; null when nothing needs attention. */
