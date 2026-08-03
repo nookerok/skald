@@ -13,6 +13,11 @@ import { criticalCheckRules, criticalCheckOutcomeRules } from "../checks/index.j
 import { worldInteractionRules } from "./world-interaction.js";
 import { perceptionRules } from "./interactions/perception.js";
 import { listeningRules } from "./interactions/listening.js";
+import { journeyStart } from "./journey-start.js";
+import { createJourneyValidationRule } from "./journey-validation.js";
+import { riverLevelProcess } from "./river-level.js";
+import { crossingCondition } from "./crossing-condition.js";
+import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js";
 
 /**
  * Create a fully-configured RuleRegistry with all game rules.
@@ -21,11 +26,19 @@ import { listeningRules } from "./interactions/listening.js";
  * (CLI, persistent app, WorldRuntimeManager) must use this function
  * to ensure consistent rule registration.
  */
-export function createRules(): RuleRegistry<ReadonlyWorld> {
+export function createRules(
+  spatial?: SpatialWorldProjection,
+  observerMap?: ObserverMapDTO,
+): RuleRegistry<ReadonlyWorld> {
   const registry = new RuleRegistry<ReadonlyWorld>();
 
   // Phase: validation
   registry.register(durationCheck);
+
+  // Spatial Movement — journey validation rule (ADR-0015)
+  if (spatial && observerMap) {
+    registry.register(createJourneyValidationRule(spatial, observerMap));
+  }
 
   // Phase: physics
   registry.register(physicsMovement);
@@ -49,6 +62,13 @@ export function createRules(): RuleRegistry<ReadonlyWorld> {
   registry.register(giveRule);
   registry.register(heatSpread);
   registry.register(playerStrategy);
+
+  // Spatial Movement — journey start rule (ADR-0015)
+  registry.register(journeyStart);
+
+  // River Hydrology (ADR-0017)
+  registry.register(riverLevelProcess);
+  registry.register(crossingCondition);
 
   // Critical check rules (Iteration 15)
   for (const rule of criticalCheckRules) registry.register(rule);

@@ -493,8 +493,15 @@ export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel): Discov
       evidenceId: discoveryId + ":belief:" + index,
       kind: discoveryStage(entry.strength) === "discovered" ? "echo"
         : discoveryStage(entry.strength) === "hypothesis" ? "omen" : "trace",
+      subjectRef: discoveryId,
       worldTime: entry.observedAt, text: entry.description, sourceEventIds: [],
       journalTurnId: "turn:" + entry.observedAt,
+      confidence: entry.strength,
+      freshness: 1.0,
+      source: "direct_observation" as const,
+      locationRef: null,
+      bearing: null,
+      contradictionGroup: null,
     }));
     cards.push({
       discoveryId, definitionVersion: definition?.version ?? 1, ...rendered, stage,
@@ -505,7 +512,7 @@ export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel): Discov
   }
   const recentEvidence = cards.flatMap((card) => card.evidence)
     .sort((a, b) => b.worldTime - a.worldTime).slice(0, 10);
-  return deepFreeze({ cards, recentEvidence, worldTime: model.lastUpdated });
+  return deepFreeze({ cards, recentEvidence, rumors: [], biographyChains: [], worldTime: model.lastUpdated });
 }
 
 function findSourceEvent(_model: BeliefModel, events: readonly DomainEvent[], visibleEventIds: ReadonlySet<string>, sourceByObservationId: ReadonlyMap<string, string>, rootId: string): string | null {

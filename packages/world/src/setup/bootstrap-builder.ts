@@ -3,6 +3,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import { getWorldTemplate } from "./world-templates.js";
 import { OLD_TOWER_OBJECTS, OLD_TOWER_LOCATIONS } from "../objects/definitions.js";
 import { LEGACY_LOCATIONS, LEGACY_OBJECTS } from "../objects/definitions.js";
+import { buildPilotRegionBootstrapEvents } from "../region/compiler.js";
 
 export function buildBootstrapEvents(templateId: string): readonly DomainEvent[] {
   const template = getWorldTemplate(templateId);
@@ -10,6 +11,10 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
     throw new Error(`Unknown world template: ${templateId}`);
   }
   const events: DomainEvent[] = [];
+
+  if (templateId === "living_region") {
+    return buildPilotRegionBootstrapEvents();
+  }
 
   events.push({
     eventId: commandEventId("bootstrap", "PlayerSpawned"),

@@ -81,3 +81,20 @@ geography, routes, crossings and spatial processes.
 spatial beliefs. It is not a masked copy of the truth map.
 
 **Landmark** — a physical spatial subject, not a quest marker.
+
+**TravelRelation** — derived spatial relation with travel parameters
+(distanceMetres, baseTravelTicks, terrainCost, passability). Built from
+`SpatialRelation` + `TravelMetadataAttached` bootstrap events (ADR-0015).
+
+**JourneyIntent** — canonical transient travel command (never a Domain
+Event). Produced by the parser for travel verbs; consumed by Command Handler
+which emits `JourneyRequested` (ADR-0015).
+
+**JourneyResolution** — route resolver result: resolved / blocked /
+ambiguous. Server-only; never reveals hidden geometry (ADR-0015).
+
+**JourneyState** — Projection state for an active or completed journey.
+Survives restart via Event Log replay (ADR-0015).
+
+**JourneyDTO** — API response carrying journey status, from/to names,
+elapsed/total ticks, narrative text. No internal IDs (ADR-0015).

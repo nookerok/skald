@@ -1,7 +1,6 @@
 # SKALD — First Living Region Architecture
 
-Status: accepted architecture proposal; runtime implementation is deferred to
-explicit vertical slices.
+Status: accepted architecture; the first bootstrap + observer-map vertical slice is installed by ADR-0014. Travel, processes and rendering remain deferred to later slices.
 
 This document defines how the first 20×20 km pilot region becomes part of the
 living-world simulation. It does not install a map engine merely by existing.

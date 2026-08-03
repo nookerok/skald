@@ -12,7 +12,8 @@ export type IntentMode =
   | "interact"
   | "communicate"
   | "combine"
-  | "wait";
+  | "wait"
+  | "travel";
 
 export type IntentOperation =
   | "observe"
@@ -32,6 +33,7 @@ export type IntentOperation =
   | "wait"
   | "open"
   | "give"
+  | "travel"
   | "unknown";
 
 export interface IntentReference {
@@ -96,6 +98,25 @@ export interface InteractionCommand {
   readonly interpretation: InterpretationMeta;
 }
 
+/**
+ * Canonical transient Spatial Movement command (ADR-0015).
+ *
+ * Produced by the parser for travel verbs and consumed by the Command
+ * Handler, which converts it into the first Domain Event
+ * (`JourneyRequested`). It is NOT a Domain Event and is never persisted.
+ * The parser never resolves world-dependent route ambiguity — route
+ * resolution is a Validation Rule over ReadonlyWorld.
+ */
+export interface JourneyIntent {
+  readonly type: "JourneyIntent";
+  /** The destination as the player named it (raw text, not a location id). */
+  readonly destination: IntentReference;
+  /** Optional route hint: "по лесной дороге", "через переправу". */
+  readonly routeHint?: IntentReference | undefined;
+  readonly rawText: string;
+  readonly interpretation: InterpretationMeta;
+}
+
 export interface ClarificationRequest {
   readonly type: "ClarificationRequired";
   readonly clarificationId: string;
@@ -105,13 +126,14 @@ export interface ClarificationRequest {
 
 export interface UnsupportedIntent {
   readonly type: "UnsupportedButUnderstood";
-  readonly intent: ActionIntentCommand | InteractionCommand;
+  readonly intent: ActionIntentCommand | InteractionCommand | JourneyIntent;
   readonly message: string;
 }
 
 export type IntentResult =
   | ActionIntentCommand
   | InteractionCommand
+  | JourneyIntent
   | ClarificationRequest
   | UnsupportedIntent;
 

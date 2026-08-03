@@ -49,6 +49,17 @@ export interface HeatSource {
   readonly placedAt: number;
 }
 
+export interface JourneyState {
+  readonly journeyId: string;
+  readonly relationId: string;
+  readonly fromLocationId: string;
+  readonly toLocationId: string;
+  readonly startedAt: number;
+  readonly plannedTicks: number;
+  readonly elapsedTicks: number;
+  readonly status: "active" | "completed" | "blocked";
+}
+
 export function relationKey(from: string, to: string, kind: string): string {
   return `${from}>${to}:${kind}`;
 }
@@ -76,6 +87,9 @@ export interface ReadonlyWorld {
   readonly pendingChecks: ReadonlyMap<string, CriticalCheckState>;
   // World Interaction Model — additive generic entity read model
   readonly entities: ReadonlyMap<string, Entity>;
+  // Spatial Movement (ADR-0015)
+  readonly journeys: ReadonlyMap<string, JourneyState>;
+  readonly activeJourneyId: string | null;
 }
 
 export interface WorldState {
@@ -101,6 +115,9 @@ export interface WorldState {
   pendingChecks: Map<string, CriticalCheckState>;
   // World Interaction Model — additive generic entity read model
   entities: Map<string, Entity>;
+  // Spatial Movement (ADR-0015)
+  journeys: Map<string, JourneyState>;
+  activeJourneyId: string | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -231,6 +248,8 @@ function freeze(state: WorldState): ReadonlyWorld {
     // Iteration 15 — Pending critical checks
     pendingChecks: cloneMap(new Map([...state.pendingChecks].map(([id, check]) => [id, deepCloneCriticalCheck(check)]))),
     entities: cloneMap(new Map([...state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)]))),
+    journeys: cloneMap(new Map([...state.journeys].map(([id, j]) => [id, Object.freeze({ ...j }) as JourneyState]))),
+    activeJourneyId: state.activeJourneyId,
   }) as ReadonlyWorld;
 }
 
@@ -260,6 +279,9 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       // Iteration 15 — Pending critical checks
       pendingChecks: new Map<string, CriticalCheckState>(),
       entities: new Map<string, Entity>(),
+      // Spatial Movement (ADR-0015)
+      journeys: new Map<string, JourneyState>(),
+      activeJourneyId: null,
     };
   }
 
@@ -440,6 +462,42 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.lastActionTick = event.timestamp;
         break;
       }
+      // Spatial Movement (ADR-0015)
+      case "JourneyStarted": {
+        const p = event.payload as {
+          journeyId: string;
+          relationId: string;
+          fromLocationId: string;
+          toLocationId: string;
+          startedAt: number;
+          plannedTicks: number;
+        };
+        s.journeys.set(p.journeyId, {
+          journeyId: p.journeyId,
+          relationId: p.relationId,
+          fromLocationId: p.fromLocationId,
+          toLocationId: p.toLocationId,
+          startedAt: p.startedAt,
+          plannedTicks: p.plannedTicks,
+          elapsedTicks: 0,
+          status: "active",
+        });
+        s.activeJourneyId = p.journeyId;
+        break;
+      }
+      case "JourneyCompleted": {
+        const { journeyId } = event.payload as { journeyId: string };
+        const journey = s.journeys.get(journeyId);
+        if (journey) {
+          s.journeys.set(journeyId, { ...journey, status: "completed" });
+        }
+        s.activeJourneyId = null;
+        break;
+      }
+      case "JourneyBlocked": {
+        // JourneyBlocked is a fact; no Projection change needed.
+        break;
+      }
       default:
         break;
     }
@@ -472,6 +530,8 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       currentLocationId: cloned.currentLocationId,
       pendingChecks: new Map(this.state.pendingChecks),
       entities: new Map([...this.state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)])),
+      journeys: new Map([...this.state.journeys].map(([id, j]) => [id, { ...j }])),
+      activeJourneyId: this.state.activeJourneyId,
     };
     return copy;
   }

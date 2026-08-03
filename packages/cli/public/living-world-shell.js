@@ -6,6 +6,8 @@ import { renderActivity } from "./activity-view.js";
 import { renderCausalChain } from "./causal-view.js";
 import { renderCriticalCheck } from "./critical-check-view.js";
 import { renderTurnHistory } from "./turn-history-view.js";
+import { renderObserverMap } from "./map-view.js";
+import { renderMapLegend } from "./map-legend.js";
 function setText(id, value) { const element = byId(id); if (element) element.textContent = value == null ? "" : String(value); }
 function renderNarrative(turn) {
   const card = byId("primary-card"); const empty = byId("empty-state"); if (!card) return;
@@ -38,5 +40,13 @@ export function renderLivingWorld(snapshot) {
   renderNarrative(snapshot.lastTurn);
   renderCausalChain(snapshot.lastTurn?.causalChain || []);
   renderCriticalCheck(snapshot.lastTurn?.causalChain || []);
+
+  // Render map if observer map data is available
+  const mapContainer = byId("player-map-canvas");
+  const legendContainer = byId("player-map-legend");
+  if (mapContainer && snapshot.observerMap) {
+    renderObserverMap(mapContainer, snapshot.observerMap);
+    if (legendContainer) renderMapLegend(legendContainer);
+  }
 }
 export { renderTurnHistory };

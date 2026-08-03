@@ -16,6 +16,8 @@ import {
   buildShellDelta,
   selectTurnPresentation,
   resolveOfflineIntent,
+  buildObserverMap,
+  buildSpatialWorldProjection,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -425,6 +427,13 @@ export function handleObserverThreads(runtime: WorldRuntime, _worldId: string): 
   if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
   const { journal } = buildObserverThreadsForRuntime(runtime);
   return json({ ok: true, journal });
+}
+
+export function handleWorldMap(runtime: WorldRuntime): JsonResponse {
+  if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
+  const events = runtime.bus.query();
+  const map = buildObserverMap(events, buildSpatialWorldProjection(events));
+  return json({ ok: true, map });
 }
 
 export function handleWorldPresence(runtime: WorldRuntime, worldId: string): JsonResponse {

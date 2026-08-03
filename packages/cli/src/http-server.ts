@@ -27,6 +27,7 @@ import {
   handleObserverSession,
   handleObserverThreads,
   handleWorldPresence,
+  handleWorldMap,
   handlePresenceAcknowledge,
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
@@ -242,6 +243,7 @@ export async function startServer(options?: {
           if (sub === "/beliefs") { const r = handleWorldBeliefModel(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/observer-session") { const r = handleObserverSession(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/presence") { const r = handleWorldPresence(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/map") { const r = handleWorldMap(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/observer-threads") { const r = handleObserverThreads(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
         }
 
@@ -283,7 +285,7 @@ export async function startServer(options?: {
         }
 
         // Known sub-path but wrong method → 405
-        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence", "/observer-threads"];
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence", "/map", "/observer-threads"];
         const knownPostSubs = ["/command", "/wait", "/presence/acknowledge", "/offline-command"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }

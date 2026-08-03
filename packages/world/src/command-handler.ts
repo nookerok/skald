@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { ActionIntentCommand, InteractionCommand } from "@skald/intent-parser";
+import type { ActionIntentCommand, InteractionCommand, JourneyIntent } from "@skald/intent-parser";
 import { commandEventId } from "./ids.js";
 import { isKnownInteractionVerb } from "./interaction-registry.js";
 
@@ -20,7 +20,7 @@ import { isKnownInteractionVerb } from "./interaction-registry.js";
  * counter — never Date.now()).
  */
 export function handleCommand(
-  command: ActionIntentCommand | InteractionCommand,
+  command: ActionIntentCommand | InteractionCommand | JourneyIntent,
   correlationId: string,
   timestamp: number,
 ): DomainEvent {
@@ -33,13 +33,35 @@ export function handleCommand(
 
   // Validate required fields
   const commandType = (command as { type?: unknown }).type;
-  if (commandType !== "ActionIntentCommand" && commandType !== "InteractionCommand") {
+  if (commandType !== "ActionIntentCommand" && commandType !== "InteractionCommand" && commandType !== "JourneyIntent") {
     const eventId = commandEventId(correlationId, "CommandRejected");
     return {
       ...base,
       eventId,
       type: "CommandRejected",
       payload: { reason: `invalid command type: ${String(commandType)}` },
+    };
+  }
+
+  if (command.type === "JourneyIntent") {
+    const destination = command.destination?.raw.trim() ?? "";
+    if (destination.length === 0) {
+      return {
+        ...base,
+        eventId: commandEventId(correlationId, "CommandRejected"),
+        type: "CommandRejected",
+        payload: { reason: "missing journey destination" },
+      };
+    }
+    return {
+      ...base,
+      eventId: commandEventId(correlationId, "JourneyRequested"),
+      type: "JourneyRequested",
+      payload: {
+        destination,
+        routeHint: command.routeHint?.raw ?? null,
+        rawText: command.rawText,
+      },
     };
   }
 

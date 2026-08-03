@@ -49,6 +49,7 @@ export type {
   ActionIntentCommand,
   InteractionVerb,
   InteractionCommand,
+  JourneyIntent,
   ClarificationRequest,
   UnsupportedIntent,
   IntentResult,

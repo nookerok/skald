@@ -1,6 +1,6 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, serializeBeliefModel, parseBeliefModelDTO } from "@skald/world";
+import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 
@@ -107,6 +107,11 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
     const pres = selectTurnPresentation(allCycleEvents, app.projection.getSnapshot());
     const guidance = buildGuidance(app);
 
+    // Build observer map for the browser
+    const allEvents = app.bus.query();
+    const spatial = buildSpatialWorldProjection(allEvents);
+    const observerMap = buildObserverMap(allEvents, spatial, true);
+
     // Check for CriticalCheckRequested events
     const criticalCheck = cmdResult.events.find((e) => e.type === "CriticalCheckRequested");
     const criticalCheckPresentation = criticalCheck
@@ -128,6 +133,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       presentation: pres,
       guidance,
       criticalCheck: criticalCheckPresentation,
+      observerMap,
     });
   } catch (err) {
     return error("internal_error", safeError(err), 500);

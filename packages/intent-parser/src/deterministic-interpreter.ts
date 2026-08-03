@@ -253,6 +253,25 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "ждёте", mode: "wait", operation: "wait" },
   { verb: "подожд", mode: "wait", operation: "wait" },
   { verb: "погод", mode: "wait", operation: "wait" },
+  // travel (ADR-0015 — Spatial Movement)
+  { verb: "идти", mode: "travel", operation: "travel" },
+  { verb: "пойти", mode: "travel", operation: "travel" },
+  { verb: "направиться", mode: "travel", operation: "travel" },
+  { verb: "добраться", mode: "travel", operation: "travel" },
+  { verb: "перейти", mode: "travel", operation: "travel" },
+  { verb: "двигаться", mode: "travel", operation: "travel" },
+  { verb: "отправиться", mode: "travel", operation: "travel" },
+  { verb: "выбраться", mode: "travel", operation: "travel" },
+  { verb: "идём", mode: "travel", operation: "travel" },
+  { verb: "идёшь", mode: "travel", operation: "travel" },
+  { verb: "идёт", mode: "travel", operation: "travel" },
+  { verb: "идете", mode: "travel", operation: "travel" },
+  { verb: "иду", mode: "travel", operation: "travel" },
+  { verb: "go", mode: "travel", operation: "travel" },
+  { verb: "walk", mode: "travel", operation: "travel" },
+  { verb: "travel", mode: "travel", operation: "travel" },
+  { verb: "head", mode: "travel", operation: "travel" },
+  { verb: "move to", mode: "travel", operation: "travel" },
 ] as const;
 
 /**
@@ -461,6 +480,24 @@ function buildClarification(
     question: "Что именно ты хочешь сделать?",
     interpretations: candidates.map((c) => c.label),
   };
+}
+
+const ROUTE_HINT_PATTERNS = [
+  /^(?:по|по\s+)(.+?\s+(?:дороге|тропе|маршруту|пути))/i,
+  /^(?:через|через\s+)(.+?)$/i,
+  /^(.+?\s+дорог(?:ой|а|у))/i,
+  /^(.+?\s+троп(?:ой|а|у))/i,
+] as const;
+
+function extractRouteHint(text: string): IntentReference | undefined {
+  const trimmed = text.trim();
+  for (const pattern of ROUTE_HINT_PATTERNS) {
+    const match = trimmed.match(pattern);
+    if (match && match[1]) {
+      return { raw: match[1].trim() };
+    }
+  }
+  return undefined;
 }
 
 export interface InterpreterOptions {
@@ -684,6 +721,31 @@ export function interpretIntent(
       operation: "wait",
       rawText,
       interpretation: { source: "deterministic", confidence: 0.9, ambiguities: [] },
+    };
+  }
+
+  // Spatial Movement: travel verbs produce JourneyIntent (ADR-0015)
+  // But direction words ("на север") still produce legacy relocate
+  if (verb.mode === "travel") {
+    const dir = extractDirectionFromText(afterVerb);
+    if (dir) {
+      return {
+        type: "ActionIntentCommand",
+        mode: "relocate",
+        operation: "approach",
+        target: { raw: dir, normalized: dir },
+        rawText,
+        interpretation: { source: "deterministic", confidence: 0.8, ambiguities: [] },
+      };
+    }
+    const destination = extractTarget(afterVerb);
+    const routeHint = extractRouteHint(afterVerb);
+    return {
+      type: "JourneyIntent",
+      destination: destination ?? { raw: "" },
+      routeHint,
+      rawText,
+      interpretation: { source: "deterministic", confidence: destination ? 0.8 : 0.5, ambiguities: destination ? [] : ["no clear destination"] },
     };
   }
 

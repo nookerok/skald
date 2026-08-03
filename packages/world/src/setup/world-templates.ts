@@ -17,6 +17,14 @@ const _templates: Record<string, WorldTemplate> = {
     templateVersion: 1,
     available: true,
   },
+  living_region: {
+    id: "living_region",
+    title: "Бассейн Речного Стража",
+    description: "Живой регион у переправы на границе Чёрного леса и открытой долины.",
+    startingQuestion: "Что изменится вокруг переправы, пока ты пытаешься понять этот край?",
+    templateVersion: 1,
+    available: true,
+  },
 };
 
 for (const key of Object.keys(_templates)) {

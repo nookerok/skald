@@ -71,7 +71,15 @@
         </main>
         <aside class="context-rail" aria-label="Контекст">
           <div class="context-tabs" role="tablist" aria-label="Контекст мира"><button id="context-tab-world" class="context-tab active" data-context="world" role="tab" aria-selected="true" aria-controls="context-world">Мир</button><button id="context-tab-character" class="context-tab" data-context="character" role="tab" aria-selected="false" aria-controls="context-character">Ты</button><button id="context-tab-knowledge" class="context-tab" data-context="knowledge" role="tab" aria-selected="false" aria-controls="context-knowledge">Знания</button><button id="context-tab-threads" class="context-tab" data-context="threads" role="tab" aria-selected="false" aria-controls="context-threads">Нити</button></div>
-          <div id="context-world" class="context-panel active" role="tabpanel" aria-labelledby="context-tab-world"></div>
+          <div id="context-world" class="context-panel active" role="tabpanel" aria-labelledby="context-tab-world">
+            <section class="player-map" aria-labelledby="map-title">
+              <header class="player-map__header">
+                <h3 id="map-title">Наблюдаемая карта</h3>
+              </header>
+              <div id="player-map-canvas" class="player-map__canvas" role="img" aria-label="Карта известного пространства"></div>
+              <div id="player-map-legend" class="player-map__legend"></div>
+            </section>
+          </div>
           <div id="context-character" class="context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></div>
           <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden></div>
           <div id="context-threads" class="context-panel" role="tabpanel" aria-labelledby="context-tab-threads" hidden></div>

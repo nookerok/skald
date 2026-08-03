@@ -4,8 +4,7 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 Updated: 2026-08-02
 Branch: main
-Working tree: UX-6.3.1 UI hardening — the five browser-QA defects are fixed
-and unit-covered, not yet committed/deployed (see Current milestone).
+Working tree: first living-region bootstrap + observer-map slice is implemented and validated locally; commit/deploy are still pending.
 Also in the working tree: Interaction Model v1 stages 0–2 + Slices 1–2
 (ADR-0013, DECISIONS D-020) — canonical InteractionCommand pipeline,
 observe/inspect/listen canonicalization, shared Target Resolver, WorldObject
@@ -23,6 +22,8 @@ all fixed in UX-6.3.1 (Current milestone); mobile viewport override remains
 tool-blocked.
 
 ## Current milestone
+
+First living region slice (ADR-0014): deterministic 20×20 km region compiler, 6,400 terrain tiles, 400 simulation cells, spatial replay projection and observer-scoped `/map` endpoint. It adds no travel/process Rules and does not expose hidden geometry.
 
 UX-6.3.1 "UI hardening" — the five application defects from the last NTFS
 browser QA run, all fixed with unit coverage (not yet committed/deployed):

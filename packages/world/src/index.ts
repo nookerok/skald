@@ -151,3 +151,18 @@ export type {
   OfflineIntentEnvelope,
   OfflineIntentResolutionDTO,
 } from "./offline-intent/index.js";
+
+// Spatial Movement (ADR-0015)
+export * from "./journey/index.js";
+export { journeyStart } from "./rules/journey-start.js";
+export { createJourneyValidationRule } from "./rules/journey-validation.js";
+
+// Visibility Engine (ADR-0016)
+export * from "./visibility/index.js";
+
+// River Hydrology (ADR-0017)
+export { riverLevelProcess, computeRiverLevel, classifyRiverBand } from "./rules/river-level.js";
+export { crossingCondition, classifyCrossingCondition, computeCrossingTravelTicks } from "./rules/crossing-condition.js";
+
+// First living region — deterministic spatial bootstrap and observer map
+export * from "./region/index.js";

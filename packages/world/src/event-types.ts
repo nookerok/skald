@@ -54,6 +54,28 @@ export const EventType = {
 
   // Interaction Model v1 — Slice 2 (listening law)
   SoundObserved: "SoundObserved",
+
+  // First living region — spatial bootstrap and observer evidence
+  RegionDefined: "RegionDefined",
+  SpatialObservationRecorded: "SpatialObservationRecorded",
+
+  // Spatial Movement (ADR-0015)
+  TravelMetadataAttached: "TravelMetadataAttached",
+  JourneyRequested: "JourneyRequested",
+  JourneyValidated: "JourneyValidated",
+  JourneyBlocked: "JourneyBlocked",
+  JourneyStarted: "JourneyStarted",
+  JourneyCompleted: "JourneyCompleted",
+  CrossingConditionChanged: "CrossingConditionChanged",
+  RoadConditionChanged: "RoadConditionChanged",
+  RouteBlocked: "RouteBlocked",
+  RouteReopened: "RouteReopened",
+
+  // River Hydrology (ADR-0017)
+  RiverProcessDefined: "RiverProcessDefined",
+  RiverLevelChanged: "RiverLevelChanged",
+  CrossingConditionInitialized: "CrossingConditionInitialized",
+
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
