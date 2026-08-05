@@ -1,0 +1,94 @@
+# Canon Concept: relation-first reality structure (Universal x Metaphysics).
+# Retro-imported from docs/ARCHITECTURE.md (A-25: source, not authority; passed Review Gate, ADR-0021).
+schemaVersion: 1
+concept:
+  id: universal.metaphysics.reality_structure
+  scope: Universal
+  domain: Metaphysics
+  temporalScope:
+    scale: Eternal
+    mutation: Immutable
+  lifecycle: Canon
+  simulationDepth: CoreSimulation
+  provenance:
+    proposedBy: "ImportedFromCode(docs/ARCHITECTURE.md)"
+    acceptedBy: "AuthorDecision(ADR-0021, 2026-08-04)"
+  relations:
+    - type: grounds
+      target: universal.laws.relation_dynamics
+    - type: grounds
+      target: universal.laws.heat_dynamics
+    - type: grounds
+      target: universal.laws.time_and_ticks
+  runtimeMapping:
+    runtime:
+      - "RuleEngine contract (Event, ReadonlyWorld) -> Event[]"
+    rules:
+      - "all registered rules (relation-first vocabulary)"
+    events:
+      - "all Domain Events"
+    projection:
+      - "World Projection (entities, relations, observations, consequences, time)"
+    discovery:
+      - "Observation Engine observer scoping"
+    narrative:
+      - "Narrative describes recorded facts only"
+    ui:
+      - "BeliefModelDTO never exposes truth fields"
+  facts:
+    - id: universal.metaphysics.reality_structure.f1
+      statement: "Reality consists of entities connected by typed relations; relations are primary over entity attributes."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (relation-first ontology); docs/worldbuilding/SKALD_Rules_Ontology.md"
+      consequences:
+        - "Power, economy and culture are modeled as relation edges, not RPG stats."
+        - "Removing this fact collapses the entity component model and Relation Edges."
+    - id: universal.metaphysics.reality_structure.f2
+      statement: "History is irreversible and accumulates; past states are never restored, only transformed into new facts."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: GeologicalTrace
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (Event Log append-only, section 2.1)"
+      consequences:
+        - "Failed attempts and corrections exist as new events, never as edits."
+        - "Removing this fact legalizes history rewriting and breaks replay determinism."
+    - id: universal.metaphysics.reality_structure.f3
+      statement: "Knowledge is observer-scoped; world truth and observer belief are distinct, and no observer holds complete knowledge."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/OBSERVATION_BELIEF_MODEL.md (normative contract)"
+      consequences:
+        - "Contradicting beliefs between cultures are data, not errors."
+        - "Removing this fact makes the player omniscient and destroys Discovery."
+    - id: universal.metaphysics.reality_structure.f4
+      statement: "Complex systems (economy, war, rumors) emerge from many simple laws; no dedicated engine subsystems exist for them."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: MathematicalInference
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 2.7, 5.5)"
+      consequences:
+        - "New complexity is added as small rules, never as EconomyEngine-style subsystems."
+        - "Removing this fact reopens monolithic engine design."

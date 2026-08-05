@@ -12,3 +12,4 @@ packages/cli/llm-usage.jsonl
 *.sqlite-shm
 packages/cli/data/
 packages/cli/deploy/*.env.codegraph/
+docs/WORLD_BIBLE.md

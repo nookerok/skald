@@ -1,0 +1,19 @@
+# Canonical Anchor registry (WORLD_BIBLE_ARCHITECTURE.md section 3.1).
+# Anchors are the only named instances allowed in Canon (exception to A2).
+# Keep this registry small; adding an anchor is an ADR candidate.
+schemaVersion: 1
+anchors:
+  - id: pilot_monolith_anchor
+    conceptId: regions.pilot-region.monolith
+    regionId: pilot_region
+    obligation: required
+    provenance:
+      type: ImportedFromCode
+      source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 11)"
+  - id: pilot_start_waystation_anchor
+    conceptId: regions.pilot-region.geography
+    regionId: pilot_region
+    obligation: required
+    provenance:
+      type: ImportedFromCode
+      source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 8)"

@@ -1,0 +1,74 @@
+# Not Simulated registry: Canon about the boundaries of simulation responsibility (A-21).
+# DeterminismConstraint entries are ForbiddenByConstitution (A-22), not cost categories.
+schemaVersion: 1
+claims:
+  - id: weather_dynamics
+    statement: "Weather fronts and their visibility, hydrology and travel consequences are not simulated."
+    category: DeferredCapability
+    reason: "Requires a World Clock law first; order fixed as World Clock -> solar/light visibility -> weather fronts -> hydrology -> seasons."
+    consequences:
+      - "No weather-modulated visibility, floods or travel delays beyond the cyclic river process."
+    reviewAfter: "World Clock ADR accepted"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 16); docs/adr/0012 (decision 13)"
+  - id: seasonal_processes
+    statement: "Seasonal vegetation, migration and settlement cycles are not simulated."
+    category: DeferredCapability
+    reason: "Depends on weather fronts, which depend on the World Clock."
+    consequences:
+      - "The world is temporally flat beyond tick count; no seasonal discovery content."
+    reviewAfter: "weather_dynamics claim resolved"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 16)"
+  - id: economy_engine
+    statement: "No dedicated economy subsystem is simulated; economic change emerges only from small discrete rules."
+    category: DesignChoice
+    reason: "Complex systems must emerge from many simple laws, not be designed as engines."
+    consequences:
+      - "Prices and scarcity change only through explicit rule chains; no continuous market model."
+    reviewAfter: "never (constitutional design principle)"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/ARCHITECTURE.md (section 5.5)"
+  - id: per_npc_simulation
+    statement: "Individual NPC lives are not simulated; the world simulates processes (situations), not every inhabitant."
+    category: DesignChoice
+    reason: "Process-driven simulation scales; per-NPC simulation does not, and NPC.decide() is forbidden."
+    consequences:
+      - "No daily schedules for individuals; NPC presence appears through situations and relations."
+    reviewAfter: "never (constitutional design principle)"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/ARCHITECTURE.md (sections 5.7, 3)"
+  - id: fast_travel
+    statement: "Teleport-style fast travel is rejected; any journey compression must advance canonical time and execute all due rules."
+    category: DesignChoice
+    reason: "Travel time is a world law, not a convenience layer."
+    consequences:
+      - "Crossing the region costs in-world time; exploration pacing is preserved."
+    reviewAfter: "JourneyIntent compression ADR (simulation compression slice)"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 14)"
+  - id: llm_in_rule_loop
+    statement: "LLM calls, external APIs and unseeded randomness never participate in rule evaluation or compilation."
+    category: DeterminismConstraint
+    reason: "Forbidden by constitution: identical Event Log must rebuild identical world state on any platform."
+    consequences:
+      - "No live LLM judgment in world outcomes; LLM only describes recorded facts."
+    reviewAfter: "never (constitution violation, not a cost)"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/ARCHITECTURE.md (section 9.1); A-22"
+  - id: biography_pruning
+    statement: "No pruning of the causation biography graph is implemented; the policy is consciously undecided."
+    category: DeferredCapability
+    reason: "Deciding significance pruning before Biography exists would be guessing; any decision must be a deterministic rule, not LLM judgment."
+    consequences:
+      - "Causality graph grows unbounded until the policy is decided."
+    reviewAfter: "Biography implementation slice"
+    provenance:
+      type: ImportedFromCode
+      source: "docs/ARCHITECTURE.md (section 11, research questions)"

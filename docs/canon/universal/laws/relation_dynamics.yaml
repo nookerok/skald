@@ -1,0 +1,76 @@
+# Canon Concept: relation edges as the social/physical fabric (Universal x Laws).
+# Retro-imported from implemented runtime (Iteration 6) via ADR-0021 Review Gate.
+schemaVersion: 1
+concept:
+  id: universal.laws.relation_dynamics
+  scope: Universal
+  domain: Laws
+  temporalScope:
+    scale: Eternal
+    mutation: Immutable
+  lifecycle: Canon
+  simulationDepth: Simulated
+  provenance:
+    proposedBy: "ImportedFromCode(relations.give rule, Iteration 6)"
+    acceptedBy: "AuthorDecision(ADR-0021, 2026-08-04)"
+  relations: []
+  runtimeMapping:
+    runtime:
+      - "RuleEngine phases validation/consequence"
+    rules:
+      - "relations.give"
+    events:
+      - "RelationChanged"
+      - "GiveRequested"
+      - "GiveValidated"
+    projection:
+      - "RelationEdges map (from>to:kind)"
+    discovery:
+      - "Testimony and observed behavior shifts between parties"
+    narrative:
+      - "description of recorded relation changes"
+    ui:
+      - "knownRelations in BeliefModelDTO"
+  facts:
+    - id: universal.laws.relation_dynamics.f1
+      statement: "Relations between entities are edges {from, to, kind, value} that change only through RelationChanged events."
+      type: Causal
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 5.11)"
+      consequences:
+        - "Trust, respect and fear between parties are replayable projection data."
+        - "Removing this fact destroys the social graph and its consequences."
+    - id: universal.laws.relation_dynamics.f2
+      statement: "Giving something to a party changes the relation by a deterministic delta through the canonical give interaction."
+      type: Causal
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 5.11); docs/WORLD_INTERACTION_MODEL.md"
+      consequences:
+        - "GiveRequested -> GiveValidated -> RelationChanged pipeline exists."
+        - "Removing this fact severs the link between player generosity and world memory."
+    - id: universal.laws.relation_dynamics.f3
+      statement: "Power, economy and culture are described by persistent relations and their consequences, never by character classes or stats."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: MathematicalInference
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/adr/0007-worldbuilding-principles.md (accepted principles)"
+      consequences:
+        - "Forbidden RPG concepts (Class, XP, LevelSystem) stay forbidden."
+        - "Removing this fact reopens stat-based social modeling."

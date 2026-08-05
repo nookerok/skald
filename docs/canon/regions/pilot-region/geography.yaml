@@ -1,0 +1,104 @@
+# Canon Concept: pilot region geography (Regional x Space).
+# Retro-imported from ADR-0012/ADR-0014 bootstrap via ADR-0021 Review Gate.
+# Historical note: this content predates the Canon Model itself (pre-canon era, A-24).
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.geography
+  scope: Regional
+  domain: Space
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "ImportedFromCode(docs/adr/0012-first-living-region.md, docs/adr/0014-region-bootstrap-observer-map.md)"
+    acceptedBy: "AuthorDecision(ADR-0021, 2026-08-04)"
+  relations:
+    - type: dependsOn
+      target: universal.laws.time_and_ticks
+  runtimeMapping:
+    runtime:
+      - "deterministic region compiler (build-time)"
+    rules: []
+    events:
+      - "RegionDefined (bootstrap batch)"
+    projection:
+      - "SpatialWorldProjection (discardable backend truth)"
+    discovery:
+      - "ObserverMapDTO via Observation and Belief"
+    narrative:
+      - "presence montage limited to observable facts"
+    ui:
+      - "player map renders known/uncertain space only"
+  facts:
+    - id: regions.pilot-region.geography.f1
+      statement: "The pilot region spans 20 by 20 km: 80x80 terrain tiles of 250 m and 20x20 simulation cells of 1 km."
+      type: Quantitative
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 5); docs/adr/0012 (decision 4)"
+      consequences:
+        - "Tile grid drives terrain, visibility and rendering inputs; cell grid drives process scheduling."
+        - "Changing these numbers is a MAJOR Canon change (bootstrap-altering)."
+    - id: regions.pilot-region.geography.f2
+      statement: "The region contains a river basin, one walled principal city, forests, mountains, ruins, a crater and a suspended monolith."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/adr/0012-first-living-region.md (context); concept art is visual reference only"
+      consequences:
+        - "Bootstrap batch includes these subjects; observer map reveals them only through evidence."
+        - "Removing any subject changes the bootstrap and therefore the Genesis Digest."
+    - id: regions.pilot-region.geography.f3
+      statement: "Roads, rivers, passes and sight lines are first-class relations between spatial subjects, not derived cartographic decoration."
+      type: Axiomatic
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 3)"
+      consequences:
+        - "Travel, visibility and process spread follow declared spatial relations."
+        - "Removing this fact degrades space to Cartesian containment."
+    - id: regions.pilot-region.geography.f4
+      statement: "Settlement status (city, village, ruin) is derived by governed queries from population, structures, activity and history; it is never stored as a class."
+      type: Axiomatic
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: Testimony
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/adr/0012 (decision 7); docs/adr/0007 (query concepts)"
+      consequences:
+        - "A settlement can change status as the world changes, without editing its identity."
+        - "Removing this fact reintroduces immutable RPG location classes."
+    - id: regions.pilot-region.geography.f5
+      statement: "The player start is a river-crossing waystation at the forest-valley boundary, 5-8 km from the principal city, with a road to the city, an uncertain forest trail and partial sight of the monolith."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 8)"
+      consequences:
+        - "First-entry flow offers several legible directions without an action menu."
+        - "Removing this fact invalidates the presence montage contract."

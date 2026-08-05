@@ -22,6 +22,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "validate": "bash scripts/validate.sh",
+    "canon:validate": "node scripts/canon/validate.mjs",
+    "canon:generate-wb": "node scripts/canon/generate-wb.mjs",
     "start:repl": "node --import tsx packages/cli/src/repl.ts",
     "start:server": "node --import tsx packages/cli/src/server.ts",
     "start": "npm run start:server"

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skald.local/canon/not-simulated.schema.json",
+  "title": "NotSimulatedClaims",
+  "description": "Registry of Not Simulated claims — Canon about the boundaries of simulation responsibility (A−21, WORLD_BIBLE_ARCHITECTURE.md §3.1). DeterminismConstraint entries are ForbiddenByConstitution, not a cost category (A−22).",
+  "type": "object",
+  "required": ["schemaVersion", "claims"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "category", "reason", "consequences", "provenance"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9_.-]+$" },
+          "statement": { "type": "string", "minLength": 1 },
+          "category": {
+            "enum": ["PerformanceLimit", "CalibrationLimit", "DeterminismConstraint", "DesignChoice", "DeferredCapability"]
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "consequences": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" },
+            "description": "What the world loses by not simulating this."
+          },
+          "reviewAfter": {
+            "type": "string",
+            "description": "Trigger for reconsideration (new hardware, World Clock ADR, calibration evidence); 'never' for constitutional constraints."
+          },
+          "provenance": {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": false,
+            "properties": {
+              "type": { "type": "string" },
+              "source": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

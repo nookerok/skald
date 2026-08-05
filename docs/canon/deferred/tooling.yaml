@@ -1,0 +1,30 @@
+# Not Built registry: deferred Canon tooling (A-27: tooling follows Canon maturity).
+# A tool is built when its absence becomes a development constraint, not when it becomes possible.
+schemaVersion: 1
+tools:
+  - tool: region-compiler
+    status: deferred
+    reason: "Manual compilation with mandatory canonicalRefs is sufficient for the first region."
+    trigger:
+      - "second playable region"
+      - "repeated bootstrap authoring errors"
+  - tool: concept-graph-ui
+    status: deferred
+    reason: "Concept count does not yet require visual navigation."
+    trigger:
+      - "more than 200 concepts"
+  - tool: digest-registry
+    status: deferred
+    reason: "Only pre-canon manual worlds exist; digest identity is not yet referenced by tooling."
+    trigger:
+      - "multiple persistent living worlds"
+  - tool: emergence-detector
+    status: deferred
+    reason: "Canonization of emergence is human-review only (A-7); detector suggests candidates, never decides."
+    trigger:
+      - "world evidence pipeline exists"
+  - tool: relation-compatibility-matrix
+    status: deferred
+    reason: "Relation types are documented; forbidden type-domain pairs have not yet caused review failures."
+    trigger:
+      - "first rejected relation in review"

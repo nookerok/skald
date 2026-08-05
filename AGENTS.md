@@ -43,6 +43,10 @@ top-level package without revising this file and docs/ARCHITECTURE.md.
 9. packages/ and tests: executable behavior.
 10. docs/LIVING_WORLD_REGION_ARCHITECTURE.md and ADR-0012: accepted spatial
     architecture proposal; runtime claims still require vertical-slice code/tests.
+11. docs/WORLD_BIBLE_ARCHITECTURE.md and docs/canon/ (ADR-0021): Canon Model,
+    the design-time authority for world knowledge. Runtime never reads Canon;
+    Canon enters worlds only via deterministic bootstrap compilation. The
+    generated docs/WORLD_BIBLE.md is a projection, never a source.
 
 If sources disagree, stop and surface the contradiction. Do not silently choose
 the convenient interpretation.
@@ -180,6 +184,7 @@ It runs, fail-fast:
     bash -n scripts/validate.sh packages/cli/deploy/*.sh
     npm run typecheck
     npm test -- --run
+    npm run canon:validate
     git diff --check
 
 Do not hide failures with || true, truncate the only error output or make

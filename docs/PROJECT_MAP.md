@@ -13,6 +13,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Terms | docs/GLOSSARY.md |
 | Accepted decisions | docs/DECISIONS.md |
 | Worldbuilding principles and checklists | docs/worldbuilding/README.md; docs/adr/0007-worldbuilding-principles.md |
+| Canon Model (design-time world knowledge) | docs/WORLD_BIBLE_ARCHITECTURE.md; docs/canon/; docs/adr/0021-world-bible-canon-model.md |
 | First living region and observer map | docs/LIVING_WORLD_REGION_ARCHITECTURE.md; docs/adr/0012-first-living-region.md |
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |

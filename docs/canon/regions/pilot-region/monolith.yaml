@@ -1,0 +1,89 @@
+# Canon Concept: the suspended monolith (Regional x Entities).
+# Retro-imported from ADR-0012/ADR-0016 via ADR-0021 Review Gate.
+# Registered as a Canonical Anchor (anchors/pilot_region_anchors.yaml).
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.monolith
+  scope: Regional
+  domain: Entities
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "ImportedFromCode(docs/LIVING_WORLD_REGION_ARCHITECTURE.md section 11, docs/adr/0016-visibility-observer-line-of-sight.md)"
+    acceptedBy: "AuthorDecision(ADR-0021, 2026-08-04)"
+  relations:
+    - type: locatedIn
+      target: regions.pilot-region.geography
+  runtimeMapping:
+    runtime:
+      - "visibility read-side engine"
+    rules: []
+    events: []
+    projection:
+      - "landmark visibility inputs (terrain, elevation, distance, occlusion)"
+    discovery:
+      - "DirectObservation yields bearing and silhouette; rumors yield contradictions"
+    narrative:
+      - "Narrative never decides what the monolith truly is"
+    ui:
+      - "approximate bearing and silhouette only, never exact coordinates"
+  facts:
+    - id: regions.pilot-region.monolith.f1
+      statement: "The monolith is a physical landmark suspended above the region and predates the current civilization."
+      type: Historical
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 11)"
+      consequences:
+        - "Its silhouette is visible region-wide under valid conditions; its age fuels contradictory cultural readings."
+        - "Removing this fact dissolves the region's central anchor and its Discovery chains."
+    - id: regions.pilot-region.monolith.f2
+      statement: "Monolith visibility is governed by elevation, terrain, distance, smoke, cloud and future light laws; never by quest logic or unconditional HUD markers."
+      type: Causal
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/adr/0012 (decision 10); docs/adr/0016-visibility-observer-line-of-sight.md"
+      consequences:
+        - "Weather fronts (when they exist) will modulate monolith sightings."
+        - "Removing this fact turns the monolith into a quest beacon, which is forbidden."
+    - id: regions.pilot-region.monolith.f3
+      statement: "Observing the monolith yields an approximate bearing and silhouette, never exact coordinates or meaning."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 11)"
+      consequences:
+        - "ObserverMapDTO carries uncertainty for the monolith like for any subject."
+        - "Removing this fact leaks exact truth geometry into the player surface."
+    - id: regions.pilot-region.monolith.f4
+      statement: "Cultures hold contradictory interpretations of the monolith; all such interpretations are facts about beliefs (EpistemicConflict), and none is Canon Truth."
+      type: EpistemicConflict
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Rare
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 11); Block 0.16 decision"
+      consequences:
+        - "Narrative may present conflicting cultural readings without resolving them."
+        - "Declaring any interpretation true violates Narrative Separation (A-11)."

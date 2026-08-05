@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skald.local/canon/concept.schema.json",
+  "title": "CanonConcept",
+  "description": "Canon Model Concept — the unit of review and lifecycle (ADR-0021, WORLD_BIBLE_ARCHITECTURE.md §3.1). A Concept owns Facts, Relations, status and Simulation Depth.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "concept"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "concept": {
+      "type": "object",
+      "required": [
+        "id",
+        "scope",
+        "domain",
+        "temporalScope",
+        "lifecycle",
+        "simulationDepth",
+        "provenance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9_.-]+$"
+        },
+        "scope": {
+          "enum": ["Universal", "Regional"]
+        },
+        "domain": {
+          "enum": ["Metaphysics", "Laws", "History", "Space", "Biology", "Culture", "Society", "Technology", "Entities"]
+        },
+        "temporalScope": {
+          "$ref": "#/$defs/temporalScope"
+        },
+        "lifecycle": {
+          "enum": ["Experimental", "Proposed", "Canon", "Deprecated", "Archived"]
+        },
+        "simulationDepth": {
+          "enum": ["NarrativeOnly", "Observable", "Simulated", "CoreSimulation"]
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["proposedBy", "acceptedBy"],
+          "additionalProperties": false,
+          "properties": {
+            "proposedBy": { "type": "string", "minLength": 1 },
+            "acceptedBy": { "type": "string", "minLength": 1 }
+          }
+        },
+        "facts": {
+          "type": "array",
+          "items": { "$ref": "fact.schema.json#/$defs/fact" }
+        },
+        "relations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relation" }
+        },
+        "runtimeMapping": {
+          "$ref": "#/$defs/runtimeMapping"
+        },
+        "plannedRuntime": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ADR reference explaining why a deep concept has no Runtime Mapping yet (A−19)."
+        },
+        "deprecatedReason": {
+          "type": "string"
+        },
+        "supersededBy": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "temporalScope": {
+      "type": "object",
+      "required": ["scale", "mutation"],
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "enum": ["Eternal", "Epoch", "HistoricalEvent", "Seasonal", "Momentary"]
+        },
+        "mutation": {
+          "enum": ["Immutable", "Evolving", "Mutable"]
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "required": ["type", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["grounds", "causes", "locatedIn", "contains", "exemplifies", "predates", "dependsOn", "contradicts"]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target Concept id. The Concept Graph must stay acyclic (A−8)."
+        }
+      }
+    },
+    "runtimeMapping": {
+      "type": "object",
+      "description": "Mandatory for Simulated/CoreSimulation concepts (A−19): Canon -> runtime systems -> Rules -> Events -> Projection -> Discovery -> Narrative -> UI.",
+      "additionalProperties": false,
+      "properties": {
+        "runtime": { "type": "array", "items": { "type": "string" } },
+        "rules": { "type": "array", "items": { "type": "string" } },
+        "events": { "type": "array", "items": { "type": "string" } },
+        "projection": { "type": "array", "items": { "type": "string" } },
+        "discovery": { "type": "array", "items": { "type": "string" } },
+        "narrative": { "type": "array", "items": { "type": "string" } },
+        "ui": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

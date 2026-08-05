@@ -1,0 +1,79 @@
+# Canon Concept: time exists only as events (Universal x Laws).
+# Retro-imported from implemented runtime (Iterations 2-4) via ADR-0021 Review Gate.
+schemaVersion: 1
+concept:
+  id: universal.laws.time_and_ticks
+  scope: Universal
+  domain: Laws
+  temporalScope:
+    scale: Eternal
+    mutation: Immutable
+  lifecycle: Canon
+  simulationDepth: CoreSimulation
+  provenance:
+    proposedBy: "ImportedFromCode(TickPassed policy, Iteration 2)"
+    acceptedBy: "AuthorDecision(ADR-0021, 2026-08-04)"
+  relations: []
+  runtimeMapping:
+    runtime:
+      - "infra Clock (cli) pushes TickPassed"
+    rules:
+      - "situations.end"
+      - "consequences.expire"
+      - "simulation.duration_check"
+    events:
+      - "TickPassed"
+      - "ConsequenceExpired"
+      - "SituationEnded"
+    projection:
+      - "world.time"
+      - "world.eventNumber"
+    discovery:
+      - "evidence timestamps in simulation time"
+    narrative:
+      - "temporal framing of recorded events"
+    ui:
+      - "turn counter and freshness decay display"
+  facts:
+    - id: universal.laws.time_and_ticks.f1
+      statement: "World time advances only through explicit TickPassed events; one player turn equals one tick with delta 1; no internal clocks exist."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: MathematicalInference
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 9.2, Tick Policy Iteration 2)"
+      consequences:
+        - "Replay reproduces time exactly; offline advancement uses the same events."
+        - "Removing this fact makes time a hidden variable and breaks determinism."
+    - id: universal.laws.time_and_ticks.f2
+      statement: "Long-lived processes (situations, consequences) end deterministically: an expiresAt check on TickPassed, never an external canceller."
+      type: Causal
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (sections 5.1, 5.4, Iteration 4)"
+      consequences:
+        - "SituationEnded and ConsequenceExpired events exist."
+        - "Removing this fact resurrects magical external stoppers."
+    - id: universal.laws.time_and_ticks.f3
+      statement: "Seasons, weather fronts and a World Clock do not exist in the world until a dedicated law introduces them."
+      type: Structural
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: Impossible
+      knowledgeCost: Impossible
+      provenance:
+        type: ImportedFromCode
+        source: "docs/LIVING_WORLD_REGION_ARCHITECTURE.md (section 16); docs/adr/0012-first-living-region.md"
+      consequences:
+        - "UI and Narrative must not infer seasons or weather from art or prose."
+        - "Removing this fact lets uncalibrated weather leak into truth; see not-simulated/weather_dynamics."

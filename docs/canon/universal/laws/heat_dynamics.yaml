@@ -1,0 +1,76 @@
+# Canon Concept: heat as a single world law (Universal x Laws).
+# Retro-imported from implemented runtime (Iteration 6) via ADR-0021 Review Gate.
+schemaVersion: 1
+concept:
+  id: universal.laws.heat_dynamics
+  scope: Universal
+  domain: Laws
+  temporalScope:
+    scale: Eternal
+    mutation: Immutable
+  lifecycle: Canon
+  simulationDepth: Simulated
+  provenance:
+    proposedBy: "ImportedFromCode(heat.spread rule, Iteration 6)"
+    acceptedBy: "AuthorDecision(ADR-0021, 2026-08-04)"
+  relations: []
+  runtimeMapping:
+    runtime:
+      - "RuleEngine phase physics"
+    rules:
+      - "heat.spread"
+    events:
+      - "HeatSourcePlaced"
+      - "HeatRadiated"
+      - "TickPassed"
+    projection:
+      - "heatMap (cell intensity, derivable from HeatRadiated)"
+    discovery:
+      - "DirectObservation of thermal signs (warmth, melting, burns)"
+    narrative:
+      - "description of recorded heat events only"
+    ui:
+      - "observer-scoped heat cues via BeliefModelDTO"
+  facts:
+    - id: universal.laws.heat_dynamics.f1
+      statement: "Heat propagates from sources to neighbouring cells with intensity attenuation (halved at distance 1)."
+      type: Causal
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 5.6); packages/world heat rules"
+      consequences:
+        - "HeatRadiated events and the heatMap projection exist."
+        - "Removing this fact freezes all thermal processes in every world."
+    - id: universal.laws.heat_dynamics.f2
+      statement: "One heat law applies uniformly to a campfire, the sun, lava and the living body; there are no spell-like per-case rules."
+      type: Axiomatic
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 5.6, magic -> world law)"
+      consequences:
+        - "Intent-driven interaction with heat reuses a single law across contexts."
+        - "Removing this fact reopens Spell/Mana-style catalogs, which are forbidden."
+    - id: universal.laws.heat_dynamics.f3
+      statement: "Static heat sources enter the world only through bootstrap events (HeatSourcePlaced), never through hidden configuration."
+      type: Structural
+      temporalScope:
+        scale: Eternal
+        mutation: Immutable
+      observability: Artifact
+      knowledgeCost: Rare
+      provenance:
+        type: ImportedFromCode
+        source: "docs/ARCHITECTURE.md (section 5.6, 9.1); A-5 Event Genesis Principle"
+      consequences:
+        - "Replay of the Event Log reproduces the initial heat state."
+        - "Removing this fact creates a hidden input that breaks replay determinism."
