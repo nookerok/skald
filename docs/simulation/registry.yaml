@@ -42,6 +42,20 @@ systems:
       - tests                       # weather-process.test.ts
       - review                      # ОТСУТСТВУЕТ — нет Architecture Review
 
+  - systemId: heat-transfer
+    lifecycleStatus: Experimental
+    definitionPath: docs/simulation/definitions/heat-transfer.yaml
+    bindingPath: docs/simulation/bindings/pilot-region-heat.yaml
+    dependencyRank: 1              # корневая система, нет dependsOn
+
+    # Computed maturity (PR-7.1)
+    maturityEvidence:
+      - definition                  # heat-transfer.yaml существует и валиден
+      - binding                     # pilot-region-heat.yaml существует
+      - implementation              # heat/process.ts + rules/heat-transfer.ts
+      - tests                       # heat-transfer.test.ts
+      - review                      # ОТСУТСТВУЕТ — нет Architecture Review
+
 #systems:   # Reserved slots (Phase 1 Audit candidates, not yet defined)
 #  - systemId: heat
 #    lifecycleStatus: Candidate

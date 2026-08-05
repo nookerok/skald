@@ -285,6 +285,46 @@ function checkTopology() {
   }
 }
 
+function checkLifecycleGates() {
+  const VALID_LIFECYCLES = ["Proposal", "Experimental", "Candidate"];
+
+  for (const [systemId, reg] of registry) {
+    const status = reg.lifecycleStatus;
+    if (!VALID_LIFECYCLES.includes(status)) {
+      errors.push(`Registry system ${systemId}: invalid lifecycleStatus '${status}'`);
+      continue;
+    }
+
+    // Check maturity evidence consistency
+    const evidence = reg.maturityEvidence ?? [];
+    const hasDefinition = evidence.includes("definition");
+    const hasBinding = evidence.includes("binding");
+    const hasImplementation = evidence.includes("implementation");
+    const hasTests = evidence.includes("tests");
+    const hasReview = evidence.includes("review");
+
+    // Proposal: should have definition
+    if (status === "Proposal" && !hasDefinition) {
+      warnings.push(`${systemId}: Proposal status should have definition evidence`);
+    }
+
+    // Experimental: should have definition + implementation + tests
+    if (status === "Experimental") {
+      if (!hasDefinition) errors.push(`${systemId}: Experimental requires definition evidence`);
+      if (!hasImplementation) errors.push(`${systemId}: Experimental requires implementation evidence`);
+      if (!hasTests) errors.push(`${systemId}: Experimental requires tests evidence`);
+    }
+
+    // Candidate: should have all evidence
+    if (status === "Candidate") {
+      if (!hasDefinition) errors.push(`${systemId}: Candidate requires definition evidence`);
+      if (!hasImplementation) errors.push(`${systemId}: Candidate requires implementation evidence`);
+      if (!hasTests) errors.push(`${systemId}: Candidate requires tests evidence`);
+      if (!hasReview) errors.push(`${systemId}: Candidate requires review evidence`);
+    }
+  }
+}
+
 function checkDependencyEvidence() {
   if (!STRICT) return;
 
@@ -311,6 +351,7 @@ function main() {
   checkDefinitionSchema();
   checkDefinitionBindingAlignment();
   checkTopology();
+  checkLifecycleGates();
   checkDependencyEvidence();
 
   // Report
