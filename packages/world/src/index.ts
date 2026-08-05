@@ -164,5 +164,10 @@ export * from "./visibility/index.js";
 export { riverLevelProcess } from "./rules/river-level.js";
 export { crossingCondition } from "./rules/crossing-condition.js";
 
+// Weather (ADR-0020, influences graph)
+export { weatherProcess } from "./rules/weather.js";
+export { computeWeatherState } from "./weather/process.js";
+export type { WeatherProcessDefinition, WeatherState, WeatherReadView } from "./weather/types.js";
+
 // First living region — deterministic spatial bootstrap and observer map
 export * from "./region/index.js";

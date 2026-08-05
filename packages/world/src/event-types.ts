@@ -76,6 +76,10 @@ export const EventType = {
   RiverLevelChanged: "RiverLevelChanged",
   CrossingConditionInitialized: "CrossingConditionInitialized",
 
+  // Weather (ADR-0020, influences graph)
+  WeatherProcessDefined: "WeatherProcessDefined",
+  WeatherStateChanged: "WeatherStateChanged",
+
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
