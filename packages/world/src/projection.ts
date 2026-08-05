@@ -94,6 +94,8 @@ export interface ReadonlyWorld {
   readonly spatial: import("./region/types.js").SpatialReadView | null;
   // Weather read view for Rules (ADR-0020, influences graph)
   readonly weather: import("./weather/types.js").WeatherReadView | null;
+  // Heat read view for Rules (PR-7.1, second independent system)
+  readonly heat: import("./heat/types.js").HeatReadView | null;
 }
 
 export interface WorldState {
@@ -126,6 +128,8 @@ export interface WorldState {
   spatial: import("./region/types.js").SpatialReadView | null;
   // Weather read view for Rules (ADR-0020, influences graph)
   weather: import("./weather/types.js").WeatherReadView | null;
+  // Heat read view for Rules (PR-7.1, second independent system)
+  heat: import("./heat/types.js").HeatReadView | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -260,6 +264,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     activeJourneyId: state.activeJourneyId,
     spatial: state.spatial,
     weather: state.weather,
+    heat: state.heat,
   }) as ReadonlyWorld;
 }
 
@@ -296,6 +301,8 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       spatial: null,
       // Weather read view for Rules (ADR-0020, influences graph)
       weather: null,
+      // Heat read view for Rules (PR-7.1, second independent system)
+      heat: null,
     };
   }
 
@@ -548,6 +555,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       activeJourneyId: this.state.activeJourneyId,
       spatial: this.state.spatial,
       weather: this.state.weather,
+      heat: this.state.heat,
     };
     return copy;
   }

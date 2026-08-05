@@ -18,6 +18,7 @@ import { createJourneyValidationRule } from "./journey-validation.js";
 import { riverLevelProcess } from "./river-level.js";
 import { crossingCondition } from "./crossing-condition.js";
 import { weatherProcess } from "./weather.js";
+import { heatTransferProcess } from "./heat-transfer.js";
 import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js";
 
 /**
@@ -73,6 +74,9 @@ export function createRules(
 
   // Weather (ADR-0020, influences graph)
   registry.register(weatherProcess);
+
+  // Heat Transfer (PR-7.1, second independent system)
+  registry.register(heatTransferProcess);
 
   // Critical check rules (Iteration 15)
   for (const rule of criticalCheckRules) registry.register(rule);

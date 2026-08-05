@@ -1,0 +1,84 @@
+# System Definition: Heat Transfer
+# Вторая независимая система — проверка fan-out из Weather.
+# Первый случай: Weather influences both River Hydrology AND Heat Transfer.
+
+identity:
+  systemId: heat-transfer
+  lifecycleStatus: Experimental
+  version: 1.0.0
+  provenance:
+    type: Designed
+    sources:
+      - docs/adr/0017-river-hydrology-and-crossing.md  # heat spread referenced
+      - packages/world/src/rules/heat-transfer.ts
+
+publicContract:
+  dependencies:
+    ownedAspects:
+      - aspect: ThermalState
+        domain: "{ temperature: ℝ, zone: cold|neutral|warm|hot, exposure: [0, 1] }"
+
+    dependsOn: []
+
+    influences: []
+      # Heat Transfer is a leaf system in v1.
+      # Future: Heat → Fire, Heat → Weather (feedback loop).
+
+  observableSurface:
+    emits:
+      - event: HeatStateChanged
+        role: state-transition
+    consumes:
+      - event: TickPassed
+      - event: WeatherStateChanged  # wind factor affects heat dissipation
+    observationChannels:
+      - channel: direct-observation
+    hiddenAspects: []
+
+  guarantees:
+    - id: heat-transfer-deterministic
+      statement: "Thermal state at any worldTime is a pure function of process definition, current state, and weather wind factor"
+      kind: invariant
+      scope: system
+      consumer: [replay-test]
+      implementationEvidence:
+        - kind: Rule
+          ref: heatTransferProcess
+    - id: heat-transfer-bounded
+      statement: "Temperature always within [-20, 100]; zone always from closed enum"
+      kind: invariant
+      scope: aspect
+      consumer: [replay-test]
+      implementationEvidence:
+        - kind: Rule
+          ref: heatTransferProcess
+
+operationalProfile:
+  updateModel: TickDriven
+  budget:
+    supports: [Full]
+  persistenceReplay:
+    replayAssumptions:
+      - "Events are totally ordered"
+      - "Weather wind factor is available when heat processes run"
+    derivedStructures: []
+
+privateDesign:
+  stateSemantics:
+    temperature: "Continuous value in [-20, 100], discretized into zones"
+    zone: "Categorical: cold (< threshold), neutral, warm, hot (> threshold)"
+    exposure: "Decay factor [0, 1], reduced by dissipationRate each tick"
+  parameterSlots:
+    - name: ambientTemperature
+      range: "ℝ in [-20, 100]"
+      default: null
+    - name: transferRate
+      range: "(0, 1]"
+      default: null
+    - name: dissipationRate
+      range: "[0, 1]"
+      default: null
+  rationale:
+    - "Heat Transfer is TickDriven because it evolves independently of player actions."
+    - "Wind factor from Weather creates the first real fan-out: Weather → River + Weather → Heat."
+    - "No fire/biome/season in v1 — just energy gradient → heat transfer."

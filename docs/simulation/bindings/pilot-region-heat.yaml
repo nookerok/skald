@@ -1,0 +1,24 @@
+# Binding: Heat Transfer × Pilot Region
+
+bindingVersion: "1.0.0"
+system: heat-transfer
+world:
+  region: pilot-region
+
+parameters:
+  - name: ambientTemperature
+    value: 15
+
+  - name: transferRate
+    value: 0.1
+
+  - name: dissipationRate
+    value: 0.05
+
+zones:
+  - zoneId: riverway_thermal
+    ambientTemperature: 12
+  - zoneId: city_thermal
+    ambientTemperature: 18
+  - zoneId: forest_thermal
+    ambientTemperature: 10

@@ -80,6 +80,10 @@ export const EventType = {
   WeatherProcessDefined: "WeatherProcessDefined",
   WeatherStateChanged: "WeatherStateChanged",
 
+  // Heat Transfer (PR-7.1, second independent system)
+  HeatProcessDefined: "HeatProcessDefined",
+  HeatStateChanged: "HeatStateChanged",
+
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

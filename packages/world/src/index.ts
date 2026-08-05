@@ -169,5 +169,10 @@ export { weatherProcess } from "./rules/weather.js";
 export { computeWeatherState } from "./weather/process.js";
 export type { WeatherProcessDefinition, WeatherState, WeatherReadView } from "./weather/types.js";
 
+// Heat Transfer (PR-7.1, second independent system)
+export { heatTransferProcess } from "./rules/heat-transfer.js";
+export { computeHeatTransfer, classifyThermalZone } from "./heat/process.js";
+export type { HeatProcessDefinition, ThermalState, HeatReadView } from "./heat/types.js";
+
 // First living region — deterministic spatial bootstrap and observer map
 export * from "./region/index.js";
