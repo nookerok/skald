@@ -1,0 +1,44 @@
+# Simulation Registry
+# Список всех Simulation Systems проекта.
+# Источник для Compiler на этапе сборки мира.
+# Формат: YAML до появления zod-схемы (Schema stage, D-4.4 этап 2).
+
+registryVersion: 1.0.0
+lastUpdated: "2026-08-05"
+
+systems:
+  - systemId: river-hydrology
+    lifecycleStatus: Experimental
+    definitionPath: docs/simulation/definitions/river-hydrology.yaml
+    bindingPath: docs/simulation/bindings/pilot-region.yaml
+    dependencyRank: 1              # корневая система, нет dependsOn
+
+  - systemId: weather
+    lifecycleStatus: Proposal
+    definitionPath: docs/simulation/definitions/weather.yaml
+    bindingPath: null              # нет реализации, нет binding
+    dependencyRank: 1              # корневая система, нет dependsOn
+    notes: "Weather влияет на river-hydrology через precipitation → waterInflow.
+            После реализации Weather потребуется обновить river-hydrology.yaml:
+            добавить dependsOn: weather (§12.2, V-04/V-10)."
+
+#systems:   # Reserved slots (Phase 1 Audit candidates, not yet defined)
+#  - systemId: heat
+#    lifecycleStatus: Candidate
+#    definitionPath: null
+#    notes: "Confirmed in Phase 1 Audit; needs System Definition"
+#
+#  - systemId: fire
+#    lifecycleStatus: Candidate
+#    definitionPath: null
+#    notes: "Confirmed in Phase 1 Audit; needs System Definition"
+#
+#  - systemId: movement
+#    lifecycleStatus: Core
+#    definitionPath: null
+#    notes: "Legacy grid movement; System Definition deferred"
+#
+#  - systemId: journey
+#    lifecycleStatus: Candidate
+#    definitionPath: null
+#    notes: "ADR-0015; needs System Definition"
