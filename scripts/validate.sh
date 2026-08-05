@@ -21,6 +21,8 @@ echo "[validate] tests"
 npm test -- --run
 echo "[validate] canon"
 npm run canon:validate
+echo "[validate] simulation"
+npm run simulation:validate
 echo "[validate] diff check"
 git diff --check
 echo "[validate] PASS"
