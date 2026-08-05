@@ -1,0 +1,69 @@
+# System Definition: Settlement Pattern
+# Первый долгоживущий объект — проверка persistence через time.
+
+identity:
+  systemId: settlement-pattern
+  lifecycleStatus: Experimental
+  version: 1.0.0
+  provenance:
+    type: Designed
+    sources:
+      - packages/world/src/rules/settlement-pattern.ts
+
+publicContract:
+  dependencies:
+    ownedAspects:
+      - aspect: SettlementState
+        domain: "{ population: ℕ, risk: [0, 100], status: active|declining|abandoned }"
+
+    dependsOn: []
+    influences: []
+
+  observableSurface:
+    emits:
+      - event: SettlementCreated
+        role: genesis
+      - event: SettlementStateChanged
+        role: state-transition
+    consumes:
+      - event: TickPassed
+    observationChannels:
+      - channel: direct-observation
+    hiddenAspects: []
+
+  guarantees:
+    - id: settlement-deterministic
+      statement: "Settlement state at any worldTime is a pure function of initial state and tick history"
+      kind: invariant
+      scope: system
+      consumer: [replay-test]
+      implementationEvidence:
+        - kind: Rule
+          ref: settlementPattern
+
+operationalProfile:
+  updateModel: TickDriven
+  budget:
+    supports: [Full]
+  persistenceReplay:
+    replayAssumptions:
+      - "Events are totally ordered"
+      - "SettlementCreated precedes SettlementStateChanged"
+    derivedStructures: []
+
+privateDesign:
+  stateSemantics:
+    population: "Integer count, declines with high risk, grows with low risk"
+    risk: "Integer [0, 100], decays toward baseline each tick"
+    status: "derived from population change: active | declining | abandoned"
+  parameterSlots:
+    - name: initialPopulation
+      range: "ℕ ≥ 0"
+      default: null
+    - name: initialRisk
+      range: "[0, 100]"
+      default: null
+  rationale:
+    - "Settlement is the first pattern that persists through many ticks."
+    - "Tests: state survives replay, observation, narrative."
+    - "Future: settlement → economy → relations."

@@ -174,5 +174,10 @@ export { heatTransferProcess } from "./rules/heat-transfer.js";
 export { computeHeatTransfer, classifyThermalZone } from "./heat/process.js";
 export type { HeatProcessDefinition, ThermalState, HeatReadView } from "./heat/types.js";
 
+// Settlement Pattern (PR-7.4, first long-lived object)
+export { settlementPattern } from "./rules/settlement-pattern.js";
+export { computeSettlementTick } from "./rules/settlement-pattern.js";
+export type { SettlementDefinition, SettlementState, SettlementReadView } from "./settlement/types.js";
+
 // First living region — deterministic spatial bootstrap and observer map
 export * from "./region/index.js";

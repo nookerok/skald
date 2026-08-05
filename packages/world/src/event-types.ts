@@ -84,6 +84,10 @@ export const EventType = {
   HeatProcessDefined: "HeatProcessDefined",
   HeatStateChanged: "HeatStateChanged",
 
+  // Settlement Pattern (PR-7.4, first long-lived object)
+  SettlementCreated: "SettlementCreated",
+  SettlementStateChanged: "SettlementStateChanged",
+
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

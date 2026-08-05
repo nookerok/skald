@@ -19,6 +19,7 @@ import { riverLevelProcess } from "./river-level.js";
 import { crossingCondition } from "./crossing-condition.js";
 import { weatherProcess } from "./weather.js";
 import { heatTransferProcess } from "./heat-transfer.js";
+import { settlementPattern } from "./settlement-pattern.js";
 import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js";
 
 /**
@@ -77,6 +78,9 @@ export function createRules(
 
   // Heat Transfer (PR-7.1, second independent system)
   registry.register(heatTransferProcess);
+
+  // Settlement Pattern (PR-7.4, first long-lived object)
+  registry.register(settlementPattern);
 
   // Critical check rules (Iteration 15)
   for (const rule of criticalCheckRules) registry.register(rule);
