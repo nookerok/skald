@@ -87,8 +87,8 @@ export class SpatialProjector {
         band: p.band,
         updatedAt: p.changedAt,
       });
-      // Update crossing states based on new river level
-      this.updateCrossingsForWatercourse(p.watercourseId, p.level, event.timestamp);
+      // Crossing states are updated by CrossingConditionChanged events
+      // emitted by the crossingCondition rule — not here.
     }
     if (event.type === "CrossingConditionInitialized") {
       const p = event.payload as CrossingDefinition;
@@ -113,23 +113,6 @@ export class SpatialProjector {
         travelCostTicks: p.travelCostTicks,
         updatedAt: p.changedAt,
       });
-    }
-  }
-
-  private updateCrossingsForWatercourse(watercourseId: string, level: number, timestamp: number): void {
-    for (const [crossingId, def] of this.crossingDefinitions) {
-      if (def.watercourseId !== watercourseId) continue;
-      const condition = classifyCrossingCondition(level, def);
-      const travelCostTicks = computeCrossingTravelTicks(condition, def.baseTravelCostTicks);
-      const existing = this.crossingStates.get(crossingId);
-      if (!existing || existing.condition !== condition || existing.travelCostTicks !== travelCostTicks) {
-        this.crossingStates.set(crossingId, {
-          crossingId,
-          condition,
-          travelCostTicks,
-          updatedAt: timestamp,
-        });
-      }
     }
   }
 

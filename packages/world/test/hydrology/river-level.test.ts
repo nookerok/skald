@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeRiverLevel, classifyRiverBand } from "@skald/world";
+import { computeRiverLevel, classifyRiverBand } from "../../src/rules/river-level.js";
 import type { RiverProcessDefinition } from "@skald/world";
 
 const TEST_PROCESS: RiverProcessDefinition = {

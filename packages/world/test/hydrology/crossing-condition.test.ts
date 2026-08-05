@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyCrossingCondition, computeCrossingTravelTicks } from "@skald/world";
+import { classifyCrossingCondition, computeCrossingTravelTicks } from "../../src/rules/crossing-condition.js";
 import type { CrossingDefinition } from "@skald/world";
 
 const TEST_CROSSING: CrossingDefinition = {

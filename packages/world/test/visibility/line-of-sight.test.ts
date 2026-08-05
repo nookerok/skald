@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { checkLineOfSight } from "@skald/world";
-import type { SpatialWorldProjection } from "@skald/world";
+import { checkLineOfSight } from "../../src/visibility/line-of-sight.js";
+import type { SpatialWorldProjection } from "../../src/region/types.js";
 
 function makeSpatial(tiles: Array<{ id: string; elevationBand: number; surface: "water" | "soil" | "rock" | "marsh" | "forest" }>): SpatialWorldProjection {
   const terrainTiles = tiles.map((t) => {

@@ -5,8 +5,8 @@ import {
   distanceSquared,
   elevationToMetres,
   terrainElevationAt,
-} from "@skald/world";
-import type { SpatialWorldProjection } from "@skald/world";
+} from "../../src/visibility/terrain-height.js";
+import type { SpatialWorldProjection } from "../../src/region/types.js";
 
 function makeSpatial(overrides?: {
   tiles?: Array<{ id: string; elevationBand: number; surface: "water" | "soil" | "rock" | "marsh" | "forest" }>;

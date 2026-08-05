@@ -161,8 +161,8 @@ export { createJourneyValidationRule } from "./rules/journey-validation.js";
 export * from "./visibility/index.js";
 
 // River Hydrology (ADR-0017)
-export { riverLevelProcess, computeRiverLevel, classifyRiverBand } from "./rules/river-level.js";
-export { crossingCondition, classifyCrossingCondition, computeCrossingTravelTicks } from "./rules/crossing-condition.js";
+export { riverLevelProcess } from "./rules/river-level.js";
+export { crossingCondition } from "./rules/crossing-condition.js";
 
 // First living region — deterministic spatial bootstrap and observer map
 export * from "./region/index.js";

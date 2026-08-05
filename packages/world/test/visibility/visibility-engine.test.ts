@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { computeVisibility } from "@skald/world";
-import type { SpatialWorldProjection, ObserverPosition } from "@skald/world";
+import { computeVisibility } from "../../src/visibility/visibility-engine.js";
+import type { SpatialWorldProjection } from "../../src/region/types.js";
+import type { ObserverPosition } from "../../src/visibility/types.js";
 
 function makePilotSpatial(): SpatialWorldProjection {
   const tiles = [];
