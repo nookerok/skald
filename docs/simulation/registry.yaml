@@ -2,6 +2,10 @@
 # Список всех Simulation Systems проекта.
 # Источник для Compiler на этапе сборки мира.
 # Формат: YAML до появления zod-схемы (Schema stage, D-4.4 этап 2).
+#
+# Maturity — вычисляемое поле (DKP):
+#   Определяется из maturityEvidence, НЕ хранится как факт.
+#   Пример: maturity: production — это ложь, пока нет всех evidence.
 
 registryVersion: 1.0.0
 lastUpdated: "2026-08-05"
@@ -13,6 +17,14 @@ systems:
     bindingPath: docs/simulation/bindings/pilot-region.yaml
     dependencyRank: 1              # корневая система, нет dependsOn
 
+    # Computed maturity (PR-6.2)
+    maturityEvidence:
+      - definition                  # river-hydrology.yaml существует и валиден
+      - binding                     # pilot-region.yaml существует
+      - implementation              # river-level.ts + crossing-condition.ts
+      - tests                       # hydrology-rules.test.ts, river-level.test.ts, crossing-condition.test.ts
+      - review                      # Architecture Review №1 пройден
+
   - systemId: weather
     lifecycleStatus: Proposal
     definitionPath: docs/simulation/definitions/weather.yaml
@@ -21,6 +33,14 @@ systems:
     notes: "Weather влияет на river-hydrology через precipitation → waterInflow.
             После реализации Weather потребуется обновить river-hydrology.yaml:
             добавить dependsOn: weather (§12.2, V-04/V-10)."
+
+    # Computed maturity (PR-6.2)
+    maturityEvidence:
+      - definition                  # weather.yaml существует и валиден
+      - binding                     # ОТСУТСТВУЕТ — нет конкретного мира
+      - implementation              # weather.ts + process.ts (minimal)
+      - tests                       # weather-process.test.ts
+      - review                      # ОТСУТСТВУЕТ — нет Architecture Review
 
 #systems:   # Reserved slots (Phase 1 Audit candidates, not yet defined)
 #  - systemId: heat
