@@ -221,6 +221,70 @@ function checkDefinitionBindingAlignment() {
   }
 }
 
+function checkTopology() {
+  // Build dependsOn DAG and influences graph
+  const dependsOnEdges = [];
+  const influencesEdges = [];
+
+  for (const [systemId, def] of definitions) {
+    // dependsOn edges
+    const dependsOn = def.parsed?.publicContract?.dependencies?.dependsOn;
+    if (Array.isArray(dependsOn)) {
+      for (const dep of dependsOn) {
+        dependsOnEdges.push([systemId, dep]);
+      }
+    }
+
+    // influences edges
+    const influences = def.parsed?.publicContract?.dependencies?.influences;
+    if (Array.isArray(influences)) {
+      for (const inf of influences) {
+        if (inf.target) {
+          influencesEdges.push([systemId, inf.target]);
+        }
+      }
+    }
+  }
+
+  // Check: dependsOn must be acyclic (DAG)
+  const dependsOnAdj = new Map();
+  for (const [from, to] of dependsOnEdges) {
+    if (!dependsOnAdj.has(from)) dependsOnAdj.set(from, []);
+    dependsOnAdj.get(from).push(to);
+  }
+
+  const state = new Map();
+  const visit = (node, path) => {
+    state.set(node, 1); // visiting
+    for (const next of dependsOnAdj.get(node) ?? []) {
+      if (state.get(next) === 1) {
+        errors.push(`dependsOn cycle detected: ${[...path, node, next].join(" -> ")}`);
+        return;
+      }
+      if (state.get(next) !== 2) {
+        visit(next, [...path, node]);
+      }
+    }
+    state.set(node, 2); // visited
+  };
+
+  for (const node of dependsOnAdj.keys()) {
+    if (state.get(node) !== 2) {
+      visit(node, []);
+    }
+  }
+
+  // Check: dependsOn cannot create circular dependency through influences
+  // If A dependsOn B and B influences A, that's a problem
+  for (const [from, to] of dependsOnEdges) {
+    for (const [infFrom, infTo] of influencesEdges) {
+      if (infFrom === to && infTo === from) {
+        errors.push(`Circular dependency: ${from} dependsOn ${to}, but ${to} influences ${from}`);
+      }
+    }
+  }
+}
+
 function checkDependencyEvidence() {
   if (!STRICT) return;
 
@@ -246,6 +310,7 @@ function main() {
   checkRegistryConsistency();
   checkDefinitionSchema();
   checkDefinitionBindingAlignment();
+  checkTopology();
   checkDependencyEvidence();
 
   // Report
