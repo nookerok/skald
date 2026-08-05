@@ -8,7 +8,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
-import type { RiverProcessDefinition, RiverState, RiverBand } from "../region/types.js";
+import type { RiverProcessDefinition, RiverBand } from "../region/types.js";
 import { ruleEventId } from "../ids.js";
 
 /**
@@ -55,7 +55,7 @@ export const riverLevelProcess: Rule<ReadonlyWorld> = {
   listens: ["TickPassed"],
   produces: ["RiverLevelChanged"],
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
-    const spatial = (world as unknown as { spatial?: { riverProcesses: ReadonlyMap<string, RiverProcessDefinition>; riverStates: ReadonlyMap<string, RiverState> } }).spatial;
+    const spatial = world.spatial;
     if (!spatial) return [];
 
     const events: DomainEvent[] = [];

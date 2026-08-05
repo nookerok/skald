@@ -136,7 +136,20 @@ export interface CrossingState {
   readonly updatedAt: number;
 }
 
-export interface SpatialWorldProjection {
+/**
+ * Read-only view of spatial data exposed to Rules.
+ * This is the public contract — Rules read through this interface,
+ * never through SpatialWorldProjection directly.
+ */
+export interface SpatialReadView {
+  readonly riverProcesses: ReadonlyMap<string, RiverProcessDefinition>;
+  readonly riverStates: ReadonlyMap<string, RiverState>;
+  readonly crossingDefinitions: ReadonlyMap<string, CrossingDefinition>;
+  readonly crossingStates: ReadonlyMap<string, CrossingState>;
+  readonly travelRelations: ReadonlyMap<string, TravelRelation>;
+}
+
+export interface SpatialWorldProjection extends SpatialReadView {
   readonly region: RegionDefinition | null;
   readonly locations: ReadonlyMap<string, RegionLocation>;
   readonly landmarks: ReadonlyMap<string, RegionLandmark>;

@@ -8,7 +8,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
-import type { CrossingDefinition, CrossingState, CrossingCondition } from "../region/types.js";
+import type { CrossingDefinition, CrossingCondition } from "../region/types.js";
 import { ruleEventId } from "../ids.js";
 
 export function classifyCrossingCondition(level: number, def: CrossingDefinition): CrossingCondition {
@@ -34,7 +34,7 @@ export const crossingCondition: Rule<ReadonlyWorld> = {
   produces: ["CrossingConditionChanged"],
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
     const payload = event.payload as { watercourseId: string; level: number };
-    const spatial = (world as unknown as { spatial?: { crossingDefinitions: ReadonlyMap<string, CrossingDefinition>; crossingStates: ReadonlyMap<string, CrossingState> } }).spatial;
+    const spatial = world.spatial;
     if (!spatial) return [];
 
     const events: DomainEvent[] = [];

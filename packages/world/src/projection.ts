@@ -90,6 +90,8 @@ export interface ReadonlyWorld {
   // Spatial Movement (ADR-0015)
   readonly journeys: ReadonlyMap<string, JourneyState>;
   readonly activeJourneyId: string | null;
+  // Spatial read view for Rules (ADR-0017, Authority Principle)
+  readonly spatial: import("./region/types.js").SpatialReadView | null;
 }
 
 export interface WorldState {
@@ -118,6 +120,8 @@ export interface WorldState {
   // Spatial Movement (ADR-0015)
   journeys: Map<string, JourneyState>;
   activeJourneyId: string | null;
+  // Spatial read view for Rules (ADR-0017, Authority Principle)
+  spatial: import("./region/types.js").SpatialReadView | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -250,6 +254,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     entities: cloneMap(new Map([...state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)]))),
     journeys: cloneMap(new Map([...state.journeys].map(([id, j]) => [id, Object.freeze({ ...j }) as JourneyState]))),
     activeJourneyId: state.activeJourneyId,
+    spatial: state.spatial,
   }) as ReadonlyWorld;
 }
 
@@ -282,6 +287,8 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       // Spatial Movement (ADR-0015)
       journeys: new Map<string, JourneyState>(),
       activeJourneyId: null,
+      // Spatial read view for Rules (ADR-0017, Authority Principle)
+      spatial: null,
     };
   }
 
@@ -532,6 +539,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       entities: new Map([...this.state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)])),
       journeys: new Map([...this.state.journeys].map(([id, j]) => [id, { ...j }])),
       activeJourneyId: this.state.activeJourneyId,
+      spatial: this.state.spatial,
     };
     return copy;
   }
