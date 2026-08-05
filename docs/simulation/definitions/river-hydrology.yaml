@@ -7,7 +7,6 @@
 identity:
   systemId: river-hydrology
   lifecycleStatus: Experimental        # D-0.3: первое вхождение в реестр
-  reviewAfter: "Architecture Review шаблона (Roadmap §15, шаг 3)"
   version: 1.0.0
   provenance:
     type: ImportedFromCode             # ретро-импорт; ADR-0017 остаётся авторитетом решения
@@ -40,8 +39,10 @@ publicContract:
     influences:
       - target: spatial-movement       # ADR-0015: route resolver
         dependencyEvidence:            # обязательно (V-08)
-          - "Route resolver читает crossingStates из spatial projection"
-          - "CrossingConditionChanged изменяет passability: closed блокирует journey, difficult увеличивает travel cost"
+          - event: CrossingConditionChanged
+            consumedBy: journey.validate
+            aspect: CrossingState
+            effect: "passability: closed блокирует journey, difficult увеличивает travel cost"
 
   observableSurface:
     emits:
@@ -71,37 +72,43 @@ publicContract:
       kind: invariant
       scope: aspect
       consumer: [replay-test, rule-review]
-      evidence:
-        - Rule: riverLevelProcess      # packages/world/src/rules/river-level.ts
+      implementationEvidence:
+        - kind: Rule
+          ref: riverLevelProcess
     - id: river-level-deterministic
       statement: "При одинаковом Event Log профиль уровня воспроизводится бит-в-бит (computeRiverLevel — чистая функция от process definition и worldTime)"
       kind: invariant
       scope: system
       consumer: [replay-test]
-      evidence:
-        - Rule: riverLevelProcess
+      implementationEvidence:
+        - kind: Rule
+          ref: riverLevelProcess
     - id: crossing-condition-derived
       statement: "Crossing condition — чистая функция от текущего уровня и порогов переправы; пороги принадлежат crossing definition, не зашиты в Rule"
       kind: invariant
       scope: interaction
       consumer: [replay-test, rule-review]
-      evidence:
-        - Rule: crossingCondition      # packages/world/src/rules/crossing-condition.ts
+      implementationEvidence:
+        - kind: Rule
+          ref: crossingCondition
     - id: river-event-emission-honest
       statement: "RiverLevelChanged эмитится только когда вычисленный уровень отличается от сохранённого; CrossingConditionChanged — только при смене condition"
       kind: invariant
       scope: system
       consumer: [replay-test]
-      evidence:
-        - Rule: riverLevelProcess
-        - Rule: crossingCondition
+      implementationEvidence:
+        - kind: Rule
+          ref: riverLevelProcess
+        - kind: Rule
+          ref: crossingCondition
     - id: observer-knowledge-lag
       statement: "Offline-тики изменяют истину, но не знание игрока: наблюдатель узнаёт только через observationChannels"
       kind: impossibility
       scope: interaction
       consumer: [rule-review]
-      evidence:
-        - "ADR-0017 §7 observer boundary"
+      implementationEvidence:
+        - kind: Review
+          ref: "ADR-0017 §7"
 
 # ---------------------------------------------------------------------------
 # OPERATIONAL PROFILE — потребители: Compiler, Scheduler (не другие системы)
@@ -112,7 +119,6 @@ operationalProfile:
   budget:
     supports: [Full]                   # Aggregated не поддерживается:
                                        # fold/unfold контракт отсутствует (честно)
-    notes: "BootstrapOnly достижим тривиально (без TickPassed нет эволюции), но как класс не декларируется до появления потребителя (Consumer Rule)"
   persistenceReplay:
     replayAssumptions:
       - "Events are totally ordered"
@@ -153,32 +159,3 @@ privateDesign:
   rationale:
     - "Фиксированный цикл вместо погоды: осознанный минимум первого живого пространственного процесса (ADR-0017 §8). Weather/Season — отдельная будущая система; при её появлении river-hydrology получит dependsOn: weather с dependencyEvidence (water inflow) — это будет изменение Public Contract с проверками V-04/V-10 (§12.2)."
     - "Нет случайности вообще: профиль полностью воспроизводим из Event Log (System Determinism Principle)."
-
-# ---------------------------------------------------------------------------
-# SYSTEM BINDING (пример): pilot-region
-# Значения присваиваются только объявленным слотам (D-2.3a).
-# ---------------------------------------------------------------------------
-bindings:
-  - bindingId: pilot-region-river
-    worldScope: pilot-region
-    watercourseId: river_basin
-    crossingId: river_crossing
-    budgetClass: Full
-    parameterValues: "Материализованы в bootstrap-событии RiverProcessDefined регионального компилятора (ADR-0014/0017); здесь не дублируются (DKP — покрыто bootstrapDigest, §14.1)"
-
-# ---------------------------------------------------------------------------
-# Следы в код (trace, candidate-уровень до Trace stage)
-# ---------------------------------------------------------------------------
-codeTraces:
-  rules:
-    - packages/world/src/rules/river-level.ts
-    - packages/world/src/rules/crossing-condition.ts
-  types:
-    - packages/world/src/region/types.ts   # RiverProcessDefinition, RiverState, CrossingState, RiverBand, CrossingCondition
-  tests:
-    - "deterministic profile, threshold transitions, projection replay, route resolver integration, observer boundary (ADR-0017 DoD)"
-
-# Canon depth compatibility (правило согласованности §4.2, V-10):
-# TickDriven + Full поддерживает Canon-факты глубины вплоть до Simulated.
-# CoreSimulation — только после Architecture Review и promotion в Core.
-simulationDepthCompatibility: [NarrativeOnly, Observable, Simulated]
