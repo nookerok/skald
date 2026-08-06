@@ -1,0 +1,38 @@
+{
+  "name": "living-region",
+  "worldTemplate": "living_region",
+  "description": "The living region actually lives: weather, river and settlement advance from ticks, the crossing state reacts to the river, and the observer map is served.",
+  "tags": ["weather", "hydrology", "settlement", "map", "living-world"],
+  "meta": { "domain": "living-world", "difficulty": "feature" },
+  "turns": [
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "WeatherStateChanged" },
+          { "kind": "eventTypeSeen", "type": "RiverLevelChanged" },
+          { "kind": "eventTypeSeen", "type": "SettlementStateChanged" },
+          { "kind": "observerMapPresent" }
+        ]
+      }
+    },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "CrossingConditionChanged" },
+          { "kind": "observerMapHasLocations", "value": 1 }
+        ]
+      }
+    }
+  ],
+  "finalChecks": [
+    { "kind": "worldTime", "value": 8 }
+  ]
+}

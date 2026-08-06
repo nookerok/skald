@@ -218,6 +218,17 @@ describe("RuleEngine — max iterations guard", () => {
 });
 
 describe("RuleEngine — multi-rule same-phase independence (§12.3 + §9.10)", () => {
+  it("listRules enumerates every registered rule in phase order", () => {
+    const registry = new RuleRegistry<TestWorld>();
+    const validation: Rule<TestWorld> = { id: "test.v", phase: "validation", listens: ["X"], produces: ["Y"], handle: () => [] };
+    const physics: Rule<TestWorld> = { id: "test.p", phase: "physics", listens: ["Y"], produces: ["Z"], handle: () => [] };
+    const consequence: Rule<TestWorld> = { id: "test.c", phase: "consequence", listens: ["Z"], produces: ["W"], handle: () => [] };
+    registry.register(physics);
+    registry.register(consequence);
+    registry.register(validation);
+    expect(registry.listRules().map((r) => r.id)).toEqual(["test.v", "test.p", "test.c"]);
+  });
+
   it("two rules in the same phase both react to the same event independently", () => {
     const bus = new EventBus();
     const projection = new CountStore({ count: 0, eventNumber: 0 });

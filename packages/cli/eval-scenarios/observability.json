@@ -1,0 +1,31 @@
+{
+  "name": "observability",
+  "worldTemplate": "legacy",
+  "description": "Observer boundary: an examine turn produces human-facing presentation and a curiosity observation; a social act changes relations; the player DTOs stay free of internal truth state.",
+  "tags": ["observation", "belief", "interaction", "interface"],
+  "meta": { "domain": "observer-boundary", "difficulty": "feature" },
+  "turns": [
+    { "input": "examine old cart" },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "EntityExamined" },
+          { "kind": "eventTypeSeen", "type": "ObservationUpdated" },
+          { "kind": "observationAtLeast", "key": "curiosity", "value": 1 },
+          { "kind": "presentationContains", "text": "old cart" }
+        ]
+      }
+    },
+    { "input": "give help to guild" },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "RelationChanged" },
+          { "kind": "presentationContains", "text": "обратиться" },
+          { "kind": "presentationContains", "text": "Местная община" },
+          { "kind": "presentationContains", "text": "Помощь" }
+        ]
+      }
+    }
+  ]
+}

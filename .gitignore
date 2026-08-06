@@ -13,3 +13,4 @@ packages/cli/llm-usage.jsonl
 packages/cli/data/
 packages/cli/deploy/*.env.codegraph/
 docs/WORLD_BIBLE.md
+eval-out/

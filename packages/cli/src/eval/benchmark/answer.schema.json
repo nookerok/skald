@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Skald Transcript Benchmark Answer",
+  "type": "object",
+  "required": ["model", "understanding", "missingInfo", "interfaceIssues", "improvements", "expectedNextEvents"],
+  "properties": {
+    "model": { "type": "string", "description": "Model id, e.g. gpt-4o, claude-3-7, gemini-2.5, qwen-2.5, deepseek-v3" },
+    "understanding": { "type": "string", "description": "What the player understood about the world (2-4 sentences)" },
+    "missingInfo": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Concrete information a player would need to act well"
+    },
+    "interfaceIssues": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Raw identifiers, unclear wording, contradictions, leaked or missing facts"
+    },
+    "improvements": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Presentation/interface improvements"
+    },
+    "expectedNextEvents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "What the player expects to happen next and why"
+    }
+  }
+}

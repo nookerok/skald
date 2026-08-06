@@ -25,6 +25,11 @@
     "canon:validate": "node scripts/canon/lib/mini-yaml.test.mjs && node scripts/canon/validate.mjs",
     "canon:generate-wb": "node scripts/canon/generate-wb.mjs",
     "simulation:validate": "node scripts/simulation/validate.mjs",
+    "eval": "node --import tsx packages/cli/src/eval/run-all.ts",
+    "eval:report": "node --import tsx packages/cli/src/eval/run-all.ts --json eval-out/report.json --html eval-out/report.html",
+    "eval:compare": "node --import tsx packages/cli/src/eval/compare-reports.ts",
+    "eval:benchmark": "node --import tsx packages/cli/src/eval/benchmark/run-benchmark.ts",
+    "eval:living": "node --import tsx packages/cli/src/eval/run-living.ts",
     "start:repl": "node --import tsx packages/cli/src/repl.ts",
     "start:server": "node --import tsx packages/cli/src/server.ts",
     "start": "npm run start:server"

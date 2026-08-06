@@ -49,6 +49,12 @@ export class RuleRegistry<W> {
   hasRulesFor(eventType: string, phase: Phase): boolean {
     return this.listenersFor(eventType, phase).length > 0;
   }
+
+  /** Every registered rule, in phase order. Read-only enumeration for
+   *  coverage tooling; never call the rules through this list. */
+  listRules(): readonly Rule<W>[] {
+    return PHASE_ORDER.flatMap((phase) => this.byPhase.get(phase) ?? []);
+  }
 }
 
 export const MAX_ITERATIONS = 10_000;

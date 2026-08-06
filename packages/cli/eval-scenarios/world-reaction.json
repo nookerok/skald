@@ -1,0 +1,30 @@
+{
+  "name": "world-reaction",
+  "worldTemplate": "legacy",
+  "description": "The world reacts honestly: repeated generosity grows the social relation, and a blocked move does not fabricate observations.",
+  "tags": ["relations", "social", "honesty", "movement"],
+  "meta": { "domain": "relations", "difficulty": "sanity" },
+  "turns": [
+    { "input": "give help to guild" },
+    { "input": "give help to guild" },
+    { "input": "give help to guild" },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "RelationChanged" },
+          { "kind": "relationValueAtLeast", "from": "player", "to": "guild", "relationKind": "help", "value": 3 }
+        ]
+      }
+    },
+    { "input": "move north" },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "ActionBlocked" },
+          { "kind": "eventTypeAbsent", "type": "MovementSucceeded" },
+          { "kind": "eventTypeAbsent", "type": "ObservationUpdated" }
+        ]
+      }
+    }
+  ]
+}
