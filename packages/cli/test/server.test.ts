@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createPoisonExitScheduler, startServer } from "../src/http-server.js";
 import { EventEmitter } from "node:events";
@@ -75,6 +75,39 @@ describe("HTTP Server", () => {
     }
     const css = await fetch(`${server!.url}/presence-entry.css`);
     expect(css.status).toBe(200);
+  });
+
+  it("serves the whole app.js module graph (no 404 kills the boot)", async () => {
+    const publicDir = resolve(import.meta.dirname, "../public");
+    const srcCache = new Map<string, string>();
+    const readSrc = (name: string): string => {
+      const cached = srcCache.get(name);
+      if (cached !== undefined) return cached;
+      const text = readFileSync(join(publicDir, `${name}.js`), "utf-8");
+      srcCache.set(name, text);
+      return text;
+    };
+    const localImports = (name: string): string[] => {
+      const matches = [...readSrc(name).matchAll(/from ["']\.\/([A-Za-z0-9_-]+)\.js["']/g)];
+      return [...new Set(matches.map((m) => m[1]!))];
+    };
+
+    const seen = new Set<string>();
+    const queue = ["app"];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      for (const next of localImports(current)) queue.push(next);
+    }
+
+    expect(seen.size).toBeGreaterThan(5);
+    for (const name of [...seen].sort()) {
+      const res = await fetch(`${server!.url}/${name}.js`);
+      expect(res.status, `/${name}.js should be served`).toBe(200);
+      expect(res.headers.get("content-type")).toContain("application/javascript");
+      expect((await res.text()).length).toBeGreaterThan(50);
+    }
   });
 
   it("GET /ui-state.js serves the pending-state browser module", async () => {
