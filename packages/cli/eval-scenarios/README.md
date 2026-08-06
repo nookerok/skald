@@ -22,6 +22,30 @@ node --import tsx packages/cli/src/eval/run-scenario.ts <scenario.json> --transc
 node --import tsx packages/cli/src/eval/benchmark/run-benchmark.ts answers.json
 ```
 
+## Scenario library and the Simulation Bible
+
+Scenarios are the executable side of the Simulation Bible. Each scenario maps to
+one or more living processes from
+`docs/simulation/LIVING_PROCESSES.md` (the `p01..p18` tags). The 10 vertical
+scenarios are:
+
+| Scenario | Template | Processes | Depth |
+|---|---|---|---|
+| `living-region` | living_region | weather, river, settlement, crossing, map | long drift |
+| `river-flood` | living_region | river → crossing (2-hop chain) | medium |
+| `settlement-evolution` | living_region | settlement dynamics | long |
+| `weather-river-drift` | living_region | weather + river + settlement churn | stress |
+| `observer-map` | living_region | observer map, spatial knowledge | short |
+| `explorer` (observability) | legacy | interaction → observation → belief → relations | vertical |
+| `belief-growth` | legacy | observation → belief → honest DTO | short |
+| `social-growth` | legacy | relations → presentation | medium |
+| `honest-block` (world-reaction) | legacy | blocked move, no fabricated observations | sanity |
+| `heat-law` | legacy | grid heat → heat map | short |
+
+A rule that stays `dead`/`dormant` across this library is evidence of a
+genuinely unreachable chain (or a rule to remove), not merely a missing
+scenario — see the process catalog's "How the catalog is used".
+
 ## Living World Metrics
 
 `npm run eval:living` runs a long deterministic offline probe on the living

@@ -1,0 +1,26 @@
+{
+  "name": "river-flood",
+  "worldTemplate": "living_region",
+  "description": "P03 crossing conditions: as the river rises on its cycle, the ford crosses the difficult threshold — a two-hop causal chain from the river process.",
+  "tags": ["hydrology", "crossing", "emergence", "p02", "p03"],
+  "meta": { "domain": "hydrology", "difficulty": "feature", "goal": "river level changes repeat and the crossing condition reacts" },
+  "turns": [
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeCountAtLeast", "type": "RiverLevelChanged", "value": 3 },
+          { "kind": "eventTypeSeen", "type": "CrossingConditionChanged" },
+          { "kind": "eventTypeSeen", "type": "RiverLevelChanged" }
+        ]
+      }
+    }
+  ],
+  "finalChecks": [
+    { "kind": "worldTime", "value": 5 }
+  ]
+}

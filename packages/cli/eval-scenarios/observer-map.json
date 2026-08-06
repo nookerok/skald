@@ -1,0 +1,19 @@
+{
+  "name": "observer-map",
+  "worldTemplate": "living_region",
+  "description": "Observer map: after the region bootstrap the player map shows the traversed waystation and the observed routes, with only observer-scoped knowledge.",
+  "tags": ["map", "observation", "spatial", "p08", "p18"],
+  "meta": { "domain": "spatial", "difficulty": "feature", "goal": "observer map serves locations and routes without hidden geometry" },
+  "turns": [
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "observerMapPresent" },
+          { "kind": "observerMapHasLocations", "value": 1 },
+          { "kind": "observerMapHasRoutes", "value": 1 }
+        ]
+      }
+    }
+  ]
+}

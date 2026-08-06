@@ -37,6 +37,13 @@ export function evaluateCheck(check: Check, ctx: CheckContext): string {
         ? ""
         : `${describe(check)}: event ${check.type} not emitted in the last step`;
 
+    case "eventTypeCountAtLeast": {
+      const count = ctx.allEvents.filter((e) => e.type === check.type).length;
+      return count >= check.value
+        ? ""
+        : `${describe(check)}: event ${check.type} occurred ${count} times < ${check.value}`;
+    }
+
     case "eventTypeAbsent":
       return ctx.allEvents.some((e) => e.type === check.type)
         ? `${describe(check)}: event ${check.type} occurred but must stay absent`
@@ -96,6 +103,22 @@ export function evaluateCheck(check: Check, ctx: CheckContext): string {
       return count >= check.value
         ? ""
         : `${describe(check)}: observer map has ${count} locations < ${check.value}`;
+    }
+
+    case "observerMapHasRoutes": {
+      const map = ctx.transcript.observerMap as { routes?: unknown[] } | null | undefined;
+      const count = Array.isArray(map?.routes) ? map.routes.length : 0;
+      return count >= check.value
+        ? ""
+        : `${describe(check)}: observer map has ${count} routes < ${check.value}`;
+    }
+
+    case "heatMapAtLeast": {
+      const state = JSON.parse(ctx.stateJson) as { heatMap?: Record<string, number> };
+      const value = state.heatMap?.[`${check.x},${check.y}`] ?? 0;
+      return value >= check.value
+        ? ""
+        : `${describe(check)}: heatMap at (${check.x},${check.y}) = ${value} < ${check.value}`;
     }
 
     case "relationValueAtLeast": {

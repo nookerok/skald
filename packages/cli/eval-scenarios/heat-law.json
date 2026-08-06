@@ -1,0 +1,22 @@
+{
+  "name": "heat-law",
+  "worldTemplate": "legacy",
+  "description": "P05 heat law: the grid heat source radiates into neighbouring cells each tick and the heat map grows in the player-visible state.",
+  "tags": ["heat", "physics", "p05"],
+  "meta": { "domain": "physics", "difficulty": "sanity", "goal": "heat radiated events appear and heatMap accumulates in state" },
+  "turns": [
+    { "wait": 1 },
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "HeatRadiated" },
+          { "kind": "heatMapAtLeast", "x": 3, "y": 3, "value": 1 }
+        ]
+      }
+    }
+  ],
+  "finalChecks": [
+    { "kind": "worldTime", "value": 2 }
+  ]
+}

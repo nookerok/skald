@@ -1,0 +1,26 @@
+{
+  "name": "social-growth",
+  "worldTemplate": "legacy",
+  "description": "P07 relations: repeated generosity grows the help relation to five and the presentation humanizes the target and the bond.",
+  "tags": ["relations", "social", "interface", "p07"],
+  "meta": { "domain": "relations", "difficulty": "sanity", "goal": "relation value grows and the player text stays humanized" },
+  "turns": [
+    { "input": "give help to guild" },
+    { "input": "give help to guild" },
+    { "input": "give help to guild" },
+    { "input": "give help to guild" },
+    { "input": "give help to guild" },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "relationValueAtLeast", "from": "player", "to": "guild", "relationKind": "help", "value": 5 },
+          { "kind": "presentationContains", "text": "Местная община" },
+          { "kind": "presentationContains", "text": "Помощь" }
+        ]
+      }
+    }
+  ],
+  "finalChecks": [
+    { "kind": "worldTime", "value": 5 }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "settlement-evolution",
+  "worldTemplate": "living_region",
+  "description": "P04 settlement dynamics: over many ticks the settlement keeps evolving — risk decays and population drifts, producing a stream of SettlementStateChanged events.",
+  "tags": ["settlement", "living-world", "p04"],
+  "meta": { "domain": "settlement", "difficulty": "feature", "goal": "a long probe sees repeated settlement change" },
+  "turns": [
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeCountAtLeast", "type": "SettlementStateChanged", "value": 3 },
+          { "kind": "eventTypeSeen", "type": "SettlementStateChanged" }
+        ]
+      }
+    }
+  ]
+}

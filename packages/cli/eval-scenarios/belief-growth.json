@@ -1,0 +1,20 @@
+{
+  "name": "belief-growth",
+  "worldTemplate": "legacy",
+  "description": "P08 observation & belief: examining builds a curiosity observation and a belief pattern, and the belief DTO stays free of internal truth state.",
+  "tags": ["observation", "belief", "knowledge", "p08", "p16"],
+  "meta": { "domain": "observation", "difficulty": "feature", "goal": "examine produces a belief and the belief DTO is honest" },
+  "turns": [
+    { "input": "examine old cart" },
+    { "wait": 1 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "EntityExamined" },
+          { "kind": "eventTypeSeen", "type": "ObservationUpdated" },
+          { "kind": "beliefCountMin", "value": 1 }
+        ]
+      }
+    }
+  ]
+}

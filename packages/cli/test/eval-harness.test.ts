@@ -75,6 +75,29 @@ describe("eval assertion vocabulary", () => {
     expect(evaluateCheck({ kind: "beliefCountMin", value: 5 } as Check, ctx)).not.toBe("");
   });
 
+  it("eventTypeCountAtLeast counts occurrences", () => {
+    const events = [
+      { type: "TickPassed", eventId: "t1", schemaVersion: 1, payload: {}, timestamp: 1, correlationId: "c", causationId: null },
+      { type: "TickPassed", eventId: "t2", schemaVersion: 1, payload: {}, timestamp: 2, correlationId: "c", causationId: null },
+      { type: "Other", eventId: "o1", schemaVersion: 1, payload: {}, timestamp: 3, correlationId: "c", causationId: null },
+    ] as never;
+    const ctx = makeContext({ allEvents: events });
+    expect(evaluateCheck({ kind: "eventTypeCountAtLeast", type: "TickPassed", value: 2 } as Check, ctx)).toBe("");
+    expect(evaluateCheck({ kind: "eventTypeCountAtLeast", type: "TickPassed", value: 3 } as Check, ctx)).not.toBe("");
+  });
+
+  it("observerMapHasRoutes reads the transcript observer map", () => {
+    const ctx = makeContext({ transcript: { state: {}, presentation: {}, gameShell: {}, belief: { beliefs: [] }, observerMap: { locations: [], routes: [{ id: "r1" }, { id: "r2" }] } } });
+    expect(evaluateCheck({ kind: "observerMapHasRoutes", value: 2 } as Check, ctx)).toBe("");
+    expect(evaluateCheck({ kind: "observerMapHasRoutes", value: 3 } as Check, ctx)).not.toBe("");
+  });
+
+  it("heatMapAtLeast reads a grid cell from the serialized state", () => {
+    const ctx = makeContext({ stateJson: JSON.stringify({ heatMap: { "3,3": 12 } }) });
+    expect(evaluateCheck({ kind: "heatMapAtLeast", x: 3, y: 3, value: 10 } as Check, ctx)).toBe("");
+    expect(evaluateCheck({ kind: "heatMapAtLeast", x: 3, y: 3, value: 99 } as Check, ctx)).not.toBe("");
+  });
+
   it("unknown check kind is reported, not swallowed", () => {
     const ctx = makeContext();
     expect(evaluateCheck({ kind: "bogus" } as unknown as Check, ctx)).toContain("unknown check kind");

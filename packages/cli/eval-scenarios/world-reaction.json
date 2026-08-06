@@ -2,8 +2,8 @@
   "name": "world-reaction",
   "worldTemplate": "legacy",
   "description": "The world reacts honestly: repeated generosity grows the social relation, and a blocked move does not fabricate observations.",
-  "tags": ["relations", "social", "honesty", "movement"],
-  "meta": { "domain": "relations", "difficulty": "sanity" },
+  "tags": ["relations", "social", "honesty", "movement", "p07", "p11"],
+  "meta": { "domain": "relations", "difficulty": "sanity", "goal": "generosity grows a relation; a blocked move does not fabricate observations" },
   "turns": [
     { "input": "give help to guild" },
     { "input": "give help to guild" },

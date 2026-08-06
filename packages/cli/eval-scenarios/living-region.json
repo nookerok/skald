@@ -2,8 +2,8 @@
   "name": "living-region",
   "worldTemplate": "living_region",
   "description": "The living region actually lives: weather, river and settlement advance from ticks, the crossing state reacts to the river, and the observer map is served.",
-  "tags": ["weather", "hydrology", "settlement", "map", "living-world"],
-  "meta": { "domain": "living-world", "difficulty": "feature" },
+  "tags": ["weather", "hydrology", "settlement", "map", "living-world", "p01", "p02", "p03", "p04"],
+  "meta": { "domain": "living-world", "difficulty": "feature", "goal": "weather, river, settlement and crossing all evolve from ticks and the observer map is served" },
   "turns": [
     { "wait": 1 },
     {

@@ -1,0 +1,26 @@
+{
+  "name": "weather-river-drift",
+  "worldTemplate": "living_region",
+  "description": "Long multi-system drift: over forty ticks weather, river and settlement all keep producing events — the world moves without the player.",
+  "tags": ["weather", "hydrology", "settlement", "living-world", "long", "p01", "p02", "p04"],
+  "meta": { "domain": "living-world", "difficulty": "stress", "goal": "sustained world churn across three independent TickDriven processes" },
+  "turns": [
+    { "wait": 10 },
+    { "wait": 10 },
+    { "wait": 10 },
+    { "wait": 10 },
+    {
+      "assert": {
+        "checks": [
+          { "kind": "eventTypeSeen", "type": "WeatherStateChanged" },
+          { "kind": "eventTypeCountAtLeast", "type": "RiverLevelChanged", "value": 5 },
+          { "kind": "eventTypeCountAtLeast", "type": "SettlementStateChanged", "value": 3 },
+          { "kind": "eventTypeSeen", "type": "CrossingConditionChanged" }
+        ]
+      }
+    }
+  ],
+  "finalChecks": [
+    { "kind": "worldTime", "value": 40 }
+  ]
+}

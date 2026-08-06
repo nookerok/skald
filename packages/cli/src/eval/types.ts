@@ -21,6 +21,7 @@ export type Check =
   | { readonly kind: "eventTypeSeen"; readonly type: string }
   | { readonly kind: "eventTypeSeenSinceLast"; readonly type: string }
   | { readonly kind: "eventTypeAbsent"; readonly type: string }
+  | { readonly kind: "eventTypeCountAtLeast"; readonly type: string; readonly value: number }
   | { readonly kind: "worldTime"; readonly value: number }
   | { readonly kind: "playerAt"; readonly x: number; readonly y: number }
   | { readonly kind: "observationAtLeast"; readonly key: string; readonly value: number }
@@ -30,6 +31,8 @@ export type Check =
   | { readonly kind: "beliefCountMin"; readonly value: number }
   | { readonly kind: "observerMapPresent" }
   | { readonly kind: "observerMapHasLocations"; readonly value: number }
+  | { readonly kind: "observerMapHasRoutes"; readonly value: number }
+  | { readonly kind: "heatMapAtLeast"; readonly x: number; readonly y: number; readonly value: number }
   | { readonly kind: "relationValueAtLeast"; readonly from: string; readonly to: string; readonly relationKind: string; readonly value: number };
 
 /** Optional structured metadata for extensible scenario libraries. */
