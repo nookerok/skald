@@ -1,6 +1,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { PresentationTemplate, PresentationCandidate } from "./types.js";
 import { WORLD_WIDTH, WORLD_HEIGHT } from "../map.js";
+import { relationTargetLabel, relationKindLabel, situationLabel, operationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
 
 const OBSERVATION_TEXTS: Record<string, string> = {
   risk_taken: "Твой рискованный поступок не остался незамеченным.",
@@ -59,7 +60,9 @@ export const RELATION_CHANGED: PresentationTemplate = {
   present: (event, _world) => {
     const { kind, to, delta } = event.payload as { kind: string; to: string; delta: number };
     const dir = delta > 0 ? "укрепились" : "ослабли";
-    return cand("relation_changed", "relation", "primary", 90, `Твои связи с '${to}' ${dir} (${kind}).`, event, undefined, `relation:${to}:${kind}`, `Отношение: ${to}`);
+    const target = relationTargetLabel(to);
+    const kindLabel = relationKindLabel(kind);
+    return cand("relation_changed", "relation", "primary", 90, `Твои связи с «${target}» ${dir}: ${kindLabel}.`, event, undefined, `relation:${to}:${kind}`, `Отношение: ${target}`);
   },
 };
 
@@ -72,7 +75,7 @@ export const SITUATION_STARTED: PresentationTemplate = {
   id: "situation_started", listens: ["SituationStarted"],
   present: (event, _world) => {
     const { situationId, duration } = event.payload as { situationId: string; duration: number };
-    return cand("situation_started", "situation", "notable", 70, `Мир вокруг тебя меняется: ${situationId} (ещё ${duration} тиков).`, event, `sit:started:${situationId}`, `situation:${situationId}`, `Ситуация: ${situationId}`);
+    return cand("situation_started", "situation", "notable", 70, `Мир вокруг тебя меняется: ${situationLabel(situationId)} (ещё ${duration} тиков).`, event, `sit:started:${situationId}`, `situation:${situationId}`, `Ситуация: ${situationLabel(situationId)}`);
   },
 };
 
@@ -80,7 +83,7 @@ export const SITUATION_ENDED: PresentationTemplate = {
   id: "situation_ended", listens: ["SituationEnded"],
   present: (event, _world) => {
     const { situationId } = event.payload as { situationId: string };
-    return cand("situation_ended", "situation", "notable", 60, `Ситуация ${situationId} завершилась.`, event, `sit:ended:${situationId}`, `situation:${situationId}`, `Ситуация: ${situationId}`);
+    return cand("situation_ended", "situation", "notable", 60, `Ситуация ${situationLabel(situationId)} завершилась.`, event, `sit:ended:${situationId}`, `situation:${situationId}`, `Ситуация: ${situationLabel(situationId)}`);
   },
 };
 
@@ -160,8 +163,8 @@ export const ACTION_ATTEMPTED: PresentationTemplate = {
   id: "action_attempted", listens: ["ActionAttempted"],
   present: (event, _world) => {
     const p = event.payload as { operation: string; target?: { raw: string } | null };
-    const target = p.target?.raw ? ` → ${p.target.raw}` : "";
-    return cand("action_attempted", "action", "primary", 100, `Ты пытаешься: ${p.operation}${target}.`, event);
+    const target = p.target?.raw ? ` → ${relationTargetLabelOrRaw(p.target.raw)}` : "";
+    return cand("action_attempted", "action", "primary", 100, `Ты пытаешься: ${operationLabel(p.operation)}${target}.`, event);
   },
 };
 

@@ -330,8 +330,8 @@ describe("buildObserverThreadJournal", () => {
     const order = journal.threads.map((t) => {
       if (t.title === "Ситуация: changed") return "changed";
       if (t.title === "Ситуация: uncertain") return "uncertain";
-      if (t.title === "Ситуация: active_observed") return "observed";
-      if (t.title === "Ситуация: resolved_a") return "resolved";
+      if (t.title === "Ситуация: active observed") return "observed";
+      if (t.title === "Ситуация: resolved a") return "resolved";
       return t.title;
     });
     // Both "resolved_a" and "changed" carry a change since the checkpoint;

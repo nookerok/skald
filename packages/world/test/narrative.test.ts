@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld, Consequence, FiredConsequence, ActiveSituation, RelationEdge } from "@skald/world";
-import { formatEvent, formatWorldState, buildNarrative, situationLabel, sanitizePlayerFacingText } from "@skald/world";
+import { formatEvent, formatWorldState, buildNarrative, situationLabel, sanitizePlayerFacingText, relationTargetLabelOrRaw, operationLabel } from "@skald/world";
 
 function e(eventId: string, type: string, payload: unknown = {}, timestamp = 1): DomainEvent {
   return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: "cmd-1", causationId: null };
@@ -243,6 +243,19 @@ describe("situationLabel + sanitize", () => {
     expect(sanitizePlayerFacingText("forest_fire начался")).toContain("лесной пожар");
     expect(sanitizePlayerFacingText("след: wall_caution")).toContain("память преграды");
     expect(sanitizePlayerFacingText("чистый текст")).toBe("чистый текст");
+  });
+
+  it("relation target labels are humanized only when a canonical label exists", () => {
+    expect(relationTargetLabelOrRaw("guild")).toBe("Местная община");
+    expect(relationTargetLabelOrRaw("north")).toBe("north");
+    expect(relationTargetLabelOrRaw("old cart")).toBe("old cart");
+  });
+
+  it("modern open-intent operations map to player-facing verbs", () => {
+    expect(operationLabel("approach")).toBe("двигаться");
+    expect(operationLabel("speak")).toBe("обратиться");
+    expect(operationLabel("examine")).toBe("осмотреть");
+    expect(operationLabel("bogus")).toBe("действовать");
   });
 });
 

@@ -72,7 +72,7 @@ export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplat
 export type { CharacterPreset, WorldTemplate } from "./setup/types.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
-export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
+export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { narrateLLM } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
 export { ModelRouter } from "./llm/router.js";
