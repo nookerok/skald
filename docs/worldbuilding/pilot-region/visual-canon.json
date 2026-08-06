@@ -1,0 +1,272 @@
+{
+  "schemaVersion": 1,
+  "source": "ChatGPT Image 6 авг. 2026 г., 22_23_11.png",
+  "image": { "widthPx": 1440, "heightPx": 1080 },
+  "registration": {
+    "method": "anchor-based",
+    "notes": "Primary anchor: river_waystation at pixel (520, 640) = metre (8000, 9500). Secondary anchor: suspended_monolith at pixel (700, 250) = metre (11000, 18000). The image is an aerial oblique view looking roughly south-southeast; the northern mountains are at the top of the frame. Depth compression from the oblique angle means pixel distances do not map linearly to metre distances along the depth axis.",
+    "anchors": [
+      { "pixelX": 520, "pixelY": 640, "metreX": 8000, "metreY": 9500, "locationId": "river_waystation" },
+      { "pixelX": 700, "pixelY": 250, "metreX": 11000, "metreY": 18000, "landmarkId": "suspended_monolith" }
+    ],
+    "pixelScale": "non-linear (oblique aerial perspective); the anchor pair defines a two-point registration, not a uniform scale"
+  },
+  "locations": [
+    {
+      "id": "river_waystation",
+      "name": "Переправа у Чёрного леса",
+      "pixelX": 520, "pixelY": 640,
+      "metreX": 8000, "metreY": 9500,
+      "confidence": 0.95,
+      "visualEvidence": "Small cluster of structures at the boundary between dark coniferous forest (left) and open valley (right), near the river bank. A road emerges from the forest and joins a path leading toward the main city. The waystation sits at the transition zone between dense tree cover and open ground, consistent with a river-crossing waypoint."
+    },
+    {
+      "id": "riverwatch_city",
+      "name": "Речной Страж",
+      "pixelX": 720, "pixelY": 380,
+      "metreX": 13500, "metreY": 7500,
+      "confidence": 0.97,
+      "visualEvidence": "Large walled city with concentric defensive walls and towers, situated directly below the suspended monolith. The city is bisected or neighboured by the river; multiple bridges cross the water. Dense urban fabric within the walls, with structures spreading beyond the outer wall. The dominant built structure in the region."
+    },
+    {
+      "id": "blackwood_edge",
+      "name": "Кромка Чёрного леса",
+      "pixelX": 360, "pixelY": 500,
+      "metreX": 6000, "metreY": 12000,
+      "confidence": 0.92,
+      "visualEvidence": "The transition zone where dense, dark coniferous forest (left side of image) meets the open river valley. The treeline is sharp, with a visible road or path disappearing into the forest canopy. The forest covers the left flank of the image from mid-height to the bottom, thickest at the mountain base."
+    },
+    {
+      "id": "old_ruins",
+      "name": "Развалины на уступе",
+      "pixelX": 1100, "pixelY": 350,
+      "metreX": 16000, "metreY": 14000,
+      "confidence": 0.75,
+      "visualEvidence": "On the right side of the image, elevated rocky terrain shows scattered stone structures and what appear to be ruined walls or foundations on a ridge or cliff edge. Less distinct than the main city; partially obscured by distance and atmospheric haze. The structures are clearly elevated above the valley floor."
+    },
+    {
+      "id": "glass_crater",
+      "name": "Стеклянная впадина",
+      "pixelX": 260, "pixelY": 740,
+      "metreX": 3800, "metreY": 4200,
+      "confidence": 0.90,
+      "visualEvidence": "A striking circular depression in the lower-left quadrant, embedded within the dark forest. The crater has a well-defined circular rim with what appears to be a shallow pool or reflective surface at the bottom. The surrounding forest grows right up to the crater edge, suggesting the feature is old and overgrown."
+    },
+    {
+      "id": "high_pass",
+      "name": "Северный перевал",
+      "pixelX": 680, "pixelY": 60,
+      "metreX": 12000, "metreY": 18000,
+      "confidence": 0.80,
+      "visualEvidence": "The mountain pass at the top of the image, where the snow-capped northern range shows a break or saddle between peaks. The river originates from this general area and flows southward. Clouds partially obscure the highest elevations, but a pass between mountain masses is discernible."
+    }
+  ],
+  "landmarks": [
+    {
+      "id": "riverwatch_city",
+      "name": "Речной Страж",
+      "pixelX": 720, "pixelY": 380,
+      "metreX": 13500, "metreY": 7500,
+      "elevationBand": "valley_floor",
+      "silhouetteClass": "city",
+      "confidence": 0.97,
+      "bearing": null,
+      "visualEvidence": "Concentric walled city with towers, the largest built structure in the region. Multiple walls suggest phases of expansion. Bridges connect the city across the river. The city is the focal point of the road network."
+    },
+    {
+      "id": "glass_crater",
+      "name": "Стеклянная впадина",
+      "pixelX": 260, "pixelY": 740,
+      "metreX": 3800, "metreY": 4200,
+      "elevationBand": "low",
+      "silhouetteClass": "crater",
+      "confidence": 0.90,
+      "bearing": "south-west from waystation",
+      "visualEvidence": "Nearly perfect circular depression in the forest, with a reflective or glassy surface at the bottom. The regularity of the shape suggests an impact event or ancient artificial origin rather than natural erosion."
+    },
+    {
+      "id": "old_ruins",
+      "name": "Развалины на уступе",
+      "pixelX": 1100, "pixelY": 350,
+      "metreX": 16000, "metreY": 14000,
+      "elevationBand": "high",
+      "silhouetteClass": "ruin",
+      "confidence": 0.75,
+      "bearing": "east from city",
+      "visualEvidence": "Scattered stone structures on elevated terrain to the right of the main city. Ruined walls and foundations visible on a ridge; the elevation provides a commanding view of the valley."
+    },
+    {
+      "id": "suspended_monolith",
+      "name": "Парящий монолит",
+      "pixelX": 700, "pixelY": 250,
+      "metreX": 11000, "metreY": 18000,
+      "elevationBand": "very_high",
+      "silhouetteClass": "monolith",
+      "confidence": 0.98,
+      "bearing": "north from city",
+      "visualEvidence": "The dominant feature of the image: a massive dark stone structure suspended or elevated above the landscape, with multiple blue-white energy beams or light columns emanating upward from its base. The monolith appears to have architectural elements (towers, platforms) attached to or built into it. A circular structure or platform is visible at its base. The monolith dwarfs the city below it."
+    }
+  ],
+  "relations": [
+    {
+      "id": "road_waystation_city",
+      "kind": "road",
+      "fromId": "river_waystation",
+      "toId": "riverwatch_city",
+      "label": "Дорога к Речному Стражу",
+      "pathPointsPixel": [[520, 640], [600, 520], [720, 380]],
+      "pathPointsMetres": [8000, 9500, 10500, 8500, 13500, 7500],
+      "confidence": 0.93,
+      "visualEvidence": "A visible road or path runs from the waystation area toward the main city, crossing open ground between the forest edge and the city walls."
+    },
+    {
+      "id": "road_waystation_forest",
+      "kind": "road",
+      "fromId": "river_waystation",
+      "toId": "blackwood_edge",
+      "label": "Лесная дорога",
+      "pathPointsPixel": [[520, 640], [440, 570], [360, 500]],
+      "pathPointsMetres": [8000, 9500, 7000, 10500, 6000, 12000],
+      "confidence": 0.88,
+      "visualEvidence": "A path or road leads from the waystation into the dark forest, disappearing among the trees. The transition from open ground to forest canopy is clearly visible."
+    },
+    {
+      "id": "road_city_ruins",
+      "kind": "road",
+      "fromId": "riverwatch_city",
+      "toId": "old_ruins",
+      "label": "Восточный тракт",
+      "pathPointsPixel": [[720, 380], [900, 360], [1100, 350]],
+      "pathPointsMetres": [13500, 7500, 15000, 10500, 16000, 14000],
+      "confidence": 0.70,
+      "visualEvidence": "A road or trail appears to lead from the city toward the elevated ruins on the right. Less distinct than the waystation-city road; partially obscured by terrain and distance."
+    },
+    {
+      "id": "river_crossing",
+      "kind": "crossing",
+      "fromId": "river_waystation",
+      "toId": "riverwatch_city",
+      "label": "Переправа",
+      "pathPointsPixel": [[520, 640], [580, 580], [640, 500]],
+      "pathPointsMetres": [8000, 9500, 9500, 9400, 10000, 9000],
+      "confidence": 0.85,
+      "visualEvidence": "The river crosses between the waystation and the city; a ford or bridge structure is implied at the point where the road meets the river. The river is wide enough to require a crossing point."
+    },
+    {
+      "id": "river_basin",
+      "kind": "river",
+      "fromId": "high_pass",
+      "toId": "riverwatch_city",
+      "label": "Река из северных гор",
+      "pathPointsPixel": [[680, 60], [660, 150], [700, 250], [720, 380]],
+      "pathPointsMetres": [12000, 18000, 10500, 13000, 9500, 9500, 13500, 7500],
+      "confidence": 0.90,
+      "visualEvidence": "The main river flows from the northern mountains (top of image) southward past the monolith, through the city, and continues toward the bottom of the image. Waterfalls are visible on the left side where tributaries cascade from the mountain cliffs."
+    }
+  ],
+  "additionalVisualFeatures": [
+    {
+      "kind": "settlement",
+      "name": "Южный городок",
+      "description": "A smaller walled settlement south of the main city, near a river bend. Two distinct walled enclosures visible, connected by walls or paths.",
+      "pixelX": 540, "pixelY": 610,
+      "metreX": 9500, "metreY": 5000,
+      "confidence": 0.85,
+      "note": "Not in the existing region definition. PROPOSAL: consider as a secondary settlement or village."
+    },
+    {
+      "kind": "waterfall",
+      "name": "Водопады на западных утёсах",
+      "description": "Multiple waterfalls cascade from the mountain cliffs on the left side of the image, feeding into the river system.",
+      "pixelX": 380, "pixelY": 200,
+      "metreX": 6500, "metreY": 16000,
+      "confidence": 0.92,
+      "note": "Visible natural feature. No existing region data references waterfalls explicitly."
+    },
+    {
+      "kind": "ridge",
+      "name": "Восточный хребет",
+      "description": "Rocky ridge or elevated terrain on the right side of the image, where the ruins are located.",
+      "pixelX": 1050, "pixelY": 300,
+      "metreX": 15500, "metreY": 15000,
+      "confidence": 0.80,
+      "note": "Geographic feature supporting the ruins location."
+    },
+    {
+      "kind": "monolith_base",
+      "name": "Основание монолита",
+      "description": "A circular platform or structure at the base of the suspended monolith, with blue energy beams rising from it.",
+      "pixelX": 700, "pixelY": 290,
+      "metreX": 11000, "metreY": 17000,
+      "confidence": 0.88,
+      "note": "The monolith appears to be connected to or supported by a ground-level structure."
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "C1",
+      "kind": "missing_from_data",
+      "description": "The image shows a secondary walled settlement (southern town) south of the main city, near a river bend. No such settlement exists in the current region definition.",
+      "evidence": "Pixel region (480-600, 560-660): two walled enclosures with towers, connected by walls, near the river.",
+      "proposal": "PROPOSAL: add as a new RegionLocation (e.g. 'river_port' or 'southern_borough') with anchor near metre (9500, 5000). Requires review."
+    },
+    {
+      "id": "C2",
+      "kind": "missing_from_data",
+      "description": "The image shows prominent waterfalls on the western mountain face. The current region data has no waterfall landmark or relation.",
+      "evidence": "Pixel region (300-450, 100-300): multiple cascading waterfalls from cliff faces.",
+      "proposal": "PROPOSAL: consider as visual landmark or observation evidence only; no runtime Rule change needed."
+    },
+    {
+      "id": "C3",
+      "kind": "missing_from_data",
+      "description": "The suspended monolith shows blue energy beams and attached architectural structures (towers, platforms). The current description ('silhouette monolith') does not capture the energy phenomenon.",
+      "evidence": "Pixel region (620-780, 150-350): blue-white light columns rising from the monolith base, visible architectural elements.",
+      "proposal": "PROPOSAL: enrich the monolith description to mention 'occasional luminescence or energy phenomenon' as an observable attribute, without revealing the hidden truth of what it is."
+    },
+    {
+      "id": "C4",
+      "kind": "coordinate_discrepancy",
+      "description": "The oblique aerial perspective means the monolith appears at pixel y=250 (upper frame) but its metre y=18000 places it in the far north. The waystation at pixel y=640 (lower frame) has metre y=9500. The pixel-to-metre mapping is non-linear along the depth axis due to perspective compression.",
+      "evidence": "The monolith is visually 'above' the city but in metre space is 10.5 km north of it. The pixel distance (130px) represents 10,500m, while the same pixel distance at the waystation-to-city range would represent only ~3,500m.",
+      "proposal": "No action needed; this is an inherent property of the oblique view. The two-point registration (waystation + monolith) anchors the mapping correctly."
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H1",
+      "description": "The monolith's energy beams suggest an active power source or ancient technology, not merely a natural formation.",
+      "visualEvidence": "Blue-white light columns rise from the monolith base in a regular pattern; the monolith appears artificially shaped with architectural elements.",
+      "mappedProcess": "Future — no current runtime process models monolith energy or activation.",
+      "confidence": 0.85
+    },
+    {
+      "id": "H2",
+      "description": "The crater's near-perfect circular shape and its position within the forest suggest an impact event or artificial excavation rather than natural erosion.",
+      "visualEvidence": "The crater rim is remarkably regular; the interior appears to have a reflective or glassy surface.",
+      "mappedProcess": "Future — no current process models crater-specific phenomena.",
+      "confidence": 0.80
+    },
+    {
+      "id": "H3",
+      "description": "The concentric walls of the main city suggest multiple phases of construction and expansion over a long period.",
+      "visualEvidence": "At least two distinct wall rings are visible around the city, with different states of preservation.",
+      "mappedProcess": "P04 Settlement dynamics (Live) — population and structures evolve over time.",
+      "confidence": 0.75
+    },
+    {
+      "id": "H4",
+      "description": "The road network visible in the image appears more extensive than the three roads defined in the region data, suggesting older or abandoned routes.",
+      "visualEvidence": "Multiple paths and tracks are visible across the valley floor, connecting scattered structures beyond the three defined roads.",
+      "mappedProcess": "Future — no current process models road condition or abandonment.",
+      "confidence": 0.70
+    },
+    {
+      "id": "H5",
+      "description": "The secondary southern settlement may be a port or trading post on the river, given its position at a river bend.",
+      "visualEvidence": "The settlement is located at a point where the river widens or bends, with structures close to the water.",
+      "mappedProcess": "P04 Settlement dynamics (Live) — could be modelled as a second settlement with its own population/risk drift.",
+      "confidence": 0.65
+    }
+  ]
+}
