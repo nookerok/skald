@@ -3,15 +3,19 @@
 // The output is a derived projection (A-3): it contains nothing that is not
 // in docs/canon/, it is never hand-edited and it is git-ignored.
 // Deterministic: same Canon Model input produces byte-identical output.
+// Refuses to write when the Canon Model fails validation (validateCanon), so a
+// partially-parsed or semantically broken Canon can never leak into the Bible.
 
 import { writeFileSync } from "node:fs";
-import { loadCanon } from "./lib/load-canon.mjs";
+import { validateCanon } from "./validate.mjs";
 
 const OUTPUT = "docs/WORLD_BIBLE.md";
 
-const { documents, errors } = loadCanon();
+const { documents, errors, warnings } = validateCanon();
+for (const warning of warnings) console.warn(`[canon:generate-wb] warning: ${warning}`);
 if (errors.length > 0) {
   for (const error of errors) console.error(`[canon:generate-wb] error: ${error}`);
+  console.error(`[canon:generate-wb] FAIL: refusing to generate a World Bible from an invalid Canon Model (${errors.length} error(s))`);
   process.exit(1);
 }
 

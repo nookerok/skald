@@ -104,8 +104,8 @@ export function parseYaml(text, sourceName = "<input>") {
       if (row.indent > indent) fail("unexpected indentation");
       if (!(row.content === "-" || row.content.startsWith("- "))) break;
       const rest = row.content === "-" ? "" : row.content.slice(2).trim();
-      pos++;
       if (rest === "") {
+        pos++;
         const next = peek();
         result.push(next && next.indent > indent ? parseBlock(next.indent) : null);
         continue;
@@ -124,6 +124,7 @@ export function parseYaml(text, sourceName = "<input>") {
         result.push(item);
         continue;
       }
+      pos++;
       result.push(parseScalar(rest));
     }
     return result;
