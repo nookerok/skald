@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { RegionDefinition, RegionLandmark, RegionLocation, SpatialRelation, SpatialWorldProjection, TravelRelation, RiverProcessDefinition, RiverState, RiverBand, CrossingDefinition, CrossingState, CrossingCondition } from "./types.js";
+import type { RegionDefinition, RegionLandmark, RegionLocation, SpatialRelation, SpatialWorldProjection, SpatialReadView, TravelRelation, RiverProcessDefinition, RiverState, RiverBand, CrossingDefinition, CrossingState, CrossingCondition } from "./types.js";
 
 function classifyRiverBand(level: number, process: RiverProcessDefinition): RiverBand {
   const ratio = (level - process.minimumLevel) / (process.maximumLevel - process.minimumLevel);
@@ -114,6 +114,31 @@ export class SpatialProjector {
         updatedAt: p.changedAt,
       });
     }
+  }
+
+  /** Replace the projection from an existing snapshot (used by WorldProjector.clone).
+   *  Accepts a full SpatialWorldProjection or a Rule-facing SpatialReadView. */
+  seed(snapshot: SpatialWorldProjection | SpatialReadView | null): void {
+    this.region = null;
+    this.locations.clear();
+    this.landmarks.clear();
+    this.relations.clear();
+    this.travelRelations.clear();
+    this.riverProcesses.clear();
+    this.riverStates.clear();
+    this.crossingDefinitions.clear();
+    this.crossingStates.clear();
+    if (!snapshot) return;
+    const full = snapshot as SpatialWorldProjection;
+    if (full.region) this.region = full.region;
+    for (const [id, value] of full.locations ?? []) this.locations.set(id, value);
+    for (const [id, value] of full.landmarks ?? []) this.landmarks.set(id, value);
+    for (const [id, value] of full.relations ?? []) this.relations.set(id, value);
+    for (const [id, value] of snapshot.travelRelations) this.travelRelations.set(id, value);
+    for (const [id, value] of snapshot.riverProcesses) this.riverProcesses.set(id, value);
+    for (const [id, value] of snapshot.riverStates) this.riverStates.set(id, value);
+    for (const [id, value] of snapshot.crossingDefinitions) this.crossingDefinitions.set(id, value);
+    for (const [id, value] of snapshot.crossingStates) this.crossingStates.set(id, value);
   }
 
   getSnapshot(): SpatialWorldProjection {

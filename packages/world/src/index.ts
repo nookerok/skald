@@ -167,16 +167,19 @@ export { crossingCondition } from "./rules/crossing-condition.js";
 // Weather (ADR-0020, influences graph)
 export { weatherProcess } from "./rules/weather.js";
 export { computeWeatherState } from "./weather/process.js";
+export { WeatherProjector } from "./weather/projector.js";
 export type { WeatherProcessDefinition, WeatherState, WeatherReadView } from "./weather/types.js";
 
 // Heat Transfer (PR-7.1, second independent system)
 export { heatTransferProcess } from "./rules/heat-transfer.js";
 export { computeHeatTransfer, classifyThermalZone } from "./heat/process.js";
+export { HeatProjector } from "./heat/projector.js";
 export type { HeatProcessDefinition, ThermalState, HeatReadView } from "./heat/types.js";
 
 // Settlement Pattern (PR-7.4, first long-lived object)
 export { settlementPattern } from "./rules/settlement-pattern.js";
 export { computeSettlementTick } from "./rules/settlement-pattern.js";
+export { SettlementProjector } from "./settlement/projector.js";
 export type { SettlementDefinition, SettlementState, SettlementReadView } from "./settlement/types.js";
 
 // First living region — deterministic spatial bootstrap and observer map

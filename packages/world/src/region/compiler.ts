@@ -66,6 +66,33 @@ export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
     baseTravelCostTicks: 2,
   }));
 
+  // Weather process (ADR-0020, influences graph)
+  events.push(event("boot#region#WeatherProcess", "WeatherProcessDefined", {
+    processId: "weather-region",
+    climateZone: "temperate",
+    seasonCycleTicks: 100,
+    phaseOffset: 0,
+  }));
+
+  // Heat transfer process (PR-7.1, second independent system)
+  events.push(event("boot#region#HeatProcess", "HeatProcessDefined", {
+    processId: "heat-region",
+    ambientTemperature: 18,
+    transferRate: 0.1,
+    dissipationRate: 0.05,
+    zoneThresholds: { cold: 0, warm: 25, hot: 60 },
+  }));
+
+  // Settlement pattern (PR-7.4, first long-lived object)
+  events.push(event("boot#region#Settlement", "SettlementCreated", {
+    settlementId: "riverwatch_city",
+    population: 60,
+    risk: 40,
+    status: "active",
+    createdAt: 0,
+    updatedAt: 0,
+  }));
+
   const observations: SpatialObservationPayload[] = [
     { subjectKind: "location", subjectId: "river_waystation", knowledge: "traversed", observedAt: 0, confidence: 1 },
     { subjectKind: "relation", subjectId: "road_waystation_city", knowledge: "observed", observedAt: 0, confidence: 0.9 },

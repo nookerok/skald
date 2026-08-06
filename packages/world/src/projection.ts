@@ -5,6 +5,23 @@ import type { WorldObject, Location } from "./objects/types.js";
 import { applyObjectEvent, cloneObjectState } from "./objects/projector.js";
 import type { CriticalCheckState } from "./checks/types.js";
 import type { Entity, EntityComponents } from "./entities/types.js";
+import { SpatialProjector } from "./region/spatial-projector.js";
+import { WeatherProjector } from "./weather/projector.js";
+import { HeatProjector } from "./heat/projector.js";
+import { SettlementProjector } from "./settlement/projector.js";
+
+/** Event types whose read-view projection must be refreshed after apply. */
+const SPATIAL_EVENT_TYPES = new Set([
+  "RegionDefined",
+  "TravelMetadataAttached",
+  "RiverProcessDefined",
+  "RiverLevelChanged",
+  "CrossingConditionInitialized",
+  "CrossingConditionChanged",
+]);
+const WEATHER_EVENT_TYPES = new Set(["WeatherProcessDefined", "WeatherStateChanged"]);
+const HEAT_EVENT_TYPES = new Set(["HeatProcessDefined", "HeatStateChanged"]);
+const SETTLEMENT_EVENT_TYPES = new Set(["SettlementCreated", "SettlementStateChanged"]);
 
 export interface Consequence {
   readonly id: string;
@@ -219,7 +236,7 @@ function deepCloneEntity(entity: Entity): Entity {
 /** Frozen immutable Map. Mutating methods throw TypeError at runtime.
  *  Uses a regular Map as backing store for construction, then freeze + proxy
  *  to block mutations while preserving structural equality. */
-function cloneMap<V>(src: Map<string, V>): ReadonlyMap<string, V> {
+function cloneMap<V>(src: ReadonlyMap<string, V>): ReadonlyMap<string, V> {
   const clone = new Map(src);
   return new Proxy(clone, {
     get(t, p: string | symbol) {
@@ -266,15 +283,41 @@ function freeze(state: WorldState): ReadonlyWorld {
     entities: cloneMap(new Map([...state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)]))),
     journeys: cloneMap(new Map([...state.journeys].map(([id, j]) => [id, Object.freeze({ ...j }) as JourneyState]))),
     activeJourneyId: state.activeJourneyId,
-    spatial: state.spatial,
-    weather: state.weather,
-    heat: state.heat,
-    settlement: state.settlement,
+    spatial: state.spatial
+      ? {
+          riverProcesses: cloneMap(state.spatial.riverProcesses),
+          riverStates: cloneMap(state.spatial.riverStates),
+          crossingDefinitions: cloneMap(state.spatial.crossingDefinitions),
+          crossingStates: cloneMap(state.spatial.crossingStates),
+          travelRelations: cloneMap(state.spatial.travelRelations),
+        }
+      : null,
+    weather: state.weather
+      ? {
+          weatherProcesses: cloneMap(state.weather.weatherProcesses),
+          weatherStates: cloneMap(state.weather.weatherStates),
+        }
+      : null,
+    heat: state.heat
+      ? {
+          heatProcesses: cloneMap(state.heat.heatProcesses),
+          thermalStates: cloneMap(state.heat.thermalStates),
+        }
+      : null,
+    settlement: state.settlement
+      ? {
+          settlements: cloneMap(state.settlement.settlements),
+        }
+      : null,
   }) as ReadonlyWorld;
 }
 
 export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
   private state: WorldState;
+  private readonly spatialProjector = new SpatialProjector();
+  private readonly weatherProjector = new WeatherProjector();
+  private readonly heatProjector = new HeatProjector();
+  private readonly settlementProjector = new SettlementProjector();
 
   constructor() {
     this.state = {
@@ -321,6 +364,12 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     const s = this.state;
     s.eventNumber = s.eventNumber + 1;
     s.time = event.timestamp;
+
+    // Derived simulation read views (Rules read these through ReadonlyWorld).
+    this.spatialProjector.apply(event);
+    this.weatherProjector.apply(event);
+    this.heatProjector.apply(event);
+    this.settlementProjector.apply(event);
 
     switch (event.type) {
       case "PlayerSpawned": {
@@ -529,6 +578,12 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       default:
         break;
     }
+
+    // Refresh the read views exposed to Rules only when their input events land.
+    if (SPATIAL_EVENT_TYPES.has(event.type)) s.spatial = this.spatialProjector.getSnapshot();
+    if (WEATHER_EVENT_TYPES.has(event.type)) s.weather = this.weatherProjector.getSnapshot();
+    if (HEAT_EVENT_TYPES.has(event.type)) s.heat = this.heatProjector.getSnapshot();
+    if (SETTLEMENT_EVENT_TYPES.has(event.type)) s.settlement = this.settlementProjector.getSnapshot();
   }
 
   clone(): ProjectionStore<ReadonlyWorld> {
@@ -565,7 +620,17 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       heat: this.state.heat,
       settlement: this.state.settlement,
     };
+    copy.seedReadViewProjectors();
     return copy;
+  }
+
+  /** Rebuild the derived read-view projectors from the copied state, so the
+   *  clone's read views equal the parent's and keep advancing on apply. */
+  private seedReadViewProjectors(): void {
+    this.spatialProjector.seed(this.state.spatial);
+    this.weatherProjector.seed(this.state.weather);
+    this.heatProjector.seed(this.state.heat);
+    this.settlementProjector.seed(this.state.settlement);
   }
 }
 
