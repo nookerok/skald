@@ -1,0 +1,141 @@
+# System Definition: Weather
+# Первая система с настоящими dependsOn / influences (Roadmap §15, шаг 2).
+# Цель: проверить масштабируемость SB-шаблона на системе, влияющей на другие.
+# Формат: YAML до появления zod-схемы (Schema stage, D-4.4 этап 2).
+
+identity:
+  systemId: weather
+  lifecycleStatus: Proposal               # D-0.3: новая система, ещё не реализована
+  version: 1.0.0
+  provenance:
+    type: Designed                        # спроектирована по результатам Phase 1 Audit
+    sources:
+      - docs/SIMULATION_BIBLE_ARCHITECTURE.md
+      - docs/architecture/audit-phase-1/simulation-systems-map.md
+
+# ---------------------------------------------------------------------------
+# PUBLIC CONTRACT
+# ---------------------------------------------------------------------------
+publicContract:
+
+  dependencies:
+    ownedAspects:
+      - aspect: AtmosphericState
+        domain: "{ skyCondition: clear | cloudy | overcast, precipitation: none | rain | snow | fog, wind: calm | breeze | strong }"
+      - aspect: VisibilityModifier
+        domain: "{ multiplier: [0.1, 1.0] }"
+
+    # Weather — корневая система: не зависит от других Simulation Systems.
+    # TickPassed — механизм движка (D-0.2), фиксируется через Update Model ABI.
+    # Climate zone привязывается через Binding к региону, не через dependsOn.
+    dependsOn: []
+
+    influences:
+      - target: river-hydrology
+        dependencyEvidence:
+          - event: WeatherStateChanged
+            consumedBy: riverLevelProcess
+            aspect: RiverState
+            effect: "precipitation volume modulates effective baselineLevel via waterInflow factor"
+      - target: heat
+        dependencyEvidence:
+          - event: WeatherStateChanged
+            consumedBy: heatSpread
+            aspect: heatMap
+            effect: "wind increases heat dissipation rate; rain reduces ambient temperature"
+      - target: spatial-movement
+        dependencyEvidence:
+          - aspect: VisibilityModifier
+            consumedBy: journey.validate
+            effect: "multiplier < 0.5 blocks long-distance route resolution; multiplier < 0.2 blocks all non-local travel"
+
+  observableSurface:
+    emits:
+      - event: WeatherStateChanged
+        role: state-transition
+    consumes:
+      - event: TickPassed
+    observationChannels:
+      - channel: direct-observation
+      - channel: attempted-travel
+    hiddenAspects: []
+    discoveryCandidates:
+      - "Weather follows deterministic patterns tied to world time and season"
+      - "Precipitation affects river levels and crossing conditions"
+      - "Fog reduces travel range and observation distance"
+
+  guarantees:
+    - id: weather-deterministic
+      statement: "AtmosphericState at any worldTime is a pure function of climateZone, seasonPhase, and worldTime"
+      kind: invariant
+      scope: system
+      consumer: [replay-test]
+      implementationEvidence:
+        - kind: Rule
+          ref: weather.tick
+    - id: weather-bounded-state
+      statement: "skyCondition, precipitation, and wind each take values from a closed enumerated set"
+      kind: invariant
+      scope: aspect
+      consumer: [rule-review]
+      implementationEvidence:
+        - kind: Rule
+          ref: weather.tick
+    - id: weather-visibility-consistent
+      statement: "VisibilityModifier is a pure function of current AtmosphericState"
+      kind: invariant
+      scope: aspect
+      consumer: [replay-test]
+      implementationEvidence:
+        - kind: Rule
+          ref: weather.tick
+    - id: weather-no-hidden-state
+      statement: "All weather state is derivable from Event Log; no entropy source outside Event Log"
+      kind: impossibility
+      scope: system
+      consumer: [rule-review]
+      implementationEvidence:
+        - kind: Rule
+          ref: weather.tick
+        - kind: Review
+          ref: "Architecture Review №2"
+
+# ---------------------------------------------------------------------------
+# OPERATIONAL PROFILE
+# ---------------------------------------------------------------------------
+operationalProfile:
+  updateModel: TickDriven
+  discretization: "Weather state advances one discrete step per TickPassed; continuous atmospheric simulation is prohibited (D-2.0a)"
+  budget:
+    supports: [Full]
+  persistenceReplay:
+    replayAssumptions:
+      - "Events are totally ordered"
+      - "Climate zone is bound at bootstrap and never changes"
+      - "worldTime is derived from TickPassed sequence"
+    derivedStructures: []
+
+# ---------------------------------------------------------------------------
+# PRIVATE DESIGN
+# ---------------------------------------------------------------------------
+privateDesign:
+  stateSemantics:
+    skyCondition: "Categorical state: clear, cloudy, overcast. Transitions follow deterministic pattern seeded by worldTime and climateZone."
+    precipitation: "Categorical state: none, rain, snow, fog. Derived from skyCondition + season + climateZone. No 'drizzle' / 'downpour' gradation — those are Narrative, not Simulation."
+    wind: "Categorical state: calm, breeze, strong. Affects heat dissipation rate."
+    visibilityModifier: "Multiplier ∈ [0.1, 1.0]. Derived from precipitation + fog. 1.0 = clear, 0.1 = heavy fog. Discrete steps of 0.1."
+  parameterSlots:
+    - name: climateZone
+      range: "polar | temperate | tropical | arid"
+      default: null
+    - name: seasonCycleTicks
+      range: "ℕ ≥ 20"
+      default: 100
+    - name: precipitationIntensity
+      range: "[0.0, 1.0]"
+      default: 0.5
+  rationale:
+    - "Weather is TickDriven (not EventDriven) because it evolves independently of player actions — the world exists regardless of the observer."
+    - "Deterministic pseudo-randomness via hash(worldTime + climateZoneSeed) instead of Math.random() preserves System Determinism Principle."
+    - "VisibilityModifier is owned by Weather, not a separate Visibility system, because Phase 1 Audit classified Visibility as a service (pure function), not a Simulation System."
+    - "No weather → fire influence in v1: Fire/Situations already depends on Observation scoring. Adding weather → fire would create a cycle (weather → fire → smoke → climate → weather). Cycle in influences-graph is allowed, but v1 intentionally keeps it simple."
