@@ -8,7 +8,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
-import type { HeatProcessDefinition, ThermalState } from "./types.js";
+import type { HeatProcessDefinition, ThermalState } from "../heat/types.js";
 import { computeHeatTransfer } from "../heat/process.js";
 import { ruleEventId } from "../ids.js";
 

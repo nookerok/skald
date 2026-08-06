@@ -9,7 +9,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
-import type { SettlementDefinition, SettlementState } from "./types.js";
+import type { SettlementState } from "../settlement/types.js";
 import { ruleEventId } from "../ids.js";
 
 /**
@@ -17,7 +17,7 @@ import { ruleEventId } from "../ids.js";
  */
 export function computeSettlementTick(
   state: SettlementState,
-  tick: number,
+  _tick: number,
 ): { population: number; risk: number; status: string } {
   let population = state.population;
   let risk = state.risk;

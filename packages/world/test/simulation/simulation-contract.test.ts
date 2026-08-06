@@ -126,7 +126,6 @@ describe("Simulation Contract Test (PR-6.5)", () => {
     ];
 
     const world1 = makeWorld();
-    const world2 = makeWorld();
 
     // Apply events through rules
     for (const event of events) {
@@ -175,7 +174,7 @@ describe("Simulation Contract Test (PR-6.5)", () => {
   it("Observable Surface: player doesn't get private state", () => {
     const events = [
       evt("TickPassed", "t-1", { delta: 1 }, 1),
-      evt("ObservationUpdated", 2, { key: "risk_taken", delta: 1 }),
+      evt("ObservationUpdated", "obs-1", { key: "risk_taken", delta: 1 }),
     ];
     const world = makeWorld();
 

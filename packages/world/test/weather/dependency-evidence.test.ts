@@ -12,8 +12,8 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "@skald/world";
-import { weatherProcess, computeWeatherState } from "@skald/world";
-import type { WeatherProcessDefinition, WeatherState } from "@skald/weather/types";
+import { weatherProcess } from "@skald/world";
+import type { WeatherProcessDefinition, WeatherState } from "../../src/weather/types.js";
 
 function evt(type: string, eventId: string, payload: unknown = {}, timestamp = 1): DomainEvent {
   return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: "cmd-1", causationId: null };

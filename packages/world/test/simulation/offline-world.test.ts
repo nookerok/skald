@@ -19,9 +19,8 @@ import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "@skald/world";
 import { weatherProcess, riverLevelProcess, crossingCondition, settlementPattern, buildBeliefModel } from "@skald/world";
-import type { WeatherProcessDefinition, WeatherState } from "../../src/weather/types.js";
+import type { WeatherProcessDefinition } from "../../src/weather/types.js";
 import type { RiverProcessDefinition, CrossingDefinition } from "../../src/region/types.js";
-import type { SettlementState } from "../../src/settlement/types.js";
 
 // ── Test Fixtures ──────────────────────────────────────────────────────────
 
@@ -175,7 +174,7 @@ describe("Offline World Simulation (PR-7.5)", () => {
     }
 
     // Add some observer-visible events
-    allEvents.push(evt("ObservationUpdated", 6, { key: "risk_taken", delta: 1 }, 6));
+    allEvents.push(evt("ObservationUpdated", "obs-1", { key: "risk_taken", delta: 1 }, 6));
 
     const beliefModel = buildBeliefModel(allEvents, world, "player");
 
