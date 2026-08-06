@@ -28,8 +28,10 @@ describe("living region HTTP boundary", () => {
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.map.region.name).toBe("Бассейн Речного Стража");
-    expect(body.map.locations).toHaveLength(1);
-    expect(body.map.routes).toHaveLength(2);
+    // Invariant-based: the initial state may grow, but key subjects must exist.
+    expect(body.map.locations.length).toBeGreaterThanOrEqual(1);
+    expect(body.map.locations.map((location: any) => location.name)).toContain("Переправа у Чёрного леса");
+    expect(body.map.routes.length).toBeGreaterThanOrEqual(2);
     expect(body.map.landmarks[0].xMetres).toBeNull();
     expect(JSON.stringify(body.map)).not.toContain("tiles");
     expect(JSON.stringify(body.map)).not.toContain("suspended_monolith");

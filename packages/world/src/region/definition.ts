@@ -72,6 +72,7 @@ const LOCATIONS: readonly RegionLocation[] = [
   { id: "old_ruins", name: "Развалины на уступе", description: "Каменные остатки над долиной, занесённые травой.", anchor: point(16_000, 14_000), footprintTileIds: ["tile-63-55"] },
   { id: "glass_crater", name: "Стеклянная впадина", description: "Круглая чаша земли, где камень блестит после дождя.", anchor: point(3_800, 4_200), footprintTileIds: ["tile-14-16"] },
   { id: "high_pass", name: "Северный перевал", description: "Каменный проход под снегом и облаками.", anchor: point(12_000, 18_000), footprintTileIds: ["tile-47-71"] },
+  { id: "southern_borough", name: "Южный посад", description: "Посад за стенами при изгибе реки, южнее главного города.", anchor: point(9_500, 5_000), footprintTileIds: ["tile-37-19", "tile-38-19"] },
 ];
 
 const LANDMARKS: readonly RegionLandmark[] = [
@@ -87,6 +88,7 @@ const RELATIONS: readonly SpatialRelation[] = [
   { id: "road_city_ruins", kind: "road", fromId: "riverwatch_city", toId: "old_ruins", label: "Восточный тракт", points: [point(13_500, 7_500), point(15_000, 10_500), point(16_000, 14_000)] },
   { id: "river_crossing", kind: "crossing", fromId: "river_waystation", toId: "riverwatch_city", label: "Переправа", points: [point(8_000, 9_500), point(9_500, 9_400), point(10_000, 9_000)] },
   { id: "river_basin", kind: "river", fromId: "high_pass", toId: "riverwatch_city", label: "Река из северных гор", points: [point(12_000, 18_000), point(10_500, 13_000), point(9_500, 9_000), point(13_500, 7_500)] },
+  { id: "road_city_south", kind: "road", fromId: "riverwatch_city", toId: "southern_borough", label: "Южный тракт", points: [point(13_500, 7_500), point(11_500, 6_200), point(9_500, 5_000)] },
 ];
 
 function fnv1a(value: string): string {
@@ -96,7 +98,7 @@ function fnv1a(value: string): string {
 }
 
 export function buildPilotRegionDefinition(): RegionDefinition {
-  const base = { id: PILOT_REGION_ID, name: "Бассейн Речного Стража", version: 1, bounds: bounds(0, 0, PILOT_REGION_SIZE_METRES), terrainTileSizeMetres: PILOT_TILE_SIZE_METRES, simulationCellSizeMetres: PILOT_CELL_SIZE_METRES, tiles: buildTiles(), cells: buildCells(), locations: LOCATIONS, landmarks: LANDMARKS, relations: RELATIONS };
+  const base = { id: PILOT_REGION_ID, name: "Бассейн Речного Стража", version: 2, bounds: bounds(0, 0, PILOT_REGION_SIZE_METRES), terrainTileSizeMetres: PILOT_TILE_SIZE_METRES, simulationCellSizeMetres: PILOT_CELL_SIZE_METRES, tiles: buildTiles(), cells: buildCells(), locations: LOCATIONS, landmarks: LANDMARKS, relations: RELATIONS };
   const digest = fnv1a(JSON.stringify(base));
   return Object.freeze({ ...base, contentDigest: digest });
 }

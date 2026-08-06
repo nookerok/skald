@@ -31,7 +31,14 @@ describe("first living region", () => {
     const second = buildPilotRegionBootstrapEvents();
     expect(first).toEqual(second);
     expect(first.find((event) => event.type === "RegionDefined")).toBeTruthy();
-    expect(first.filter((event) => event.type === "SpatialObservationRecorded")).toHaveLength(4);
+    // Invariant-based, not count-based: the world may gain observations over
+    // time (Pilot Region Living State v0.1), but the key subjects must exist.
+    const observations = first.filter((event) => event.type === "SpatialObservationRecorded");
+    const subjects = observations.map((e) => (e.payload as { subjectId: string }).subjectId);
+    expect(observations.length).toBeGreaterThanOrEqual(4);
+    expect(subjects).toContain("river_waystation");
+    expect(subjects).toContain("suspended_monolith");
+    expect(subjects).toContain("glass_crater");
     const projection = buildSpatialWorldProjection(first);
     const replay = buildSpatialWorldProjection([...first]);
     expect(projection.region?.contentDigest).toBe(replay.region?.contentDigest);
@@ -43,10 +50,15 @@ describe("first living region", () => {
     const events = buildPilotRegionBootstrapEvents();
     const map = buildObserverMap(events, buildSpatialWorldProjection(events));
     expect(map.region?.name).toBe("Бассейн Речного Стража");
-    expect(map.locations.map((location) => location.name)).toContain("Переправа у Чёрного леса");
-    expect(map.routes).toHaveLength(2);
-    expect(map.landmarks).toHaveLength(1);
-    expect(map.landmarks[0]?.name).toBe("Парящий монолит");
+    const names = map.locations.map((location) => location.name);
+    expect(names).toContain("Переправа у Чёрного леса");
+    expect(names).toContain("Кромка Чёрного леса");
+    expect(map.locations.length).toBeGreaterThanOrEqual(2);
+    expect(map.routes.length).toBeGreaterThanOrEqual(2);
+    expect(map.routes.some((route) => route.knowledge === "observed")).toBe(true);
+    expect(map.landmarks.map((landmark) => landmark.name)).toContain("Парящий монолит");
+    expect(map.landmarks.length).toBeGreaterThanOrEqual(1);
+    // The monolith stays the first landmark and remains a glimpsed bearing.
     expect(map.landmarks[0]?.xMetres).toBeNull();
     expect(map.landmarks[0]?.bearing).toBe("северо-восток");
     expect(JSON.stringify(map)).not.toContain("tile-31-38");

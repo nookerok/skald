@@ -38,6 +38,7 @@ export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
     { relationId: "road_city_ruins", kind: "road", fromId: "riverwatch_city", toId: "old_ruins", distanceMetres: 6_800, baseTravelTicks: 5, terrainCost: 1.0, passability: "open" },
     { relationId: "river_crossing", kind: "crossing", fromId: "river_waystation", toId: "riverwatch_city", distanceMetres: 2_000, baseTravelTicks: 2, terrainCost: 1.5, passability: "open" },
     { relationId: "river_basin", kind: "river", fromId: "high_pass", toId: "riverwatch_city", distanceMetres: 12_000, baseTravelTicks: 0, terrainCost: 0, passability: "blocked" },
+    { relationId: "road_city_south", kind: "road", fromId: "riverwatch_city", toId: "southern_borough", distanceMetres: 4_500, baseTravelTicks: 3, terrainCost: 1.0, passability: "open" },
   ];
   travelMetadata.forEach((payload, index) => {
     events.push(event(`boot#region#Travel#${index}`, "TravelMetadataAttached", payload));
@@ -93,11 +94,27 @@ export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
     updatedAt: 0,
   }));
 
+  // Secondary settlement visible in the region illustration (visual canon P1)
+  events.push(event("boot#region#Settlement#southern", "SettlementCreated", {
+    settlementId: "southern_borough",
+    population: 35,
+    risk: 25,
+    status: "active",
+    createdAt: 0,
+    updatedAt: 0,
+  }));
+
   const observations: SpatialObservationPayload[] = [
     { subjectKind: "location", subjectId: "river_waystation", knowledge: "traversed", observedAt: 0, confidence: 1 },
     { subjectKind: "relation", subjectId: "road_waystation_city", knowledge: "observed", observedAt: 0, confidence: 0.9 },
     { subjectKind: "relation", subjectId: "river_crossing", knowledge: "observed", observedAt: 0, confidence: 0.85 },
     { subjectKind: "landmark", subjectId: "suspended_monolith", knowledge: "glimpsed", observedAt: 0, confidence: 0.45, bearing: "северо-восток" },
+    // Visual canon D6.1: initial knowledge as confidence-based observations,
+    // not facts — the world is discovered through further observation.
+    { subjectKind: "location", subjectId: "blackwood_edge", knowledge: "observed", observedAt: 0, confidence: 0.7 },
+    { subjectKind: "location", subjectId: "glass_crater", knowledge: "rumored", observedAt: 0, confidence: 0.3 },
+    { subjectKind: "landmark", subjectId: "glass_crater", knowledge: "rumored", observedAt: 0, confidence: 0.25, bearing: "юго-запад" },
+    { subjectKind: "relation", subjectId: "road_waystation_forest", knowledge: "rumored", observedAt: 0, confidence: 0.5 },
   ];
   observations.forEach((payload, index) => events.push(event(`boot#region#Observation#${index}`, "SpatialObservationRecorded", payload)));
   events.push(event("boot#region#StrategySet", "StrategySet", { entries: [{ condition: "always", action: "idle" }] }));

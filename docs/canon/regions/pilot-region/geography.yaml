@@ -102,3 +102,17 @@ concept:
       consequences:
         - "First-entry flow offers several legible directions without an action menu."
         - "Removing this fact invalidates the presence montage contract."
+    - id: regions.pilot-region.geography.f6
+      statement: "A secondary walled settlement, the southern borough (Южный посад), stands on a bend of the river south of the principal city; it is reachable by road from the city."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: ImportedFromCode
+        source: "docs/worldbuilding/pilot-region/VISUAL_CANON_REPORT.md (P1, visual canon); ADR-0012"
+      consequences:
+        - "The region gains a seventh location and a second settlement for settlement dynamics and travel."
+        - "Removing this fact removes the southern borough from the world and its travel routes."
