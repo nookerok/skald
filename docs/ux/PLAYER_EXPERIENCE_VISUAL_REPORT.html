@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKALD — Player Experience Report v1.0</title>
+<style>
+  :root{
+    --bg:#0b0f14; --bg2:#11161d; --bg3:#161d26; --panel:rgba(22,29,38,.72);
+    --ink:#e8edf2; --ink2:#9aa8b6; --ink3:#5f6e7d;
+    --line:#24303d; --line2:#2d3b4a;
+    --acc:#67c3e8; --acc2:#8fe0ff; --amber:#e8b76a; --green:#7fd1a8; --red:#e07070; --violet:#a9a1e8;
+    --radius:16px; --radius-s:10px;
+    --maxw:1160px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(103,195,232,.07), transparent 60%),
+      radial-gradient(900px 500px at 10% 10%, rgba(232,183,106,.04), transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"SF Pro Display","Inter",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+  code{font-family:"SF Mono","JetBrains Mono",ui-monospace,Menlo,monospace;font-size:.86em;color:var(--acc2)}
+  .muted{color:var(--ink2)}
+  .faint{color:var(--ink3)}
+
+  /* ---------- hero ---------- */
+  .hero{padding:120px 28px 60px;position:relative}
+  .hero .eyebrow{letter-spacing:.32em;text-transform:uppercase;font-size:12px;color:var(--acc);font-weight:600}
+  .hero h1{font-size:clamp(40px,6vw,72px);line-height:1.02;font-weight:700;letter-spacing:-.02em;margin:18px 0 14px}
+  .hero .lede{max-width:720px;color:var(--ink2);font-size:clamp(15px,2vw,19px)}
+  .pipeline{display:flex;flex-wrap:wrap;gap:8px;margin-top:44px;align-items:center}
+  .pipe-node{border:1px solid var(--line);border-radius:12px;padding:10px 16px;background:var(--panel);backdrop-filter:blur(10px);font-size:13px;color:var(--ink2)}
+  .pipe-node b{color:var(--ink);font-weight:600}
+  .pipe-arrow{color:var(--ink3);font-size:15px}
+
+  /* ---------- section shell ---------- */
+  section{padding:72px 0;border-top:1px solid var(--line)}
+  .sec-no{font-family:"SF Mono",ui-monospace,monospace;color:var(--acc);font-size:13px;letter-spacing:.1em}
+  .sec-title{font-size:clamp(26px,3.6vw,40px);font-weight:700;letter-spacing:-.015em;margin:8px 0 8px}
+  .sec-sub{color:var(--ink2);max-width:760px;font-size:15px}
+  .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:26px;margin-top:30px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:30px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:30px}
+  @media(max-width:880px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;backdrop-filter:blur(12px)}
+  .card h3{font-size:15px;font-weight:600;margin-bottom:8px;letter-spacing:.01em}
+  .card p{font-size:13.5px;color:var(--ink2)}
+  .tag{display:inline-block;font-size:11.5px;padding:3px 10px;border-radius:99px;border:1px solid var(--line2);color:var(--ink2);margin:0 6px 6px 0;background:rgba(255,255,255,.02)}
+  .tag.live{border-color:rgba(127,209,168,.5);color:var(--green)}
+  .tag.diff{color:var(--amber)}
+  .tag.beta{color:var(--violet)}
+
+  .note{font-size:12.5px;color:var(--ink3);border-left:3px solid var(--line2);padding-left:12px;margin-top:14px}
+  .from{font-size:12px;color:var(--ink3)}
+  .from b{color:var(--ink2);font-weight:600}
+
+  /* ---------- diagrams ---------- */
+  svg{width:100%;height:auto;display:block}
+  .fig{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,rgba(255,255,255,.015),transparent);padding:18px;overflow:auto}
+  .fig .cap{font-size:12px;color:var(--ink3);margin-top:10px}
+  .node{fill:rgba(22,29,38,.9);stroke:#2d3b4a;stroke-width:1}
+  .node.hl{stroke:var(--acc)}
+  .tlabel{fill:var(--ink);font:600 13px system-ui}
+  .tlabel2{fill:var(--ink2);font:500 11.5px system-ui}
+  .edge{stroke:#2d3b4a;stroke-width:1.4;fill:none}
+  .edge.live{stroke:var(--green)}
+  .edge.dfd{stroke:#5f6e7d;stroke-dasharray:5 4}
+  .arrow{fill:var(--ink3)}
+  .accent{fill:var(--acc)}
+
+  /* ---------- main screen mockup ---------- */
+  .shell{background:#0d1219;border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  .shell .bar{display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);font-size:12px;color:var(--ink2)}
+  .shell .dot{width:9px;height:9px;border-radius:50%}
+  .shell .layout{display:grid;grid-template-columns:210px 1fr 250px;min-height:560px}
+  .shell .col{border-right:1px solid var(--line);padding:14px}
+  .shell .col:last-child{border-right:none}
+  .shell h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin:14px 0 8px}
+  .shell h4:first-child{margin-top:0}
+  .shell .li{font-size:12px;color:var(--ink2);padding:5px 8px;border-radius:7px}
+  .shell .li:hover{background:rgba(255,255,255,.04)}
+  .shell .li b{color:var(--ink);font-weight:500}
+  .stage{height:150px;border-radius:12px;border:1px solid var(--line);background:
+      radial-gradient(400px 160px at 20% 20%, rgba(127,209,168,.14), transparent),
+      radial-gradient(400px 180px at 80% 60%, rgba(103,195,232,.10), transparent),
+      linear-gradient(180deg,#141a22,#10151c);position:relative;margin-bottom:12px}
+  .stage .pl{position:absolute;bottom:22px;left:50%;font-size:11px;color:var(--acc2);background:rgba(11,15,20,.8);padding:3px 10px;border-radius:99px;border:1px solid rgba(103,195,232,.4)}
+  .shell .narr{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--panel)}
+  .shell .narr .k{font-size:10.5px;letter-spacing:.12em;color:var(--ink3);text-transform:uppercase}
+  .shell .narr .t{font-size:14.5px;color:var(--ink);margin-top:5px}
+  .composer{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+  .composer input{flex:1;background:#0d1219;border:1px solid var(--line2);border-radius:10px;color:var(--ink);padding:10px 12px;font-size:13px;outline:none}
+  .composer button{background:var(--acc);border:none;color:#0b1016;font-weight:600;border-radius:10px;padding:0 16px;font-size:13px;cursor:pointer}
+  .mini{width:100%;height:110px;border-radius:10px;border:1px solid var(--line);background:
+      radial-gradient(120px 80px at 30% 40%, rgba(103,195,232,.18), transparent),
+      radial-gradient(90px 60px at 70% 30%, rgba(232,183,106,.10), transparent),
+      #0e141b}
+  .legend{font-size:11px;color:var(--ink2);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px;margin-right:14px}
+  .sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  /* ---------- knowledge columns ---------- */
+  .kcol{border:1px solid var(--line);border-radius:var(--radius);padding:18px;background:var(--panel);min-height:230px}
+  .kcol .kh{font-size:13px;font-weight:600;margin-bottom:4px}
+  .kcol .kp{font-size:12px;color:var(--ink2)}
+  .kcol .meter{height:6px;border-radius:4px;background:var(--line);margin:10px 0 6px;overflow:hidden}
+  .kcol .meter i{display:block;height:100%;border-radius:4px}
+
+  /* ---------- process map ---------- */
+  .proc{display:flex;gap:26px;margin-top:30px;flex-wrap:wrap}
+  .proc-col{flex:1;min-width:280px}
+  .proc-col h3{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px}
+  .pchip{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--panel)}
+  .pchip .pt{font-size:13.5px;font-weight:600}
+  .pchip .pp{font-size:12px;color:var(--ink2);margin-top:3px}
+  .pchip .pl{font-size:11px;color:var(--ink3);margin-top:6px;font-family:ui-monospace,monospace}
+
+  /* ---------- timeline ---------- */
+  .tl{position:relative;margin-top:30px;padding-left:22px}
+  .tl::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:linear-gradient(var(--acc),var(--amber),var(--ink3))}
+  .tl-item{position:relative;padding:0 0 26px 18px}
+  .tl-item::before{content:"";position:absolute;left:-22px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:2px solid var(--acc)}
+  .tl-item.gate::before{border-color:var(--amber)}
+  .tl-item.hid::before{border-color:var(--ink3)}
+  .tl-item h4{font-size:14px;font-weight:600}
+  .tl-item p{font-size:13px;color:var(--ink2);margin-top:3px}
+  .tl-item .from{font-size:11.5px;color:var(--ink3);margin-top:5px}
+
+  /* ---------- footer / section 10 ---------- */
+  .stack{margin-top:34px;display:flex;flex-direction:column;gap:0;max-width:760px}
+  .stack .lvl{border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;padding:16px 20px;background:var(--panel);margin-bottom:-1px}
+  .stack .lvl .lt{font-size:15px;font-weight:600}
+  .stack .lvl .lp{font-size:12.5px;color:var(--ink2);margin-top:3px}
+  .stack .lvl.live{border-left-color:var(--green)}
+  .stack .lvl.hid{border-left-color:var(--ink3)}
+  .stack .lvl.dfd{border-left-color:var(--amber)}
+  footer{padding:56px 28px 80px;color:var(--ink3);font-size:12.5px;border-top:1px solid var(--line)}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+  .toc a{color:var(--ink2);text-decoration:none;font-size:12.5px;border:1px solid var(--line);padding:6px 12px;border-radius:99px;background:var(--panel)}
+  .toc a:hover{color:var(--acc);border-color:var(--acc)}
+  .tag.future{color:var(--violet)}
+  .beat{border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:12px;padding:14px 18px;margin-bottom:12px;background:var(--panel)}
+  .beat.live{border-left-color:var(--green)}
+  .beat.future{border-left-color:var(--violet)}
+  .beat .bt{font-size:14px;font-weight:600}
+  .beat .bp{font-size:13px;color:var(--ink2);margin-top:4px}
+  .beat .bs{font-size:11.5px;color:var(--ink3);margin-top:6px}
+  .arc{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+  @media(max-width:880px){.arc{grid-template-columns:1fr 1fr}}
+  .arc .an{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+  .arc .card h3{font-size:15px}
+</style>
+</head>
+<body>
+
+<div class="hero wrap">
+  <div class="eyebrow">SKALD · Living World · Player Experience</div>
+  <h1>Player Experience Report<br>v1.0</h1>
+  <p class="lede">A deterministic living-world simulation, observed through an honest interface. The player never sees truth — only what the world allows them to know. Every pixel below is grounded in the current SKALD architecture: the Event Log, the projection, the belief model, the observer map, and the presentation layer.</p>
+  <div class="toc">
+    <a href="#s1">01 Journey</a><a href="#s2">02 Main Screen</a><a href="#s3">03 Knowledge</a>
+    <a href="#s4">04 Living World</a><a href="#s5">05 Timeline</a><a href="#s6">06 Observer Map</a>
+    <a href="#s7">07 Simulation Bible</a><a href="#s8">08 Diagnostics</a><a href="#s9">09 Session</a>
+    <a href="#s10">10 Architecture</a><a href="#s11">11 Pilot Region</a><a href="#s12">12 Discovery Arc</a>
+  </div>
+  <div class="pipeline">
+    <div class="pipe-node"><b>World State</b></div><span class="pipe-arrow">→</span>
+    <div class="pipe-node"><b>Rules</b> · deterministic</div><span class="pipe-arrow">→</span>
+    <div class="pipe-node"><b>Event Log</b> · append-only</div><span class="pipe-arrow">→</span>
+    <div class="pipe-node"><b>Projection</b> · replayable</div><span class="pipe-arrow">→</span>
+    <div class="pipe-node"><b>Belief</b> · observer-scoped</div><span class="pipe-arrow">→</span>
+    <div class="pipe-node"><b>Presentation</b> · honest</div><span class="pipe-arrow">→</span>
+    <div class="pipe-node"><b>Player</b></div>
+  </div>
+</div>
+
+<!-- ================= SECTION 1 ================= -->
+<section id="s1"><div class="wrap">
+  <div class="sec-no">SECTION 01</div>
+  <h2 class="sec-title">Player Journey — the information pipeline</h2>
+  <p class="sec-sub">What a player action becomes. The player's free-text intent is never an Event; only the world's response is. The player observes the response as presentation, belief and map — never the machinery.</p>
+  <div class="fig">
+    <svg viewBox="0 0 1080 340" role="img" aria-label="Player journey pipeline">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" class="arrow"/></marker>
+      </defs>
+      <!-- row 1: player -> input -> engine -->
+      <g transform="translate(40,40)">
+        <rect x="0" y="0" width="150" height="74" rx="12" class="node hl"/>
+        <text x="75" y="28" text-anchor="middle" class="tlabel">Player</text>
+        <text x="75" y="48" text-anchor="middle" class="tlabel2">free-text intent</text>
+        <text x="75" y="63" text-anchor="middle" class="tlabel2">(never an Event)</text>
+        <line x1="152" y1="37" x2="178" y2="37" class="edge" marker-end="url(#arr)"/>
+        <rect x="180" y="0" width="150" height="74" rx="12" class="node"/>
+        <text x="255" y="28" text-anchor="middle" class="tlabel">Command</text>
+        <text x="255" y="48" text-anchor="middle" class="tlabel2">parsed intent</text>
+        <text x="255" y="63" text-anchor="middle" class="tlabel2">idempotency key</text>
+        <line x1="332" y1="37" x2="358" y2="37" class="edge" marker-end="url(#arr)"/>
+        <rect x="360" y="0" width="180" height="74" rx="12" class="node"/>
+        <text x="450" y="28" text-anchor="middle" class="tlabel">Rule Engine</text>
+        <text x="450" y="48" text-anchor="middle" class="tlabel2">phases, staged batch</text>
+        <text x="450" y="63" text-anchor="middle" class="tlabel2">deterministic rules</text>
+      </g>
+      <!-- row 2: event log + projection -->
+      <g transform="translate(40,150)">
+        <line x1="450" y1="0" x2="450" y2="-73" class="edge" marker-end="url(#arr)"/>
+        <rect x="360" y="0" width="180" height="74" rx="12" class="node"/>
+        <text x="450" y="28" text-anchor="middle" class="tlabel">Domain Events</text>
+        <text x="450" y="48" text-anchor="middle" class="tlabel2">append-only log</text>
+        <text x="450" y="63" text-anchor="middle" class="tlabel2">causation chains</text>
+        <line x1="362" y1="37" x2="318" y2="37" class="edge" marker-end="url(#arr)"/>
+        <rect x="150" y="0" width="170" height="74" rx="12" class="node"/>
+        <text x="235" y="28" text-anchor="middle" class="tlabel">Projection</text>
+        <text x="235" y="48" text-anchor="middle" class="tlabel2">world snapshot</text>
+        <text x="235" y="63" text-anchor="middle" class="tlabel2">pure replay</text>
+      </g>
+      <!-- row 3: belief + presentation + player -->
+      <g transform="translate(40,260)">
+        <line x1="235" y1="-73" x2="235" y2="-37" class="edge" marker-end="url(#arr)"/>
+        <rect x="150" y="0" width="170" height="74" rx="12" class="node"/>
+        <text x="235" y="28" text-anchor="middle" class="tlabel">Belief</text>
+        <text x="235" y="48" text-anchor="middle" class="tlabel2">observer-scoped</text>
+        <text x="235" y="63" text-anchor="middle" class="tlabel2">confidence · freshness</text>
+        <line x1="322" y1="37" x2="358" y2="37" class="edge" marker-end="url(#arr)"/>
+        <rect x="360" y="0" width="180" height="74" rx="12" class="node"/>
+        <text x="450" y="28" text-anchor="middle" class="tlabel">Presentation</text>
+        <text x="450" y="48" text-anchor="middle" class="tlabel2">humanized, honest</text>
+        <text x="450" y="63" text-anchor="middle" class="tlabel2">never selects facts</text>
+        <line x1="542" y1="37" x2="568" y2="37" class="edge" marker-end="url(#arr)"/>
+        <rect x="570" y="0" width="150" height="74" rx="12" class="node hl"/>
+        <text x="645" y="28" text-anchor="middle" class="tlabel">Player</text>
+        <text x="645" y="48" text-anchor="middle" class="tlabel2">updated UI</text>
+        <text x="645" y="63" text-anchor="middle" class="tlabel2">map · journal · shell</text>
+      </g>
+    </svg>
+    <div class="cap">The pipeline. Command is never an Event (AGENTS #7); Narrative/LLM is never authoritative (#4); the normal renderer reads only the Belief DTO and documented read DTOs.</div>
+  </div>
+  <div class="grid3" style="margin-top:22px">
+    <div class="card"><h3>What reaches the player</h3><p>Game shell snapshot, turn presentation, belief model DTO, observer map, journal, observer threads, presence state — every one observer-scoped and derived from committed Events.</p></div>
+    <div class="card"><h3>What never reaches the player</h3><p>The raw Event Log, rule internals, spatial/weather/heat/settlement projections, pending checks, exact geometry of glimpsed landmarks. The no-truth-leak audit enforces it.</p></div>
+    <div class="card"><h3>Why it feels like a world</h3><p>Because the same pipeline runs while the player waits: TickPassed evolves weather, river, settlement — and the observer sees only the traces.</p></div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 2 ================= -->
+<section id="s2"><div class="wrap">
+  <div class="sec-no">SECTION 02</div>
+  <h2 class="sec-title">Main Screen — the current playable surface</h2>
+  <p class="sec-sub">The game shell as shipped. Not a HUD: a working surface for observing a world. Every element below exists in the current interface.</p>
+  <div class="shell">
+    <div class="bar">
+      <span class="dot" style="background:#e07070"></span><span class="dot" style="background:#e8b76a"></span><span class="dot" style="background:#7fd1a8"></span>
+      <span style="margin-left:10px">✦ SKALD <span class="muted">· Бассейн Речного Стража</span></span>
+      <span style="margin-left:auto" class="muted">Ход 12 · Переправа у Чёрного леса</span>
+      <span class="dot" style="background:#7fd1a8;margin-left:12px"></span><span class="muted">Мир слушает</span>
+    </div>
+    <div class="layout">
+      <div class="col">
+        <h4>World · известный мир</h4>
+        <div class="li"><b>Вокруг</b></div><div class="li">река · переправа</div><div class="li">следы общины</div>
+        <h4>Места</h4><div class="li">Переправа у Чёрного леса</div><div class="li">Речной город <span class="faint">(за рекой)</span></div>
+        <h4>Отношения</h4><div class="li">Местная община · <b>Помощь +3</b></div>
+        <h4>Интересное</h4><div class="li">Парящий монолит <span class="faint">(с-в)</span></div>
+      </div>
+      <div class="col" style="border-right:1px solid var(--line)">
+        <div class="stage">
+          <span class="pl">● Ты здесь — Переправа у Чёрного леса</span>
+        </div>
+        <div class="narr"><div class="k">Primary · последнее изменение</div><div class="t">Твои связи с «Местная община» укрепились: Помощь.</div></div>
+        <div class="narr" style="opacity:.85"><div class="k">Notable</div><div class="t">Река поднялась: переправа стала трудной.</div></div>
+        <div class="narr" style="opacity:.55"><div class="k">Background</div><div class="t">Где-то в мире разливается тепло.</div></div>
+        <div class="composer"><input placeholder="Опиши, что ты хочешь сделать…" value="give help to guild"><button>Отправить</button></div>
+      </div>
+      <div class="col">
+        <h4>Ты · Знания · Нити</h4>
+        <div class="mini"></div>
+        <div class="legend"><span><i class="sw" style="background:var(--green)"></i>прошёл</span><span><i class="sw" style="background:var(--acc)"></i>наблюдал</span><span><i class="sw" style="background:var(--amber)"></i>слухи</span></div>
+        <h4>Вера</h4><div class="li"><b>Место вокруг тебя</b> · conf 0.78</div><div class="li">Община отзывчива · гипотеза</div>
+        <h4>Активные нити</h4><div class="li">Речной паводок · проверяется</div>
+        <h4>Журнал</h4><div class="li">Ход 12 · 1 запись</div>
+      </div>
+    </div>
+  </div>
+  <div class="grid3" style="margin-top:22px">
+    <div class="card"><h3>Where each element comes from</h3><p>Stage/narrative from <code>selectTurnPresentation</code>; places/relations from the game-shell snapshot; map from the observer-map DTO; threads from observer-threads; belief from the Belief DTO.</p></div>
+    <div class="card"><h3>Intentionally hidden</h3><p>No event names, no rule ids, no exact coordinates of glimpsed landmarks, no hidden process state. Raw keys are humanized at the boundary.</p></div>
+    <div class="card"><h3>Honest uncertainty</h3><p>«Переправа стала трудной», «(за рекой)», «(с-в)» — the interface shows knowledge level, not certainty about hidden truth.</p></div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 3 ================= -->
+<section id="s3"><div class="wrap">
+  <div class="sec-no">SECTION 03</div>
+  <h2 class="sec-title">What the player knows</h2>
+  <p class="sec-sub">Knowledge is a graduated field, not a binary. The belief model and the observer map share one vocabulary of knowing; information moves between categories as evidence arrives, ages, or is contradicted.</p>
+  <div class="grid3">
+    <div class="kcol"><div class="kh">Traversed · known</div><div class="kp">Places walked through; facts confirmed by direct evidence with fresh, strong support.</div><div class="meter"><i style="width:96%;background:var(--green)"></i></div><div class="faint" style="font-size:11px">confidence high · freshness high</div></div>
+    <div class="kcol"><div class="kh">Observed</div><div class="kp">Directly perceived: an examined object, a heard sound, a visible landmark. Evidence exists with a timestamp.</div><div class="meter"><i style="width:80%;background:var(--acc)"></i></div><div class="faint" style="font-size:11px">supportingEvidence · observedAt</div></div>
+    <div class="kcol"><div class="kh">Glimpsed</div><div class="kp">A bearing, a silhouette, a partial reading. Enough to point, not enough to place.</div><div class="meter"><i style="width:55%;background:#6fa3c9"></i></div><div class="faint" style="font-size:11px">bearing · xMetres = null</div></div>
+    <div class="kcol"><div class="kh">Rumored</div><div class="kp">Reported but unverified; rumours can create contradictions between beliefs.</div><div class="meter"><i style="width:38%;background:var(--amber)"></i></div><div class="faint" style="font-size:11px">knowledge: rumored</div></div>
+    <div class="kcol"><div class="kh">Unknown</div><div class="kp">No evidence, no hypothesis, no map entry. The honest absence of knowledge.</div><div class="meter"><i style="width:12%;background:#5f6e7d"></i></div><div class="faint" style="font-size:11px">not yet observed</div></div>
+    <div class="kcol"><div class="kh">Impossible to know</div><div class="kp">Constitutionally hidden: exact truth geometry, world-rule internals, the monolith's true meaning. Never rendered.</div><div class="meter"><i style="width:4%;background:var(--red)"></i></div><div class="faint" style="font-size:11px">no-truth-leak enforced</div></div>
+  </div>
+  <div class="fig" style="margin-top:22px">
+    <svg viewBox="0 0 1080 150" role="img" aria-label="Knowledge transitions">
+      <defs><marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" class="arrow"/></marker></defs>
+      <g transform="translate(30,40)">
+        <rect x="0" y="0" width="150" height="70" rx="12" class="node"/><text x="75" y="26" text-anchor="middle" class="tlabel">Rumored</text><text x="75" y="44" text-anchor="middle" class="tlabel2">hearsay</text>
+        <line x1="152" y1="35" x2="182" y2="35" class="edge live" marker-end="url(#a2)"/>
+        <rect x="184" y="0" width="150" height="70" rx="12" class="node"/><text x="259" y="26" text-anchor="middle" class="tlabel">Observed</text><text x="259" y="44" text-anchor="middle" class="tlabel2">evidence + timestamp</text>
+        <line x1="336" y1="35" x2="366" y2="35" class="edge live" marker-end="url(#a2)"/>
+        <rect x="368" y="0" width="150" height="70" rx="12" class="node"/><text x="443" y="26" text-anchor="middle" class="tlabel">Traversed</text><text x="443" y="44" text-anchor="middle" class="tlabel2">directly confirmed</text>
+        <line x1="440" y1="72" x2="440" y2="102" class="edge" marker-end="url(#a2)"/>
+        <rect x="368" y="104" width="150" height="46" rx="10" class="node"/><text x="443" y="130" text-anchor="middle" class="tlabel2">ages → freshness decays</text>
+        <line x1="443" y1="104" x2="443" y2="74" class="edge dfd" marker-end="url(#a2)"/>
+        <rect x="0" y="104" width="150" height="46" rx="10" class="node"/><text x="75" y="130" text-anchor="middle" class="tlabel2">contradiction → re-observe</text>
+        <line x1="75" y1="72" x2="75" y2="102" class="edge dfd" marker-end="url(#a2)"/>
+        <rect x="610" y="0" width="200" height="70" rx="12" class="node"/><text x="710" y="26" text-anchor="middle" class="tlabel">Unknown</text><text x="710" y="44" text-anchor="middle" class="tlabel2">no evidence yet</text>
+        <line x1="810" y1="35" x2="840" y2="35" class="edge dfd" marker-end="url(#a2)"/>
+        <rect x="842" y="0" width="200" height="70" rx="12" class="node"/><text x="942" y="26" text-anchor="middle" class="tlabel">Impossible to know</text><text x="942" y="44" text-anchor="middle" class="tlabel2">constitutionally hidden</text>
+      </g>
+    </svg>
+    <div class="cap">Knowledge flows: hearsay → evidence → confirmation; age decays freshness; contradiction forces re-observation. The hidden tier never renders.</div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 4 ================= -->
+<section id="s4"><div class="wrap">
+  <div class="sec-no">SECTION 04</div>
+  <h2 class="sec-title">The living world while you wait</h2>
+  <p class="sec-sub">TickPassed is the heartbeat. Independent processes evolve, and their outputs feed other processes — the causal flow the player can later discover. Deferred links are shown dashed: they exist as design intent, not runtime.</p>
+  <div class="fig">
+    <svg viewBox="0 0 1080 420" role="img" aria-label="Living process graph">
+      <defs><marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" class="arrow"/></marker></defs>
+      <g transform="translate(30,30)">
+        <rect x="420" y="0" width="200" height="58" rx="12" class="node hl"/><text x="520" y="24" text-anchor="middle" class="tlabel">TickPassed</text><text x="520" y="42" text-anchor="middle" class="tlabel2">the heartbeat</text>
+        <line x1="470" y1="58" x2="430" y2="86" class="edge live" marker-end="url(#a3)"/>
+        <line x1="530" y1="58" x2="520" y2="86" class="edge live" marker-end="url(#a3)"/>
+        <line x1="570" y1="58" x2="610" y2="86" class="edge live" marker-end="url(#a3)"/>
+        <line x1="610" y1="58" x2="700" y2="86" class="edge live" marker-end="url(#a3)"/>
+        <rect x="320" y="88" width="200" height="58" rx="12" class="node"/><text x="420" y="112" text-anchor="middle" class="tlabel">Weather</text><text x="420" y="130" text-anchor="middle" class="tlabel2">WeatherStateChanged</text>
+        <rect x="540" y="88" width="200" height="58" rx="12" class="node"/><text x="640" y="112" text-anchor="middle" class="tlabel">River</text><text x="640" y="130" text-anchor="middle" class="tlabel2">RiverLevelChanged</text>
+        <rect x="800" y="88" width="200" height="58" rx="12" class="node"/><text x="900" y="112" text-anchor="middle" class="tlabel">Heat law</text><text x="900" y="130" text-anchor="middle" class="tlabel2">HeatRadiated</text>
+        <line x1="700" y1="117" x2="722" y2="117" class="edge live" marker-end="url(#a3)"/>
+        <rect x="724" y="88" width="170" height="58" rx="12" class="node"/><text x="809" y="112" text-anchor="middle" class="tlabel">Crossing</text><text x="809" y="130" text-anchor="middle" class="tlabel2">CrossingConditionChanged</text>
+        <line x1="420" y1="146" x2="420" y2="176" class="edge dfd" marker-end="url(#a3)"/>
+        <rect x="320" y="178" width="200" height="58" rx="12" class="node"/><text x="420" y="202" text-anchor="middle" class="tlabel">River inflow</text><text x="420" y="220" text-anchor="middle" class="tlabel2">deferred · ADR-0023</text>
+        <rect x="120" y="88" width="200" height="58" rx="12" class="node"/><text x="220" y="112" text-anchor="middle" class="tlabel">Settlement</text><text x="220" y="130" text-anchor="middle" class="tlabel2">SettlementStateChanged</text>
+        <line x1="220" y1="146" x2="220" y2="176" class="edge live" marker-end="url(#a3)"/>
+        <rect x="120" y="178" width="200" height="58" rx="12" class="node"/><text x="220" y="202" text-anchor="middle" class="tlabel">Belief / memory</text><text x="220" y="220" text-anchor="middle" class="tlabel2">observer read models</text>
+        <line x1="120" y1="200" x2="100" y2="200" class="edge live" marker-end="url(#a3)"/>
+        <rect x="0" y="178" width="100" height="58" rx="12" class="node"/><text x="50" y="202" text-anchor="middle" class="tlabel">Give</text><text x="50" y="220" text-anchor="middle" class="tlabel2">RelationChanged</text>
+      </g>
+    </svg>
+    <div class="cap">Live edges: TickPassed → Weather / River / Settlement / Heat; River → Crossing. Dashed: weather → river inflow (deferred by design). The player perceives all of this only through presentation, belief and map.</div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 5 ================= -->
+<section id="s5"><div class="wrap">
+  <div class="sec-no">SECTION 05</div>
+  <h2 class="sec-title">Timeline — Event Log becoming experience</h2>
+  <p class="sec-sub">Four honest chains that exist today. Each shows the transformation from canonical Event to what the player reads. The weather→river→bridge example is deferred; shown here is what is actually wired.</p>
+  <div class="grid2">
+    <div>
+      <div class="tl">
+        <div class="tl-item gate"><h4>Command: «give help to guild»</h4><p>Intent is parsed; it is never an Event.</p></div>
+        <div class="tl-item"><h4>RelationChanged</h4><p>Canonical Event committed to the append-only log.</p><div class="from">source: <code>rules/relations.ts</code> · projection updates relations</div></div>
+        <div class="tl-item"><h4>Presentation</h4><p>«Твои связи с «Местная община» укрепились: Помощь.» — humanized, no raw ids.</p><div class="from">source: <code>presentation/templates.ts</code> · relation labels</div></div>
+        <div class="tl-item gate"><h4>Player reads it</h4><p>Primary narrative card; relation appears in the «Отношения» rail.</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="tl">
+        <div class="tl-item gate"><h4>Command: «examine old cart»</h4><p>InteractionModel gate: target resolved nearby.</p></div>
+        <div class="tl-item"><h4>EntityExamined</h4><p>Terminal interaction outcome consumes the turn.</p></div>
+        <div class="tl-item"><h4>ObservationUpdated (curiosity)</h4><p>Examination leaves a trace in the world's memory of the player.</p></div>
+        <div class="tl-item"><h4>Belief</h4><p>A belief pattern forms: «Место вокруг тебя», confidence 0.78, supporting evidence.</p><div class="from">source: belief builder over events</div></div>
+        <div class="tl-item gate"><h4>Player reads it</h4><p>«Ты рассматриваешь old cart. …» + the Знания rail updates.</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="tl">
+      <div class="tl-item gate"><h4>TickPassed</h4><p>The world's heartbeat, also while offline.</p></div>
+      <div class="tl-item"><h4>RiverLevelChanged</h4><p>Deterministic cyclic level.</p></div>
+      <div class="tl-item"><h4>CrossingConditionChanged</h4><p>Passability reacts to the level.</p></div>
+      <div class="tl-item gate"><h4>Player reads it</h4><p>«Река поднялась: переправа стала трудной.» — a causal chain of depth two, discoverable.</p></div>
+    </div>
+    <div class="card"><h3>Deferred chain (shown, not live)</h3><p>Rain → river inflow → flooded bridge is the aspirational shape of the same idea. ADR-0023 records it: the fire chain and weather→river links are Deferred, not defects. When wired, they will surface here automatically.</p><div class="from">source: docs/simulation/LIVING_PROCESSES.md · ADR-0023</div></div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 6 ================= -->
+<section id="s6"><div class="wrap">
+  <div class="sec-no">SECTION 06</div>
+  <h2 class="sec-title">Observer Map</h2>
+  <p class="sec-sub">The player's map shows knowledge, not geometry. Known area is drawn from observed evidence; everything else stays dark.</p>
+  <div class="grid2">
+    <div class="fig">
+      <svg viewBox="0 0 520 400" role="img" aria-label="Observer map with fog of war">
+        <rect width="520" height="400" fill="#0d1219"/>
+        <rect x="20" y="20" width="480" height="360" rx="12" fill="#10161e" stroke="#24303d"/>
+        <!-- known area (observed) -->
+        <rect x="120" y="100" width="220" height="180" rx="10" fill="rgba(103,195,232,.05)" stroke="rgba(103,195,232,.3)"/>
+        <text x="230" y="92" text-anchor="middle" class="tlabel2" fill="#5f6e7d">KNOWN AREA</text>
+        <!-- traversed -->
+        <circle cx="200" cy="180" r="7" fill="#7fd1a8" stroke="#fff" stroke-width="1.5"/><text x="216" y="184" class="tlabel2" fill="#e8edf2">Переправа у Чёрного леса</text>
+        <!-- observed -->
+        <circle cx="300" cy="150" r="6" fill="#67c3e8" stroke="#fff" stroke-width="1"/><text x="316" y="154" class="tlabel2" fill="#9aa8b6">Речной город</text>
+        <!-- glimpsed landmark, bearing only -->
+        <rect x="120" y="120" width="8" height="8" transform="rotate(45 124 124)" fill="none" stroke="#e8b76a" stroke-width="1.5" stroke-dasharray="2 2"/>
+        <text x="70" y="120" class="tlabel2" fill="#9aa8b6">Парящий монолит · с-в</text>
+        <!-- route observed path -->
+        <path d="M200 180 C 240 165, 270 158, 300 150" stroke="#67c3e8" stroke-width="2" fill="none" stroke-dasharray="5 3"/>
+        <!-- route directional stub -->
+        <line x1="200" y1="180" x2="150" y2="120" stroke="#9aa8b6" stroke-width="1.5" stroke-dasharray="3 4" marker-end="url(#a3)"/>
+        <text x="120" y="108" class="tlabel2" fill="#9aa8b6">неизвестная тропа</text>
+        <!-- fog -->
+        <text x="410" y="200" class="tlabel2" fill="#3c4a58" text-anchor="middle">Terra incognita</text>
+        <defs><marker id="a3" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="#9aa8b6"/></marker></defs>
+      </svg>
+      <div class="cap">Fog of war over observer knowledge: traversed (green), observed (blue), glimpsed with a bearing (dashed), rumored/unknown stays dark. Exact coordinates of glimpsed landmarks never render.</div>
+    </div>
+    <div class="card"><h3>What the DTO actually carries</h3><p>For every entry: <code>ref</code> (opaque), <code>name</code>, <code>knowledge</code> (traversed/observed/glimpsed/rumored), <code>confidence</code>, <code>freshness</code> — and coordinates only where knowledge allows. Landmarks carry a <code>bearing</code> or <code>null</code> position. Routes are <code>observed_path</code> or a directional stub.</p>
+      <h3 style="margin-top:16px">What is never sent</h3><p>Terrain tiles, hidden simulation cells, landmark identities, exact position of merely-glimpsed subjects. The map is a knowledge surface, not a debug overlay.</p>
+      <div class="from">source: <code>ObserverMapDTO</code> · <code>region/observer-map.ts</code> · ADR-0019</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 7 ================= -->
+<section id="s7"><div class="wrap">
+  <div class="sec-no">SECTION 07</div>
+  <h2 class="sec-title">Simulation Bible — living processes</h2>
+  <p class="sec-sub">The catalog of what must exist for the world to be alive, with an honest status. Inactivity in Deferred is expected, not a defect.</p>
+  <div class="proc">
+    <div class="proc-col"><h3>Live · must work</h3>
+      <div class="pchip"><div class="pt">Weather cycle</div><div class="pp">Atmospheric state changes without the player.</div><div class="pl">P01 · weather.tick</div></div>
+      <div class="pchip"><div class="pt">River hydrology</div><div class="pp">Deterministic cyclic watercourse.</div><div class="pl">P02 · hydrology.river_level</div></div>
+      <div class="pchip"><div class="pt">Crossing conditions</div><div class="pp">Ford passability reacts to the river.</div><div class="pl">P03 · hydrology.crossing_condition</div></div>
+      <div class="pchip"><div class="pt">Settlement dynamics</div><div class="pp">Population and risk drift on ticks.</div><div class="pl">P04 · settlement.pattern</div></div>
+      <div class="pchip"><div class="pt">Heat law</div><div class="pp">Sources radiate into neighbouring cells.</div><div class="pl">P05 · heat.spread</div></div>
+      <div class="pchip"><div class="pt">Relations</div><div class="pp">Giving changes the social fabric.</div><div class="pl">P07 · relations.give</div></div>
+      <div class="pchip"><div class="pt">Observation &amp; belief</div><div class="pp">Examining builds evidence, belief, hypotheses.</div><div class="pl">P08 · perception + belief</div></div>
+      <div class="pchip"><div class="pt">Memory · visibility</div><div class="pp">Read-side honesty surfaces.</div><div class="pl">P16 · P18</div></div>
+    </div>
+    <div class="proc-col"><h3>Deferred · recognized, postponed</h3>
+      <div class="pchip"><div class="pt" style="color:var(--amber)">Consequences · audacity</div><div class="pp">The risk channel exists; its source (movement) is blocked in location worlds.</div><div class="pl">P09 · ADR-0023</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--amber)">Situations · forest fire</div><div class="pp">Consumes the deferred audacity chain.</div><div class="pl">P10 · ADR-0023</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--amber)">Movement &amp; exploration</div><div class="pp">Grid movement fires only in the legacy path.</div><div class="pl">P11</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--amber)">Heat transfer · zonal</div><div class="pp">Rule is live but starts at equilibrium.</div><div class="pl">P06</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--amber)">Journeys</div><div class="pp">Route logic exists; wiring is pending.</div><div class="pl">P12</div></div>
+    </div>
+    <div class="proc-col"><h3>Future · no commitment</h3>
+      <div class="pchip"><div class="pt" style="color:var(--violet)">Economy · trade</div><div class="pp">No runtime; needs an ADR + Events/Rules.</div><div class="pl">P13</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--violet)">Migration</div><div class="pp">—</div><div class="pl">P14</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--violet)">Information spread</div><div class="pp">—</div><div class="pl">P15</div></div>
+      <div class="pchip"><div class="pt" style="color:var(--violet)">Day / night</div><div class="pp">—</div><div class="pl">P17</div></div>
+    </div>
+  </div>
+  <div class="note">Status is verified by the Rule Graph, never asserted in prose. The Rule Graph will classify unfired rules by process status: dead (error) / deferred (expected) / future (experimental). Source: docs/simulation/LIVING_PROCESSES.md.</div>
+</div></section>
+
+<!-- ================= SECTION 8 ================= -->
+<section id="s8"><div class="wrap">
+  <div class="sec-no">SECTION 08</div>
+  <h2 class="sec-title">Developer Diagnostics — for the builder, not the player</h2>
+  <p class="sec-sub">A separate, explicitly-opened trusted-LAN surface. The player never sees these panels; the developer sees the machine behind the world.</p>
+  <div class="grid2">
+    <div class="card"><h3>Rule Graph</h3><p>Rule → Event → Rule edges with live/deferred classification. Shows that the risk→fire chain is unreachable in one glance.</p><div class="from">source: <code>npm run eval:living</code> · eval-out/rule-graph.json</div></div>
+    <div class="card"><h3>Living Metrics</h3><p>Livingness, Emergence, Diversity, Knowledge Growth, Idle Simulation, Average Chain Depth — a dashboard of how alive the world is.</p><div class="from">source: <code>eval/health.json</code></div></div>
+    <div class="card"><h3>Rule Coverage</h3><p>Which registered rules fired across the scenario library, and which never did.</p><div class="from">source: <code>npm run eval:report</code></div></div>
+    <div class="card"><h3>Event Timeline</h3><p>The raw canonical Event Log, in the Dev overlay of the shell.</p><div class="from">source: <code>/api/events</code> · dev-overlay</div></div>
+    <div class="card"><h3>Simulation Health</h3><p>Purity, determinism, honesty, idempotency of every committed scenario — the CI gate.</p><div class="from">source: <code>npm run eval:compare</code></div></div>
+    <div class="card"><h3>Service health</h3><p><code>/api/health</code>, <code>/api/state</code>, timers — the deployment surface.</p><div class="from">source: skald.service · healthcheck/backup timers</div></div>
+  </div>
+  <div class="note">Boundary: browser Dev overlay and eval tools are explicitly-opened developer surfaces. They never become player-facing truth and never appear in the normal Knowledge renderer.</div>
+</div></section>
+
+<!-- ================= SECTION 9 ================= -->
+<section id="s9"><div class="wrap">
+  <div class="sec-no">SECTION 09</div>
+  <h2 class="sec-title">Example session — one player, one turn at a time</h2>
+  <p class="sec-sub">Every screen below is a real, committed interaction in the current build.</p>
+  <div class="tl">
+    <div class="tl-item gate"><h4>1 · Enter the world</h4><p>Known Worlds → presence entry → acknowledge → the shell unlocks. The world remembers a checkpoint.</p></div>
+    <div class="tl-item"><h4>2 · Observe</h4><p>«examine old cart» → «Ты рассматриваешь old cart. A weathered wooden cart rests on one broken wheel.» Curiosity is recorded; belief forms.</p></div>
+    <div class="tl-item"><h4>3 · Act socially</h4><p>«give help to guild» → «Твои связи с «Местная община» укрепились: Помощь.» The relation edge grows.</p></div>
+    <div class="tl-item"><h4>4 · Wait</h4><p>Ticks pass. Weather changes, the river rises, the settlement drifts, the crossing becomes difficult. The player is absent; the world is not.</p></div>
+    <div class="tl-item"><h4>5 · Return to evidence</h4><p>The journal lists what happened since. Belief freshness decays. Observer threads mark what is active or uncertain.</p></div>
+    <div class="tl-item"><h4>6 · The map moves</h4><p>The observer map reveals what the player has earned: traversed ground, an observed city, a glimpsed monolith on a bearing.</p></div>
+    <div class="tl-item gate"><h4>7 · Form a hypothesis</h4><p>«Почему река меняется?» — the player leaves with a question, not a quest.</p></div>
+  </div>
+</div></section>
+
+<!-- ================= SECTION 10 ================= -->
+<section id="s10"><div class="wrap">
+  <div class="sec-no">SECTION 10</div>
+  <h2 class="sec-title">Architecture — one glance</h2>
+  <p class="sec-sub">SKALD in six layers. Truth is written once; knowledge is derived; presentation is honest; the player observes.</p>
+  <div class="stack">
+    <div class="lvl hid"><div class="lt">Simulation</div><div class="lp">World state, time, heat, geography — deterministic, Event Log is the only source of truth.</div></div>
+    <div class="lvl hid"><div class="lt">Rules</div><div class="lp">Pure functions (Event, ReadonlyWorld) → Event[]. No randomness, no network, no LLM.</div></div>
+    <div class="lvl hid"><div class="lt">Events</div><div class="lp">Append-only Domain Events with causation chains — the memory the world keeps.</div></div>
+    <div class="lvl live"><div class="lt">Knowledge</div><div class="lp">Belief Model: observer-scoped, uncertain, aging, contradictable. The player's truth.</div></div>
+    <div class="lvl live"><div class="lt">Presentation</div><div class="lp">Humanized, honest text and map. Never selects facts, never invents.</div></div>
+    <div class="lvl live"><div class="lt">Player</div><div class="lp">Observes, hypothesizes, acts. The world answers with new events.</div></div>
+  </div>
+  <div class="note">The loop is: Enter → Observe → Hypothesize → Interact → World responds → Collect evidence → Update understanding → Observe deeper.</div>
+</div></section>
+
+<!-- ================= SECTION 11 ================= -->
+<section id="s11"><div class="wrap">
+  <div class="sec-no">SECTION 11</div>
+  <h2 class="sec-title">Pilot Region Gameplay Demonstration — why a player cares</h2>
+  <p class="sec-sub">The system works; this is why anyone would want to live in it. Attachment is systemic, not emotional: <b>Observation → Knowledge → Prediction → Intervention → Consequence → Attachment</b>. The demonstration is the actual pilot region, «Бассейн Речного Стража», day by day. LIVE beats run in the current build; FUTURE beats are honest design intent, not runtime.</p>
+  <div class="fig">
+    <svg viewBox="0 0 1080 150" role="img" aria-label="Player investment model">
+      <defs><marker id="a5" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" class="arrow"/></marker></defs>
+      <g transform="translate(30,40)">
+        <rect x="0" y="0" width="150" height="70" rx="12" class="node"/><text x="75" y="26" text-anchor="middle" class="tlabel">Observation</text><text x="75" y="44" text-anchor="middle" class="tlabel2">evidence, not answers</text>
+        <line x1="152" y1="35" x2="182" y2="35" class="edge live" marker-end="url(#a5)"/>
+        <rect x="184" y="0" width="150" height="70" rx="12" class="node"/><text x="259" y="26" text-anchor="middle" class="tlabel">Knowledge</text><text x="259" y="44" text-anchor="middle" class="tlabel2">belief · freshness</text>
+        <line x1="336" y1="35" x2="366" y2="35" class="edge live" marker-end="url(#a5)"/>
+        <rect x="368" y="0" width="150" height="70" rx="12" class="node"/><text x="443" y="26" text-anchor="middle" class="tlabel">Prediction</text><text x="443" y="44" text-anchor="middle" class="tlabel2">the world is lawful</text>
+        <line x1="520" y1="35" x2="550" y2="35" class="edge live" marker-end="url(#a5)"/>
+        <rect x="552" y="0" width="150" height="70" rx="12" class="node"/><text x="627" y="26" text-anchor="middle" class="tlabel">Intervention</text><text x="627" y="44" text-anchor="middle" class="tlabel2">choose with knowledge</text>
+        <line x1="704" y1="35" x2="734" y2="35" class="edge live" marker-end="url(#a5)"/>
+        <rect x="736" y="0" width="150" height="70" rx="12" class="node"/><text x="811" y="26" text-anchor="middle" class="tlabel">Consequence</text><text x="811" y="44" text-anchor="middle" class="tlabel2">the world remembers</text>
+        <line x1="888" y1="35" x2="912" y2="35" class="edge live" marker-end="url(#a5)"/>
+        <rect x="914" y="0" width="140" height="70" rx="12" class="node hl"/><text x="984" y="26" text-anchor="middle" class="tlabel">Attachment</text><text x="984" y="44" text-anchor="middle" class="tlabel2">you care now</text>
+      </g>
+    </svg>
+    <div class="cap">The investment model: care is the product of lawfulness discovered through attention.</div>
+  </div>
+  <div style="margin-top:22px">
+    <div class="beat live"><div class="bt">Day 1 · Arrival <span class="tag live">LIVE</span></div><div class="bp">Presence entry at «Переправа у Чёрного леса». The world knows you arrived. On the observer map: the waystation is traversed, two roads observed. To the north-east, a silhouette: «Парящий монолит» — glimpsed, a bearing, confidence 0.45, no coordinates.</div><div class="bs">sources: presence flow · ObserverMapDTO · region bootstrap (SpatialObservationRecorded)</div></div>
+    <div class="beat live"><div class="bt">Day 2 · First evidence <span class="tag live">LIVE</span></div><div class="bp">«examine …» builds an observation and a belief pattern with supporting evidence. The Знания rail shows confidence and freshness, not truth.</div><div class="bs">sources: perception · examinedCuriosity · BeliefModelDTO</div></div>
+    <div class="beat live"><div class="bt">Day 3 · The river answers <span class="tag live">LIVE</span></div><div class="bp">TickPassed advances the river. The ford crosses the difficult threshold: «Река поднялась: переправа стала трудной.» The player reads a consequence of a law they have not yet named.</div><div class="bs">sources: hydrology.river_level → hydrology.crossing_condition → presentation</div></div>
+    <div class="beat live"><div class="bt">Day 5 · The settlement breathes <span class="tag live">LIVE</span></div><div class="bp">«Речной Страж» drifts: risk decays, population shifts. A SettlementStateChanged reaches the journal. The city is a living pattern, not an NPC hub.</div><div class="bs">source: settlement.pattern</div></div>
+    <div class="beat live"><div class="bt">Day 8 · A hypothesis forms <span class="tag live">LIVE</span></div><div class="bp">The river falls again. Belief openHypotheses: «река следует циклу». No quest told you this — the system showed it.</div><div class="bs">source: belief openHypotheses over observed events</div></div>
+    <div class="beat live"><div class="bt">Day 12 · Prediction pays <span class="tag live">LIVE</span></div><div class="bp">You predict the ford will reopen at the cycle's trough — and it does. Knowledge became a tool: you can plan travel around the river. This is the core loop made tangible.</div><div class="bs">source: deterministic periodic river level (ADR-0017)</div></div>
+    <div class="beat live"><div class="bt">Day 30 · Memory fades and returns <span class="tag live">LIVE</span></div><div class="bp">Observer threads mark the river and weather as active processes. Belief freshness decays; a re-observation restores it. The world keeps a record of what you paid attention to.</div><div class="bs">sources: observer-threads · belief freshness</div></div>
+    <div class="beat future"><div class="bt">Day 90 · The first confirmation <span class="tag future">FUTURE</span></div><div class="bp">The full arc — you opened a mine upstream, the river changed, fields shrank, people left — is the shape this model takes when Migration and Economy connect. Today the law you confirmed is simpler: the river is periodic, and you can live with it.</div><div class="bs">future: P13 economy · P14 migration · P15 information · ADR-0023 Exposure</div></div>
+  </div>
+  <div class="note">Attachment is the product of <b>Prediction</b>: a world whose laws you can discover and rely on is a world you can care about. This is exactly what the live beats above already deliver.</div>
+</div></section>
+
+<!-- ================= SECTION 12 ================= -->
+<section id="s12"><div class="wrap">
+  <div class="sec-no">SECTION 12</div>
+  <h2 class="sec-title">First Discovery Arc — not a quest, a law</h2>
+  <p class="sec-sub">SKALD's discovery is the shape of scientific method: observe, hypothesize, gather evidence, confirm. The arc below is real and runnable today — it is the river's periodicity. Its deeper form (the river was engineered) is Future canon.</p>
+  <div class="arc">
+    <div class="card"><div class="an">01 · Observation</div><h3>«Река поднялась»</h3><p>CrossingConditionChanged becomes player-facing text: the ford is difficult. Something changed; no cause is named.</p><div class="from">LIVE · presentation of RiverLevelChanged → CrossingConditionChanged</div></div>
+    <div class="card"><div class="an">02 · Hypothesis</div><h3>«Это закон, не случайность»</h3><p>Belief openHypotheses records the player's reading: the river may follow a cycle. A hypothesis is data, not truth.</p><div class="from">LIVE · BeliefModelDTO.openHypotheses</div></div>
+    <div class="card"><div class="an">03 · Evidence</div><h3>Days of observation</h3><p>RiverLevelChanged repeats; the level returns to baseline; the ford reopens. Evidence accumulates and refreshes belief freshness.</p><div class="from">LIVE · deterministic river process</div></div>
+    <div class="card"><div class="an">04 · Discovery</div><h3>The world is lawful</h3><p>The player can now predict the crossing. Knowledge is a tool. The «first discovery» of SKALD is a law, not a reward.</p><div class="from">LIVE · prediction verified by the deterministic cycle</div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>The deeper arc — Future</h3><p>When more processes connect, the same method points further: the ruins align with the river's course; the river behaves like something shaped, not formed. «The river was engineered» is a Future hypothesis (P13/P15, ADR-0023 Exposure) — the shape of the arc, not its current content.</p></div>
+</div></section>
+
+<footer>
+  <div class="wrap">
+    SKALD — Player Experience Report v1.0 · derived from the current architecture (Event Log authority, deterministic Rules, observer-scoped Belief, honest Presentation, Observer Map, Simulation Bible, Evaluation Framework).<br>
+    Committed reference: <code>9b85d12</code> · docs: AGENTS.md · docs/ARCHITECTURE.md · docs/OBSERVATION_BELIEF_MODEL.md · docs/simulation/LIVING_PROCESSES.md · docs/adr/0022 · docs/adr/0023.
+  </div>
+</footer>
+</body>
+</html>
