@@ -123,6 +123,29 @@ Later vertical slices widen the offline slice (movement, force, item
 transfer, critical checks) using the same envelope + resolution contract;
 critical checks must keep the "dice only after acceptance" invariant.
 
-## UX-7 — Visual, audio and accessibility polish
+## UX-7 — Chat/Chronicle Interface (ADR-0024)
+
+The main Game Screen becomes a dialogue with the living world: a vertical
+chronicle of player intentions and world answers with the free-text composer
+as the only permanent control. No recommendation buttons in the first UI
+layer; map, knowledge, character and threads live in tabs, not as a HUD.
+
+### UX-7.1 — Chat Core
+
+`chat-feed-view.js` renders the chronicle from the existing journal DTO plus
+session-scoped intent bubbles; replaces the narrative stack and the
+horizontal turn-history strip. No DTO/Event/Rule/HTTP changes.
+
+### UX-7.2 — Tabs
+
+Extract map, knowledge, character, activity and causal panels fully out of
+the main screen into tabs/overlays.
+
+### UX-7.3 — Narrative polish
+
+Turn rhythm, "ты сделал / мир ответил" separation and visual pacing of the
+chronicle.
+
+## UX-8 — Visual, audio and accessibility polish
 
 Animation, sound, assets, reduced-motion, responsive QA and performance gates.

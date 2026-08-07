@@ -1,8 +1,10 @@
-import { renderLivingWorld, renderTurnHistory as renderTurnHistoryModel } from "./living-world-shell.js";
+import { renderLivingWorld } from "./living-world-shell.js";
+import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent, bindIntentWorldTime, clearLocalIntents } from "./chat-feed-view.js";
 import { initActivityView } from "./activity-view.js";
 const overlayOpeners = new Map();
 export function renderGameShell(snapshot) { renderLivingWorld(snapshot); }
-export function renderTurnHistory(journal) { renderTurnHistoryModel(journal); }
+export function renderChatFeed(journal) { renderChatFeedModel(journal?.turns, getLocalIntents()); }
+export { addLocalIntent, bindIntentWorldTime, clearLocalIntents };
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
 export function setShellBusy(busy, stage = "Мир отвечает…") {

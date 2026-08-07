@@ -1,6 +1,7 @@
 import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderTurnHistory, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
+import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
+import { addLocalIntent, bindIntentWorldTime, clearLocalIntents } from "./chat-feed-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadMenu } from "./menu-view.js";
@@ -89,7 +90,7 @@ async function refreshJournal() {
     const data = await loadJournal();
     if (data) {
       renderJournal(data);
-      renderTurnHistory(data);
+      renderChatFeed(data);
       dispatch("JOURNAL_AVAILABLE", { turns: data.turns?.length || 0 });
       return data;
     }
@@ -135,10 +136,16 @@ async function handle(input, overrideKey) {
       if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
       const inputElement = document.getElementById("command-input");
       if (inputElement) inputElement.value = "";
+      const intent = addLocalIntent(input);
       dispatch("COMMAND_SUCCESS");
       renderShellConnection("ready", "Ход записан");
+      const journal = await refreshJournal();
+      if (intent) {
+        const lastTurn = journal && Array.isArray(journal.turns) && journal.turns.length ? journal.turns[journal.turns.length - 1] : null;
+        if (lastTurn && Number.isFinite(lastTurn.worldTime)) bindIntentWorldTime(intent, lastTurn.worldTime);
+        renderChatFeed(journal);
+      }
       await refreshShell();
-      await refreshJournal();
       await refreshDiscoveries();
     } else if (result.status === 409) {
       // The original request may have committed before its response was lost.
@@ -167,6 +174,7 @@ async function handle(input, overrideKey) {
 async function connect() {
   interactionReady = false;
   dispatch("RECONNECT");
+  clearLocalIntents();
   // Cover the static shell frame (hardcoded «Ход 0» placeholders) with the
   // loading dialog until the first snapshot renders — without this the shell
   // flashes with a T0 frame right after the acknowledge completes.

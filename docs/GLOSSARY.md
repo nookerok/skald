@@ -60,6 +60,8 @@ The normal Knowledge UI is defined by docs/OBSERVATION_BELIEF_MODEL.md.
 | Offline Intent Envelope | The only thing the browser stores without a connection: { input, idempotencyKey, baseRevision } | A local Domain Event or optimistic projection |
 | Base Revision | The world event number the player last saw; the server replays up to it to reconstruct the base world | A client-claimed truth |
 | Offline Intent Resolution | Server decision for an envelope: accepted, rejected, conflict or already_processed | A browser-side guess |
+| Chronicle Feed | The main Game Screen surface: a vertical feed of player intentions and world answers built from the journal DTO | An action panel or command menu |
+| Intent Bubble | Client-side, session-scoped rendering of the player's typed intention in the Chronicle Feed | A Domain Event or server-stored fact |
 
 ## Living-region spatial terms
 
