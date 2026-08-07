@@ -2,68 +2,53 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
-Updated: 2026-08-02
-Branch: main
-Working tree: first living-region bootstrap + observer-map slice is implemented and validated locally; commit/deploy are still pending.
-Also in the working tree: Interaction Model v1 stages 0–2 + Slices 1–2
-(ADR-0013, DECISIONS D-020) — canonical InteractionCommand pipeline,
-observe/inspect/listen canonicalization, shared Target Resolver, WorldObject
-aliases, perception and listening laws in `rules/interactions/`;
-`npm run validate` PASS (76 files / 1122 tests, 1 pre-existing skip), still
-uncommitted together with UX-6.3.1. UX-6.3 is deployed as 428072d:
-local/on-device validation 1037 passed + 1 skipped,
-backup/integrity/health/state PASS, ten-turn smoke T218→T228 and duplicate
-key 409 PASS. UX-6.2.1 remains deployed as 5f95eeb. The NTFS visual-QA
-backend is reachable after the Codex update. The latest production run
-completed with 0 console errors and found application defects: undersized
-Presence CTA, broken Focus Tab order, premature T0 shell flash, misleading
-transient exit dialog, and internal `forest_fire`/`wall_caution` labels —
-all fixed in UX-6.3.1 (Current milestone); mobile viewport override remains
-tool-blocked.
+Updated: 2026-08-07
+Branch: main (clean, == origin/main)
+Deployed: 7b83302. UX-6.3.1 is COMMITTED (72d997c, before 0958407) and has been
+live since the 0958407-era deploy — the five fixes (44px presence CTA, Focus
+Tab order, T0 shell-loading cover, graceful-exit duplicate_request handling,
+raw-key label humanization) are all in `packages/cli/public/` + presentation
+templates and were verified live. This supersedes the earlier stale note that
+claimed UX-6.3.1 was "uncommitted".
+
+Recent architecture base (all deployed): Simulation Evaluation Framework
+(ADR-0022), Simulation Bible living-process catalog + 10 vertical scenarios
+(ADR-0023: risk→fire Deferred), player experience visual report, pilot region
+vision canon (visual-canon.json), and "establish pilot region initial
+simulation state v0.1" (southern_borough + enriched initial observations).
+
+Note: the last five deploys (6a41ca7, 9b85d12, 2481d85, 4bea92a, 7b83302) were
+docs/eval/backend-region; no browser client changed since 0958407, so the UI
+look is intentionally unchanged. A browser re-QA of the UX-6.3.1 fixes on the
+live system is pending in the NTFS visual-QA thread.
 
 ## Current milestone
 
 First living region slice (ADR-0014): deterministic 20×20 km region compiler, 6,400 terrain tiles, 400 simulation cells, spatial replay projection and observer-scoped `/map` endpoint. It adds no travel/process Rules and does not expose hidden geometry.
 
-UX-6.3.1 "UI hardening" — the five application defects from the last NTFS
-browser QA run, all fixed with unit coverage (not yet committed/deployed):
-1. «Осмотреться»/«Войти» was an unstyled default button (~19px):
-   `.presence-continue-btn` now has a 44px touch target (min-height/min-width
-   44px, font-size 1rem) and full-width mobile layout, matching
-   `.presence-ack-btn`.
-2. Tab from the focus phase title skipped the primary action: the entry
-   controller now handles Tab/Shift+Tab explicitly — Tab from the phase
-   title always lands on «Я здесь»/«Осмотреться»/retry (never browser chrome
-   or the shell behind), Shift+Tab returns to the title.
-3. Brief shell flash with the static «Ход 0» frame after acknowledge:
-   `connect()` shows the `#shell-loading` dialog from its first synchronous
-   line until snapshot + journal + discoveries render (`setShellLoading` in
-   game-shell-view.js), covering the hardcoded T0 markup on boot and
-   reconnect.
-4. False error-dialog during graceful exit: a 409 `duplicate_request` on the
-   exit acknowledge (request already processed server-side, e.g. replay
-   after a lost response) was misclassified as CONFLICT and showed
-   «Не удалось зафиксировать точку возвращения.» The exit controller now
-   treats `duplicate_request` as an already-recorded exit: clear pending +
-   lease, `skald:exit-ready`, no error text.
-5. `forest_fire`/`wall_caution` leaked as raw keys into player text:
-   `narrative.ts` now emits `situationLabel(type)` («Лесной пожар», unknown
-   types humanized instead of raw snake_case) and `observationLabel(key)`
-   («Память преграды», «Тревожный след», …) in ObservationUpdated /
-   SituationStarted / SituationEnded / formatWorldState; the
-   `sanitizePlayerFacingText` INTERNAL_LABELS net gained `forest_fire` and
-   `wall_caution` for defence in depth. `situationLabel` +
-   `sanitizePlayerFacingText` exported from @skald/world.
-- Tests: narrative.test.ts asserts the labels and the ABSENCE of raw keys
-  (+3 situationLabel/sanitize tests); presence-entry-view.test.ts +6
-  (44px CTA CSS + mobile width, tab title→action hop, Shift+Tab return,
-  shell-loading boot coverage, exit duplicate_request → exit-ready without
-  the error literal). Full suites: world 28 files / 450 tests, CLI 28 files
-  / 380 tests (1 pre-existing skip). `npm run validate` PASS.
-- Pending: NTFS re-QA (desktop + mobile where the viewport override allows)
-  of all five fixes plus the offline banner flow (queue → reconnect →
-  accepted/rejected/conflict), then commit and deploy via the Orange Pi
-  skill from a clean branch.
+UX-6.3.1 "UI hardening" — COMPLETED. The five application defects from the
+last NTFS browser QA run are fixed, committed as 72d997c (before 0958407) and
+live on the deployed server since the 0958407-era deploy. Verified live
+2026-08-07 (server 7b83302):
+1. «Осмотреться»/«Войти» has a 44px touch target and full-width mobile layout
+   (presence-entry.css: `.presence-continue-btn` min-height/min-width 44px).
+2. Focus Tab order: `presence-entry-controller.js` handles Tab/Shift+Tab —
+   Tab from the phase title lands on «Я здесь»/«Осмотреться»/retry, Shift+Tab
+   returns to the title.
+3. No T0 shell flash: `connect()` shows `#shell-loading` from its first
+   synchronous line until snapshot + journal + discoveries render.
+4. Graceful exit: `presence-exit-controller.js` treats 409 `duplicate_request`
+   as an already-recorded exit (clear pending + lease, `skald:exit-ready`, no
+   «Не удалось зафиксировать точку возвращения.»).
+5. No raw keys: templates/narrative emit humanized labels; verified live
+   («Местная община», «Лесной пожар», «Помощь»).
+- Tests: narrative.test.ts label coverage; presence-entry-view.test.ts (+6:
+  44px CTA CSS + mobile width, tab title→action hop, Shift+Tab return,
+  shell-loading boot coverage, exit duplicate_request → exit-ready).
+- Pending: NTFS browser re-QA of the five fixes on the live system (dispatch
+  prompt prepared; actual run happens in the fixed NTFS thread). The last five
+  deploys contained no browser-client changes by design (docs/eval/backend
+  region), so the UI look is intentionally unchanged since 0958407.
 
 First living region architecture — accepted documentation proposal in
 `docs/LIVING_WORLD_REGION_ARCHITECTURE.md` and ADR-0012. It separates backend
@@ -281,22 +266,21 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-1. Dispatch the UX-6.3.1 re-QA prompt to the NTFS Codex thread: verify the
-   five fixes (44px «Осмотреться» CTA, Tab from Focus title → «Я здесь»,
-   no T0 shell flash during acknowledge, no false error dialog on graceful
-   exit, no raw `forest_fire`/`wall_caution` in journal/shell texts) and run
-   the offline banner flow visually (transport failure → envelope saved →
-   reconnect flush → accepted/rejected/conflict banner; the offline
-   `conflict` needs a scenario where an examine target disappears — e.g.
-   queue `examine` while moving the player away in another tab, or a
-   fire-starting playthrough). Desktop 1440×900 + mobile 390×844; mobile is
-   recorded as BLOCKED if the viewport override still does not apply.
-   Authorized click budget stated in the prompt; earlier UX-6.1/6.2
-   assignments remain queued in the same thread. Record PASS/FAIL/BLOCKED in
-   this file independently of validate.
-2. Commit the UX-6.3.1 slice (msg.txt), then deploy via the Orange Pi skill
-   from a clean branch after `npm run validate` (already PASS locally:
-   72 files / 1046 tests).
+1. NTFS browser re-QA of UX-6.3.1 on the LIVE system (URL 192.168.0.5:3000,
+   commit 7b83302): verify the five fixes (44px «Осмотреться» CTA, Tab from
+   Focus title → «Я здесь», no T0 shell flash during acknowledge, no false
+   error dialog on graceful exit, no raw `forest_fire`/`wall_caution`/`guild`
+   in texts). The dispatch prompt is prepared; the actual run happens in the
+   fixed NTFS thread (click budget ≤4). Desktop 1440×900 + mobile 390×844
+   (mobile recorded as BLOCKED if the viewport override still does not apply).
+   Optionally verify the offline banner flow. Record PASS/FAIL/BLOCKED in this
+   file independently of validate. UX-6.3.1 itself is committed (72d997c) and
+   deployed — no further commit is needed.
+2. PILOT_REGION_CANON_v0.1 → FIRST_DISCOVERY_EXPERIENCE.md: fix the first
+   game contract (draft exists at docs/worldbuilding/PILOT_REGION_CANON_v0.1.md)
+   as the Discovery Contract, then write the step-by-step first-5-minutes
+   experience. Afterwards add the Causal Density metric (meaningful/total) to
+   `npm run eval:living`.
 3. Interaction Model v1 — remaining vertical slices in order (ADR-0013 §5):
    Slice 3 touch → Slice 4 take+inventory → Slice 5 open →
    Slice 6 apply_force+critical checks (migrates interactionForce) → Slice 7
