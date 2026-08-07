@@ -528,7 +528,7 @@ export async function runCommandCycleForRuntime(
   }
 
   const parsed = parseIntent(input);
-  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand") return error("parse_error", "Could not understand input", 400);
+  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return error("parse_error", "Could not understand input", 400);
 
   const ts = runtime.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;

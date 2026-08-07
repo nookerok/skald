@@ -271,6 +271,10 @@ function bindGlobal() {
     if (worldId) window.location.hash = "#/world/" + worldId + "/return";
   });
   window.addEventListener("hashchange", () => route());
+  window.addEventListener("skald:travel", (event) => {
+    const name = event.detail?.name;
+    if (typeof name === "string" && name.length > 0) handle("идти к " + name);
+  });
   document.addEventListener("skald:context-select", (event) => {
     const label = event.detail?.name || event.detail?.label;
     if (event.detail?.locationId) showContextLocation(event.detail.locationId, label);

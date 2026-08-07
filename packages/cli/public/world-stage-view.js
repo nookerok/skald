@@ -14,8 +14,9 @@ export function renderWorldStage(world = {}, attention = {}, situation = null) {
     if (connected.length === 0) links.appendChild(makeNode("p", { className: "stage-empty", text: "Другие места пока не открыты." }));
     connected.slice(0, 4).forEach((location) => {
       const name = location.label || location.name || "Место";
-      const button = makeNode("button", { className: "stage-link", text: name, attrs: { type: "button", "aria-label": "Показать сведения о " + name } });
-      button.addEventListener("click", () => document.dispatchEvent(new CustomEvent("skald:context-select", { detail: { locationId: location.id, name } })));
+      const detail = location.detail || "";
+      const button = makeNode("button", { className: "stage-link", text: name, attrs: { type: "button", "aria-label": "Идти в " + name, title: detail } });
+      button.addEventListener("click", () => document.dispatchEvent(new CustomEvent("skald:travel", { detail: { locationId: location.id, name } })));
       links.appendChild(button);
     });
   }

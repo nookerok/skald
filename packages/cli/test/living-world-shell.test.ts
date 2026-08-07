@@ -96,13 +96,13 @@ describe("Visual Shell — contextual map selection", () => {
     vi.stubGlobal("document", doc);
   });
   afterEach(() => vi.unstubAllGlobals());
-  it("renders connected location names and dispatches a read-only selection", async () => {
+  it("renders connected location names and dispatches a travel intent", async () => {
     const { renderWorldStage } = await import("../public/world-stage-view.js");
     renderWorldStage({ locationName: "Башня", connectedLocations: [{ id: "crossing", name: "Перекрёсток" }] }, { marks: 0, maxMarks: 5 }, null);
     expect(doc.getElementById("stage-links").children[0].textContent).toBe("Перекрёсток");
     const button = doc.getElementById("stage-links").children[0];
     button.events.click();
-    expect(doc.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "skald:context-select" }));
+    expect(doc.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "skald:travel" }));
     expect(doc.dispatchEvent.mock.calls[0][0].detail.locationId).toBe("crossing");
   });
 });

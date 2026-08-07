@@ -123,6 +123,28 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
       }
     }
   }
+  // Travel destinations from the spatial read view (ADR-0015): roads,
+  // crossings and rivers leaving the current location become real options the
+  // player can act on, with the crossing condition surfaced honestly.
+  if (world.spatial && locationId) {
+    const seen = new Set(connectedLocations.map((c) => c.id));
+    for (const relation of world.spatial.travelRelations.values()) {
+      if (relation.passability === "blocked") continue;
+      const targetId = relation.fromId === locationId ? relation.toId : relation.toId === locationId ? relation.fromId : null;
+      if (!targetId || seen.has(targetId)) continue;
+      const target = world.locations.get(targetId);
+      if (!target) continue;
+      let detail = target.description;
+      if (relation.kind === "crossing") {
+        const crossing = world.spatial.crossingStates.get(relation.id)
+          ?? [...world.spatial.crossingStates.values()].find((c) => c.crossingId === relation.id);
+        if (crossing && crossing.condition === "closed") detail = "Переправа закрыта из-за высокой воды.";
+        else if (crossing && crossing.condition === "difficult") detail = "Переправа трудная — путь будет медленным.";
+      }
+      connectedLocations.push({ id: targetId, label: target.name, detail });
+      seen.add(targetId);
+    }
+  }
 
   return {
     position: { x: world.player.x, y: world.player.y },
