@@ -84,6 +84,16 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(rendered).not.toMatch(/TickPassed|RiverLevel|state\.|ev\.|eventId/);
     expect(rendered).toContain("Река поднялась.");
   });
+
+  it("UX-7.3 separates the two voices: player 'ТЫ' and world 'МИР'", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const intents = [{ worldTime: 3, text: "Ждать" }];
+    renderChatFeed([turn(3, "Туман сгустился.")], intents);
+    const feed = doc.feed;
+    expect(allText(feed.children[0])).toContain("ТЫ");
+    expect(allText(feed.children[1])).toContain("МИР");
+    expect(feed.children[1].children[0].className).toBe("chat-turn-header");
+  });
 });
 
 describe("Chronicle Feed (ADR-0024) — session intent helpers", () => {

@@ -50,7 +50,12 @@ function intentNode(intent, pending) {
 function turnNode(turn) {
   const presentation = turn.presentation || {};
   const node = makeNode("article", { className: "chat-turn" });
-  node.appendChild(makeNode("span", { className: "chat-turn-meta", text: "Ход " + turn.worldTime }));
+  const header = makeNode("div", { className: "chat-turn-header" });
+  header.append(
+    makeNode("span", { className: "chat-turn-speaker", text: "МИР" }),
+    makeNode("span", { className: "chat-turn-meta", text: "Ход " + turn.worldTime }),
+  );
+  node.appendChild(header);
   const primary = presentation.primary;
   const primaryRow = makeNode("p", { className: "chat-world-primary", text: primary?.text || "Мир продолжил жить." });
   const label = markLabel(primary?.discoveryMark);
