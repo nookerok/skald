@@ -206,6 +206,20 @@ describe("Browser ES modules — import link integrity", () => {
     expect(css).not.toMatch(/#dpad|\.dir-btn|\.social-btn|#social-actions/);
   });
 
+  it("UX-7.2 extracts activity and causal surfaces out of the main center into context tabs", () => {
+    const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
+    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
+    // The per-center lower-panels are gone; activity and causal live in rail tabs.
+    expect(html).not.toContain('id="activity-panel"');
+    expect(html).not.toContain('id="causal-panel"');
+    expect(html).not.toContain("lower-panels");
+    expect(html).toContain('data-context="activity"');
+    expect(html).toContain('id="context-activity"');
+    expect(html).toContain('data-context="causal"');
+    expect(html).toContain('id="context-causal"');
+    expect(shell).toContain('target === "context-activity"');
+  });
+
   it("presentation-view.js does not expose raw event type in presentation rendering", () => {
     const code = readFileSync(resolve(PUBLIC, "presentation-view.js"), "utf-8");
     // renderTurn and renderState functions only use presentation data (pres.primary.text, state.*)
