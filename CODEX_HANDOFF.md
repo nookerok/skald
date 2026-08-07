@@ -2,6 +2,26 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
+## Current state (2026-08-07)
+
+- Branch: main (clean, == origin/main). Deployed to Orange Pi: `1aa4950`
+  (playable v0.2 travel + observer-checkpoint monotonic fix).
+- ADR-0024 / UX-7 "Chat & Chronicle interface" — COMPLETE & COMMITTED
+  (`bbe99fd` UX-7.1, `51086e8` UX-7.2, `ebcaa8b` UX-7.3) but NOT yet deployed
+  and NOT yet browser-QA'd. `npm run validate` PASS.
+  - UX-7.1: main Game Screen is a vertical chronicle of player intentions and
+    world answers (`chat-feed-view.js`, `#chat-feed`); suggestions stay in the
+    DTO and are never rendered as chips (per ADR-0024 point 2). Session-scoped
+    intent bubbles — a PlayerCommand is not a Domain Event.
+  - UX-7.2: activity and causal panels moved off the main centre-column into
+    context-rail tabs (Вокруг / Почему); the chronicle dominates the screen.
+  - UX-7.3: two-voice narrative pacing — player bubble (ТЫ) vs world answer
+    (МИР + Ход N header), discovery-mark chip, feed styles.
+  - Old module graph served; `/chat-feed-view.js` added to the HTTP whitelist.
+- Playable v0.2 (`59cec34`, deployed): `journey.travel` unlocks travel to named
+  destinations (verified live waypoint→city, 3 destinations), the observer
+  checkpoint `updated_at` is monotonic (`1aa4950`).
+
 Updated: 2026-08-07
 Branch: main (clean, == origin/main)
 Deployed: 7b83302. UX-6.3.1 is COMMITTED (72d997c, before 0958407) and has been
@@ -277,6 +297,7 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
+0. ADR-0024 (UX-7) deploy + browser QA: committed at `ebcaa8b`; push, fast-forward Orange Pi to it, health/state smoke, then NTFS browser visual QA of the chronicle + rail tabs (record PASS/FAIL/BLOCKED here).
 1. NTFS browser re-QA of UX-6.3.1 on the LIVE system (URL 192.168.0.5:3000,
    commit 7b83302): verify the five fixes (44px «Осмотреться» CTA, Tab from
    Focus title → «Я здесь», no T0 shell flash during acknowledge, no false
