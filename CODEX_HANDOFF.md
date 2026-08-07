@@ -49,6 +49,17 @@ live on the deployed server since the 0958407-era deploy. Verified live
   prompt prepared; actual run happens in the fixed NTFS thread). The last five
   deploys contained no browser-client changes by design (docs/eval/backend
   region), so the UI look is intentionally unchanged since 0958407.
+- Verification 2026-08-07 (server 7b83302, worldTime 283; API + static asset
+  inspection, browser unavailable from WSL task): Fixes 1-4 PASS (deployed,
+  structurally correct: 44px CTA CSS + mobile override; Tab trap in
+  presence-entry-controller; setShellLoading + #shell-loading element; exit
+  duplicate_request handler). Fix 5 PASS (API-verified: belief displayName
+  humanized — observation:risk_taken → «Тревожный след», wall_caution →
+  «Память преграды», relation:guild → «Связь с другим»; journal humanized;
+  patternId never rendered as display text). Visual/DOM rendering of fixes
+  1-4 and the Knowledge tab still requires a real browser: BLOCKED (NTFS
+  thread 019fa52b-… not reachable from the WSL task via opencode CLI); the
+  dispatch prompt is prepared and queued.
 
 First living region architecture — accepted documentation proposal in
 `docs/LIVING_WORLD_REGION_ARCHITECTURE.md` and ADR-0012. It separates backend
