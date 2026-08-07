@@ -247,7 +247,10 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     ) {
       return false;
     }
-    const now = Date.now();
+    // updated_at is an infra timestamp; keep it monotonic so a content change
+    // always bumps it (a checkpoint updated twice within the same millisecond
+    // must still advance, otherwise the persistence test flakes).
+    const now = Math.max(Date.now(), ((existing?.["updated_at"] as number) ?? 0) + 1);
     if (!existing) {
       db.prepare(
         "INSERT INTO observer_checkpoints (world_id, observer_id, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -365,8 +368,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     },
 
     createWorld(params: CreateWorldParams): CreateWorldResult {
-      const now = Date.now();
       const characterId = `char-${params.worldId}`;
+      const now = Date.now();
 
       // Check idempotency first
       const existing = db.prepare("SELECT world_id, request_hash FROM world_creation_requests WHERE idempotency_key = ?").get(params.idempotencyKey) as Record<string, unknown> | undefined;
