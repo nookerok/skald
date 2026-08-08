@@ -22,9 +22,6 @@ function onPresence() {
   return transitionPresenceEntry(entered(), ACTION.SESSION_OK, { session, summary });
 }
 
-function onFocus() {
-  return transitionPresenceEntry(onPresence(), ACTION.PRESENCE_CONTINUE);
-}
 
 describe("presence-entry-state.js", () => {
   it("starts idle with no entry artifacts", () => {
@@ -56,26 +53,14 @@ describe("presence-entry-state.js", () => {
     expect(s.error.code).toBe("session_transport");
   });
 
-  it("PRESENCE never auto-advances: only PRESENCE_CONTINUE leaves it", () => {
-    // A fresh session lands on the montage; neither acknowledge nor any
-    // timer is possible here — ACK_START is ignored in PRESENCE.
+  it("the unified presence surface accepts the primary acknowledge action", () => {
     const s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
-    expect(s.phase).toBe(PHASE.PRESENCE);
-    expect(s.ackKey).toBeNull();
-  });
-
-  it("PRESENCE_CONTINUE is the explicit player road to focus", () => {
-    const s = onFocus();
-    expect(s.phase).toBe(PHASE.FOCUS);
-  });
-
-  it("PRESENCE_CONTINUE is ignored outside the presence phase", () => {
-    const s = transitionPresenceEntry(entered(), ACTION.PRESENCE_CONTINUE);
-    expect(s.phase).toBe(PHASE.REQUESTING_SESSION);
+    expect(s.phase).toBe(PHASE.ACKNOWLEDGING_ENTRY);
+    expect(s.ackKey).toBe("ack-1");
   });
 
   it("ACK_START enters acknowledging and keeps the pending key", () => {
-    const s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    const s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     expect(s.phase).toBe(PHASE.ACKNOWLEDGING_ENTRY);
     expect(s.ackKey).toBe("ack-1");
   });
@@ -87,7 +72,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("ACK_START re-acknowledges with the same durable key after a transport failure", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.ACK_FAIL, { message: "сеть" });
     expect(s.phase).toBe(PHASE.RETRYABLE_ERROR);
     expect(s.ackKey).toBe("ack-1");
@@ -97,7 +82,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("ACK_SUCCESS is ready, clears the pending key and keeps the checkpoint", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.ACK_SUCCESS, { checkpoint: { worldId: "w" } });
     expect(s.phase).toBe(PHASE.READY);
     expect(s.ackKey).toBeNull();
@@ -105,7 +90,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("ACK_FAIL keeps the durable key for a same-key retry", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.ACK_FAIL, { message: "сеть" });
     expect(s.phase).toBe(PHASE.RETRYABLE_ERROR);
     expect(s.ackKey).toBe("ack-1");
@@ -113,7 +98,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("STALE_REVISION drops the pending key; no automatic re-ack", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.STALE_REVISION);
     expect(s.phase).toBe(PHASE.STALE_REVISION);
     expect(s.ackKey).toBeNull();
@@ -121,7 +106,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("DUPLICATE_REQUEST is a controlled error that also reloads, never re-uses the key", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.DUPLICATE_REQUEST);
     expect(s.phase).toBe(PHASE.STALE_REVISION);
     expect(s.ackKey).toBeNull();
@@ -129,7 +114,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("RELOAD_SESSION re-requests the session after staleness", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.STALE_REVISION);
     s = transitionPresenceEntry(s, ACTION.RELOAD_SESSION);
     expect(s.phase).toBe(PHASE.REQUESTING_SESSION);
@@ -144,7 +129,7 @@ describe("presence-entry-state.js", () => {
   });
 
   it("RESET returns to the idle state", () => {
-    let s = transitionPresenceEntry(onFocus(), ACTION.ACK_START, { key: "ack-1" });
+    let s = transitionPresenceEntry(onPresence(), ACTION.ACK_START, { key: "ack-1" });
     s = transitionPresenceEntry(s, ACTION.RESET);
     expect(s).toEqual(initialState());
   });

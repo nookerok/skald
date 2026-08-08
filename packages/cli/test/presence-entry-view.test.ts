@@ -49,6 +49,15 @@ describe("presence-view.js", () => {
     expect(src).not.toContain("eventNumber");
     expect(src).not.toContain("toLocaleDateString");
   });
+  it("combines return and focus context into one surface with one action", () => {
+    const src = code("presence-view.js");
+    expect(src).toContain("presence-return-context");
+    expect(src).toContain("focus.ambientDescription");
+    expect(src).toContain("focus.sensoryCues");
+    expect(src).toContain('enterBtn.textContent = mode === "first" ? "Войти в мир" : "Продолжить"');
+    expect(src).toContain("skald:presence-ack");
+    expect(src).not.toContain("presence-continue-btn");
+  });
 });
 
 describe("focus-view.js", () => {
@@ -91,7 +100,6 @@ describe("presence-entry-controller.js", () => {
     expect(src).toContain('from "./presence-entry-state.js"');
     expect(src).toContain("transitionPresenceEntry");
     expect(src).toContain('from "./presence-view.js"');
-    expect(src).toContain('from "./focus-view.js"');
   });
 
   it("uses the durable same-key retry for acknowledge transport failures", () => {
@@ -104,8 +112,7 @@ describe("presence-entry-controller.js", () => {
 
   it("re-fetches the session on staleness and never auto-acks", () => {
     const src = code("presence-entry-controller.js");
-    expect(src).toContain('if (code === "stale_revision")');
-    expect(src).toContain('if (code === "duplicate_request")');
+    expect(src).toContain('code === "stale_revision" || code === "duplicate_request"');
     expect(src).toContain("RELOAD_SESSION");
   });
 
@@ -122,42 +129,29 @@ describe("presence-entry-controller.js", () => {
     expect(src).not.toContain("Собираем последствия");
   });
 
-  it("never auto-advances: the continue event is the only road to focus", () => {
+  it("uses one primary acknowledge action on the unified return surface", () => {
     const src = code("presence-entry-controller.js");
-    expect(src).toContain("skald:presence-continue");
+    expect(src).toContain("skald:presence-ack");
     expect(src).toContain("state.phase !== PHASE.PRESENCE");
-    expect(src).not.toContain("setTimeout");
+    expect(src).not.toContain("skald:presence-continue");
   });
 });
 
 describe("presence-entry.css", () => {
-  it("gives the continue button («Осмотреться»/«Войти») a 44px touch target", () => {
+  it("gives the unified enter button a 44px touch target", () => {
     const css = code("presence-entry.css");
-    expect(css).toContain(".presence-continue-btn");
-    expect(css).toMatch(/\.presence-continue-btn\s*\{[^}]*min-height:\s*44px/s);
-    expect(css).toMatch(/\.presence-continue-btn\s*\{[^}]*min-width:\s*44px/s);
-    expect(css).toMatch(/\.presence-continue-btn\s*\{[^}]*font-size:\s*1rem/s);
+    expect(css).toContain(".presence-enter-btn");
+    expect(css).toMatch(/\.presence-enter-btn\s*\{[^}]*min-height:\s*48px/s);
   });
 
-  it("extends the full-width mobile layout to the continue button", () => {
+  it("keeps the hidden presence panel out of the layout", () => {
+    expect(code("presence-entry.css")).toContain("#panel-presence-entry[hidden] { display:none; }");
+  });
+
+  it("extends the full-width mobile layout to the unified enter button", () => {
     const css = code("presence-entry.css");
-    const mobile = css.slice(css.indexOf("@media (max-width: 480px)"));
-    expect(mobile).toContain(".presence-continue-btn { width: 100%; }");
-  });
-});
-
-describe("presence-entry-controller.js tab flow", () => {
-  it("sends Tab from the phase title straight to the primary action", () => {
-    const src = code("presence-entry-controller.js");
-    expect(src).toContain('const title = container.querySelector("[data-phase-title]")');
-    expect(src).toContain("!event.shiftKey && active === title");
-    expect(src).toContain("first.focus()");
-  });
-
-  it("returns Shift+Tab from the primary action to the phase title", () => {
-    const src = code("presence-entry-controller.js");
-    expect(src).toContain("event.shiftKey && active === first");
-    expect(src).toContain("title.focus()");
+    const mobile = css.slice(css.indexOf("@media (max-width:600px)"));
+    expect(mobile).toContain(".presence-enter-btn { width:100%; }");
   });
 });
 
@@ -173,7 +167,6 @@ describe("app.js boot flash", () => {
 describe("presence-exit-controller.js duplicate handling", () => {
   it("treats a 409 duplicate_request as an already-recorded exit, never a false error", () => {
     const src = code("presence-exit-controller.js");
-    expect(src).toContain('if (code === "duplicate_request")');
     const duplicateBranch = src.slice(src.indexOf('code === "duplicate_request"'));
     expect(duplicateBranch).toContain("hideOverlay()");
     expect(duplicateBranch).toContain("skald:exit-ready");

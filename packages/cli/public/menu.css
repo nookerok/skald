@@ -75,3 +75,26 @@
 }
 
 .menu-footer span { cursor: default; }
+
+/* Unified visual language: menu, presence and shell use the same dark atlas surface. */
+#panel-menu { max-width:none; min-height:100vh; margin:0; padding:clamp(18px,4vw,64px); display:grid; place-items:center; text-align:left; }
+.menu-screen { width:min(980px,100%); padding:clamp(24px,5vw,64px); border:1px solid rgba(198,157,79,.42); border-radius:18px; background:radial-gradient(circle at 15% 0,rgba(57,184,208,.1),transparent 36%),linear-gradient(145deg,rgba(11,23,32,.98),rgba(5,12,17,.98)); box-shadow:0 24px 80px rgba(0,0,0,.55); }
+.menu-eyebrow { display:block; margin-bottom:14px; color:#f1bc55; }
+.menu-logo { margin:0; color:#f2d18e; font-family:Georgia,"Times New Roman",serif; font-size:clamp(2.4rem,7vw,5rem); letter-spacing:.24em; line-height:1; text-shadow:0 8px 30px rgba(0,0,0,.45); }
+.menu-tagline { max-width:38rem; margin:16px 0 30px; color:#bdccca; font-size:clamp(1rem,2vw,1.2rem); font-style:normal; line-height:1.6; }
+.menu-primary-btn,.menu-secondary-btn { width:auto; max-width:none; display:inline-flex; align-items:center; justify-content:center; min-height:48px; margin:0 8px 12px 0; padding:11px 20px; border-radius:8px; font:inherit; font-weight:700; }
+.menu-primary-btn { border:1px solid rgba(241,188,85,.65); background:linear-gradient(135deg,#c89a43,#8e642d); color:#071017; box-shadow:0 8px 22px rgba(0,0,0,.22); }
+.menu-primary-btn:hover { background:linear-gradient(135deg,#f1bc55,#bd8837); }
+.menu-secondary-btn { border:1px solid rgba(57,184,208,.42); background:rgba(57,184,208,.1); color:#b9e9ee; }
+.menu-secondary-btn:hover { border-color:#39b8d0; background:rgba(57,184,208,.18); }
+.known-worlds { margin-top:28px; padding-top:24px; border-top:1px solid rgba(198,157,79,.18); }
+.known-worlds-heading { margin-bottom:14px; color:#f2ddb0; font-size:.78rem; letter-spacing:.14em; }
+.known-worlds-empty { color:#7f969b; }
+.menu-screen .presence-card { display:grid; grid-template-columns:1fr auto; gap:5px 16px; margin:0 0 10px; padding:14px 16px; border:1px solid rgba(57,184,208,.22); border-radius:10px; background:rgba(16,29,38,.78); }
+.menu-screen .presence-card:hover { border-color:rgba(241,188,85,.6); transform:translateY(-1px); }
+.menu-screen .presence-card-label { color:#f2ddb0; font-size:.96rem; }
+.menu-screen .presence-card-character,.menu-screen .presence-card-status,.menu-screen .presence-card-doubt { color:#9ca6aa; }
+.menu-screen .presence-card-enter-btn { grid-column:2; grid-row:1 / span 3; align-self:center; margin:0; min-height:42px; border:1px solid rgba(198,157,79,.45); border-radius:7px; background:rgba(198,157,79,.14); color:#f2ddb0; }
+.menu-screen .presence-card-enter-btn:hover { background:rgba(198,157,79,.28); }
+.menu-footer { justify-content:flex-start; margin-top:26px; color:#60727a; }
+@media (max-width:640px) { #panel-menu { padding:12px; }.menu-screen { padding:24px 18px; border-radius:13px; }.menu-primary-btn,.menu-secondary-btn { width:100%; margin-right:0; }.menu-screen .presence-card { grid-template-columns:1fr; }.menu-screen .presence-card-enter-btn { grid-column:1; grid-row:auto; width:100%; } }

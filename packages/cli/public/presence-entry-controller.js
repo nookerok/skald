@@ -1,9 +1,4 @@
-// presence-entry-controller.js — drives the deterministic entry state
-// machine: atomic session fetch (session + summary on one revision),
-// presence/focus phases with explicit player transitions, durable
-// acknowledge retry, reload recovery and the presence lease. I/O lives
-// here; all decisions live in presence-entry-state.js.
-
+// presence-entry-controller.js — one unified return surface.
 import {
   transitionPresenceEntry,
   initialState,
@@ -14,7 +9,6 @@ import {
 } from "./presence-entry-state.js";
 import { fetchObserverSession, acknowledgePresence, createRequestKey } from "./world-api-client.js";
 import { renderPresenceView } from "./presence-view.js";
-import { renderFocusView } from "./focus-view.js";
 import { savePresenceLease } from "./presence-lease.js";
 import { clearExitPending } from "./presence-exit-controller.js";
 
@@ -30,56 +24,46 @@ function readPending() {
     return null;
   }
 }
-
 function writePending(data) {
   try { sessionStorage.setItem(ackStorageKey(worldId), JSON.stringify(data)); } catch {}
 }
-
 function clearPending() {
   try { sessionStorage.removeItem(ackStorageKey(worldId)); } catch {}
 }
-
 function focusables() {
-  if (!container) return [];
-  return [...container.querySelectorAll("button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])")];
+  return container ? [...container.querySelectorAll("button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])")] : [];
 }
-
-function trapFocus() {
+function focusFirst() {
   const list = focusables();
-  if (list.length === 0) return;
-  const first = list[0];
-  first.focus();
+  if (list.length > 0) list[0].focus();
 }
-
-function focusPhaseTitle() {
-  const title = container.querySelector("[data-phase-title]");
-  if (title) title.focus();
-  else trapFocus();
-}
-
 function setBusy(busy) {
   if (container) container.setAttribute("aria-busy", String(busy));
 }
-
 function renderLoading(phase) {
   const card = document.createElement("div");
-  card.className = "presence-entry-card";
+  card.className = "presence-entry-card presence-entry-loading-card";
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "LIVING WORLD";
   const line = document.createElement("p");
   line.className = "presence-entry-loading";
   line.setAttribute("role", "status");
   line.setAttribute("aria-live", "polite");
   line.textContent = loadingTextForPhase(phase);
-  card.appendChild(line);
+  card.append(eyebrow, line);
   container.replaceChildren(card);
 }
-
 function renderError(title, message, retryLabel, onRetry) {
   const card = document.createElement("div");
   card.className = "presence-entry-card error";
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "LIVING WORLD";
   const head = document.createElement("p");
   head.className = "presence-entry-error-title";
   head.textContent = title;
-  card.appendChild(head);
+  card.append(eyebrow, head);
   if (message) {
     const body = document.createElement("p");
     body.className = "presence-entry-error-message";
@@ -87,15 +71,14 @@ function renderError(title, message, retryLabel, onRetry) {
     card.appendChild(body);
   }
   const retry = document.createElement("button");
-  retry.className = "presence-ack-btn";
+  retry.className = "presence-enter-btn";
   retry.type = "button";
   retry.textContent = retryLabel;
   retry.addEventListener("click", onRetry);
   card.appendChild(retry);
   container.replaceChildren(card);
-  trapFocus();
+  focusFirst();
 }
-
 function render() {
   if (!container) return;
   switch (state.phase) {
@@ -110,34 +93,28 @@ function render() {
     case PHASE.PRESENCE:
       setBusy(false);
       container.replaceChildren(renderPresenceView(state.session, state.summary));
-      focusPhaseTitle();
-      return;
-    case PHASE.FOCUS:
-      setBusy(false);
-      container.replaceChildren(renderFocusView(state.session));
-      focusPhaseTitle();
+      focusFirst();
       return;
     case PHASE.RETRYABLE_ERROR:
       setBusy(false);
-      if (state.error && state.error.code === "ack_transport") {
-        renderError("Не удалось подтвердить присутствие.", state.error.message, "Попробовать снова", retryAck);
+      if (state.error?.code === "ack_transport") {
+        renderError("Не удалось подтвердить вход.", state.error.message, "Повторить вход", retryAck);
       } else {
-        renderError("Не удалось восстановить присутствие.", state.error && state.error.message, "Попробовать снова", retrySession);
+        renderError("Не удалось открыть мир.", state.error?.message, "Повторить", retrySession);
       }
       return;
     case PHASE.STALE_REVISION:
       setBusy(false);
-      renderError("Мир успел измениться.", "Возвращаемся к свежим наблюдениям…", "Продолжить", retrySession);
+      renderError("Мир успел измениться.", "Получаем свежий взгляд на мир…", "Продолжить", retrySession);
       return;
     case PHASE.UNAVAILABLE:
       setBusy(false);
-      renderError("Мир сейчас недоступен.", state.error && state.error.message, "Вернуться в меню", () => { window.location.hash = "#/menu"; });
+      renderError("Мир сейчас недоступен.", state.error?.message, "Вернуться в меню", () => { window.location.hash = "#/menu"; });
       return;
     default:
       return;
   }
 }
-
 async function loadSession() {
   const result = await fetchObserverSession(worldId);
   if (!result.body || !result.body.ok) {
@@ -145,19 +122,15 @@ async function loadSession() {
     render();
     return;
   }
-  state = transitionPresenceEntry(state, ACTION.SESSION_OK, {
-    session: result.body.session,
-    summary: result.body.summary,
-  });
+  state = transitionPresenceEntry(state, ACTION.SESSION_OK, { session: result.body.session, summary: result.body.summary });
   render();
 }
-
 async function ack(key, worldTime, eventNumber) {
   state = transitionPresenceEntry(state, ACTION.ACK_START, { key });
   writePending({ key, worldTime, eventNumber });
   render();
   const result = await acknowledgePresence(worldId, key, worldTime, eventNumber);
-  if (result.body && result.body.ok) {
+  if (result.body?.ok) {
     clearPending();
     savePresenceLease(worldId, { worldTime, eventNumber });
     state = transitionPresenceEntry(state, ACTION.ACK_SUCCESS, { checkpoint: result.body.checkpoint });
@@ -165,18 +138,10 @@ async function ack(key, worldTime, eventNumber) {
     return;
   }
   if (result.status === 409) {
-    const code = result.body && result.body.error && result.body.error.code;
+    const code = result.body?.error?.code;
     clearPending();
-    if (code === "stale_revision") {
-      state = transitionPresenceEntry(state, ACTION.STALE_REVISION);
-      render();
-      state = transitionPresenceEntry(state, ACTION.RELOAD_SESSION);
-      render();
-      await loadSession();
-      return;
-    }
-    if (code === "duplicate_request") {
-      state = transitionPresenceEntry(state, ACTION.DUPLICATE_REQUEST);
+    if (code === "stale_revision" || code === "duplicate_request") {
+      state = transitionPresenceEntry(state, code === "stale_revision" ? ACTION.STALE_REVISION : ACTION.DUPLICATE_REQUEST);
       render();
       state = transitionPresenceEntry(state, ACTION.RELOAD_SESSION);
       render();
@@ -187,57 +152,25 @@ async function ack(key, worldTime, eventNumber) {
   state = transitionPresenceEntry(state, ACTION.ACK_FAIL);
   render();
 }
-
 export async function startPresenceEntry(targetContainer, targetWorldId) {
   container = targetContainer;
   worldId = targetWorldId;
-  // A fresh entry voids any unfinished graceful-return intent.
   clearExitPending(worldId);
-  window.addEventListener("skald:presence-continue", () => {
-    if (state.phase !== PHASE.PRESENCE) return;
-    state = transitionPresenceEntry(state, ACTION.PRESENCE_CONTINUE);
-    render();
-  });
   window.addEventListener("skald:presence-ack", () => {
-    if (state.phase !== PHASE.FOCUS) return;
-    const revision = state.session && state.session.revision;
+    if (state.phase !== PHASE.PRESENCE) return;
+    const revision = state.session?.revision;
     if (revision) ack(createRequestKey("presence-ack"), revision.worldTime, revision.eventNumber);
   });
   window.addEventListener("keydown", (event) => {
-    const interactive = [PHASE.PRESENCE, PHASE.FOCUS, PHASE.RETRYABLE_ERROR, PHASE.STALE_REVISION];
-    if (!interactive.includes(state.phase)) return;
     if (event.key !== "Tab") return;
+    const dialog = container?.closest('[role="dialog"][aria-modal="true"]');
+    if (!dialog || dialog.hidden || dialog.getAttribute("aria-hidden") === "true") return;
     const list = focusables();
     if (list.length === 0) return;
-    const title = container.querySelector("[data-phase-title]");
-    const first = list[0];
-    const last = list[list.length - 1];
-    const active = document.activeElement;
-    // The phase title is script-focusable but not in the natural tab order.
-    // Tab from the title must land on the primary action («Осмотреться» /
-    // «Я здесь» / retry), never browser chrome or the shell behind it.
-    if (!event.shiftKey && active === title) {
-      event.preventDefault();
-      first.focus();
-      return;
-    }
-    // Shift+Tab from the primary action returns to the phase title.
-    if (event.shiftKey && active === first) {
-      event.preventDefault();
-      if (title) title.focus();
-      else last.focus();
-      return;
-    }
-    if (!event.shiftKey && active === last && list.length > 1) {
-      event.preventDefault();
-      first.focus();
-      return;
-    }
-    if (event.shiftKey && active === title && list.length > 1) {
-      event.preventDefault();
-      last.focus();
-      return;
-    }
+    const current = list.indexOf(document.activeElement);
+    const next = event.shiftKey ? (current <= 0 ? list.length - 1 : current - 1) : (current < 0 || current === list.length - 1 ? 0 : current + 1);
+    event.preventDefault();
+    list[next].focus();
   });
   state = transitionPresenceEntry(state, ACTION.ENTER, { worldId });
   render();
@@ -248,15 +181,11 @@ export async function startPresenceEntry(targetContainer, targetWorldId) {
   }
   await loadSession();
 }
-
 export function retryAck() {
   if (state.phase !== PHASE.RETRYABLE_ERROR) return;
   const pending = readPending();
-  if (pending && typeof pending.key === "string" && pending.key === state.ackKey) {
-    ack(pending.key, pending.worldTime, pending.eventNumber);
-  }
+  if (pending?.key && pending.key === state.ackKey) ack(pending.key, pending.worldTime, pending.eventNumber);
 }
-
 export function retrySession() {
   if (state.phase !== PHASE.RETRYABLE_ERROR && state.phase !== PHASE.STALE_REVISION) return;
   state = transitionPresenceEntry(state, ACTION.RELOAD_SESSION);

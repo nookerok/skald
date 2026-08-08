@@ -293,6 +293,7 @@ function bindGlobal() {
   });
   document.getElementById("btn-to-menu")?.addEventListener("click", () => { interactionReady = false; window.location.hash = "#/menu"; });
   document.getElementById("open-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
+  document.getElementById("open-context-btn")?.addEventListener("click", () => openShellOverlay("context-overlay"));
   document.getElementById("open-discoveries-btn")?.addEventListener("click", () => openShellOverlay("discoveries-overlay"));
   document.getElementById("open-dev-btn")?.addEventListener("click", async () => { openShellOverlay("dev-overlay"); await refreshDev(); });
   document.getElementById("timeline-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));

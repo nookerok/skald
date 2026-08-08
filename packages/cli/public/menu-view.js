@@ -5,6 +5,12 @@ export async function loadMenu() {
   const container = document.getElementById("menu-container");
   if (!container) return;
   container.replaceChildren();
+  container.className = "menu-screen";
+
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "eyebrow menu-eyebrow";
+  eyebrow.textContent = "LIVING WORLD";
+  container.appendChild(eyebrow);
 
   const logo = document.createElement("h1");
   logo.className = "menu-logo";

@@ -1,8 +1,6 @@
-// presence-view.js — renders the "return" montage strictly from backend DTOs
-// (ObserverSessionDTO + WorldPresenceSummary). The browser classifies nothing
-// and never invents sentences; every line here is server-authored. The single
-// interactive element is a client-only continue button: it never acknowledges
-// and never creates a Domain Event.
+// presence-view.js — unified return screen. The entry flow deliberately
+// stays in one calm surface: the server-provided return montage, current
+// location and sensory context are shown together before one acknowledge action.
 
 export function presenceModeFor(session) {
   if (session.checkpointState === "missing") return "first";
@@ -21,18 +19,72 @@ function sectionTitle(text) {
 }
 
 function list(className) {
-  const list = document.createElement("ul");
-  list.className = className;
-  return list;
+  const node = document.createElement("ul");
+  node.className = className;
+  return node;
+}
+
+function appendFocusContext(panel, session) {
+  const presence = session.presence || {};
+  const focus = presence.focus || {};
+  const location = presence.location || {};
+  const block = document.createElement("section");
+  block.className = "presence-return-context";
+  block.setAttribute("aria-label", "Ты здесь");
+  block.appendChild(sectionTitle("Ты здесь"));
+
+  if (location.title || location.description) {
+    const place = document.createElement("div");
+    place.className = "presence-focus-place";
+    if (location.title) {
+      const title = document.createElement("p");
+      title.className = "presence-focus-place-title";
+      title.textContent = location.title;
+      place.appendChild(title);
+    }
+    if (location.description) {
+      const description = document.createElement("p");
+      description.className = "presence-focus-place-description";
+      description.textContent = location.description;
+      place.appendChild(description);
+    }
+    block.appendChild(place);
+  }
+  if (focus.ambientDescription) {
+    const ambient = document.createElement("p");
+    ambient.className = "presence-focus-ambient";
+    ambient.textContent = focus.ambientDescription;
+    block.appendChild(ambient);
+  }
+  if (Array.isArray(focus.sensoryCues) && focus.sensoryCues.length > 0) {
+    const cues = list("presence-focus-cues");
+    for (const cue of focus.sensoryCues) {
+      const item = document.createElement("li");
+      item.textContent = cue;
+      cues.appendChild(item);
+    }
+    block.appendChild(cues);
+  }
+  if (Array.isArray(focus.rememberedContext) && focus.rememberedContext.length > 0) {
+    const remembered = document.createElement("p");
+    remembered.className = "presence-focus-remembered";
+    remembered.textContent = focus.rememberedContext.join(" ");
+    block.appendChild(remembered);
+  }
+  panel.appendChild(block);
 }
 
 export function renderPresenceView(session, summary) {
   const fragment = document.createDocumentFragment();
   const mode = presenceModeFor(session);
-
   const panel = document.createElement("div");
   panel.className = "presence-entry-panel";
   panel.dataset.mode = mode;
+
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "LIVING WORLD";
+  panel.appendChild(eyebrow);
 
   const heading = document.createElement("h2");
   heading.className = "presence-entry-heading";
@@ -42,15 +94,13 @@ export function renderPresenceView(session, summary) {
   heading.textContent = "Возвращение в мир";
   panel.appendChild(heading);
 
-  // Server-authored status; a generic fallback is reserved for defensive
-  // rendering only (no summary, or a DTO version this client cannot read).
   const status = document.createElement("p");
   status.className = "presence-entry-status";
   const hasServerStatus = summary && summary.schemaVersion === 1 && typeof summary.presenceStatus === "string";
-  status.textContent = hasServerStatus ? summary.presenceStatus : "Ты вернулся.";
+  status.textContent = hasServerStatus ? summary.presenceStatus : "Мир ждёт твоего возвращения.";
   panel.appendChild(status);
 
-  if (session.statements && session.statements.length > 0) {
+  if (Array.isArray(session.statements) && session.statements.length > 0) {
     const montage = document.createElement("div");
     montage.className = "presence-montage";
     montage.setAttribute("aria-label", "Пока тебя не было");
@@ -63,7 +113,7 @@ export function renderPresenceView(session, summary) {
     panel.appendChild(montage);
   }
 
-  const nearbyChanges = (session.presence && session.presence.nearbyChanges) || [];
+  const nearbyChanges = session.presence?.nearbyChanges || [];
   if (nearbyChanges.length > 0) {
     const section = document.createElement("section");
     section.className = "presence-changes";
@@ -78,7 +128,7 @@ export function renderPresenceView(session, summary) {
     panel.appendChild(section);
   }
 
-  if (session.presence && session.presence.drift && session.presence.drift.reasons.length > 0) {
+  if (session.presence?.drift?.reasons?.length > 0) {
     const section = document.createElement("section");
     section.className = "presence-reasons-section";
     section.appendChild(sectionTitle("Почему память расходится"));
@@ -92,7 +142,7 @@ export function renderPresenceView(session, summary) {
     panel.appendChild(section);
   }
 
-  const staleBeliefs = (session.presence && session.presence.staleBeliefs) || [];
+  const staleBeliefs = session.presence?.staleBeliefs || [];
   if (staleBeliefs.length > 0) {
     const section = document.createElement("section");
     section.className = "presence-stale";
@@ -106,7 +156,7 @@ export function renderPresenceView(session, summary) {
     panel.appendChild(section);
   }
 
-  const dormantThreads = (session.presence && session.presence.dormantThreads) || [];
+  const dormantThreads = session.presence?.dormantThreads || [];
   if (dormantThreads.length > 0) {
     const section = document.createElement("section");
     section.className = "presence-dormant";
@@ -120,7 +170,7 @@ export function renderPresenceView(session, summary) {
     panel.appendChild(section);
   }
 
-  const doubts = (session.presence && session.presence.suggestedReobservations) || [];
+  const doubts = session.presence?.suggestedReobservations || [];
   if (doubts.length > 0) {
     const section = document.createElement("section");
     section.className = "presence-doubts";
@@ -128,21 +178,22 @@ export function renderPresenceView(session, summary) {
     for (const subject of doubts) {
       const item = document.createElement("p");
       item.className = "presence-doubt";
-      item.textContent = `${subject.displayName}: ${subject.reason}`;
+      item.textContent = subject.displayName + ": " + subject.reason;
       section.appendChild(item);
     }
     panel.appendChild(section);
   }
 
-  // Client-only transition: dispatches an event, never acknowledges.
-  const continueBtn = document.createElement("button");
-  continueBtn.className = "presence-continue-btn";
-  continueBtn.type = "button";
-  continueBtn.textContent = mode === "first" ? "Войти" : "Осмотреться";
-  continueBtn.addEventListener("click", () => {
-    window.dispatchEvent(new CustomEvent("skald:presence-continue"));
+  appendFocusContext(panel, session);
+
+  const enterBtn = document.createElement("button");
+  enterBtn.className = "presence-enter-btn";
+  enterBtn.type = "button";
+  enterBtn.textContent = mode === "first" ? "Войти в мир" : "Продолжить";
+  enterBtn.addEventListener("click", () => {
+    window.dispatchEvent(new CustomEvent("skald:presence-ack"));
   });
-  panel.appendChild(continueBtn);
+  panel.appendChild(enterBtn);
 
   fragment.appendChild(panel);
   return fragment;

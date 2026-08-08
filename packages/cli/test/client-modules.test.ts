@@ -216,6 +216,8 @@ describe("Browser ES modules — import link integrity", () => {
     expect(shell).toContain('refreshBackgroundInert');
     expect(html).toContain('role="dialog" aria-modal="true"');
     expect(html).toContain('aria-controls="context-knowledge"');
+    expect(html).toContain('id="context-overlay"');
+    expect(html).toContain('id="open-context-btn"');
     expect(css).not.toContain(".command-retry{display:none}");
   });
 
@@ -235,13 +237,12 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).not.toContain("onCommand");
   });
 
-  it("game shell registers the threads tab and mobile target", () => {
+  it("game shell registers the threads tab inside the context menu", () => {
     const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
     const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
     const rail = readFileSync(resolve(PUBLIC, "context-rail-view.js"), "utf-8");
     expect(html).toContain('data-context="threads"');
     expect(html).toContain('aria-controls="context-threads"');
-    expect(html).toContain('data-mobile-target="context-threads"');
     expect(shell).toContain('target === "context-threads"');
     expect(rail).toContain('renderThreadsPanel');
     expect(rail).toContain('snapshot.observerThreads');
