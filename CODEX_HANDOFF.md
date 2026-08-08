@@ -2,13 +2,12 @@
 
 Mutable milestone note. Git, tests and current source outrank this file.
 
-## Current state (2026-08-07)
+## Current state (2026-08-08)
 
-- Branch: main (clean, == origin/main). Deployed to Orange Pi: `1aa4950`
-  (playable v0.2 travel + observer-checkpoint monotonic fix).
-- ADR-0024 / UX-7 "Chat & Chronicle interface" — COMPLETE & COMMITTED
-  (`bbe99fd` UX-7.1, `51086e8` UX-7.2, `ebcaa8b` UX-7.3) but NOT yet deployed
-  and NOT yet browser-QA'd. `npm run validate` PASS.
+- Branch: main (clean, == origin/main). Deployed to Orange Pi: `4183a58`.
+- ADR-0024 / UX-7 "Chat & Chronicle interface" — COMPLETE, COMMITTED and
+  DEPLOYED (`871917a` + narration fix `4183a58`), `npm run validate` PASS.
+  Browser QA still pending (NTFS thread; see Next #0).
   - UX-7.1: main Game Screen is a vertical chronicle of player intentions and
     world answers (`chat-feed-view.js`, `#chat-feed`); suggestions stay in the
     DTO and are never rendered as chips (per ADR-0024 point 2). Session-scoped
@@ -17,7 +16,33 @@ Mutable milestone note. Git, tests and current source outrank this file.
     context-rail tabs (Вокруг / Почему); the chronicle dominates the screen.
   - UX-7.3: two-voice narrative pacing — player bubble (ТЫ) vs world answer
     (МИР + Ход N header), discovery-mark chip, feed styles.
-  - Old module graph served; `/chat-feed-view.js` added to the HTTP whitelist.
+- Persistent literary turn narration (ADR-0024 MIR voice), DEPLOYED:
+  - `packages/world/src/narrative-llm.ts` `narrateTurnLLM` — non-authoritative
+    read-side decoration (AGENTS §4): rephrases only deterministic
+    Presentation facts (turn primary + up to 3 notable, never background),
+    emits no Events, writes no Projection. Returns `TurnNarration {text,
+    model, usedFallback, fallbackReason, latencyMs}`.
+  - Persistence schema v5: `turn_narrations` table (PK world_id+world_time,
+    INSERT OR IGNORE), `migrateV4ToV5` wired into fresh/v1/v2/v3/v4 chains,
+    `user_version` 5 verified on the live DB.
+  - `/api/command` (online + offline-accepted paths) generate narration
+    best-effort after the deterministic turn; journal merges only
+    `usedFallback === false` narrations (`attachTurnNarrations`).
+  - Client renders the narrated line in the chronicle (`.chat-world-narrated`,
+    italic gold) above the template primary.
+  - FIX `4183a58`: the original verbose DnD system prompt exhausted the
+    provider's reasoning token budget (finish_reason=length, empty content,
+    `empty response` → silent `chat_error` fallback). Compact prompt now
+    yields prose within budget. Verified LIVE 2026-08-08 on Жора
+    (world-msjeemf2-1-44xf6oisyo2): `look around` → HTTP 200 in ~12s,
+    journal `narrativeLLM` with `usedFallback:false`, model
+    `deepseek-v4-flash-free`, latency ~12s; DB row `used_fallback=0`.
+    Fallback narrations are correctly never surfaced in the journal.
+  - Tests: world narrate-turn.test.ts 7, journal-narration.test.ts 3, CLI
+    turn-narrations.test.ts 3; migration/user_version expectations bumped in
+    observer-checkpoint + multi-world-migration. Full `npm run validate`
+    PASS (108 files / 1345 tests).
+- Old module graph served; `/chat-feed-view.js` added to the HTTP whitelist.
 - Playable v0.2 (`59cec34`, deployed): `journey.travel` unlocks travel to named
   destinations (verified live waypoint→city, 3 destinations), the observer
   checkpoint `updated_at` is monotonic (`1aa4950`).
@@ -297,7 +322,11 @@ World Interaction Model v0 first vertical slice:
 
 ## Next
 
-0. ADR-0024 (UX-7) deploy + browser QA: committed at `ebcaa8b`; push, fast-forward Orange Pi to it, health/state smoke, then NTFS browser visual QA of the chronicle + rail tabs (record PASS/FAIL/BLOCKED here).
+0. ADR-0024 (UX-7) browser QA: DEPLOYED at `4183a58` (chronicle + rail tabs +
+   persistent LLM narration, verified live via API). Remaining: NTFS browser
+   visual QA of the chronicle + rail tabs + narrated line (record PASS/FAIL/
+   BLOCKED here). Note: each real gameplay click mutates the canonical Event
+   Log, so the delegated NTFS prompt must carry an authorized click budget.
 1. NTFS browser re-QA of UX-6.3.1 on the LIVE system (URL 192.168.0.5:3000,
    commit 7b83302): verify the five fixes (44px «Осмотреться» CTA, Tab from
    Focus title → «Я здесь», no T0 shell flash during acknowledge, no false
