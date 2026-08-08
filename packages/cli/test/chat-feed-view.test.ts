@@ -59,6 +59,16 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(allText(feed.children[1])).toContain("Ты перемещаешься: Переправа.");
   });
 
+  it("keeps the newest journal window and renders it chronologically", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const turns = Array.from({ length: 13 }, (_, i) => turn(296 - i, "ход " + (296 - i)));
+    renderChatFeed(turns, []);
+    const rendered = doc.feed.children.map(allText).join(" ");
+    expect(rendered).toContain("ход 296");
+    expect(rendered).toContain("ход 285");
+    expect(rendered).not.toContain("ход 284");
+    expect(rendered.indexOf("ход 285")).toBeLessThan(rendered.indexOf("ход 296"));
+  });
   it("renders an unmatched intent as pending (no journal turn yet)", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     renderChatFeed([], [{ worldTime: null, text: "жду" }]);

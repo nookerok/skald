@@ -79,7 +79,8 @@ export function renderChatFeed(turns, intents = []) {
   const feed = byId("chat-feed");
   if (!feed) return;
   feed.replaceChildren();
-  const turnList = (Array.isArray(turns) ? turns : []).slice(-MAX_TURNS);
+  // Journal HTTP pages are newest-first; keep the newest window and render it oldest-to-newest.
+  const turnList = (Array.isArray(turns) ? turns : []).slice(0, MAX_TURNS).reverse();
   const intentList = Array.isArray(intents) ? intents : [];
   const children = [];
   for (const turn of turnList) {
