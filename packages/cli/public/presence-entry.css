@@ -71,6 +71,8 @@
 
 .presence-card-enter-btn {
   margin-top: 0.3rem;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0.3rem 0.75rem;
   font-size: var(--font-sm);
   background: var(--bg-accent);

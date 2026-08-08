@@ -1,6 +1,7 @@
 import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
 import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
+import { createNarrationPoll } from "./narration-poll.js";
 import { addLocalIntent, bindIntentWorldTime, clearLocalIntents } from "./chat-feed-view.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -19,6 +20,35 @@ let state = createInitialState();
 let interactionReady = false;
 let currentWorldId = null;
 let lastKnownRevision = 0;
+
+/**
+ * Server-driven narration polling (ADR-0024 "МИР" voice). The journal DTO now
+ * reports a per-turn `narrationState`, so the browser never guesses by elapsed
+ * time: it polls `pending`, stops on `ready`/`unavailable`/`not_requested` and
+ * re-arms safely per new command. See narration-poll.js for the stale-tick/
+ * generation contract that protects against duplicate timers on rearm.
+ */
+const narrationPoll = createNarrationPoll({
+  intervalMs: 4000,
+  watchdogMs: 150000,
+});
+
+async function narrationPollTick({ worldId, targetWorldTime }) {
+  if (currentWorldId !== worldId || isExitInProgress()) return "unavailable";
+  const data = await refreshJournal();
+  const target = data && Array.isArray(data.turns)
+    ? data.turns.find((t) => t.worldTime === targetWorldTime)
+    : null;
+  return target?.narrationState ?? "not_requested";
+}
+
+function scheduleNarrationRefresh(routerAvailable, targetWorldTime) {
+  if (!routerAvailable || !Number.isFinite(targetWorldTime)) {
+    narrationPoll.stop();
+    return;
+  }
+  narrationPoll.start(narrationPollTick, { worldId: currentWorldId, targetWorldTime });
+}
 
 function renderOfflineBanner(text) {
   const banner = document.getElementById("offline-banner");
@@ -53,6 +83,7 @@ async function flushOfflineQueue() {
       await refreshShell();
       await refreshJournal();
       await refreshDiscoveries();
+      scheduleNarrationRefresh(Boolean(result.body.state?.routerAvailable), result.body.state?.worldTime);
     } else if (resolution === "already_processed") {
       renderOfflineBanner(`«${envelope.input}» — уже было записано ранее.`);
     } else {
@@ -147,6 +178,7 @@ async function handle(input, overrideKey) {
       }
       await refreshShell();
       await refreshDiscoveries();
+      scheduleNarrationRefresh(Boolean(result.body?.state?.routerAvailable), result.body?.state?.worldTime);
     } else if (result.status === 409) {
       // The original request may have committed before its response was lost.
       // Reconcile all authoritative read models before hiding retry.

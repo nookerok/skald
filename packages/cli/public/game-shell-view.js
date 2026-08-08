@@ -15,20 +15,59 @@ export function setShellBusy(busy, stage = "Мир отвечает…") {
   const loadingStage = document.getElementById("loading-stage");
   if (loadingStage) loadingStage.textContent = busy ? stage : "Мир готов.";
 }
-export function showShellError(message) { const element = document.getElementById("shell-error"); if (element) { element.hidden = false; element.setAttribute("aria-hidden", "false"); setText("shell-error-message", message || "Не удалось подключиться к миру"); } }
-export function clearShellError() { const element = document.getElementById("shell-error"); if (element) { element.hidden = true; element.setAttribute("aria-hidden", "true"); } }
+function focusDialogSurface(element) {
+  // The dialog itself is tabindex="-1", so it can take programmatic focus and
+  // announce its accessible name while trapping Tab inside via trapFocus.
+  const focusTarget = element.querySelector("button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])") || element;
+  focusTarget.focus?.();
+}
+export function showShellError(message) { const element = document.getElementById("shell-error"); if (element) { element.hidden = false; element.setAttribute("aria-hidden", "false"); setText("shell-error-message", message || "Не удалось подключиться к миру"); refreshBackgroundInert(); focusDialogSurface(element); } }
+export function clearShellError() { const element = document.getElementById("shell-error"); if (element) { element.hidden = true; element.setAttribute("aria-hidden", "true"); } refreshBackgroundInert(); }
 export function setShellLoading(visible) {
   const element = document.getElementById("shell-loading");
   if (!element) return;
   element.hidden = !visible;
   element.setAttribute("aria-hidden", String(!visible));
+  refreshBackgroundInert();
+  if (visible) focusDialogSurface(element);
 }
+function focusableElements(root) {
+  return Array.from(root.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+    .filter((el) => !el.hidden && el.offsetParent !== null);
+}
+function trapFocus(root, event) {
+  const focusable = focusableElements(root);
+  if (focusable.length === 0) { event.preventDefault(); return; }
+  const currentIndex = focusable.indexOf(document.activeElement);
+  let nextIndex;
+  if (event.shiftKey) nextIndex = currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1;
+  else nextIndex = currentIndex === -1 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1;
+  event.preventDefault();
+  focusable[nextIndex].focus();
+}
+/**
+ * The only visible `aria-modal="true"` dialog owns the page: everything else
+ * gets `inert` so Tab/focus and the accessibility tree cannot leave it. This
+ * covers the shared overlays (`openShellOverlay`), the loading screen, the
+ * connection error dialog and the presence entry dialog.
+ */
+function refreshBackgroundInert() {
+  document.querySelectorAll("#app [inert]").forEach((el) => el.removeAttribute("inert"));
+  const modal = document.querySelector('#app [role="dialog"][aria-modal="true"]:not([hidden]):not([aria-hidden="true"])');
+  if (modal && modal.parentElement) {
+    for (const child of modal.parentElement.children) {
+      if (child !== modal) child.setAttribute("inert", "");
+    }
+  }
+}
+export function syncShellModalInert() { refreshBackgroundInert(); }
 export function openShellOverlay(id, opener = document.activeElement) {
   const element = document.getElementById(id);
   if (!element) return;
   overlayOpeners.set(id, opener);
   element.hidden = false;
   element.setAttribute("aria-hidden", "false");
+  refreshBackgroundInert();
   const focusTarget = element.querySelector("button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])") || element;
   focusTarget.focus?.();
 }
@@ -43,6 +82,10 @@ export function closeShellOverlay(id, restoreFocus = true) {
       button.setAttribute("aria-pressed", "false");
     });
   }
+  // Un-inert the background first: while the dialog is open the opener lives
+  // inside an inert subtree, so focusing it before refreshBackgroundInert
+  // would silently fail and leave focus on a hidden element / BODY.
+  refreshBackgroundInert();
   if (restoreFocus) overlayOpeners.get(id)?.focus?.();
   overlayOpeners.delete(id);
 }
@@ -75,12 +118,18 @@ export function initShellView(onCommand) {
     document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }));
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    const openOverlay = [...overlayOpeners.keys()].find((id) => {
-      const element = document.getElementById(id);
-      return element && !element.hidden;
-    });
-    if (openOverlay) { event.preventDefault(); closeShellOverlay(openOverlay); }
+    if (event.key === "Escape") {
+      const openOverlay = [...overlayOpeners.keys()].find((id) => {
+        const element = document.getElementById(id);
+        return element && !element.hidden;
+      });
+      if (openOverlay) { event.preventDefault(); closeShellOverlay(openOverlay); }
+      return;
+    }
+    if (event.key === "Tab") {
+      const dialog = document.querySelector('#app [role="dialog"][aria-modal="true"]:not([hidden]):not([aria-hidden="true"])');
+      if (dialog) trapFocus(dialog, event);
+    }
   });
   document.getElementById("shell-retry-connect")?.addEventListener("click", () => window.dispatchEvent(new CustomEvent("skald:retry-connect")));
 }

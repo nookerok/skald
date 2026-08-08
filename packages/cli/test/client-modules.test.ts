@@ -160,14 +160,60 @@ describe("Browser ES modules — import link integrity", () => {
 
 
 
+  it("narration polling is server-driven via narrationState, not fixed timeouts", () => {
+    const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
+    const poll = readFileSync(resolve(PUBLIC, "narration-poll.js"), "utf-8");
+    // The client consumes the per-turn lifecycle status instead of guessing
+    // by elapsed time; app.js wires a single session per command.
+    expect(app).toContain('import { createNarrationPoll } from "./narration-poll.js"');
+    expect(app).toContain("narrationPoll.start(narrationPollTick,");
+    expect(app).toContain('target?.narrationState ?? "not_requested"');
+    expect(app).toContain("watchdogMs: 150000");
+    // The poll module owns stale-tick/generation semantics so a rearm can
+    // never leave two timers running.
+    expect(poll).toContain("export function createNarrationPoll");
+    expect(poll).toContain("live.generation !== generation");
+    expect(poll).toContain("clearTimeout(live.timer)");
+    expect(poll).toContain("scheduleTick");
+  });
+
+  it("refreshBackgroundInert runs before opener focus restore on overlay close", () => {
+    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
+    const closeBlock = shell.match(/closeShellOverlay\(id, restoreFocus = true\)[\s\S]*?^}/m)?.[0] || "";
+    // P2 verified in browser QA: focusing the opener while the background is
+    // still inert is a no-op, so the un-inert pass must precede the focus.
+    const refreshIdx = closeBlock.indexOf("refreshBackgroundInert()");
+    const focusIdx = closeBlock.indexOf("overlayOpeners.get(id)?.focus?.()");
+    expect(refreshIdx).toBeGreaterThanOrEqual(0);
+    expect(focusIdx).toBeGreaterThan(refreshIdx);
+  });
+
+  it("loading and error dialogs carry accessible names and receive focus", () => {
+    const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
+    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
+    // shell-loading names itself via its visible title; shell-error gets an id.
+    expect(html).toMatch(/id="shell-loading"[^>]*aria-labelledby="loading-title"/);
+    expect(html).toMatch(/id="shell-error"[^>]*aria-labelledby="shell-error-title"/);
+    expect(html).toMatch(/id="shell-loading"[^>]*tabindex="-1"/);
+    expect(html).toMatch(/id="shell-error"[^>]*tabindex="-1"/);
+    expect(html).toMatch(/<strong id="shell-error-title">/);
+    // The loading dialog moves focus into itself when it opens.
+    expect(shell).toContain("function focusDialogSurface");
+    expect(shell).toContain("if (visible) focusDialogSurface(element)");
+    expect(shell).toContain("showShellError(message)");
+  });
+
   it("visual shell preserves mobile navigation and overlay accessibility hooks", () => {
     const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
     const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
     const css = readFileSync(resolve(PUBLIC, "living-world.css"), "utf-8");
     expect(shell).toContain('target === "journal-overlay"');
     expect(shell).toContain('target === "context-knowledge"');
-    expect(shell).toContain('event.key !== "Escape"');
+    expect(shell).toContain('event.key === "Escape"');
+    expect(shell).toContain('event.key === "Tab"');
     expect(shell).toContain('overlayOpeners');
+    expect(shell).toContain('trapFocus');
+    expect(shell).toContain('refreshBackgroundInert');
     expect(html).toContain('role="dialog" aria-modal="true"');
     expect(html).toContain('aria-controls="context-knowledge"');
     expect(css).not.toContain(".command-retry{display:none}");

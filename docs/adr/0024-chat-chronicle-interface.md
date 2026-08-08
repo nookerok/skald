@@ -76,6 +76,35 @@ re-opened accidentally and so the main screen has a normative shape.
    main screen), **UX-7.3 Narrative polish** (turn rhythm, "ты сделал / мир
    ответил" separation, visual pacing).
 
+## Amendment 2026-08-08: read-side narration lifecycle is part of the journal
+
+Point 4 said the chronicle brings no DTO changes. The executed narration work
+deliberately *deviates*: the journal DTO now carries a non-authoritative
+per-turn narration block (rendered line) and a `narrationState` lifecycle
+field so the browser polls the server instead of guessing by elapsed time.
+This is a read-side decoration contract, not a canonical one — it emits no
+Domain Events, writes no Projection, and `Narrative`/`LLM` never decide for
+the world (AGENTS §4). Rationale: the LLM takes tens of seconds, the command
+response is bounded at ~15s, and a fixed-timeout client refresh either misses
+the prose (too short) or keeps the player waiting (too long), so the DTO must
+expose the per-turn `pending`/`ready`/`unavailable`/`not_requested` lifecycle.
+
+Executed shape:
+- `packages/world/src/narrative-llm.ts` — `narrateTurnLLM` (turn narration)
+  and `narrateLLM` (narrative snapshot line) rephrase only deterministic
+  Presentation facts; return `TurnNarration {text, model, usedFallback,
+  fallbackReason, latencyMs}`.
+- Read-side table `turn_narrations` (SQLite v5), keyed `world_id+world_time`,
+  upserting (overwrites) so a later successful generation replaces an earlier
+  stored fallback row.
+- `packages/cli/public/narration-poll.js` + `packages/cli/src/runtime/
+  narration-scheduler.ts` — server-driven polling and the bounded detached
+  runner (interactive over batch, capped queues, drop oldest).
+- Journal recomposition rule (P2): a narration only earns `ready` after a
+  non-empty `usedFallback=false` row is persisted. Empty successful replies
+  and fallbacks recompose the turn as `unavailable` — never `not_requested`,
+  which would look (and stop the client) as if prose had never been requested.
+
 ## Consequences
 
 - New module `packages/cli/public/chat-feed-view.js` renders the chronicle

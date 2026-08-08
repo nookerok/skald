@@ -213,7 +213,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     "INSERT INTO acknowledge_requests (world_id, idempotency_key, request_hash, correlation_id, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const upsertTurnNarration = db.prepare(
-    "INSERT OR IGNORE INTO turn_narrations (world_id, world_time, text, model, used_fallback, latency_ms) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO turn_narrations (world_id, world_time, text, model, used_fallback, latency_ms) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(world_id, world_time) DO UPDATE SET text = excluded.text, model = excluded.model, used_fallback = excluded.used_fallback, latency_ms = excluded.latency_ms",
   );
   const listTurnNarrations = db.prepare(
     "SELECT world_time, text, model, used_fallback, latency_ms FROM turn_narrations WHERE world_id = ?",

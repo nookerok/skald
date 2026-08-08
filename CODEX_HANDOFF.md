@@ -4,7 +4,9 @@ Mutable milestone note. Git, tests and current source outrank this file.
 
 ## Current state (2026-08-08)
 
-- Branch: main (clean, == origin/main). Deployed to Orange Pi: `4183a58`.
+- Branch: main (== origin/main at `f9c845d`, deployed `4183a58`). Working tree
+  carries UNCOMMITTED P2 fixes below (narration scheduling, touch targets,
+  modal focus trap) — not yet committed or deployed.
 - ADR-0024 / UX-7 "Chat & Chronicle interface" — COMPLETE, COMMITTED and
   DEPLOYED (`871917a` + narration fix `4183a58`), `npm run validate` PASS.
   Browser QA still pending (NTFS thread; see Next #0).
@@ -38,23 +40,64 @@ Mutable milestone note. Git, tests and current source outrank this file.
     journal `narrativeLLM` with `usedFallback:false`, model
     `deepseek-v4-flash-free`, latency ~12s; DB row `used_fallback=0`.
     Fallback narrations are correctly never surfaced in the journal.
-  - Tests: world narrate-turn.test.ts 7, journal-narration.test.ts 3, CLI
-    turn-narrations.test.ts 3; migration/user_version expectations bumped in
-    observer-checkpoint + multi-world-migration. Full `npm run validate`
-    PASS (108 files / 1345 tests).
+  - P2 fix (uncommitted): `wait` and `advance N` bypassed the new narration
+    (both branches early-returned before narrateTurnLLM). Now narration is
+    scheduled detached via a per-world `NarrationScheduler` (capped, serialized,
+    never holds the command queue): online command / wait / offline paths each
+    narrate the single turn; `advance N` narrates every tick (each tick is its
+    own chronicle turn keyed by its own worldTime, so a single presentation
+    cannot cover the batch). `turn_narrations` upsert now overwrites a stored
+    fallback row so a later successful generation is never INSERT-IGNORED.
+  - P2 fix (uncommitted): empty LLM reply was wrongly treated as `ready` —
+    `markReady()` ran before the text check, deleting the runtime status with
+    no persisted row, so the journal recomposed the turn as `not_requested`
+    and the browser stopped polling as if prose was never asked for. The
+    shared settle rule `shouldPersistNarration()` (used in BOTH the
+    interactive and the `advance N` batch branch) now requires a non-empty
+    `usedFallback=false` text; empty/fallback results recompose as
+    `unavailable`, and `markReady()` runs only after the row persists.
+  - P2 rework (uncommitted): the old fixed-timeout client refresh is replaced
+    by server-driven polling — `public/narration-poll.js` + `app.js` read the
+    journal's per-turn `narrationState` (`pending`/`ready`/`unavailable`/
+    `not_requested`, decided in `resolveNarrationState`); the poll sleeps on
+    `pending`, stops on the three terminal states, re-arms safely per command
+    (generation-guarded, never two timers) and a 150s watchdog only guards a
+    wedged poll. `/narration-poll.js` added to the HTTP static whitelist.
+    ADR-0024 amended to surface the journal DTO lifecycle deviation.
+  - Tests: world narrate-turn.test.ts 7, journal-narration.test.ts 3,
+    CLI turn-narrations.test.ts 9 (persistence + `shouldPersistNarration` +
+    empty-recompose regression), narration-scheduler.test.ts (bounded runner),
+    narration-poll.test.ts 6, plus client-modules + server module-graph gates.
+    Full `npm run validate` PASS.
+- P2 touch-target fix (uncommitted): Known Worlds menu CTAs were below the
+  44 px target minimum — «Открыть новый мир» measured 39.19 px
+  (`menu.css .menu-secondary-btn`), «Вернуться» 26.25 px
+  (`presence-entry.css .presence-card-enter-btn`). Both rules now set
+  `min-height/min-width: 44px`, matching the Presence CTAs
+  (`presence-ack-btn` / `presence-continue-btn`); same applied to
+  `menu-primary-btn`. Browser QA for the Known Worlds screen still pending
+  (NTFS thread).
+- P2 modal focus fix (uncommitted): `aria-modal="true"` overlays
+  (journal / discoveries / dev via `openShellOverlay`, plus shell-loading,
+  shell-error, exit-overlay and the presence-entry dialog) now keep keyboard
+  focus: background siblings get `inert` while a dialog is open
+  (`refreshBackgroundInert`, `#app [role=dialog][aria-modal=true]:not([hidden])`)
+  and the global keydown handler traps Tab/Shift+Tab within the dialog
+  (`trapFocus`), in addition to Escape closing. Restores the opener element's
+  focus on close (`closeShellOverlay`); the exit overlay synchronizes inert via
+  `syncShellModalInert()` in presence-exit-controller.js. Browser QA for
+  keyboard focus still pending (NTFS thread).
 - Old module graph served; `/chat-feed-view.js` added to the HTTP whitelist.
 - Playable v0.2 (`59cec34`, deployed): `journey.travel` unlocks travel to named
   destinations (verified live waypoint→city, 3 destinations), the observer
   checkpoint `updated_at` is monotonic (`1aa4950`).
 
-Updated: 2026-08-07
-Branch: main (clean, == origin/main)
-Deployed: 7b83302. UX-6.3.1 is COMMITTED (72d997c, before 0958407) and has been
-live since the 0958407-era deploy — the five fixes (44px presence CTA, Focus
-Tab order, T0 shell-loading cover, graceful-exit duplicate_request handling,
-raw-key label humanization) are all in `packages/cli/public/` + presentation
-templates and were verified live. This supersedes the earlier stale note that
-claimed UX-6.3.1 was "uncommitted".
+_HISTORICAL (2026-08-07 snapshot, superseded by Current state above): branch was
+clean == origin/main, deployed 7b83302; UX-6.3.1 is COMMITTED (72d997c, before
+0958407) and has been live since the 0958407-era deploy — the five fixes (44px
+presence CTA, Focus Tab order, T0 shell-loading cover, graceful-exit
+duplicate_request handling, raw-key label humanization) were verified live.
+This superseded the earlier stale note that claimed UX-6.3.1 was "uncommitted"._
 
 Recent architecture base (all deployed): Simulation Evaluation Framework
 (ADR-0022), Simulation Bible living-process catalog + 10 vertical scenarios
@@ -62,14 +105,21 @@ Recent architecture base (all deployed): Simulation Evaluation Framework
 vision canon (visual-canon.json), and "establish pilot region initial
 simulation state v0.1" (southern_borough + enriched initial observations).
 
-Note: the last five deploys (6a41ca7, 9b85d12, 2481d85, 4bea92a, 7b83302) were
-docs/eval/backend-region; no browser client changed since 0958407, so the UI
-look is intentionally unchanged. A browser re-QA of the UX-6.3.1 fixes on the
-live system is pending in the NTFS visual-QA thread.
+_The last five deploys before the UX-7 milestone (6a41ca7, 9b85d12, 2481d85,
+4bea92a, 7b83302) were docs/eval/backend-region; browser UI later changed for
+ADR-0024/UX-7 (chronicle + rail tabs + narration, deployed 4183a58). Browser
+re-QA of the UX-6.3.1 fixes is covered by Next #0/#1._
 
 ## Current milestone
 
-First living region slice (ADR-0014): deterministic 20×20 km region compiler, 6,400 terrain tiles, 400 simulation cells, spatial replay projection and observer-scoped `/map` endpoint. It adds no travel/process Rules and does not expose hidden geometry.
+First living region slice (ADR-0014) — COMMITTED (`0958407`, then travel in
+`59cec34`), NOT the active next-step. It delivered the deterministic 20×20 km
+region compiler, 6,400 terrain tiles, 400 simulation cells, spatial replay
+projection and the observer-scoped `/map` endpoint; it does not expose hidden
+geometry. Note the slice scope statement "adds no travel Rules" referred to
+ADR-0014 itself; travel to named destinations then landed as its own commit
+(`59cec34`, playable v0.2, verified live). The active milestone is ADR-0024 /
+UX-7 chronicle + narration (see Current state above); next steps are in Next.
 
 UX-6.3.1 "UI hardening" — COMPLETED. The five application defects from the
 last NTFS browser QA run are fixed, committed as 72d997c (before 0958407) and
@@ -106,15 +156,18 @@ live on the deployed server since the 0958407-era deploy. Verified live
   thread 019fa52b-… not reachable from the WSL task via opencode CLI); the
   dispatch prompt is prepared and queued.
 
-First living region architecture — accepted documentation proposal in
-`docs/LIVING_WORLD_REGION_ARCHITECTURE.md` and ADR-0012. It separates backend
+First living region architecture — accepted in `docs/LIVING_WORLD_REGION_ARCHITECTURE.md` and ADR-0012. It separates backend
 spatial truth from observer-scoped map knowledge, defines Event-bootstrap
 authority, 20×20 km pilot resolution, process-driven spatial simulation,
 fog/discovery, first entry, living-map updates and continent-scale boundaries.
-No runtime Events, Rules, Projection, persistence or UI are implemented yet.
+RUNTIME IMPLEMENTED: the ADR-0012 spatial-compiler authority is live in the
+ADR-0014 slice (region compiler/`SpatialProjector`/`buildObserverMap`),
+committed `0958407` + `59cec34`; spatial *processes* (weather/river/settlement
+read views) are separate later slices and are still documented-only.
 
-Interaction Model v1 — stages 0–2 + Slices 1–2 (ADR-0013, DECISIONS D-020;
-in the working tree, not yet committed):
+Interaction Model v1 — stages 0–2 + Slices 1–2 (ADR-0013, DECISIONS D-020)
+— COMMITTED (`72d997c`); this handoff note is retained for history only.
+Remaining Slices 3–7 are the active next work (see Next #3):
 - Stage 0 docs: ADR-0013 written (context/alternatives/decision/7-slice
   table/DoD), `docs/WORLD_INTERACTION_MODEL.md` promoted v0 draft → accepted
   v1 contract, `docs/ux/INTERACTION_GRAMMAR.md` registers the v1 intentions,

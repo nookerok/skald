@@ -15,6 +15,7 @@ import {
 } from "./presence-exit-state.js";
 import { fetchObserverSession, acknowledgePresence, createRequestKey } from "./world-api-client.js";
 import { clearPresenceLease } from "./presence-lease.js";
+import { syncShellModalInert } from "./game-shell-view.js";
 
 let state = exitInitialState();
 let overlay = null;
@@ -61,6 +62,7 @@ function renderOverlay() {
   overlay.hidden = false;
   overlay.setAttribute("aria-hidden", "false");
   overlay.setAttribute("aria-busy", String(busy));
+  syncShellModalInert();
   if (retryBtn) retryBtn.hidden = !busy && state.phase !== EXIT_PHASE.EXIT_ERROR;
   if (stayBtn) stayBtn.hidden = !busy && state.phase !== EXIT_PHASE.EXIT_ERROR;
   if (busy) {
@@ -86,6 +88,7 @@ function hideOverlay() {
   overlay.hidden = true;
   overlay.setAttribute("aria-hidden", "true");
   overlay.setAttribute("aria-busy", "false");
+  syncShellModalInert();
 }
 
 async function performAck() {

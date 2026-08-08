@@ -10,6 +10,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { MultiWorldStore } from "../persistence/sqlite-store.js";
 import type { WorldId } from "../persistence/types.js";
 import { WorldCommandQueue } from "./world-command-queue.js";
+import { NarrationScheduler } from "./narration-scheduler.js";
 import { rollPendingCheck } from "../dice-roller.js";
 
 export interface WorldRuntime {
@@ -22,6 +23,7 @@ export interface WorldRuntime {
   router: ModelRouter | null;
   store: MultiWorldStore;
   queue: WorldCommandQueue;
+  narration: NarrationScheduler;
 }
 
 function createRouter(): ModelRouter | null {
@@ -98,7 +100,7 @@ export class WorldRuntimeManager {
 
     const runtime: WorldRuntime = {
       worldId, bus, registry, engine, projection, processedKeys, router,
-      store: this.store, queue,
+      store: this.store, queue, narration: new NarrationScheduler(),
     };
 
     // Crash recovery: roll any pending critical checks

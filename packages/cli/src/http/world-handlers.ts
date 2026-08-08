@@ -1,4 +1,5 @@
 import type { WorldRuntime } from "../runtime/index.js";
+import { resolveNarrationState } from "../runtime/index.js";
 import {
   buildNarrative,
   buildTurnJournal,
@@ -139,6 +140,106 @@ export function handleWorldState(runtime: WorldRuntime): JsonResponse {
 
 // --- Command ---
 
+/**
+ * Best-effort read-side narration (ADR-0024 "МИР" voice). Runs detached from
+ * the world command queue so the LLM call can never delay the command response
+ * (browser-side timeout is 15s, LLM can take tens of seconds). The narration
+ * only persists prose keyed by worldTime; the deterministic primary text is
+ * never withheld when narration loses the race.
+ *
+ * Fallback narrations (usedFallback) are deliberately NOT persisted: they are
+ * just the deterministic template repeated, `attachTurnNarrations` never
+ * surfaces them, and a persisted fallback row would block a later successful
+ * generation for the same turn. A transient `chat_error` therefore never
+ * permanently deprives a turn of its literary narration.
+ */
+type NarrationTurn = { input: string; pres: ReturnType<typeof selectTurnPresentation> };
+
+/**
+ * Whether a narration result earns a persisted row and the `ready` state.
+ * `usedFallback` narrations and empty successful responses are both terminal
+ * failures: nothing is persisted, so the journal must recompose the turn as
+ * `unavailable` and the browser polling must keep its terminal state — not a
+ * `not_requested` that looks like the prose was never asked for.
+ */
+export function shouldPersistNarration(narration: { usedFallback: boolean; text: string }): boolean {
+  return !narration.usedFallback && narration.text.trim().length > 0;
+}
+
+function scheduleNarration(runtime: WorldRuntime, input: string, pres: ReturnType<typeof selectTurnPresentation>): void {
+  const router = runtime.router;
+  if (!router || input.trim().length === 0) return;
+  const worldId = runtime.worldId;
+  const worldTime = pres.worldTime;
+  runtime.narration.schedule({
+    priority: "interactive",
+    worldTime,
+    run: async () => {
+      try {
+        const narration = await narrateTurnLLM(input, pres, router);
+        // `markReady` only after a successful non-empty persist: an empty
+        // successful response or a fallback is a terminal failure, and the
+        // journal must recompose the turn as `unavailable`, never the
+        // `not_requested` a bare status removal would produce.
+        if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
+        runtime.store.saveTurnNarration(worldId, worldTime, narration);
+        runtime.narration.markReady(worldTime);
+      } catch { runtime.narration.markUnavailable(worldTime); }
+    },
+    onDrop: () => runtime.narration.markUnavailable(worldTime),
+  });
+}
+
+/**
+ * Best-effort read-side narration for the multiple turns produced by
+ * `advance N`. Each tick is its own chronicle turn with its own worldTime, so
+ * a single presentation cannot cover them. Each target turn is scheduled as
+ * its own detached `batch` job: a single job looping over every tick would run
+ * the whole `advance N` inside one slot, exhausting the scheduler queue guard
+ * and holding provider limits / serialized LLM time for tens of minutes while
+ * later ordinary commands starve. Priority separation keeps the batch behind
+ * interactive narrations, and the batch queue's own small cap evicts the
+ * oldest pending batch turns via `onDrop` (turned `unavailable`) so a burst
+ * can never monopolize the runner. Jobs derive the per-turn presentation from
+ * the journal at execution time (the world already committed before any job
+ * starts) and persist one narration per target worldTime. Runs detached,
+ * bounded and failure-swallowing like {@link scheduleNarration}.
+ */
+function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEvents: readonly DomainEvent[]): void {
+  const router = runtime.router;
+  if (!router || input.trim().length === 0 || tickEvents.length === 0) return;
+  const worldId = runtime.worldId;
+  // The world command queue has already committed these ticks before this
+  // helper runs, so the journal presentation per target worldTime is stable:
+  // capture it once instead of replaying the log inside every job.
+  const journal = buildTurnJournal(runtime.bus.query());
+  const targets = [...new Set(tickEvents.map((e) => e.timestamp))]
+    .map((worldTime) => ({
+      worldTime,
+      presentation: journal.turns.find((t) => t.worldTime === worldTime)?.presentation ?? null,
+    }))
+    .filter((t): t is { worldTime: number; presentation: NonNullable<typeof t.presentation> } => t.presentation !== null);
+  for (const target of targets) {
+    const { worldTime, presentation } = target;
+    runtime.narration.schedule({
+      priority: "batch",
+      worldTime,
+      run: async () => {
+        try {
+          const narration = await narrateTurnLLM(input, presentation, router);
+          // Same terminal-failure rule as the interactive branch: an empty
+          // successful response must recompose as `unavailable`, never
+          // `ready`, because nothing was persisted for this batch turn.
+          if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
+          runtime.store.saveTurnNarration(worldId, worldTime, narration);
+          runtime.narration.markReady(worldTime);
+        } catch { runtime.narration.markUnavailable(worldTime); }
+      },
+      onDrop: () => runtime.narration.markUnavailable(worldTime),
+    });
+  }
+}
+
 export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): Promise<JsonResponse> {
   if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
   if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
@@ -148,7 +249,10 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   if (typeof input !== "string" || input.length === 0)
     return error("invalid_request", "input required", 400);
 
-  return runtime.queue.enqueue(async () => {
+  let narrationTurn: NarrationTurn | null = null;
+  let advanceNarrationTicks: DomainEvent[] | null = null;
+
+  const response = await runtime.queue.enqueue(async () => {
     try {
       if (input === "wait") {
         const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false });
@@ -159,6 +263,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const guidance = buildGuidance(runtime);
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+        narrationTurn = { input, pres };
         return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
       if (input.startsWith("advance ")) {
@@ -173,6 +278,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const guidance = buildGuidance(runtime);
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+        advanceNarrationTicks = tickResult.tickEvents;
         return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
 
@@ -191,14 +297,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-      if (runtime.router && typeof input === "string" && input.trim().length > 0) {
-        try {
-          const narration = await narrateTurnLLM(input, pres, runtime.router);
-          if (narration.text.length > 0) {
-            runtime.store.saveTurnNarration(runtime.worldId, pres.worldTime, narration);
-          }
-        } catch { /* narration is best-effort read-side decoration */ }
-      }
+      narrationTurn = { input, pres };
       return json({
         ok: true,
         state: serializeWorldStateFromRuntime(runtime),
@@ -214,6 +313,12 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       return error("internal_error", safeError(err), 500);
     }
   });
+
+  const pendingNarration = narrationTurn as NarrationTurn | null;
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres);
+  const pendingTicks = advanceNarrationTicks as DomainEvent[] | null;
+  if (pendingTicks && pendingTicks.length > 0) scheduleNarrationForTicks(runtime, input, pendingTicks);
+  return response;
 }
 
 // --- Offline intent queue (UX-6.3) ---
@@ -229,7 +334,9 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   if (typeof baseRevision !== "number" || !Number.isSafeInteger(baseRevision) || baseRevision < 0)
     return error("invalid_request", "baseRevision must be a non-negative integer", 400);
 
-  return runtime.queue.enqueue(async () => {
+  let narrationTurn: NarrationTurn | null = null;
+
+  const response = await runtime.queue.enqueue(async () => {
     try {
       // Idempotency replay wins: a processed key is already_processed and the
       // browser reconciles authoritative read models instead of re-sending.
@@ -271,14 +378,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-      if (runtime.router && typeof input === "string" && input.trim().length > 0) {
-        try {
-          const narration = await narrateTurnLLM(input, pres, runtime.router);
-          if (narration.text.length > 0) {
-            runtime.store.saveTurnNarration(runtime.worldId, pres.worldTime, narration);
-          }
-        } catch { /* narration is best-effort read-side decoration */ }
-      }
+      narrationTurn = { input, pres };
       return json({
         ok: true,
         resolution: "accepted",
@@ -296,6 +396,10 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       return error("internal_error", safeError(err), 500);
     }
   });
+
+  const pendingNarration = narrationTurn as NarrationTurn | null;
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres);
+  return response;
 }
 
 // --- Read endpoints ---
@@ -322,11 +426,24 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
   const nextBefore = hasMore ? page[page.length - 1]!.worldTime : null;
 
   // Merge non-authoritative literary narrations (ADR-0024 "МИР" voice) from the
-  // read-side table so the chronicle shows the D&D-style narration for each turn.
+  // read-side table so the chronicle shows the D&D-style narration for each turn,
+  // and expose the per-turn narration lifecycle so the browser knows whether to
+  // keep polling instead of guessing by elapsed time. `ready` derives from the
+  // persisted row; `pending`/`unavailable` come from the in-memory scheduler.
   const narrations = runtime.store.getTurnNarrations(runtime.worldId);
   const turnsWithNarrations = attachTurnNarrations(page, narrations);
+  const turns = turnsWithNarrations.map((turn) => {
+    const row = narrations.get(turn.worldTime);
+    return {
+      ...turn,
+      narrationState: resolveNarrationState(
+        { hasNonFallback: Boolean(row && !row.usedFallback) },
+        runtime.narration.statusOf(turn.worldTime),
+      ),
+    };
+  });
 
-  return json({ ok: true, turns: turnsWithNarrations, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
+  return json({ ok: true, turns, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {

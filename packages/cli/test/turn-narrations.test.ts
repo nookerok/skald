@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { createMultiWorldStore } from "../src/persistence/index.js";
+import { shouldPersistNarration } from "../src/http/world-handlers.js";
+import { NarrationScheduler, resolveNarrationState } from "../src/runtime/narration-scheduler.js";
 import type { TurnNarration } from "@skald/world";
 import { bootstrapWorldEvents } from "@skald/world";
 
@@ -31,6 +33,46 @@ async function createWorld(store: ReturnType<typeof createMultiWorldStore>, worl
     bootstrapEvents: bootstrapWorldEvents(),
   });
 }
+
+describe("shouldPersistNarration (P2: empty LLM reply is terminal failure)", () => {
+  it("persists only a non-fallback non-empty narration", () => {
+    expect(shouldPersistNarration({ usedFallback: false, text: "Ветер стих." })).toBe(true);
+  });
+
+  it("rejects an empty successful response that would otherwise look ready", () => {
+    expect(shouldPersistNarration({ usedFallback: false, text: "" })).toBe(false);
+    expect(shouldPersistNarration({ usedFallback: false, text: "   " })).toBe(false);
+  });
+
+  it("rejects fallback narrations (templates / no-key repeats)", () => {
+    expect(shouldPersistNarration({ usedFallback: true, text: "Мир продолжал дышать." })).toBe(false);
+    expect(shouldPersistNarration({ usedFallback: true, text: "" })).toBe(false);
+  });
+});
+
+describe("empty successful reply recomposes as unavailable, never not_requested", () => {
+  // Mirrors the handler settle rule: empty text -> no persist + markUnavailable,
+  // and the journal's resolveNarrationState must therefore report `unavailable`
+  // so the browser polling keeps its terminal state instead of stopping as if
+  // the narration had never been requested.
+  it("empty text keeps the scheduler terminal and the journal reports unavailable", () => {
+    const scheduler = new NarrationScheduler();
+    const empty = { usedFallback: false, text: "   " };
+
+    if (!shouldPersistNarration(empty)) scheduler.markUnavailable(42);
+
+    expect(scheduler.statusOf(42)).toBe("unavailable");
+    expect(resolveNarrationState({ hasNonFallback: false }, scheduler.statusOf(42))).toBe("unavailable");
+    expect(resolveNarrationState({ hasNonFallback: false }, scheduler.statusOf(42))).not.toBe("not_requested");
+  });
+
+  it("a persisted narration recomposes as ready", () => {
+    const scheduler = new NarrationScheduler();
+    scheduler.schedule({ priority: "interactive", worldTime: 7, run: async () => {}, onDrop: () => {} });
+    scheduler.markReady(7);
+    expect(resolveNarrationState({ hasNonFallback: true }, scheduler.statusOf(7))).toBe("ready");
+  });
+});
 
 describe("turn narrations persistence (v5)", () => {
   it("round-trips saved narrations keyed by worldTime", async () => {
@@ -77,6 +119,37 @@ describe("turn narrations persistence (v5)", () => {
     });
     // Persisted yes, but consumers must filter usedFallback before surfacing.
     expect(store.getTurnNarrations("w1").get(9)!.usedFallback).toBe(true);
+    store.close();
+  });
+
+  it("a later successful narration overwrites an earlier stored fallback row", async () => {
+    const dbPath = tmpDb();
+    const store = createMultiWorldStore(dbPath);
+    await createWorld(store, "w1");
+
+    // Legacy/transient fallback persisted for the turn first (P2 regression).
+    store.saveTurnNarration("w1", 7, {
+      text: "шаблон",
+      model: "",
+      usedFallback: true,
+      fallbackReason: "chat_error",
+      latencyMs: 0,
+    });
+    expect(store.getTurnNarrations("w1").get(7)!.usedFallback).toBe(true);
+
+    // A later real generation must replace the fallback, not be INSERT IGNORED.
+    store.saveTurnNarration("w1", 7, {
+      text: "Ветер рассыпал искры по ночному лесу.",
+      model: "deepseek-v4-flash-free",
+      usedFallback: false,
+      fallbackReason: null,
+      latencyMs: 900,
+    });
+    const replacement = store.getTurnNarrations("w1").get(7)!;
+    expect(replacement.usedFallback).toBe(false);
+    expect(replacement.text).toBe("Ветер рассыпал искры по ночному лесу.");
+    expect(replacement.model).toBe("deepseek-v4-flash-free");
+    expect(store.getTurnNarrations("w1").size).toBe(1);
     store.close();
   });
 
