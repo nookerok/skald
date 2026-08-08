@@ -1,4 +1,5 @@
 import type { NarrativeSnapshot, NarrativeEntry } from "./narrative.js";
+import type { TurnPresentation } from "./presentation/types.js";
 import { ModelRouter } from "./llm/router.js";
 import type { ChatMessage, ChatResult } from "./llm/types.js";
 
@@ -78,5 +79,78 @@ export async function narrateLLM(
       model: "",
       latencyMs: 0,
     };
+  }
+}
+
+/**
+ * Non-authoritative literary narration for one player turn (ADR-0024 voices).
+ * The LLM rephrases only the facts already selected by the deterministic
+ * Presentation logic (turn `primary` + up to three `notable`s) and the player's
+ * own action as a given cause. It never selects facts/importance, never emits
+ * Domain Events, never writes Projection, and never decides an outcome — it
+ * only produces prose text (alignment with AGENTS §4). Callers persist this as
+ * a read-side journal decoration.
+ */
+export interface TurnNarration {
+  readonly text: string;
+  readonly model: string;
+  readonly usedFallback: boolean;
+  readonly fallbackReason: string | null;
+  readonly latencyMs: number;
+}
+
+const DND_SYSTEM_PROMPT =
+  "Ты — рассказчик тёмного живого мира в духе настольной ролевой игры. Один ход = одно игровое действие персонажа и его уже свершившиеся последствия из списка фактов. " +
+  "Опиши ход художественно, по-русски, 2-4 предложения, в прошедшем времени, с атмосферой и напряжением, как ведущий в D&D. " +
+  "Жёсткие правила: используй только факты ниже и исход действия — ничего не придумывай, не добавляй новые события/исходы/детали, не выбирай за игрока, " +
+  "не описывай мысли или будущие намерения, не решай гипотезы законов мира. Твоё описание ничего не меняет в симуляции.";
+
+function fallbackNarration(presentation: TurnPresentation, reason: string): TurnNarration {
+  return {
+    text: presentation.primary?.text ?? "Мир продолжал дышать вокруг тебя.",
+    model: "",
+    usedFallback: true,
+    fallbackReason: reason,
+    latencyMs: 0,
+  };
+}
+
+export async function narrateTurnLLM(
+  playerAction: string,
+  presentation: TurnPresentation,
+  router: ModelRouter | null,
+): Promise<TurnNarration> {
+  if (!router || !router.apiKey) {
+    return fallbackNarration(presentation, "no_api_key");
+  }
+
+  const facts = [
+    { role: "primary", text: presentation.primary?.text ?? null },
+    ...presentation.notable.slice(0, 3).map((e) => ({ role: "notable", text: e.text })),
+  ].filter((f) => f.text !== null);
+
+  const userContent = JSON.stringify({
+    playerAction,
+    turnFacts: facts.map((f) => ({ role: f.role, text: f.text })),
+    worldTime: presentation.worldTime,
+    playerPosition: presentation.playerPosition,
+  });
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: DND_SYSTEM_PROMPT },
+    { role: "user", content: userContent },
+  ];
+
+  try {
+    const result: ChatResult = await router.chat("narrate", messages);
+    return {
+      text: result.text.trim(),
+      model: result.model,
+      usedFallback: false,
+      fallbackReason: null,
+      latencyMs: result.latencyMs,
+    };
+  } catch (err) {
+    return fallbackNarration(presentation, "chat_error");
   }
 }

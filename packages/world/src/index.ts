@@ -52,7 +52,7 @@ export type {
 export { selectTurnPresentation } from "./presentation/selector.js";
 export { parseBeliefModelDTO, parseObservationRecord } from "@skald/observation";
 export type * from "./presentation/types.js";
-export { buildTurnJournal } from "./journal/builder.js";
+export { buildTurnJournal, attachTurnNarrations } from "./journal/builder.js";
 export type * from "./journal/types.js";
 export { buildDiscoveryJournal, DEFINITIONS } from "./discovery/index.js";
 export type * from "./discovery/types.js";
@@ -73,7 +73,8 @@ export type { CharacterPreset, WorldTemplate } from "./setup/types.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
-export { narrateLLM } from "./narrative-llm.js";
+export { narrateLLM, narrateTurnLLM } from "./narrative-llm.js";
+export type { TurnNarration } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
 export { ModelRouter } from "./llm/router.js";
 export { chatOnce, shouldFallback } from "./llm/http.js";

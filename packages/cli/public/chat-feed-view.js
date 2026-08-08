@@ -56,6 +56,10 @@ function turnNode(turn) {
     makeNode("span", { className: "chat-turn-meta", text: "Ход " + turn.worldTime }),
   );
   node.appendChild(header);
+  const narrative = turn.narrativeLLM;
+  if (narrative && !narrative.usedFallback && narrative.text) {
+    node.appendChild(makeNode("p", { className: "chat-world-narrated", text: narrative.text }));
+  }
   const primary = presentation.primary;
   const primaryRow = makeNode("p", { className: "chat-world-primary", text: primary?.text || "Мир продолжил жить." });
   const label = markLabel(primary?.discoveryMark);

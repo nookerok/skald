@@ -1,4 +1,4 @@
-export const USER_VERSION = 4;
+export const USER_VERSION = 5;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
@@ -99,5 +99,23 @@ export function execSchemaV4(db: { exec(sql: string): void }): void {
     updated_at                 INTEGER NOT NULL,
     FOREIGN KEY (world_id) REFERENCES worlds(world_id),
     PRIMARY KEY (world_id, idempotency_key)
+  ) STRICT`);
+}
+
+export function execSchemaV5(db: { exec(sql: string): void }): void {
+  execSchemaV4(db);
+  db.exec(`PRAGMA user_version = ${USER_VERSION}`);
+
+  // Non-authoritative literary narration (ADR-0024 "МИР" voice), keyed per turn.
+  // This is a read-side journal decoration, never part of the Event Log.
+  db.exec(`CREATE TABLE IF NOT EXISTS turn_narrations (
+    world_id      TEXT NOT NULL,
+    world_time    INTEGER NOT NULL,
+    text          TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    used_fallback INTEGER NOT NULL,
+    latency_ms    INTEGER NOT NULL,
+    FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+    PRIMARY KEY (world_id, world_time)
   ) STRICT`);
 }

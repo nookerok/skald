@@ -3,9 +3,9 @@ import { dirname } from "node:path";
 import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
-import type { ObserverCheckpoint } from "@skald/world";
-import { configureDatabase, execSchemaV4 } from "./schema.js";
-import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, validateUserVersion, verifyIntegrity } from "./migrations.js";
+import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
+import { configureDatabase, execSchemaV5 } from "./schema.js";
+import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 
 export interface CommitOptions {
@@ -39,6 +39,10 @@ export interface MultiWorldStore {
     worldId: WorldId,
     idempotencyKey: string,
   ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null;
+  /** Persist one turn's non-authoritative literary narration (read-side). */
+  saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration): void;
+  /** All stored narrations for a world, keyed by turn worldTime. Idempotent. */
+  getTurnNarrations(worldId: WorldId): Map<number, TurnNarration>;
   close(): void;
 }
 
@@ -137,7 +141,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const versionAction = validateUserVersion(db);
 
   if (versionAction === "fresh") {
-    execSchemaV4(db);
+    execSchemaV5(db);
     // Create legacy world record so FK constraints are satisfied
     db.prepare(
       "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -152,18 +156,28 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v2→v3: world_creation_requests table added`);
     migrateV3ToV4(db);
     console.log(`[persistence] migrated v3→v4: observer_checkpoints table added`);
+    migrateV4ToV5(db);
+    console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
   } else if (versionAction === "migrateV3") {
     verifyIntegrity(db);
     migrateV2ToV3(db);
     console.log(`[persistence] migrated v2→v3: world_creation_requests table added`);
     migrateV3ToV4(db);
     console.log(`[persistence] migrated v3→v4: observer_checkpoints table added`);
+    migrateV4ToV5(db);
+    console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
   } else if (versionAction === "migrateV4") {
     verifyIntegrity(db);
     migrateV3ToV4(db);
     console.log(`[persistence] migrated v3→v4: observer_checkpoints table added`);
+    migrateV4ToV5(db);
+    console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
+  } else if (versionAction === "migrateV5") {
+    verifyIntegrity(db);
+    migrateV4ToV5(db);
+    console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
   } else {
-    // Already v4 — verify
+    // Already v5 — verify
     verifyIntegrity(db);
   }
 
@@ -197,6 +211,12 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   );
   const insertAcknowledgeRequest = db.prepare(
     "INSERT INTO acknowledge_requests (world_id, idempotency_key, request_hash, correlation_id, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const upsertTurnNarration = db.prepare(
+    "INSERT OR IGNORE INTO turn_narrations (world_id, world_time, text, model, used_fallback, latency_ms) VALUES (?, ?, ?, ?, ?, ?)",
+  );
+  const listTurnNarrations = db.prepare(
+    "SELECT world_time, text, model, used_fallback, latency_ms FROM turn_narrations WHERE world_id = ?",
   );
 
   function mapAcknowledgeReplay(r: Record<string, unknown>): {
@@ -517,6 +537,28 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null {
       const row = getAcknowledgeRequest.get(worldId, idempotencyKey) as Record<string, unknown> | undefined;
       return row ? mapAcknowledgeReplay(row) : null;
+    },
+
+    saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration): void {
+      upsertTurnNarration.run(
+        worldId, worldTime, narration.text, narration.model,
+        narration.usedFallback ? 1 : 0, narration.latencyMs,
+      );
+    },
+
+    getTurnNarrations(worldId: WorldId): Map<number, TurnNarration> {
+      const rows = listTurnNarrations.all(worldId) as Record<string, unknown>[];
+      const map = new Map<number, TurnNarration>();
+      for (const r of rows) {
+        map.set(r["world_time"] as number, {
+          text: r["text"] as string,
+          model: r["model"] as string,
+          usedFallback: (r["used_fallback"] as number) === 1,
+          fallbackReason: null,
+          latencyMs: r["latency_ms"] as number,
+        });
+      }
+      return map;
     },
 
     close(): void {

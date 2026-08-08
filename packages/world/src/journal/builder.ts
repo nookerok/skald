@@ -4,6 +4,7 @@ import { selectTurnPresentation } from "../presentation/selector.js";
 import type { PresentationEntry } from "../presentation/types.js";
 import { sanitizePlayerFacingText } from "../game-shell/player-facing.js";
 import type { JournalTurn, PresentationThread, PresentationThreadEntry, TurnJournal } from "./types.js";
+import type { TurnNarration } from "../narrative-llm.js";
 
 function deepFreeze<T>(obj: T): T {
   if (obj === null || obj === undefined || typeof obj !== "object") return obj;
@@ -29,6 +30,21 @@ function turnIsOffline(events: readonly DomainEvent[]): boolean {
   return events.some(
     (event) => event.type === "TickPassed" && (event.payload as { playerOffline?: boolean }).playerOffline === true,
   );
+}
+
+/**
+ * Pure, non-authoritative read-side merge: attach stored literary narrations to
+ * journal turns by matching worldTime. Fallback narrations (usedFallback) are
+ * never surfaced — the deterministic template is already authoritative there.
+ */
+export function attachTurnNarrations(
+  turns: readonly JournalTurn[],
+  narrations: ReadonlyMap<number, TurnNarration>,
+): JournalTurn[] {
+  return turns.map((t) => {
+    const narration = narrations.get(t.worldTime);
+    return narration && !narration.usedFallback ? { ...t, narrativeLLM: narration } : t;
+  });
 }
 
 export function buildTurnJournal(events: readonly DomainEvent[], options: BuildTurnJournalOptions = {}): TurnJournal {

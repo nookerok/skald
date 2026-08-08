@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -134,9 +134,35 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 1) return "migrate";
   if (v === 2) return "migrateV3";
   if (v === 3) return "migrateV4";
-  if (v === 4) return "open";
+  if (v === 4) return "migrateV5";
+  if (v === 5) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-4.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-5.`);
+}
+
+export function migrateV4ToV5(db: SqliteHandle): void {
+  verifyIntegrity(db);
+
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS turn_narrations (
+      world_id      TEXT NOT NULL,
+      world_time    INTEGER NOT NULL,
+      text          TEXT NOT NULL,
+      model         TEXT NOT NULL,
+      used_fallback INTEGER NOT NULL,
+      latency_ms    INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      PRIMARY KEY (world_id, world_time)
+    ) STRICT`);
+    db.exec("PRAGMA user_version = 5");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  verifyIntegrity(db);
 }
 
 export function migrateV3ToV4(db: SqliteHandle): void {

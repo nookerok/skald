@@ -1,10 +1,17 @@
 import type { TurnPresentation, PresentationImportance, DiscoveryMark } from "../presentation/types.js";
+import type { TurnNarration } from "../narrative-llm.js";
 
 export interface JournalTurn {
   readonly turnId: string;
   readonly worldTime: number;
   readonly presentation: TurnPresentation;
   readonly sourceEventIds: readonly string[];
+  /**
+   * Optional non-authoritative literary narration for this turn (ADR-0024
+   * "МИР" voice). Persisted as a read-side journal decoration; absent when the
+   * LLM was unavailable or fell back to the deterministic template.
+   */
+  readonly narrativeLLM?: TurnNarration | undefined;
 }
 
 export interface PresentationThreadEntry {

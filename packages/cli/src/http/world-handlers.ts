@@ -2,6 +2,7 @@ import type { WorldRuntime } from "../runtime/index.js";
 import {
   buildNarrative,
   buildTurnJournal,
+  attachTurnNarrations,
   buildDiscoveryJournalFromBeliefModel,
   buildPlayerGuidance,
   buildGameShellSnapshot,
@@ -18,6 +19,7 @@ import {
   resolveOfflineIntent,
   buildObserverMap,
   buildSpatialWorldProjection,
+  narrateTurnLLM,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -189,6 +191,14 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      if (runtime.router && typeof input === "string" && input.trim().length > 0) {
+        try {
+          const narration = await narrateTurnLLM(input, pres, runtime.router);
+          if (narration.text.length > 0) {
+            runtime.store.saveTurnNarration(runtime.worldId, pres.worldTime, narration);
+          }
+        } catch { /* narration is best-effort read-side decoration */ }
+      }
       return json({
         ok: true,
         state: serializeWorldStateFromRuntime(runtime),
@@ -261,6 +271,14 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      if (runtime.router && typeof input === "string" && input.trim().length > 0) {
+        try {
+          const narration = await narrateTurnLLM(input, pres, runtime.router);
+          if (narration.text.length > 0) {
+            runtime.store.saveTurnNarration(runtime.worldId, pres.worldTime, narration);
+          }
+        } catch { /* narration is best-effort read-side decoration */ }
+      }
       return json({
         ok: true,
         resolution: "accepted",
@@ -303,7 +321,12 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
   const hasMore = filtered.length > page.length;
   const nextBefore = hasMore ? page[page.length - 1]!.worldTime : null;
 
-  return json({ ok: true, turns: page, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
+  // Merge non-authoritative literary narrations (ADR-0024 "МИР" voice) from the
+  // read-side table so the chronicle shows the D&D-style narration for each turn.
+  const narrations = runtime.store.getTurnNarrations(runtime.worldId);
+  const turnsWithNarrations = attachTurnNarrations(page, narrations);
+
+  return json({ ok: true, turns: turnsWithNarrations, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
