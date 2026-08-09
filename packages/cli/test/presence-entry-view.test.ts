@@ -176,6 +176,12 @@ describe("presence-entry.css", () => {
   });
 });
 
+describe("menu.css hidden panel", () => {
+  it("removes the hidden menu from the layout", () => {
+    expect(code("menu.css")).toContain("#panel-menu[hidden] { display:none; }");
+  });
+});
+
 describe("app.js boot flash", () => {
   it("covers the static shell frame with the loading dialog until the first snapshot", () => {
     const src = code("app.js");
