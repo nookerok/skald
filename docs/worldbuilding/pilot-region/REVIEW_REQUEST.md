@@ -105,3 +105,19 @@ The `visual-canon.json` provides pixel-to-metre registration for all locations a
 | P2 | Monolith description enrichment | Accept / Reject |
 | P3 | Waterfall observation evidence | Accept / Reject |
 | P4 | Visual canon report as reference | Accept / Reject |
+
+
+## Implementation status addendum (2026-08-09)
+
+The review proposal has now been implemented as a reference-only
+canonicalization layer:
+
+- `region-interpretation.json` is the structured handoff for Canon review.
+- `visual-interpretation.yaml` records the accepted design-time boundary.
+- P1 (southern borough) and D6.1 (initial visual observations) were already
+  present in runtime and are recorded as `already_compiled`, so no duplicate
+  events were added.
+- P2 (monolith luminescence), P3 (waterfall evidence), resource nodes and
+  historical hypotheses remain explicit proposals until separately accepted.
+- `npm run canon:validate` validates both the Canon Model and the new
+  interpretation artifact.

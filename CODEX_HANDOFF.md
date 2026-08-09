@@ -1,5 +1,15 @@
 # Codex Handoff
 
+## Current work (2026-08-09)
+
+- UX-7.1 Chat Core implemented in the working tree from ADR-0024: the main Game Screen is a chronicle-first dialogue with #chat-feed as the dominant surface and the free-text composer as the only permanent game control.
+- GameShellSnapshot/journal DTOs, Domain Events, Rules and HTTP contracts are unchanged. World-stage and map remain available under the Context -> Мир overlay; dynamic context details render into #context-world-details so renderContextRail cannot erase the stage.
+- Suggestions, D-pad and action/social chips are not rendered in the first layer.
+- Focused client tests: 86 passed. Full npm run validate: PASS (110 files, 1373 passed, 1 skipped).
+- Local NTFS browser QA: PASS on desktop 1440x900 and mobile 390x844; Chat Core composer, overlays, stage persistence, reload, no overflow and console errors 0. Mutation budget used only for one temporary Presence acknowledge; no gameplay mutation.
+- Changes are not committed, pushed or deployed yet.
+
+
 Mutable milestone note. Git, tests and current source outrank this file.
 
 ## Current state (2026-08-08)
@@ -450,3 +460,16 @@ BLOCKED until the browser runtime supports the override.
 LLM/chat-shell vocabulary wiring for Russian free-text forms such as
 "осмотреть телегу" is intentionally out of scope. Small follow-up after the
 deterministic gate pipeline is accepted.
+
+
+## Current work (2026-08-09, region canonicalization)
+
+- Added the reference-only Region Interpretation Layer at
+  `docs/worldbuilding/pilot-region/region-interpretation.json`.
+- Added the design-time Canon concept
+  `docs/canon/regions/pilot-region/visual-interpretation.yaml`.
+- Added deterministic validation through
+  `scripts/canon/validate-visual-canon.mjs`, wired into `npm run canon:validate`.
+- Existing southern-borough and initial-observation bootstrap entries are
+  recorded as already compiled; no duplicate events or image/runtime coupling
+  were introduced.

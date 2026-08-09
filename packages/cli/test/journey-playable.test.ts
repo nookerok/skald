@@ -34,6 +34,18 @@ describe("playable journey in the living region", () => {
     expect(world.activeJourneyId).toBeNull();
   });
 
+  it("reaches the canonical waterfall content and can inspect it", () => {
+    const harness = createHarness("living_region", "content-e2e");
+    const app = harness.app;
+
+    runCommandCycle(app, "идти к водопадам", "content-e2e:go-waterfalls");
+    expect(app.projection.getSnapshot().currentLocationId).toBe("western_cliff_waterfalls");
+
+    const result = runCommandCycle(app, "inspect водопад", "content-e2e:inspect-waterfalls");
+    const events = (result as { events: Array<{ type: string; payload?: unknown }> }).events;
+    expect(events.some((event) => event.type === "ObjectObserved" && (event.payload as { objectId?: string }).objectId === "western_cliff_waterfalls")).toBe(true);
+  });
+
   it("reports an unknown destination honestly without moving", () => {
     const harness = createHarness("living_region", "journey-e2e-blocked");
     const app = harness.app;

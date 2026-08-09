@@ -1,0 +1,571 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "status": "canonicalized_reference",
+  "source": {
+    "artifact": "ChatGPT Image 6 авг. 2026 г., 22_23_11.png",
+    "role": "reference_artifact",
+    "imageIsRuntimeData": false,
+    "registration": {
+      "method": "anchor-based oblique registration",
+      "image": {
+        "widthPx": 1440,
+        "heightPx": 1080
+      },
+      "anchors": [
+        {
+          "locationId": "river_waystation",
+          "pixelX": 520,
+          "pixelY": 640,
+          "metreX": 8000,
+          "metreY": 9500
+        },
+        {
+          "landmarkId": "suspended_monolith",
+          "pixelX": 700,
+          "pixelY": 250,
+          "metreX": 11000,
+          "metreY": 18000
+        }
+      ],
+      "scale": "non-linear; anchor coordinates are authoring references, not a renderer transform"
+    }
+  },
+  "authority": {
+    "canon": [
+      "docs/canon/regions/pilot-region/geography.yaml",
+      "docs/canon/regions/pilot-region/monolith.yaml"
+    ],
+    "runtime": "packages/world/src/region/definition.ts",
+    "projection": "RegionDefined bootstrap event -> SpatialWorldProjection -> Observation/Belief"
+  },
+  "terrainZones": [
+    {
+      "id": "northern_snow_range",
+      "type": "mountain_range",
+      "normalizedBounds": {
+        "minX": 0,
+        "minY": 0,
+        "maxX": 1,
+        "maxY": 0.22
+      },
+      "elevationHierarchy": "highest",
+      "simulationImportance": [
+        "river_source",
+        "passability",
+        "visibility"
+      ],
+      "evidence": "Snow-capped peaks and high ridges occupy the upper fifth of the frame."
+    },
+    {
+      "id": "blackwood_forest",
+      "type": "coniferous_forest",
+      "normalizedBounds": {
+        "minX": 0,
+        "minY": 0.25,
+        "maxX": 0.42,
+        "maxY": 1
+      },
+      "elevationHierarchy": "foothills_to_valley",
+      "simulationImportance": [
+        "visibility",
+        "travel_cost",
+        "resource_candidate"
+      ],
+      "evidence": "A continuous dark forest mass fills the western flank and reaches the lower edge."
+    },
+    {
+      "id": "riverwatch_valley",
+      "type": "river_valley",
+      "normalizedBounds": {
+        "minX": 0.28,
+        "minY": 0.18,
+        "maxX": 0.86,
+        "maxY": 0.96
+      },
+      "elevationHierarchy": "lowland_corridor",
+      "simulationImportance": [
+        "settlement",
+        "travel",
+        "hydrology"
+      ],
+      "evidence": "Open ground follows the central river from the northern highlands toward the lower frame."
+    },
+    {
+      "id": "eastern_uplands",
+      "type": "open_upland_and_ridge",
+      "normalizedBounds": {
+        "minX": 0.67,
+        "minY": 0.18,
+        "maxX": 1,
+        "maxY": 0.75
+      },
+      "elevationHierarchy": "raised_plain",
+      "simulationImportance": [
+        "settlement",
+        "visibility",
+        "ruin_access"
+      ],
+      "evidence": "Open cultivated-looking terrain and a rocky elevated ridge dominate the eastern half."
+    },
+    {
+      "id": "glass_crater_basin",
+      "type": "closed_depression",
+      "normalizedBounds": {
+        "minX": 0.12,
+        "minY": 0.58,
+        "maxX": 0.28,
+        "maxY": 0.82
+      },
+      "elevationHierarchy": "local_low",
+      "simulationImportance": [
+        "discovery",
+        "visibility",
+        "unknown_hazard"
+      ],
+      "evidence": "A near-circular dark depression with a reflective centre is visible inside the western forest."
+    }
+  ],
+  "hydrology": [
+    {
+      "id": "riverwatch_main_course",
+      "type": "river",
+      "sourceFeatureId": "high_pass",
+      "routeRelationId": "river_basin",
+      "direction": "north_to_south",
+      "tributaryEvidence": "western_cliff_waterfalls",
+      "simulationImportance": [
+        "river_process",
+        "crossing",
+        "settlement_pressure"
+      ]
+    },
+    {
+      "id": "western_cliff_waterfalls",
+      "type": "waterfall_system",
+      "sourceFeatureId": "northern_snow_range",
+      "routeRelationId": "river_basin",
+      "direction": "west_to_valley",
+      "status": "canonical_runtime_entity",
+      "simulationImportance": [
+        "water_supply",
+        "landmark",
+        "accessibility"
+      ]
+    }
+  ],
+  "biomes": [
+    {
+      "id": "blackwood_conifers",
+      "type": "ancient_coniferous_forest",
+      "sourceTerrainZoneId": "blackwood_forest",
+      "resources": [
+        "timber",
+        "herbs"
+      ],
+      "resourceStatus": "candidate",
+      "dangerStatus": "candidate",
+      "simulationImportance": [
+        "travel_cost",
+        "visibility",
+        "observation"
+      ]
+    },
+    {
+      "id": "riverplain_fields",
+      "type": "river_plain",
+      "sourceTerrainZoneId": "riverwatch_valley",
+      "resources": [
+        "fresh_water",
+        "arable_soil"
+      ],
+      "resourceStatus": "candidate",
+      "dangerStatus": "candidate",
+      "simulationImportance": [
+        "settlement",
+        "food_pressure",
+        "travel"
+      ]
+    },
+    {
+      "id": "eastern_ridge_scrub",
+      "type": "rocky_upland",
+      "sourceTerrainZoneId": "eastern_uplands",
+      "resources": [
+        "stone"
+      ],
+      "resourceStatus": "candidate",
+      "dangerStatus": "candidate",
+      "simulationImportance": [
+        "ruin_access",
+        "visibility",
+        "travel_cost"
+      ]
+    }
+  ],
+  "canonicalMappings": {
+    "locations": [
+      {
+        "id": "river_waystation",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 8000,
+          "y": 9500
+        },
+        "evidence": "Small structure cluster at the forest-valley boundary near the river."
+      },
+      {
+        "id": "riverwatch_city",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 13500,
+          "y": 7500
+        },
+        "evidence": "Large concentric walled city beneath the monolith."
+      },
+      {
+        "id": "blackwood_edge",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 6000,
+          "y": 12000
+        },
+        "evidence": "Sharp transition from dense western forest to open valley."
+      },
+      {
+        "id": "old_ruins",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 16000,
+          "y": 14000
+        },
+        "evidence": "Scattered stone structures on the eastern elevated ridge."
+      },
+      {
+        "id": "glass_crater",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 3800,
+          "y": 4200
+        },
+        "evidence": "Circular depression inside the western forest."
+      },
+      {
+        "id": "high_pass",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 12000,
+          "y": 18000
+        },
+        "evidence": "Break in the northern snow range where the river begins."
+      },
+      {
+        "id": "southern_borough",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 9500,
+          "y": 5000
+        },
+        "evidence": "Smaller walled settlement at a southern river bend; already compiled by the runtime."
+      },
+      {
+        "id": "western_cliff_waterfalls",
+        "status": "canonical",
+        "positionMetres": {
+          "x": 6500,
+          "y": 16000
+        },
+        "evidence": "Several visible cascades on the western cliffs, now authored as a reachable location."
+      }
+    ],
+    "landmarks": [
+      {
+        "id": "riverwatch_city",
+        "status": "canonical",
+        "silhouette": "city"
+      },
+      {
+        "id": "glass_crater",
+        "status": "canonical",
+        "silhouette": "crater"
+      },
+      {
+        "id": "old_ruins",
+        "status": "canonical",
+        "silhouette": "ruin"
+      },
+      {
+        "id": "suspended_monolith",
+        "status": "canonical",
+        "silhouette": "monolith",
+        "observablePhenomenon": "intermittent blue-white light columns; meaning remains hidden"
+      },
+      {
+        "id": "western_cliff_waterfalls",
+        "status": "canonical",
+        "silhouette": "waterfall",
+        "observablePhenomenon": "several cascades feeding the river basin"
+      }
+    ]
+  },
+  "toponyms": [
+    {
+      "subjectId": "riverwatch-basin",
+      "oldName": "Бассейн Речного Стража",
+      "etymology": "Working name from the river and principal city",
+      "origin": {
+        "culture": "regional_common",
+        "ageEstimateYears": null
+      },
+      "observedMeaning": "A river basin watched by the city",
+      "relationHint": "river_basin",
+      "status": "canonical_label"
+    },
+    {
+      "subjectId": "blackwood_edge",
+      "oldName": "Кромка Чёрного леса",
+      "etymology": "Boundary name used by travellers",
+      "origin": {
+        "culture": "waystation_tradition",
+        "ageEstimateYears": null
+      },
+      "observedMeaning": "The threshold of the dark forest",
+      "relationHint": "road_waystation_forest",
+      "status": "canonical_label"
+    },
+    {
+      "subjectId": "glass_crater",
+      "oldName": "Стеклянная впадина",
+      "etymology": "Observed reflective surface; origin unresolved",
+      "origin": {
+        "culture": "local_testimony",
+        "ageEstimateYears": null
+      },
+      "observedMeaning": "A depression where stone appears glass-like after rain",
+      "relationHint": "glass_crater_basin",
+      "status": "canonical_label"
+    },
+    {
+      "subjectId": "suspended_monolith",
+      "oldName": "Парящий монолит",
+      "etymology": "Descriptive name for the visible silhouette",
+      "origin": {
+        "culture": "cross_cultural",
+        "ageEstimateYears": null
+      },
+      "observedMeaning": "A dark elevated landmark with intermittent light",
+      "relationHint": "riverwatch_main_course",
+      "status": "canonical_label"
+    }
+  ],
+  "resourceNodes": [
+    {
+      "id": "riverplain_fresh_water",
+      "biomeId": "riverplain_fields",
+      "resource": "fresh_water",
+      "status": "proposal",
+      "notRuntimeTruth": true
+    },
+    {
+      "id": "blackwood_timber_stand",
+      "biomeId": "blackwood_conifers",
+      "resource": "timber",
+      "status": "proposal",
+      "notRuntimeTruth": true
+    },
+    {
+      "id": "eastern_ridge_stone",
+      "biomeId": "eastern_ridge_scrub",
+      "resource": "stone",
+      "status": "proposal",
+      "notRuntimeTruth": true
+    }
+  ],
+  "discoveryNodes": [
+    {
+      "id": "western_waterfalls",
+      "subjectId": "western_cliff_waterfalls",
+      "observation": {
+        "subjectKind": "relation",
+        "subjectId": "river_basin",
+        "knowledge": "observed",
+        "confidence": 0.75
+      },
+      "reveals": "waterfall_evidence",
+      "hidden": "cause_of_waterfalls",
+      "status": "canonical_read_model_definition"
+    },
+    {
+      "id": "crater_surface",
+      "subjectId": "glass_crater",
+      "observation": {
+        "subjectKind": "landmark",
+        "subjectId": "glass_crater",
+        "knowledge": "rumored",
+        "confidence": 0.25,
+        "bearing": "юго-запад"
+      },
+      "reveals": "reflective_depression",
+      "hidden": "crater_origin",
+      "status": "canonical_read_model_definition"
+    },
+    {
+      "id": "region_resources",
+      "subjectId": "river_waystation",
+      "observation": {
+        "subjectKind": "location",
+        "subjectId": "river_waystation",
+        "knowledge": "traversed",
+        "confidence": 1
+      },
+      "reveals": "resource_witnesses",
+      "hidden": "extraction_methods_and_historical_origin",
+      "status": "proposal"
+    }
+  ],
+  "gameplayHooks": [
+    {
+      "subjectId": "river_waystation",
+      "firstInteraction": "observe",
+      "liveProcesses": [
+        "P01_presence"
+      ],
+      "hypothesis": "The crossing controls access between forest and valley",
+      "hidden": "unobserved routes and exact terrain geometry",
+      "status": "canonical"
+    },
+    {
+      "subjectId": "blackwood_edge",
+      "firstInteraction": "listen",
+      "liveProcesses": [
+        "P01_presence"
+      ],
+      "hypothesis": "The forest contains older paths",
+      "hidden": "forest history and unobserved inhabitants",
+      "status": "canonical"
+    },
+    {
+      "subjectId": "glass_crater",
+      "firstInteraction": "examine",
+      "liveProcesses": [
+        "P01_presence",
+        "P05_observation"
+      ],
+      "hypothesis": "Impact or artificial excavation",
+      "hidden": "origin and any active process",
+      "status": "canonical"
+    },
+    {
+      "subjectId": "riverwatch_city",
+      "firstInteraction": "observe",
+      "liveProcesses": [
+        "P04_settlement_dynamics",
+        "P05_observation"
+      ],
+      "hypothesis": "Concentric walls reflect several historical phases",
+      "hidden": "city history not evidenced by the observer",
+      "status": "canonical"
+    },
+    {
+      "subjectId": "suspended_monolith",
+      "firstInteraction": "observe",
+      "liveProcesses": [
+        "P05_observation"
+      ],
+      "hypothesis": "An active or ancient engineered phenomenon",
+      "hidden": "what the monolith is and why it floats",
+      "status": "canonical"
+    }
+  ],
+  "simulationSeeds": [
+    {
+      "id": "seed_southern_borough",
+      "status": "already_compiled",
+      "eventType": "SettlementCreated",
+      "eventId": "boot#region#Settlement#southern",
+      "sourceMapping": "P1 accepted from visual canon",
+      "payload": {
+        "settlementId": "southern_borough",
+        "population": 35,
+        "risk": 25,
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    },
+    {
+      "id": "seed_initial_visual_observations",
+      "status": "already_compiled",
+      "eventType": "SpatialObservationRecorded",
+      "eventIdPrefix": "boot#region#Observation#",
+      "sourceMapping": "D6.1 accepted as confidence-based evidence",
+      "payloadRule": "compiler.ts observations array; deterministic constants only"
+    },
+    {
+      "id": "seed_waterfall_evidence",
+      "status": "proposal",
+      "eventType": "SpatialObservationRecorded",
+      "sourceMapping": "P3 visual candidate; no runtime seed is compiled",
+      "payload": {
+        "subjectKind": "landmark",
+        "subjectId": "western_cliff_waterfalls",
+        "knowledge": "rumored",
+        "observedAt": 0,
+        "confidence": 0.35
+      }
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H1",
+      "statement": "Monolith light columns indicate an active power source or ancient technology.",
+      "confidence": 0.85,
+      "mappedProcess": "Future",
+      "evidence": "Regular blue-white columns and architectural elements in the upper-central image.",
+      "notCanonTruth": true,
+      "status": "proposal"
+    },
+    {
+      "id": "H2",
+      "statement": "The crater may be an impact event or artificial excavation.",
+      "confidence": 0.8,
+      "mappedProcess": "Future",
+      "evidence": "Near-perfect circular rim and reflective centre in the lower-left forest.",
+      "notCanonTruth": true,
+      "status": "proposal"
+    },
+    {
+      "id": "H3",
+      "statement": "Concentric city walls imply several construction phases.",
+      "confidence": 0.75,
+      "mappedProcess": "P04_settlement_dynamics",
+      "evidence": "Multiple visible wall rings around the principal city.",
+      "notCanonTruth": true,
+      "status": "proposal"
+    },
+    {
+      "id": "H4",
+      "statement": "Visible tracks exceed the currently authored road relations and may include abandoned routes.",
+      "confidence": 0.7,
+      "mappedProcess": "Future",
+      "evidence": "Multiple faint paths across the valley floor.",
+      "notCanonTruth": true,
+      "status": "proposal"
+    },
+    {
+      "id": "H5",
+      "statement": "The southern borough may function as a river trade post.",
+      "confidence": 0.65,
+      "mappedProcess": "P04_settlement_dynamics",
+      "evidence": "Walled settlement located on a river bend.",
+      "notCanonTruth": true,
+      "status": "proposal"
+    }
+  ],
+  "policy": {
+    "hypothesesAndProposalsAreNotRuntimeFacts": true,
+    "canonicalHypothesesAreOpenQuestions": true,
+    "runtimeCompilationRule": "Reviewed structured definitions compile into deterministic bootstrap events; the image and this artifact are never read by runtime.",
+    "llmRole": "LLM may suggest wording only; it cannot create evidence, choose facts, importance, actions or hidden truth."
+  }
+}

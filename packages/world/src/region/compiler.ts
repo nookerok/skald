@@ -1,6 +1,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import { buildPilotRegionDefinition } from "./definition.js";
 import type { SpatialObservationPayload } from "./types.js";
+import { PILOT_REGION_CONTENT_OBJECTS } from "./content.js";
 
 function event<T extends string>(eventId: string, type: T, payload: unknown, causationId: string | null = "boot#region"): DomainEvent<T> {
   return { eventId, type, schemaVersion: 1, payload, timestamp: 0, correlationId: "boot#region", causationId };
@@ -20,6 +21,21 @@ export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
       connections: {},
     }));
   }
+  // Authored region content becomes deterministic physical witnesses.
+  for (const object of PILOT_REGION_CONTENT_OBJECTS) {
+    events.push(event("boot#region#WorldObjectPlaced#" + object.id, "WorldObjectPlaced", {
+      id: object.id,
+      name: object.name,
+      aliases: [...(object.aliases ?? [])],
+      description: object.description,
+      material: object.material,
+      locationId: object.locationId,
+      integrity: object.integrity,
+      temperature: object.temperature,
+      state: { ...object.initialState },
+    }));
+  }
+
   events.push(event("boot#region#PlayerLocationChanged", "PlayerLocationChanged", { locationId: "river_waystation" }));
 
   // Travel metadata for each spatial relation
@@ -39,6 +55,8 @@ export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
     { relationId: "river_crossing", kind: "crossing", fromId: "river_waystation", toId: "riverwatch_city", distanceMetres: 2_000, baseTravelTicks: 2, terrainCost: 1.5, passability: "open" },
     { relationId: "river_basin", kind: "river", fromId: "high_pass", toId: "riverwatch_city", distanceMetres: 12_000, baseTravelTicks: 0, terrainCost: 0, passability: "blocked" },
     { relationId: "road_city_south", kind: "road", fromId: "riverwatch_city", toId: "southern_borough", distanceMetres: 4_500, baseTravelTicks: 3, terrainCost: 1.0, passability: "open" },
+    { relationId: "road_forest_waterfalls", kind: "road", fromId: "blackwood_edge", toId: "western_cliff_waterfalls", distanceMetres: 4_200, baseTravelTicks: 4, terrainCost: 1.6, passability: "open" },
+    { relationId: "road_waystation_waterfalls", kind: "road", fromId: "river_waystation", toId: "western_cliff_waterfalls", distanceMetres: 6_800, baseTravelTicks: 5, terrainCost: 1.5, passability: "open" },
   ];
   travelMetadata.forEach((payload, index) => {
     events.push(event(`boot#region#Travel#${index}`, "TravelMetadataAttached", payload));

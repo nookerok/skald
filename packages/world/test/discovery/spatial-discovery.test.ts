@@ -92,6 +92,29 @@ describe("Discovery Builder — Spatial Discoveries (ADR-0018)", () => {
     });
   });
 
+  describe("canonical region content", () => {
+    it("waterfall observation forms a hypothesis after re-observation", () => {
+      const events = [
+        ev("ObjectObserved", 2, { objectId: "western_cliff_waterfalls", description: "Потоки падают с утёса." }),
+        ev("ObjectObserved", 7, { objectId: "western_cliff_waterfalls", description: "Потоки всё ещё питают реку." }),
+      ];
+      const journal = buildDiscoveryJournal(events);
+      const card = journal.cards.find((c) => c.discoveryId === "western_waterfalls");
+      expect(card?.stage).toBe("hypothesis");
+      expect(card?.question).toContain("уровнем реки");
+    });
+
+    it("crater surface remains an observation, not an origin truth", () => {
+      const journal = buildDiscoveryJournal([
+        ev("ObjectObserved", 3, { objectId: "glass_crater_surface", description: "Камень отражает свет." }),
+      ]);
+      const card = journal.cards.find((c) => c.discoveryId === "crater_surface");
+      expect(card?.stage).toBe("trace");
+      expect(card?.question).toContain("отражает");
+    });
+
+  });
+
   describe("biography chains", () => {
     it("builds biography chains from evidence", () => {
       const events = [

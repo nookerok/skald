@@ -72,6 +72,7 @@ const LOCATIONS: readonly RegionLocation[] = [
   { id: "old_ruins", name: "Развалины на уступе", description: "Каменные остатки над долиной, занесённые травой.", anchor: point(16_000, 14_000), footprintTileIds: ["tile-63-55"] },
   { id: "glass_crater", name: "Стеклянная впадина", description: "Круглая чаша земли, где камень блестит после дождя.", anchor: point(3_800, 4_200), footprintTileIds: ["tile-14-16"] },
   { id: "high_pass", name: "Северный перевал", description: "Каменный проход под снегом и облаками.", anchor: point(12_000, 18_000), footprintTileIds: ["tile-47-71"] },
+  { id: "western_cliff_waterfalls", name: "Водопады западных утёсов", description: "Несколько потоков падают с уступа и питают реку.", anchor: point(6_500, 16_000), footprintTileIds: ["tile-26-64", "tile-27-64"] },
   { id: "southern_borough", name: "Южный посад", description: "Посад за стенами при изгибе реки, южнее главного города.", anchor: point(9_500, 5_000), footprintTileIds: ["tile-37-19", "tile-38-19"] },
 ];
 
@@ -80,6 +81,7 @@ const LANDMARKS: readonly RegionLandmark[] = [
   { id: "glass_crater", name: "Стеклянная впадина", description: "Тёмный круг в лесной кромке.", anchor: point(3_800, 4_200), elevationMetres: 20, silhouetteClass: "crater" },
   { id: "old_ruins", name: "Развалины на уступе", description: "Одинокие камни на восточном уступе.", anchor: point(16_000, 14_000), elevationMetres: 190, silhouetteClass: "ruin" },
   { id: "suspended_monolith", name: "Парящий монолит", description: "Тёмный силуэт, иногда видимый над северными облаками.", anchor: point(11_000, 18_000), elevationMetres: 1_400, silhouetteClass: "monolith" },
+  { id: "western_cliff_waterfalls", name: "Водопады западных утёсов", description: "Белые потоки на западных скалах, слышные после дождя.", anchor: point(6_500, 16_000), elevationMetres: 800, silhouetteClass: "waterfall" },
 ];
 
 const RELATIONS: readonly SpatialRelation[] = [
@@ -89,6 +91,8 @@ const RELATIONS: readonly SpatialRelation[] = [
   { id: "river_crossing", kind: "crossing", fromId: "river_waystation", toId: "riverwatch_city", label: "Переправа", points: [point(8_000, 9_500), point(9_500, 9_400), point(10_000, 9_000)] },
   { id: "river_basin", kind: "river", fromId: "high_pass", toId: "riverwatch_city", label: "Река из северных гор", points: [point(12_000, 18_000), point(10_500, 13_000), point(9_500, 9_000), point(13_500, 7_500)] },
   { id: "road_city_south", kind: "road", fromId: "riverwatch_city", toId: "southern_borough", label: "Южный тракт", points: [point(13_500, 7_500), point(11_500, 6_200), point(9_500, 5_000)] },
+  { id: "road_forest_waterfalls", kind: "road", fromId: "blackwood_edge", toId: "western_cliff_waterfalls", label: "Тропа к западным утёсам", points: [point(6_000, 12_000), point(6_200, 14_000), point(6_500, 16_000)] },
+  { id: "road_waystation_waterfalls", kind: "road", fromId: "river_waystation", toId: "western_cliff_waterfalls", label: "Тропа к водопадам", points: [point(8_000, 9_500), point(7_000, 12_500), point(6_500, 16_000)] },
 ];
 
 function fnv1a(value: string): string {

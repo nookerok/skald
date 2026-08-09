@@ -22,7 +22,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "validate": "bash scripts/validate.sh",
-    "canon:validate": "node scripts/canon/lib/mini-yaml.test.mjs && node scripts/canon/validate.mjs",
+    "canon:validate": "node scripts/canon/lib/mini-yaml.test.mjs && node scripts/canon/validate.mjs && node scripts/canon/validate-visual-canon.mjs",
     "canon:generate-wb": "node scripts/canon/generate-wb.mjs",
     "simulation:validate": "node scripts/simulation/validate.mjs",
     "eval": "node --import tsx packages/cli/src/eval/run-all.ts",

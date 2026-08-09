@@ -23,6 +23,10 @@ describe("first living region", () => {
     expect(region.locations.map((location) => location.id)).toContain("river_waystation");
     expect(region.locations.map((location) => location.id)).toContain("riverwatch_city");
     expect(region.relations.map((relation) => relation.id)).toContain("river_crossing");
+    expect(region.locations.map((location) => location.id)).toContain("western_cliff_waterfalls");
+    expect(region.landmarks.find((landmark) => landmark.id === "western_cliff_waterfalls")?.silhouetteClass).toBe("waterfall");
+    expect(region.relations.map((relation) => relation.id)).toContain("road_forest_waterfalls");
+    expect(region.relations.map((relation) => relation.id)).toContain("road_waystation_waterfalls");
     expect(region.landmarks.find((landmark) => landmark.id === "suspended_monolith")?.silhouetteClass).toBe("monolith");
   });
 

@@ -348,3 +348,21 @@ This report is a data/docs proposal. No `packages/` source files are modified. T
 5. **Road network:** The image shows more paths than the three defined roads. Should additional roads be added, or are the undefined paths part of the 'rumored' knowledge layer (discovered through exploration)?
 
 6. **Perspective registration:** The oblique aerial view creates non-linear depth compression. Is the two-point anchor registration sufficient, or should additional reference points be established for higher accuracy?
+
+
+## 11. Canonicalization implementation addendum (2026-08-09)
+
+This report is retained as the visual evidence record. The structured output of
+the Region Interpretation Layer now lives in
+`docs/worldbuilding/pilot-region/region-interpretation.json`. It is the
+machine-readable handoff for terrain zones, hydrology, biome/resource
+candidates, discovery nodes, toponym proposals, gameplay hooks and deterministic
+seed records.
+
+The design-time Canon concept is
+`docs/canon/regions/pilot-region/visual-interpretation.yaml`. The image and
+the interpretation artifact are reference inputs only: runtime continues to
+use the authored definition and bootstrap compiler. The southern borough and
+initial visual observations are already compiled in the current runtime and
+are not emitted a second time. Waterfalls, resources and historical
+explanations remain explicitly proposal/hypothesis data.

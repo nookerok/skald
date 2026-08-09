@@ -6,7 +6,7 @@
  * modified by Domain Events.
  */
 
-export type Material = "wood" | "iron" | "stone" | "glass" | "ash" | "fabric";
+export type Material = "wood" | "iron" | "stone" | "glass" | "ash" | "fabric" | "water";
 
 export interface WorldObject {
   readonly id: string;

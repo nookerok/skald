@@ -1,6 +1,7 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { DiscoveryEvidence, DiscoveryStage, DiscoverySignalKind, EvidenceSource } from "./types.js";
 import { deepFreeze } from "./builder.js";
+import { REGION_CONTENT_DEFINITIONS } from "./region-definitions.js";
 
 export interface DiscoveryDefinition {
   readonly id: string;
@@ -323,6 +324,7 @@ const CROSSING_CHANGES: DiscoveryDefinition = {
   },
 };
 
+
 export const DEFINITIONS: DiscoveryDefinition[] = [
   RISK_DRAWS_ATTENTION,
   HEAT_CHANGES_MATERIAL,
@@ -330,4 +332,5 @@ export const DEFINITIONS: DiscoveryDefinition[] = [
   RIVER_CYCLE,
   MONOLITH_SIGHTING,
   CROSSING_CHANGES,
+  ...REGION_CONTENT_DEFINITIONS,
 ];

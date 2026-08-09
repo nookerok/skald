@@ -42,7 +42,7 @@ export interface RegionLandmark {
   readonly description: string;
   readonly anchor: SpatialPoint;
   readonly elevationMetres: number;
-  readonly silhouetteClass: "city" | "ruin" | "crater" | "monolith" | "mountain";
+  readonly silhouetteClass: "city" | "ruin" | "crater" | "monolith" | "mountain" | "waterfall";
 }
 
 export type SpatialRelationKind = "road" | "river" | "crossing" | "visibility";

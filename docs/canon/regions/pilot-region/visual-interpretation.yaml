@@ -1,0 +1,105 @@
+# Canon Concept: visual interpretation of the pilot region (Regional x Space).
+# The source image is a reference artifact; runtime never reads it directly.
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.visual-interpretation
+  scope: Regional
+  domain: Space
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "RegionInterpretationLayer(docs/worldbuilding/pilot-region/region-interpretation.json)"
+    acceptedBy: "AuthorDecision(2026-08-09)"
+  relations:
+    - type: dependsOn
+      target: regions.pilot-region.geography
+    - type: dependsOn
+      target: regions.pilot-region.monolith
+  runtimeMapping:
+    runtime:
+      - "design-time reference artifact only"
+    rules: []
+    events:
+      - "reviewed definitions may compile into existing bootstrap Events"
+    projection:
+      - "SpatialWorldProjection receives only deterministic compiled data"
+    discovery:
+      - "Observation and Belief expose evidence, not image truth"
+    narrative:
+      - "Narrative may describe observed features and unresolved hypotheses"
+    ui:
+      - "normal UI renders Belief DTO, never this artifact"
+  facts:
+    - id: regions.pilot-region.visual-interpretation.f1
+      statement: "The reference image registers the authored pilot region against two known anchors: the river waystation and the suspended monolith; the registration is oblique and non-linear."
+      type: Calibration
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: Artifact
+      knowledgeCost: Uncommon
+      provenance:
+        type: CalibrationEvidence
+        source: "docs/worldbuilding/pilot-region/region-interpretation.json"
+      consequences:
+        - "Visual coordinates can audit authored entity placement without becoming runtime geometry."
+        - "A future map renderer must not treat pixel distances as a uniform world-space scale."
+    - id: regions.pilot-region.visual-interpretation.f2
+      statement: "The image depicts a northern snow range, a dark western forest, a central river valley, eastern uplands and a circular depression within the forest."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: CalibrationEvidence
+        source: "docs/worldbuilding/pilot-region/region-interpretation.json terrainZones"
+      consequences:
+        - "These zones constrain visual verification of the existing region entity layer."
+        - "Resource and danger labels derived from the image remain candidates until a runtime process is explicitly accepted."
+    - id: regions.pilot-region.visual-interpretation.f3
+      statement: "The western cliff waterfalls are a canonical observable landmark and hydrology witness associated with the river basin; their causal origin remains unresolved."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: CalibrationEvidence
+        source: "docs/worldbuilding/pilot-region/region-interpretation.json hydrology"
+      consequences:
+        - "Observation seeds may describe waterfall evidence through existing relation observations."
+        - The bootstrap compiles only the authored landmark and location; no waterfall seed or initial observation is added.
+    - id: regions.pilot-region.visual-interpretation.f5
+      statement: The canonical region content includes a reachable western waterfall location and observer-safe discovery definitions for the waterfall and crater surface; resource nodes remain proposals.
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "packages/world/src/region/content.ts; packages/world/src/discovery/region-definitions.ts"
+      consequences:
+        - "The player can inspect authored content through existing observe/inspect/listen interactions."
+        - "No new Event type or hidden truth field is introduced; replay remains deterministic."
+    - id: regions.pilot-region.visual-interpretation.f4
+      statement: The interpretation keeps three observable resource candidates and the waterfall seed as proposals; extraction causes and historical explanations remain open questions.
+      type: Axiomatic
+      temporalScope:
+        scale: Epoch
+        mutation: Immutable
+      observability: Testimony
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorDecision
+        source: "User concept: image -> Region Interpretation Layer -> Canonical World Data -> Projection"
+      consequences:
+        - "LLM suggestions can be reviewed without granting them authority over the Event Log."
+        - "Reviewed deterministic definitions are compiled into bootstrap events; discovery definitions remain non-authoritative read-side code."

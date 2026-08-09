@@ -8,7 +8,7 @@
 export type EntityId = string;
 
 export interface MaterialComponent {
-  readonly kind: "iron" | "wood" | "stone" | "glass" | "ash" | "fabric";
+  readonly kind: "iron" | "wood" | "stone" | "glass" | "ash" | "fabric" | "water";
 }
 
 export interface ThermalComponent {

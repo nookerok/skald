@@ -43,3 +43,34 @@ body{background:radial-gradient(circle at 50% -10%,#1b3b50 0,var(--shell-bg) 45%
   .context-overlay-grid { grid-template-columns:1fr; padding:12px; }
   .context-overlay-grid .world-sidebar,.context-overlay-grid .context-rail { max-height:none; }
 }
+
+/* UX-7.1 — Chat Core: chronicle-first game surface. */
+.chat-section{display:grid;gap:18px;min-height:min(68vh,760px);padding:clamp(18px,3vw,38px) clamp(4px,1vw,12px) 8px}
+.chat-header{display:grid;gap:7px;max-width:72ch;padding-bottom:6px;border-bottom:1px solid rgba(198,157,79,.22)}
+.chat-header h1{margin:0;color:#f2ddb0;font-size:clamp(1.45rem,2.4vw,2.25rem);font-weight:400;letter-spacing:.01em}
+.chat-header p{margin:0;color:#9ca6aa;font-size:.9rem;line-height:1.55}
+.chat-feed{min-height:clamp(380px,52vh,650px);max-height:none;overflow-y:auto;padding:10px clamp(2px,1.5vw,18px) 24px;scroll-behavior:smooth}
+.chat-feed:focus-visible{outline:2px solid var(--cyan);outline-offset:4px}
+.chat-intent{align-self:flex-end;max-width:min(74%,680px);border-left:1px solid rgba(57,184,208,.45);border-right:3px solid var(--cyan);background:linear-gradient(120deg,rgba(16,31,41,.84),rgba(9,21,29,.98))}
+.chat-turn{max-width:min(86%,780px);border-left:3px solid var(--gold-bright);background:linear-gradient(120deg,rgba(16,28,37,.98),rgba(9,20,28,.94));box-shadow:0 12px 28px rgba(0,0,0,.18)}
+.chat-world-primary{font-size:clamp(.92rem,1.3vw,1.08rem);line-height:1.65}
+.chat-world-narrated{font-size:clamp(1rem,1.5vw,1.18rem);line-height:1.7}
+.chat-empty{min-height:260px;display:grid;place-items:center;border:1px dashed rgba(198,157,79,.22);border-radius:10px;color:#9ca6aa;font-size:.9rem}
+.command-dock{position:static;z-index:auto;margin:8px auto 0;padding:18px clamp(4px,1vw,12px) 24px;background:linear-gradient(180deg,rgba(7,16,23,.72),rgba(5,12,17,.98));border-top:1px solid rgba(198,157,79,.3)}
+.command-line{display:grid;grid-template-columns:1fr auto;grid-template-areas:"label send" "input input";align-items:end;gap:7px 14px;max-width:980px;min-height:0;margin:0 auto;padding:14px 16px;border:1px solid rgba(198,157,79,.62);border-radius:12px;background:#09131b;box-shadow:0 0 30px rgba(0,0,0,.28)}
+.command-label{grid-area:label;color:#f2ddb0;font-size:.95rem;letter-spacing:.03em}
+.command-input{grid-area:input;width:100%;min-height:82px;padding:10px 0 4px;color:var(--text);font-size:1.05rem;line-height:1.5}
+.command-send{grid-area:send;margin:0;min-height:44px;padding:10px 20px;border-radius:7px}
+.command-hint{max-width:980px;margin:8px auto 0;color:#728188;font-size:.72rem;text-align:right}
+.context-overlay .world-stage{min-height:300px;max-height:430px;margin-bottom:18px;border-radius:10px}
+.context-overlay .stage-header{padding:22px}
+.context-overlay .player-map__canvas{min-height:220px}
+@media (max-width:760px){
+  .chat-section{min-height:calc(100vh - 240px);padding:16px 0 4px}
+  .chat-feed{min-height:calc(100vh - 470px);padding-inline:0}
+  .chat-intent,.chat-turn{max-width:94%}
+  .command-dock{margin-top:4px;padding:12px 0 16px}
+  .command-line{grid-template-columns:1fr;grid-template-areas:"label" "input" "send";padding:13px}
+  .command-send{width:100%}
+  .command-hint{text-align:center}
+}
