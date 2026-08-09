@@ -5,6 +5,7 @@ const overlayOpeners = new Map();
 export function renderGameShell(snapshot) { renderLivingWorld(snapshot); }
 export function renderChatFeed(journal) { renderChatFeedModel(journal?.turns, getLocalIntents()); }
 export { addLocalIntent, bindIntentWorldTime, clearLocalIntents };
+export function renderLatestResponse(journal) { const title=document.getElementById('latest-response-title'); const notable=document.getElementById('latest-response-notable'); if(!title||!notable)return; const turn=Array.isArray(journal?.turns)?journal.turns[0]:null; if(turn?.presentation?.primary?.text) title.textContent=turn.presentation.primary.text; notable.replaceChildren(); for(const entry of (turn?.presentation?.notable||[]).slice(0,2)){const item=document.createElement('p'); item.className='latest-response-item'; item.textContent=entry.text||''; notable.appendChild(item);} }
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
 export function setShellBusy(busy, stage = "Мир отвечает…") {

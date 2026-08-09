@@ -39,13 +39,10 @@
       </header>
       <div class="skald-layout">
         <main id="panel-game" class="skald-center" aria-label="Разговор с живым миром">
-          <section class="chat-section" aria-labelledby="chronicle-title">
-            <header class="chat-header">
-              <span class="eyebrow">CHAT / CHRONICLE</span>
-              <h1 id="chronicle-title">Разговор с живым миром</h1>
-              <p>Ты называешь намерение. Мир отвечает тем, что действительно изменилось.</p>
-            </header>
-            <div id="chat-feed" class="chat-feed" aria-label="Хроника мира" aria-live="polite"></div>
+          <section id=latest-response class=latest-response aria-live=polite aria-labelledby=latest-response-title>
+            <span class=eyebrow>ПОСЛЕДНИЙ ОТКЛИК</span>
+            <h1 id=latest-response-title>Мир ждёт твоего действия.</h1>
+            <div id=latest-response-notable class=latest-response-notable></div>
           </section>
           <section class="narrative-stack" aria-label="Последствия хода">
             <div id="critical-check-card" class="critical-check-card" hidden></div>

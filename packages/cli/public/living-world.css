@@ -74,3 +74,10 @@ body{background:radial-gradient(circle at 50% -10%,#1b3b50 0,var(--shell-bg) 45%
   .command-send{width:100%}
   .command-hint{text-align:center}
 }
+
+/* UX-7.4 - Chronicle moved to the journal overlay. */
+#panel-game .latest-response{display:grid;gap:10px;min-height:clamp(180px,28vh,300px);padding:clamp(22px,3vw,42px);align-content:center;border:1px solid rgba(198,157,79,.3);border-radius:12px;background:radial-gradient(circle at 80% 0,rgba(57,184,208,.12),transparent 42%),linear-gradient(120deg,rgba(16,31,41,.96),rgba(7,16,23,.98));box-shadow:0 16px 34px rgba(0,0,0,.2)}
+#panel-game .latest-response h1{margin:0;max-width:70ch;color:#f2ddb0;font-size:clamp(1.2rem,2vw,1.65rem);font-weight:400;line-height:1.45}
+#panel-game .latest-response-notable{display:grid;gap:6px;max-width:72ch}.latest-response-item{margin:0;color:#9ca6aa;font-size:.82rem;line-height:1.45}.latest-response-item:before{content:'-';margin-right:7px;color:var(--cyan)}
+#panel-game .narrative-stack{padding-top:12px}.chat-section{display:none!important}.journal-overlay #journal-container{max-height:calc(100vh - 150px);overflow:auto}.journal-overlay .turns-list{max-width:980px;margin:0 auto}
+@media(max-width:760px){#panel-game .latest-response{min-height:180px;padding:20px 16px}.journal-overlay #journal-container{max-height:calc(100vh - 120px)}}

@@ -82,13 +82,16 @@ describe("Visual Shell — presentation purity", () => {
     expect(doc.getElementById("empty-state").hidden).toBe(false);
   });
 
-  it("UX-7.1 makes the chronicle the main game surface", () => {
+  it("UX-7.4 keeps the latest response on the main surface and chronicle in its overlay", () => {
     const html = readFileSync(resolve(import.meta.dirname, "../public/index.html"), "utf8");
     const main = html.match(/<main id="panel-game"[\s\S]*?<\/main>/)?.[0] || "";
-    expect(main).toContain('id="chat-feed"');
+    expect(main).toContain("latest-response");
+    expect(main).not.toContain("chat-feed");
     expect(main).toContain('id="command-form"');
     expect(main).toContain('Что ты делаешь?');
     expect(main).not.toContain('id="world-stage"');
+    expect(html).toContain('id="journal-overlay"');
+    expect(html).toContain('id="journal-container"');
     expect(html).toContain('<div id="context-world"');
     expect(html).toContain('<section id="world-stage"');
     expect(html).toContain('id="context-world-details"');
