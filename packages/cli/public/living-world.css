@@ -81,3 +81,6 @@ body{background:radial-gradient(circle at 50% -10%,#1b3b50 0,var(--shell-bg) 45%
 #panel-game .latest-response-notable{display:grid;gap:6px;max-width:72ch}.latest-response-item{margin:0;color:#9ca6aa;font-size:.82rem;line-height:1.45}.latest-response-item:before{content:'-';margin-right:7px;color:var(--cyan)}
 #panel-game .narrative-stack{padding-top:12px}.chat-section{display:none!important}.journal-overlay #journal-container{max-height:calc(100vh - 150px);overflow:auto}.journal-overlay .turns-list{max-width:980px;margin:0 auto}
 @media(max-width:760px){#panel-game .latest-response{min-height:180px;padding:20px 16px}.journal-overlay #journal-container{max-height:calc(100vh - 120px)}}
+
+/* Game-facing situation card. */
+.situation-card{display:grid;gap:8px}.situation-heading{display:grid;gap:5px}.situation-heading strong{color:#f5db9d;font-size:1.08rem;font-weight:500}.situation-description{margin:0!important;color:#c9c1af;font-size:.86rem!important;line-height:1.5}.situation-effects{margin:4px 0 0!important;padding:0!important;list-style:none}.situation-effect{display:inline-flex;align-items:center;gap:6px}.situation-effect::before{content:'•';color:#f1bc55}.situation-effect.danger::before{color:#e57c61}.situation-effect.warning::before{color:#f1bc55}.situation-effect.neutral::before{color:#78c2cc}

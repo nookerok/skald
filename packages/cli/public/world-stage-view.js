@@ -35,10 +35,18 @@ export function renderWorldStage(world = {}, attention = {}, situation = null) {
     situationCard.replaceChildren();
     situationCard.hidden = !situation;
     if (situation) {
-      situationCard.append(makeNode("span", { className: "eyebrow", text: "АКТИВНАЯ СИТУАЦИЯ" }), makeNode("strong", { text: situation.title || "Ситуация" }), makeNode("p", { text: situation.description || "" }));
+      const heading = makeNode("div", { className: "situation-heading" });
+      heading.append(
+        makeNode("span", { className: "eyebrow", text: "СЕЙЧАС В МИРЕ" }),
+        makeNode("strong", { text: situation.title || "Ситуация" }),
+      );
+      situationCard.appendChild(heading);
+      situationCard.appendChild(makeNode("p", { className: "situation-description", text: situation.description || "" }));
       if (Array.isArray(situation.effects) && situation.effects.length) {
-        const effects = makeNode("div", { className: "situation-effects" });
-        situation.effects.forEach((effect) => effects.appendChild(makeNode("span", { className: "situation-effect " + (effect.tone || "neutral"), text: effect.label })));
+        const effects = makeNode("ul", { className: "situation-effects", attrs: { "aria-label": "Как это проявляется" } });
+        situation.effects.slice(0, 3).forEach((effect) => {
+          effects.appendChild(makeNode("li", { className: "situation-effect " + (effect.tone || "neutral"), text: effect.label }));
+        });
         situationCard.appendChild(effects);
       }
     }

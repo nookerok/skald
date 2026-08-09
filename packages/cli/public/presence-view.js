@@ -24,6 +24,33 @@ function list(className) {
   return node;
 }
 
+const MAX_RETURN_HIGHLIGHTS = 2;
+
+function uniqueText(values) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const text = typeof value === "string" ? value.trim() : "";
+    const key = text.toLocaleLowerCase();
+    if (!text || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Select only concrete, player-actionable signals for the return screen. */
+export function selectPresenceHighlights(session) {
+  const presence = session?.presence || {};
+  const nearby = Array.isArray(presence.nearbyChanges)
+    ? presence.nearbyChanges.map((change) => change.description)
+    : [];
+  const observedStatements = Array.isArray(session?.statements)
+    ? session.statements
+      .filter((statement) => statement.source === "observation_delta" || statement.source === "belief_contradiction")
+      .map((statement) => statement.text)
+    : [];
+  return uniqueText([...nearby, ...observedStatements]).slice(0, MAX_RETURN_HIGHLIGHTS);
+}
+
 function appendFocusContext(panel, session) {
   const presence = session.presence || {};
   const focus = presence.focus || {};
@@ -56,20 +83,14 @@ function appendFocusContext(panel, session) {
     ambient.textContent = focus.ambientDescription;
     block.appendChild(ambient);
   }
-  if (Array.isArray(focus.sensoryCues) && focus.sensoryCues.length > 0) {
+  if (!focus.ambientDescription && Array.isArray(focus.sensoryCues) && focus.sensoryCues.length > 0) {
     const cues = list("presence-focus-cues");
-    for (const cue of focus.sensoryCues) {
+    for (const cue of uniqueText(focus.sensoryCues).slice(0, 1)) {
       const item = document.createElement("li");
       item.textContent = cue;
       cues.appendChild(item);
     }
     block.appendChild(cues);
-  }
-  if (Array.isArray(focus.rememberedContext) && focus.rememberedContext.length > 0) {
-    const remembered = document.createElement("p");
-    remembered.className = "presence-focus-remembered";
-    remembered.textContent = focus.rememberedContext.join(" ");
-    block.appendChild(remembered);
   }
   panel.appendChild(block);
 }
@@ -100,87 +121,20 @@ export function renderPresenceView(session, summary) {
   status.textContent = hasServerStatus ? summary.presenceStatus : "Мир ждёт твоего возвращения.";
   panel.appendChild(status);
 
-  if (Array.isArray(session.statements) && session.statements.length > 0) {
-    const montage = document.createElement("div");
-    montage.className = "presence-montage";
-    montage.setAttribute("aria-label", "Пока тебя не было");
-    for (const statement of session.statements) {
-      const line = document.createElement("p");
-      line.className = "presence-montage-line";
-      line.textContent = statement.text;
-      montage.appendChild(line);
-    }
-    panel.appendChild(montage);
-  }
-
-  const nearbyChanges = session.presence?.nearbyChanges || [];
-  if (nearbyChanges.length > 0) {
+  const highlights = selectPresenceHighlights(session);
+  if (highlights.length > 0) {
     const section = document.createElement("section");
-    section.className = "presence-changes";
-    section.appendChild(sectionTitle("Что изменилось рядом"));
-    const items = list("presence-changes-list");
-    for (const change of nearbyChanges) {
+    section.className = "presence-highlights";
+    section.setAttribute("aria-label", "Главное при возвращении");
+    section.appendChild(sectionTitle("Главное сейчас"));
+    const items = list("presence-highlights-list");
+    for (const highlight of highlights) {
       const item = document.createElement("li");
-      item.textContent = change.description;
+      item.className = "presence-highlight";
+      item.textContent = highlight;
       items.appendChild(item);
     }
     section.appendChild(items);
-    panel.appendChild(section);
-  }
-
-  if (session.presence?.drift?.reasons?.length > 0) {
-    const section = document.createElement("section");
-    section.className = "presence-reasons-section";
-    section.appendChild(sectionTitle("Почему память расходится"));
-    const reasons = list("presence-reasons");
-    for (const reason of session.presence.drift.reasons) {
-      const item = document.createElement("li");
-      item.textContent = reason.text;
-      reasons.appendChild(item);
-    }
-    section.appendChild(reasons);
-    panel.appendChild(section);
-  }
-
-  const staleBeliefs = session.presence?.staleBeliefs || [];
-  if (staleBeliefs.length > 0) {
-    const section = document.createElement("section");
-    section.className = "presence-stale";
-    section.appendChild(sectionTitle("Ослабшие воспоминания"));
-    for (const belief of staleBeliefs) {
-      const item = document.createElement("p");
-      item.className = "presence-stale-line";
-      item.textContent = belief.displayName;
-      section.appendChild(item);
-    }
-    panel.appendChild(section);
-  }
-
-  const dormantThreads = session.presence?.dormantThreads || [];
-  if (dormantThreads.length > 0) {
-    const section = document.createElement("section");
-    section.className = "presence-dormant";
-    section.appendChild(sectionTitle("Нить без продолжения"));
-    for (const thread of dormantThreads) {
-      const item = document.createElement("p");
-      item.className = "presence-dormant-line";
-      item.textContent = thread.label;
-      section.appendChild(item);
-    }
-    panel.appendChild(section);
-  }
-
-  const doubts = session.presence?.suggestedReobservations || [];
-  if (doubts.length > 0) {
-    const section = document.createElement("section");
-    section.className = "presence-doubts";
-    section.appendChild(sectionTitle("Сомнения"));
-    for (const subject of doubts) {
-      const item = document.createElement("p");
-      item.className = "presence-doubt";
-      item.textContent = subject.displayName + ": " + subject.reason;
-      section.appendChild(item);
-    }
     panel.appendChild(section);
   }
 

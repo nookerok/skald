@@ -53,6 +53,11 @@ describe("Visual Shell — presentation purity", () => {
     vi.stubGlobal("document", doc);
   });
   afterEach(() => vi.unstubAllGlobals());
+  it("keeps coordinate boilerplate out of the latest world response", async () => {
+    const { humanizeLatestResponse } = await import("../public/game-shell-view.js");
+    expect(humanizeLatestResponse("Ты находишься в точке (4, 3). Мир вокруг продолжает меняться.")).toBe("Мир вокруг продолжает меняться.");
+    expect(humanizeLatestResponse("В лесу разгорается пожар.")).toBe("В лесу разгорается пожар.");
+  });
   it("renders current world facts without mutating snapshot", async () => {
     const { renderLivingWorld } = await import("../public/living-world-shell.js");
     const snapshot = {
@@ -114,6 +119,28 @@ describe("Visual Shell — contextual map selection", () => {
     vi.stubGlobal("document", doc);
   });
   afterEach(() => vi.unstubAllGlobals());
+  it("renders an active situation as a concise world signal", async () => {
+    const { renderWorldStage } = await import("../public/world-stage-view.js");
+    renderWorldStage({}, {}, {
+      title: "Лесной пожар",
+      description: "Огонь распространяется по лесу.",
+      effects: [
+        { label: "Деревья гибнут", tone: "danger" },
+        { label: "Жар распространяется", tone: "warning" },
+        { label: "Животные бегут", tone: "neutral" },
+        { label: "Скрытый эффект", tone: "neutral" },
+      ],
+    });
+    const card = doc.getElementById("situation-card");
+    const text = card.children.map((child) => child.textContent || child.children?.map((item) => item.textContent).join(" ") || "").join(" ");
+    expect(card.hidden).toBe(false);
+    expect(text).toContain("СЕЙЧАС В МИРЕ");
+    expect(text).toContain("Лесной пожар");
+    expect(text).toContain("Деревья гибнут");
+    expect(text).not.toContain("Скрытый эффект");
+    expect(text).not.toContain("АКТИВНАЯ СИТУАЦИЯ");
+  });
+
   it("renders connected location names and dispatches a travel intent", async () => {
     const { renderWorldStage } = await import("../public/world-stage-view.js");
     renderWorldStage({ locationName: "Башня", connectedLocations: [{ id: "crossing", name: "Перекрёсток" }] }, { marks: 0, maxMarks: 5 }, null);

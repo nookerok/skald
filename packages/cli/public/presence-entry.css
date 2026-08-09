@@ -319,3 +319,10 @@
 .presence-entry-error-title { margin:10px 0 6px; color:#f2ddb0; font-size:1.1rem; }
 .presence-entry-error-message { margin:0 0 12px; color:#bdccca; }
 @media (max-width:600px) { #panel-presence-entry { padding:12px; }.presence-entry-panel { max-height:none; padding:24px 18px; border-radius:12px; }.presence-enter-btn { width:100%; } }
+
+/* Return surface: only concrete signals are shown. */
+.presence-highlights{margin:18px 0 0;padding:14px 16px;border:1px solid rgba(57,184,208,.24);border-radius:9px;background:rgba(19,40,50,.52)}
+.presence-highlights .presence-section-title{margin:0 0 9px}
+.presence-highlights-list{display:grid;gap:7px;margin:0;padding:0;list-style:none;color:#d7dcd6;line-height:1.5}
+.presence-highlight{display:flex;gap:8px}
+.presence-highlight::before{content:'•';color:#39b8d0}

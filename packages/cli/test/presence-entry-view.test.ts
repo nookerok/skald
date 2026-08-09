@@ -34,12 +34,33 @@ describe("presence-view.js", () => {
     expect(src).not.toContain("toLocaleDateString");
   });
 
-  it("renders suggested reobservations as passive doubts without buttons", () => {
+  it("keeps stale-memory diagnostics out of the player return surface", () => {
     const src = code("presence-view.js");
-    expect(src).toContain("presence-doubt");
-    expect(src).toContain("Сомнения");
-    expect(src).not.toContain('textContent = "Понаблюдать"');
-    expect(src).not.toContain('textContent = "Проверить"');
+    expect(src).toContain("selectPresenceHighlights");
+    expect(src).toContain("presence-highlights");
+    expect(src).not.toContain("presence-doubt");
+    expect(src).not.toContain("presence-stale-line");
+    expect(src).not.toContain("presence-dormant-line");
+  });
+
+  it("limits the return surface to at most two concrete signals", async () => {
+    const { selectPresenceHighlights } = await import("../public/presence-view.js");
+    const highlights = selectPresenceHighlights({
+      statements: [
+        { source: "belief_freshness", text: "Память о преграде ослабла." },
+        { source: "known_thread", text: "История осталась без продолжения." },
+        { source: "belief_contradiction", text: "Граница пути изменилась." },
+      ],
+      presence: {
+        nearbyChanges: [{ description: "На дороге появился след." }, { description: "На дороге появился след." }],
+        focus: { ambientDescription: "В воздухе чувствуется тепло." },
+      },
+    });
+    expect(highlights).toEqual([
+      "На дороге появился след.",
+      "Граница пути изменилась.",
+    ]);
+    expect(highlights).toHaveLength(2);
   });
 
   it("derives rendering exclusively from backend-provided fields", () => {
