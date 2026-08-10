@@ -1,0 +1,29 @@
+schemaVersion: 1
+artifact:
+  id: pilot-region-reference-001
+  role: reference_artifact
+  mediaType: image/png
+  file:
+    path: region-source.png
+    sha256: 7feb764999fb39cede4531265bc0da7447dd4e6f9dfe2c406fa8d26883c6a1fb
+    widthPx: 1448
+    heightPx: 1086
+  provenance:
+    receivedAt: "2026-08-09"
+    sourceKind: user_supplied
+    authoringOnly: true
+    runtimeAllowed: false
+  registration:
+    method: anchor_based_oblique
+    uniformScale: false
+    anchors:
+      - subjectId: river_waystation
+        pixelX: 520
+        pixelY: 640
+        xMetres: 8000
+        yMetres: 9500
+      - subjectId: suspended_monolith
+        pixelX: 700
+        pixelY: 250
+        xMetres: 11000
+        yMetres: 18000

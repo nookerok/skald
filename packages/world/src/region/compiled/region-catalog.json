@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "regions": [
+    {
+      "regionId": "riverwatch-basin",
+      "bundlePath": "./compiled/pilot-region.v5.json"
+    }
+  ]
+}

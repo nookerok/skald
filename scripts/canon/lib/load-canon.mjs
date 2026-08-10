@@ -5,6 +5,7 @@
 //   anchors  -> docs/canon/anchors/**
 //   claims   -> docs/canon/not-simulated/**
 //   tools    -> docs/canon/deferred/**
+//   compilerProjection -> docs/canon/regions/** (deterministic build-time input)
 // Pure read-side utility: no writes, no network, no clock dependence.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -49,7 +50,9 @@ export function loadCanon(rootDir = CANON_ROOT) {
             ? "claims"
             : data?.tools
               ? "tools"
-              : "unknown";
+              : data?.compilerProjection
+                ? "compilerProjection"
+                : "unknown";
       documents.push({ file: rel, kind, data });
     } catch (error) {
       errors.push(`${rel}: ${error.message}`);

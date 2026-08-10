@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "artifactRef": "pilot-region-reference-001",
+  "coordinateSystem": "normalized_image",
+  "interpretationStatus": "observed",
+  "coverage": {
+    "mainCourse": "observed",
+    "tributaries": "ambiguous",
+    "southernWaterBody": "ambiguous",
+    "wetlands": "ambiguous",
+    "lakes": "not_observed",
+    "coast": "ambiguous"
+  },
+  "waterBodies": [
+    {
+      "id": "southern_water_body",
+      "kind": "unresolved_water_body",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "bounds": {
+          "minX": 0,
+          "minY": 0.78,
+          "maxX": 1,
+          "maxY": 1
+        }
+      },
+      "evidenceRefs": [
+        "visual_feature.riverwatch_main_course"
+      ],
+      "confidence": 0.55,
+      "status": "ambiguous"
+    }
+  ],
+  "watercourses": [
+    {
+      "id": "river_basin",
+      "kind": "main_course",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "kind": "directional",
+        "from": "northern_highlands",
+        "to": "southern_water_body"
+      },
+      "sourceRef": "northern_snow_range",
+      "sinkRef": "southern_water_body",
+      "evidenceRefs": [
+        "visual_feature.riverwatch_main_course"
+      ],
+      "confidence": 0.88,
+      "status": "observed"
+    },
+    {
+      "id": "western_waterfall_channel",
+      "kind": "possible_tributary",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "kind": "directional",
+        "from": "western_cliff_waterfalls",
+        "to": "river_basin"
+      },
+      "sourceRef": "western_cliff_waterfalls",
+      "sinkRef": "river_basin",
+      "evidenceRefs": [
+        "visual_feature.western_cliff_waterfalls"
+      ],
+      "confidence": 0.76,
+      "status": "ambiguous"
+    }
+  ],
+  "wetlands": [
+    {
+      "id": "southern_lowland_wetland",
+      "kind": "unresolved",
+      "waterBodyRef": "southern_water_body",
+      "evidenceRefs": [
+        "visual-observation.coverage.wetland"
+      ],
+      "confidence": 0.48,
+      "status": "ambiguous"
+    }
+  ],
+  "catchments": [
+    {
+      "id": "northern_mountain_catchment",
+      "drainsTo": "river_basin",
+      "terrainRefs": [
+        "northern_snow_range",
+        "high_pass"
+      ],
+      "evidenceRefs": [
+        "visual_feature.northern_snow_range",
+        "visual_feature.high_pass"
+      ],
+      "confidence": 0.78,
+      "status": "observed_relative_only"
+    }
+  ]
+}

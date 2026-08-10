@@ -1,0 +1,32 @@
+schemaVersion: 1
+review:
+  id: pilot-region-review-v1
+  proposalId: pilot-region-proposal-v1
+  reviewer: AuthorDecision
+  reviewedAt: "2026-08-09"
+  decisions:
+    - proposalId: proposal.northern-snow-range
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.geography
+        factId: regions.pilot-region.geography.f2
+    - proposalId: proposal.blackwood-forest
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.geography
+        factId: regions.pilot-region.geography.f2
+    - proposalId: proposal.southern-water-body
+      decision: defer
+      reason: "Image does not resolve coast, estuary or delta."
+    - proposalId: hypotheses.monolith-power-source
+      decision: defer
+      reason: "Keep as open hypothesis; no runtime fact."
+    - proposalId: hypotheses.crater-origin
+      decision: defer
+      reason: "Keep as open hypothesis; no runtime fact."
+    - proposalId: candidate.blackwood-timber
+      decision: defer
+      reason: "Resource process is not accepted."
+    - proposalId: candidate.waterfall-observation
+      decision: defer
+      reason: "No duplicate initial observation."

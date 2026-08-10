@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { ObserverMapDTO, ObserverMapLandmark, ObserverMapLocation, ObserverMapRoute, ObserverMapRouteGeometry, ObserverMapPoint, SpatialKnowledge, SpatialWorldProjection } from "./types.js";
+import type { ObserverMapDTO, ObserverMapLandmark, ObserverMapLocation, ObserverMapRoute, ObserverMapRouteGeometry, ObserverMapPoint, ObserverMapTerrainPatch, ObserverMapWaterBody, ObserverMapWatercourse, SpatialKnowledge, SpatialWorldProjection } from "./types.js";
 import type { ObserverPosition, VisibilityResult } from "../visibility/types.js";
 import { computeVisibility, terrainElevationAt } from "../visibility/visibility-engine.js";
 
@@ -70,7 +70,7 @@ export function buildObserverMap(
     if (observation.subjectKind !== "location") continue;
     const location = spatial.locations.get(observation.subjectId);
     if (!location) continue;
-    locations.push({ ref: ref("loc", location.id), name: location.name, knowledge: observation.knowledge, confidence: observation.confidence, freshness: freshness(observation.observedAt, worldTime), xMetres: location.anchor.xMetres, yMetres: location.anchor.yMetres });
+    locations.push({ ref: ref("loc", location.id), name: location.name, aliases: spatial.toponymIndex?.subjects.find((subject) => subject.id === location.id)?.aliases ?? [], knowledge: observation.knowledge, confidence: observation.confidence, freshness: freshness(observation.observedAt, worldTime), xMetres: location.anchor.xMetres, yMetres: location.anchor.yMetres });
     void key;
   }
 
@@ -87,6 +87,7 @@ export function buildObserverMap(
           locations.push({
             ref: ref("loc", location.id),
             name: location.name,
+            aliases: spatial.toponymIndex?.subjects.find((subject) => subject.id === location.id)?.aliases ?? [],
             knowledge: visResult.knowledge,
             confidence: visResult.confidence,
             freshness: 1,
@@ -154,10 +155,55 @@ export function buildObserverMap(
       geometry,
     });
   }
-  const points = locations.map((entry) => ({ x: entry.xMetres, y: entry.yMetres }));
+  const hydrography = spatial.hydrography ?? spatial.region?.hydrography;
+  const toponymName = (subjectId: string): string | null => spatial.toponymIndex?.subjects.find((subject) => subject.id === subjectId)?.canonicalName ?? null;
+  const knownWatercourses: ObserverMapWatercourse[] = [];
+  const knownWaterBodies: ObserverMapWaterBody[] = [];
+  for (const watercourse of hydrography?.watercourses ?? []) {
+    const observation = [...known.values()].find((entry) => entry.subjectId === watercourse.id);
+    if (!observation || observation.knowledge === "rumored") continue;
+    const relation = spatial.relations.get(watercourse.id);
+    knownWatercourses.push({
+      ref: ref("watercourse", watercourse.id),
+      name: toponymName(watercourse.id),
+      kind: watercourse.kind,
+      knowledge: observation.knowledge,
+      confidence: observation.confidence,
+      freshness: freshness(observation.observedAt, worldTime),
+      geometry: relation ? buildRouteGeometry(relation.points, observation.knowledge) : null,
+    });
+  }
+  for (const waterBody of hydrography?.waterBodies ?? []) {
+    const observation = [...known.values()].find((entry) => entry.subjectId === waterBody.id);
+    if (!observation || observation.knowledge === "rumored") continue;
+    knownWaterBodies.push({
+      ref: ref("waterbody", waterBody.id),
+      name: toponymName(waterBody.id) ?? (waterBody.classification === "unresolved" ? "Южная водная область" : null),
+      classification: waterBody.classification,
+      classificationConfidence: observation.confidence,
+      knowledge: observation.knowledge,
+      confidence: observation.confidence,
+      freshness: freshness(observation.observedAt, worldTime),
+      geometry: null,
+    });
+  }
+
+  // Rumors may be listed as uncertain knowledge, but their authored coordinates
+  // must not expand or shift the observer-visible map area.
+  const points = locations
+    .filter((entry) => entry.knowledge !== "rumored")
+    .map((entry) => ({ x: entry.xMetres, y: entry.yMetres }));
   const knownArea = points.length === 0 ? null : { minXMetres: Math.max(0, Math.min(...points.map((p) => p.x)) - 1_000), minYMetres: Math.max(0, Math.min(...points.map((p) => p.y)) - 1_000), maxXMetres: Math.max(...points.map((p) => p.x)) + 1_000, maxYMetres: Math.max(...points.map((p) => p.y)) + 1_000 };
+  const knownTerrain: ObserverMapTerrainPatch[] = [];
+  if (knownArea && spatial.region) {
+    for (const tile of spatial.region.tiles) {
+      const intersects = tile.bounds.maxXMetres >= knownArea.minXMetres && tile.bounds.minXMetres <= knownArea.maxXMetres && tile.bounds.maxYMetres >= knownArea.minYMetres && tile.bounds.minYMetres <= knownArea.maxYMetres;
+      if (intersects) knownTerrain.push({ bounds: tile.bounds, surface: tile.surface, elevationBand: tile.elevationBand, slopeBand: tile.slopeBand });
+    }
+  }
+
   const current = locationId ? spatial.locations.get(locationId) : undefined;
-  return Object.freeze({ schemaVersion: 1, revision: { worldTime, eventNumber: events.length }, region: spatial.region ? { ref: ref("region", spatial.region.id), name: spatial.region.name } : null, observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: current?.anchor.xMetres ?? null, yMetres: current?.anchor.yMetres ?? null }, knownArea, locations: Object.freeze(locations), landmarks: Object.freeze(landmarks), routes: Object.freeze(routes) });
+  return Object.freeze({ schemaVersion: 2, revision: { worldTime, eventNumber: events.length }, region: spatial.region ? { ref: ref("region", spatial.region.id), name: spatial.region.name } : null, observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: current?.anchor.xMetres ?? null, yMetres: current?.anchor.yMetres ?? null }, knownArea, knownTerrain: Object.freeze(knownTerrain), locations: Object.freeze(locations), landmarks: Object.freeze(landmarks), routes: Object.freeze(routes), knownWatercourses: Object.freeze(knownWatercourses), knownWaterBodies: Object.freeze(knownWaterBodies) });
 }
 
 /**

@@ -3,8 +3,8 @@
 schemaVersion: 1
 tools:
   - tool: region-compiler
-    status: deferred
-    reason: "Manual compilation with mandatory canonicalRefs is sufficient for the first region."
+    status: implemented
+    reason: "Pilot region projection is compiled deterministically; proposals still require human review."
     trigger:
       - "second playable region"
       - "repeated bootstrap authoring errors"
@@ -14,8 +14,8 @@ tools:
     trigger:
       - "more than 200 concepts"
   - tool: digest-registry
-    status: deferred
-    reason: "Only pre-canon manual worlds exist; digest identity is not yet referenced by tooling."
+    status: implemented
+    reason: "Canon and bootstrap digests are emitted and checked for the pilot region."
     trigger:
       - "multiple persistent living worlds"
   - tool: emergence-detector

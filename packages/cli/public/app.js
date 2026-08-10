@@ -14,6 +14,8 @@ import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
 import { setControlsBusy } from "./ui-state.js";
 import { showContextLocation } from "./context-rail-view.js";
+import { loadObserverMap } from "./map-client.js";
+import { renderLivingWorldMap } from "./living-world-shell.js";
 
 let state = createInitialState();
 let interactionReady = false;
@@ -111,6 +113,11 @@ async function refreshShell() {
   const result = await fetchGameShell();
   if (!result.body?.ok || !result.body.snapshot) { showShellError("Сервер не вернул состояние мира."); return false; }
   renderGameShell(result.body.snapshot);
+  try {
+    renderLivingWorldMap(await loadObserverMap(currentWorldId));
+  } catch {
+    renderLivingWorldMap(null);
+  }
   clearShellError();
   return true;
 }

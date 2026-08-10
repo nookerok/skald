@@ -1,5 +1,7 @@
 export type DiscoveryStage = "trace" | "hypothesis" | "discovered";
 
+export type DiscoveryResolution = "unresolved" | "supported" | "contradicted" | "inconclusive";
+
 export type DiscoverySignalKind =
   | "trace"
   | "omen"
@@ -46,6 +48,8 @@ export interface DiscoveryCard {
   readonly lastSeenAt: number;
   readonly evidenceCount: number;
   readonly evidence: readonly DiscoveryEvidence[];
+  readonly resolution?: DiscoveryResolution;
+  readonly contradictionCount?: number;
 }
 
 export interface DiscoveryJournal {

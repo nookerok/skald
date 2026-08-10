@@ -416,3 +416,10 @@ Projection Purity, observer non-disclosure and deterministic replay.
 - no LLM generates geography, visibility, facts or discoveries;
 - another region can be added without changing first-region contracts;
 - validation, long-run calibration and real browser QA pass.
+
+
+### 12. Image-derived authoring boundary
+
+The region image supplies spatial evidence only. Geography, toponyms and historical readings are separated into observed features, proposed names, hypotheses and review decisions. The compiler accepts only reviewed Canon references and produces RegionDefinition, content/discovery/simulation definitions and bootstrap Events. Image pixels, proposal IDs, resource candidates and unresolved hypotheses are excluded from Event Log, Projection and ObserverMapDTO.
+
+The accepted pilot geography is deliberately partial: river basin, waterfall channel, unresolved southern water and northern catchment are Canon; lake, wetlands, coastline, detailed tributaries and an absolute height model remain in the gap register. Relative elevation is compiled only as ordered bands, control areas and deterministic drainage/visibility constraints. Reviewed toponyms and aliases enter the runtime index only after an explicit author decision.

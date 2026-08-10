@@ -1,0 +1,12 @@
+schemaVersion: 1
+regionId: riverwatch-basin
+status: authoring_guidance
+principles:
+  - id: geography_first
+    rule: Names describe a visible relation to water, relief, route or settlement.
+  - id: layered_usage
+    rule: Keep traveller, local and archaic layers distinct; a working name is not a historical fact.
+  - id: restrained_compound
+    rule: Prefer short compounds and inherited roots over ornamental fantasy syllables.
+  - id: uncertainty_preserved
+    rule: Unresolved etymology remains a proposal and never enters runtime truth.

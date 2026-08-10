@@ -47,6 +47,28 @@ describe("Browser ES modules — import link integrity", () => {
     const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
     expect(code).toContain("export async function initNewGame");
     expect(code).toContain("export function renderNewGame");
+    expect(code).toContain("renderJourneyProgress(step)");
+    expect(code).toContain('aria-current", "step');
+  });
+
+  it("loads the premium interface layer last and covers every player surface", () => {
+    const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
+    const css = readFileSync(resolve(PUBLIC, "skald-aaa.css"), "utf-8");
+    expect(html.indexOf("/skald-aaa.css")).toBeGreaterThan(html.indexOf("/living-world.css"));
+    expect(css).toContain("#panel-menu");
+    expect(css).toContain("#panel-new-game");
+    expect(css).toContain("#panel-presence-entry");
+    expect(css).toContain("#panel-game .latest-response");
+    expect(css).toContain(".panel-overlay");
+    expect(css).toContain("prefers-reduced-motion");
+  });
+
+  it("loads the observer-scoped map independently from the game shell snapshot", () => {
+    const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
+    const client = readFileSync(resolve(PUBLIC, "map-client.js"), "utf-8");
+    expect(app).toContain('import { loadObserverMap } from "./map-client.js"');
+    expect(app).toContain("renderLivingWorldMap(await loadObserverMap(currentWorldId))");
+    expect(client).toContain("const dto = body?.ok ? body.map : null");
   });
 
   it("new-game-state.js exists and has expected exports", () => {

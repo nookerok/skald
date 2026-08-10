@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { DiscoveryEvidence, DiscoveryStage, DiscoverySignalKind, EvidenceSource } from "./types.js";
+import type { DiscoveryEvidence, DiscoveryStage, DiscoverySignalKind, DiscoveryResolution, EvidenceSource } from "./types.js";
 import { deepFreeze } from "./builder.js";
 import { REGION_CONTENT_DEFINITIONS } from "./region-definitions.js";
 
@@ -9,6 +9,7 @@ export interface DiscoveryDefinition {
   readonly subjectKind: string;
   collect(event: DomainEvent, locationId?: string | null): DiscoveryEvidence | null;
   classify(evidence: readonly DiscoveryEvidence[]): DiscoveryStage | null;
+  resolve?(evidence: readonly DiscoveryEvidence[]): { readonly resolution: DiscoveryResolution; readonly contradictionCount: number };
   render(stage: DiscoveryStage): { title: string; question: string; summary: string };
 }
 

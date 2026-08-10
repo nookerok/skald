@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { RegionDefinition, RegionLandmark, RegionLocation, SpatialRelation, SpatialWorldProjection, SpatialReadView, TravelRelation, RiverProcessDefinition, RiverState, RiverBand, CrossingDefinition, CrossingState, CrossingCondition } from "./types.js";
+import type { RegionDefinition, RegionLandmark, RegionLocation, SpatialRelation, SpatialWorldProjection, SpatialReadView, TravelRelation, RiverProcessDefinition, HydrographyDefinition, ElevationDefinition, RegionToponymIndex, RiverState, RiverBand, CrossingDefinition, CrossingState, CrossingCondition } from "./types.js";
 
 function classifyRiverBand(level: number, process: RiverProcessDefinition): RiverBand {
   const ratio = (level - process.minimumLevel) / (process.maximumLevel - process.minimumLevel);
@@ -31,10 +31,16 @@ export class SpatialProjector {
   private readonly riverStates = new Map<string, RiverState>();
   private readonly crossingDefinitions = new Map<string, CrossingDefinition>();
   private readonly crossingStates = new Map<string, CrossingState>();
+  private hydrography: HydrographyDefinition | null = null;
+  private elevation: ElevationDefinition | null = null;
+  private toponymIndex: RegionToponymIndex | null = null;
 
   apply(event: DomainEvent): void {
     if (event.type === "RegionDefined") {
       this.region = (event.payload as { region: RegionDefinition }).region;
+      this.hydrography = this.region.hydrography ?? null;
+      this.elevation = this.region.elevation ?? null;
+      this.toponymIndex = this.region.toponymIndex ?? null;
       this.locations.clear();
       this.landmarks.clear();
       this.relations.clear();
@@ -128,9 +134,15 @@ export class SpatialProjector {
     this.riverStates.clear();
     this.crossingDefinitions.clear();
     this.crossingStates.clear();
+    this.hydrography = null;
+    this.elevation = null;
+    this.toponymIndex = null;
     if (!snapshot) return;
     const full = snapshot as SpatialWorldProjection;
     if (full.region) this.region = full.region;
+    this.hydrography = full.hydrography ?? full.region?.hydrography ?? null;
+    this.elevation = full.elevation ?? full.region?.elevation ?? null;
+    this.toponymIndex = full.toponymIndex ?? full.region?.toponymIndex ?? null;
     for (const [id, value] of full.locations ?? []) this.locations.set(id, value);
     for (const [id, value] of full.landmarks ?? []) this.landmarks.set(id, value);
     for (const [id, value] of full.relations ?? []) this.relations.set(id, value);
@@ -152,6 +164,9 @@ export class SpatialProjector {
       riverStates: new Map(this.riverStates),
       crossingDefinitions: new Map(this.crossingDefinitions),
       crossingStates: new Map(this.crossingStates),
+      hydrography: this.hydrography,
+      elevation: this.elevation,
+      toponymIndex: this.toponymIndex,
     });
   }
 }

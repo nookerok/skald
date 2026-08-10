@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SKALD historical evidence layer",
+  "type": "object",
+  "required": ["id", "subjectRefs", "category", "statement", "evidenceRefs", "confirmationCriteria", "falsificationCriteria", "status"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9._-]+$" },
+    "subjectRefs": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "category": { "enum": ["ancient_culture_trace", "abandoned_infrastructure", "conflict_trace", "climate_shift", "river_course_change", "geological_change", "engineered_phenomenon"] },
+    "statement": { "type": "string", "minLength": 1 },
+    "evidenceRefs": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "alternativeExplanations": { "type": "array", "items": { "type": "string" } },
+    "confirmationCriteria": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "falsificationCriteria": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "status": { "enum": ["proposed", "accepted", "deferred", "rejected"] },
+    "runtimeMapping": { "enum": ["none", "discovery_question"] }
+  },
+  "additionalProperties": false
+}

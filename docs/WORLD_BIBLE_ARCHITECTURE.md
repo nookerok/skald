@@ -814,3 +814,8 @@ Whitelist — генерируемый Deferred Report, не рукописны�
 области и не изменяет ни одного runtime-инварианта. При конфликте с
 runtime-конституцией приоритет — за `docs/ARCHITECTURE.md`, AGENTS.md и
 принятыми ADR; конфликт фиксируется следующим ADR.*
+
+
+### 6.4 Reference-artifact region canonization
+
+The pilot image is a reference artifact, not a runtime asset. The accepted path is: artifact manifest -> visual observation -> proposal/hypothesis -> author review -> Canon compiler projection -> deterministic IR -> compiled bootstrap bundle. Proposals remain non-authoritative until a review decision points to an existing Canon concept/fact. The compiled bundle is a reproducible build product with regionVersion, compilerInputDigest, canonDigest, bootstrapDigest and per-object provenance. Runtime imports only this generated bundle; it must not import image files or authoring documents.

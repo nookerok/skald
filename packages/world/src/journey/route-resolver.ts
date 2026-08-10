@@ -30,8 +30,8 @@ export function resolveJourneyRoute(
 
   for (const loc of observerMap.locations) {
     if (loc.knowledge === "rumored" || loc.knowledge === "glimpsed" || loc.knowledge === "observed" || loc.knowledge === "traversed") {
-      const nameLower = loc.name.toLowerCase();
-      if (nameLower === normalizedDest || nameLower.includes(normalizedDest) || normalizedDest.includes(nameLower)) {
+      const names = [loc.name, ...(loc.aliases ?? [])].map((name) => name.toLowerCase());
+      if (names.some((name) => name === normalizedDest || name.includes(normalizedDest) || normalizedDest.includes(name))) {
         candidateLocations.push({ id: loc.ref, name: loc.name });
       }
     }

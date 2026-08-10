@@ -773,3 +773,7 @@ Projection несёт `eventNumber` (порядковый номер после�
 тестах. v3+ направления (Runtime Rule Synthesis, Distribution, Narrative
 Adapter с LLM, Biography pruning) зафиксированы в §11 как
 исследовательские — не задачи для кода без отдельного architects' ревью.*
+
+### 5.3.6 Image reference -> Canon region pipeline
+
+An existing region image is an authoring-only reference artifact. It is validated by the Region Interpretation Layer into visual observations, proposals and an explicit author review. Only accepted Canon facts are read by the deterministic region loader/IR builder and compiled into the generated bundle under packages/world/src/region/compiled/. Runtime never reads the image, docs/canon/, proposals, hypotheses, resources or authoring YAML. The bundle carries regionVersion, Canon/compiler digests and per-object canonicalRefs; Event Log remains the runtime authority.

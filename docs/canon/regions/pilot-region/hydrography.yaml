@@ -1,0 +1,85 @@
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.hydrography
+  scope: Regional
+  domain: Space
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "RegionInterpretationLayer(pilot-region-hydrography-proposal-v1)"
+    acceptedBy: "AuthorDecision(pilot-region-geography-review-v2, 2026-08-10)"
+  relations:
+    - type: dependsOn
+      target: regions.pilot-region.geography
+  runtimeMapping:
+    runtime:
+      - "RegionDefined hydrography definition"
+    rules:
+      - "RiverProcessDefined reads the accepted main watercourse"
+    events:
+      - "RegionDefined"
+    projection:
+      - "SpatialWorldProjection hydrography read model"
+    discovery:
+      - "Observer-scoped watercourse evidence"
+    narrative:
+      - "Unresolved southern water remains uncertain"
+    ui:
+      - "Map reveals only known water geometry"
+  facts:
+    - id: regions.pilot-region.hydrography.f1
+      statement: "The main river descends from the northern range through the central valley toward a southern water body."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: CalibrationEvidence
+        source: "hydrography-observation.json river_basin"
+      consequences:
+        - "River process and crossing use the accepted main watercourse."
+    - id: regions.pilot-region.hydrography.f2
+      statement: "The western cascades form an accepted possible tributary channel associated with the main basin."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-geography-review-v2"
+      consequences:
+        - "Discovery may describe the waterfall channel without asserting its deeper origin."
+    - id: regions.pilot-region.hydrography.f3
+      statement: "The main river reaches a southern water body whose classification as sea, estuary or delta is unresolved."
+      type: Epistemic
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-geography-review-v2"
+      consequences:
+        - "No coastal or tidal simulation is activated by this fact."
+    - id: regions.pilot-region.hydrography.f4
+      statement: "The northern snow range and high pass define a provisional mountain catchment draining toward the main river."
+      type: Derived
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-geography-review-v2"
+      consequences:
+        - "Relative drainage constraints may influence terrain and visibility."
+

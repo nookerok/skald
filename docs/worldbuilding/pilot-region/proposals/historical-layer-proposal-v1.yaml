@@ -1,0 +1,82 @@
+schemaVersion: 1
+proposal:
+  id: pilot-region-historical-layer-v1
+  regionId: riverwatch-basin
+  status: proposed
+  traces:
+    - id: trace.eastern-masonry
+      subjectRef: old_ruins
+      category: ancient_culture_trace
+      statement: Repeated masonry alignments may indicate a shared building tradition.
+      status: proposed
+      evidenceRefs:
+        - regions.pilot-region.history.f1
+    - id: trace.eastern-road
+      subjectRef: road_city_ruins
+      category: abandoned_infrastructure
+      statement: Regular road cuts may be remains of an older maintained route.
+      status: proposed
+      evidenceRefs:
+        - regions.pilot-region.history.f2
+    - id: trace.dry-channel
+      subjectRef: river_basin
+      category: river_course_change
+      statement: A dry channel may preserve an earlier course of the river.
+      status: proposed
+      evidenceRefs:
+        - regions.pilot-region.history.f3
+    - id: trace.burned-layer
+      subjectRef: old_ruins
+      category: conflict_trace
+      statement: A darkened masonry layer may reflect conflict, accidental fire or later reuse.
+      status: proposed
+      evidenceRefs:
+        - regions.pilot-region.history.f1
+    - id: trace.forest-line
+      subjectRef: blackwood_edge
+      category: climate_shift
+      statement: A former forest boundary may have changed with climate or land use.
+      status: proposed
+      evidenceRefs:
+        - regions.pilot-region.history.f5
+  hypotheses:
+    - id: hypothesis.eastern-conflict
+      subjectRefs:
+        - trace.burned-layer
+      status: proposed
+      notCanonTruth: true
+      confirmationCriteria:
+        - directional damage and independent fire or weapon traces
+      falsificationCriteria:
+        - layer proves natural weathering or ordinary maintenance fire
+      runtimeMapping: discovery_question
+    - id: hypothesis.former-forest-line
+      subjectRefs:
+        - trace.forest-line
+      status: proposed
+      notCanonTruth: true
+      confirmationCriteria:
+        - dated soil or vegetation evidence beyond the present forest edge
+      falsificationCriteria:
+        - boundary proves recent clearing or ordinary cultivation
+      runtimeMapping: discovery_question
+    - id: hypothesis.shared-eastern-tradition
+      subjectRefs:
+        - trace.eastern-masonry
+      status: proposed
+      notCanonTruth: true
+      confirmationCriteria:
+        - independent matching masonry at a second site
+      falsificationCriteria:
+        - construction phases prove unrelated techniques
+      runtimeMapping: discovery_question
+    - id: hypothesis.former-river-course
+      subjectRefs:
+        - trace.dry-channel
+      status: proposed
+      notCanonTruth: true
+      confirmationCriteria:
+        - matching sediment and a connected upstream channel
+      falsificationCriteria:
+        - channel proves artificial or compositionally unrelated
+      runtimeMapping: discovery_question

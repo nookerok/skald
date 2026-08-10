@@ -86,6 +86,7 @@ export type * from "./llm/types.js";
 // Iteration 15 — Objects & Locations
 export * from "./objects/index.js";
 export * from "./entities/index.js";
+export * from "./resource/index.js";
 export {
   interactionResolveTarget,
   interactionResolveLaw,

@@ -1,0 +1,104 @@
+schemaVersion: 1
+proposal:
+  id: pilot-region-proposal-v1
+  regionId: riverwatch-basin
+  sourceArtifact: pilot-region-reference-001
+  status: proposed
+  generatedBy: "RegionInterpretationLayer"
+  features:
+    - proposalId: proposal.northern-snow-range
+      sourceEvidence: visual_feature.northern_snow_range
+      kind: mountain_range
+      proposedId: northern_snow_range
+      proposedName: "Северный снежный хребет"
+      etymology: "Working geographic name derived from visible snow line."
+      confidence: 0.97
+      simulationImportance:
+        - river_source
+        - passability
+        - visibility
+    - proposalId: proposal.blackwood-forest
+      sourceEvidence: visual_feature.blackwood_forest
+      kind: forest
+      proposedId: blackwood_forest
+      proposedName: "Чёрный лес"
+      etymology: "Traveller name for the dark western conifer mass."
+      confidence: 0.94
+      simulationImportance:
+        - visibility
+        - travel_cost
+        - resource_candidate
+    - proposalId: proposal.southern-water-body
+      sourceEvidence: visual_feature.riverwatch_main_course
+      kind: coast
+      proposedId: southern_water_body
+      proposedName: "Южная вода"
+      etymology: "Placeholder pending coast, estuary or delta review."
+      confidence: 0.55
+      simulationImportance:
+        - hydrology
+        - settlement
+      status: ambiguous
+  toponyms:
+    - subjectId: riverwatch-basin
+      name: "Бассейн Речного Стража"
+      cultureRef: regional_common
+      rootMeaning: river basin watched by the city
+      status: proposed
+    - subjectId: northern_snow_range
+      name: "Северный снежный хребет"
+      cultureRef: regional_common
+      rootMeaning: snow-covered northern ridge
+      status: proposed
+    - subjectId: western_cliff_waterfalls
+      name: "Водопады западных утёсов"
+      cultureRef: waystation_tradition
+      rootMeaning: falling water from the western cliffs
+      status: proposed
+  hypotheses:
+    - id: hypotheses.monolith-power-source
+      statement: "Light columns may indicate an active device or ancient engineered phenomenon."
+      evidenceRefs:
+        - visual_feature.suspended_monolith
+      confidence: 0.85
+      categories:
+        - historical_trace
+        - engineered_phenomenon
+      confirmationPaths:
+        - repeated observation from distinct bearings
+        - examination of the monolith at a known location
+      falsificationPaths:
+        - ordinary weather or light explains the columns
+      notCanonTruth: true
+      status: proposed
+      runtimeMapping: none
+    - id: hypotheses.crater-origin
+      statement: "The crater may be an impact event or artificial excavation."
+      evidenceRefs:
+        - visual_feature.glass_crater
+      confidence: 0.80
+      categories:
+        - geological_origin
+        - historical_trace
+      confirmationPaths:
+        - repeat visits after rain and dry weather
+        - material sampling at the crater edge
+      falsificationPaths:
+        - reflective surface is ordinary wet stone
+        - depression matches a natural sinkhole profile
+      notCanonTruth: true
+      status: proposed
+      runtimeMapping: none
+  simulationCandidates:
+    - id: candidate.blackwood-timber
+      subjectId: blackwood_forest
+      kind: resource
+      value: timber
+      status: proposed
+      runtimeMapping: none
+    - id: candidate.waterfall-observation
+      subjectId: western_cliff_waterfalls
+      kind: observation_seed
+      value: waterfall_evidence
+      status: proposed
+      runtimeMapping: none

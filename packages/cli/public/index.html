@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/new-game.css">
 <link rel="stylesheet" href="/game-shell.css">
 <link rel="stylesheet" href="/living-world.css">
+<link rel="stylesheet" href="/skald-aaa.css">
 </head>
 <body>
 <div id="app">
@@ -73,6 +74,7 @@
           <aside class="context-rail" aria-label="Контекст">
             <div class="context-tabs" role="tablist" aria-label="Контекст мира">
               <button id="context-tab-world" class="context-tab active" data-context="world" role="tab" aria-selected="true" aria-controls="context-world">Мир</button>
+              <button id="context-tab-map" class="context-tab" data-context="map" role="tab" aria-selected="false" aria-controls="context-map">Карта</button>
               <button id="context-tab-character" class="context-tab" data-context="character" role="tab" aria-selected="false" aria-controls="context-character">Ты</button>
               <button id="context-tab-knowledge" class="context-tab" data-context="knowledge" role="tab" aria-selected="false" aria-controls="context-knowledge">Знания</button>
               <button id="context-tab-threads" class="context-tab" data-context="threads" role="tab" aria-selected="false" aria-controls="context-threads">Нити</button>
@@ -81,15 +83,20 @@
             </div>
             <div id="context-world" class="context-panel active" role="tabpanel" aria-labelledby="context-tab-world">
               <section id="world-stage" class="world-stage" aria-label="Сцена известного мира">
-                <picture class="world-stage-art" aria-hidden="true"><source srcset="/assets/maps/visual-shell-region.webp" type="image/webp"><img src="/assets/maps/visual-shell-region.jpg" alt=""></picture>
                 <div class="world-stage-vignette" aria-hidden="true"></div>
                 <div class="stage-header"><span class="eyebrow">ИЗВЕСТНЫЙ МИР</span><h1 id="stage-location-title">Место неизвестно</h1><p id="stage-location-description">Летопись ещё не открыла это место.</p></div>
                 <div id="stage-marker" class="stage-marker"><span class="marker-pulse" aria-hidden="true"></span><span class="marker-label">Ты здесь</span></div>
                 <div id="stage-links" class="stage-links" aria-label="Известные связанные места"></div>
                 <div class="stage-footer"><div id="stage-attention" class="attention-marks" aria-label="Внимание мира"></div><span id="stage-attention-text">Мир спокоен</span></div>
               </section>
-              <section class="player-map" aria-labelledby="map-title"><header class="player-map__header"><h3 id="map-title">Наблюдаемая карта</h3></header><div id="player-map-canvas" class="player-map__canvas" role="img" aria-label="Карта известного пространства"></div><div id="player-map-legend" class="player-map__legend"></div></section>
               <div id="context-world-details" class="context-world-details" aria-live="polite"></div>
+            </div>
+            <div id="context-map" class="context-panel context-map" role="tabpanel" aria-labelledby="context-tab-map" hidden>
+              <section class="player-map player-map--full" aria-labelledby="map-title">
+                <header class="player-map__header"><div><span class="eyebrow">ИЗВЕСТНЫЙ РЕГИОН</span><h3 id="map-title">Карта</h3><p>Туман отступает только там, где ты побывал или что-то наблюдал.</p></div><span class="map-fog-key">Неизведанное скрыто</span></header>
+                <div id="player-map-canvas" class="player-map__canvas" role="img" aria-label="Карта известного пространства"></div>
+                <div id="player-map-legend" class="player-map__legend"></div>
+              </section>
             </div>
             <div id="context-character" class="context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></div>
             <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden></div>
@@ -113,6 +120,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="/app.js?v=17-unified-shell"></script>
+<script type="module" src="/app.js?v=19-map-fog"></script>
 </body>
 </html>

@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "artifactRef": "pilot-region-reference-001",
+  "coordinateSystem": "normalized_image",
+  "interpretationStatus": "relative_only",
+  "elevationBands": [
+    {
+      "id": "band.lowland",
+      "rank": 1,
+      "label": "river_lowland"
+    },
+    {
+      "id": "band.foothill",
+      "rank": 2,
+      "label": "western_foothills"
+    },
+    {
+      "id": "band.upland",
+      "rank": 3,
+      "label": "eastern_uplands"
+    },
+    {
+      "id": "band.alpine",
+      "rank": 4,
+      "label": "northern_range"
+    }
+  ],
+  "controlAreas": [
+    {
+      "id": "elevation.northern_range",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "bounds": {
+          "minX": 0,
+          "minY": 0,
+          "maxX": 1,
+          "maxY": 0.22
+        }
+      },
+      "bandRef": "band.alpine",
+      "evidenceRefs": [
+        "visual_feature.northern_snow_range"
+      ],
+      "confidence": 0.97
+    },
+    {
+      "id": "elevation.river_corridor",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "bounds": {
+          "minX": 0.28,
+          "minY": 0.18,
+          "maxX": 0.86,
+          "maxY": 0.96
+        }
+      },
+      "bandRef": "band.lowland",
+      "evidenceRefs": [
+        "visual_feature.riverwatch_valley"
+      ],
+      "confidence": 0.91
+    },
+    {
+      "id": "elevation.eastern_uplands",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "bounds": {
+          "minX": 0.67,
+          "minY": 0.18,
+          "maxX": 1,
+          "maxY": 0.75
+        }
+      },
+      "bandRef": "band.upland",
+      "evidenceRefs": [
+        "visual_feature.eastern_uplands"
+      ],
+      "confidence": 0.83
+    },
+    {
+      "id": "elevation.western_foothills",
+      "geometry": {
+        "coordinateSystem": "normalized_image",
+        "bounds": {
+          "minX": 0,
+          "minY": 0.25,
+          "maxX": 0.42,
+          "maxY": 1
+        }
+      },
+      "bandRef": "band.foothill",
+      "evidenceRefs": [
+        "visual_feature.blackwood_forest"
+      ],
+      "confidence": 0.72
+    }
+  ],
+  "constraints": [
+    {
+      "id": "constraint.northern-higher-than-valley",
+      "kind": "higherThan",
+      "subject": "northern_snow_range",
+      "reference": "riverwatch_valley",
+      "evidenceRefs": [
+        "visual_feature.northern_snow_range",
+        "visual_feature.riverwatch_valley"
+      ]
+    },
+    {
+      "id": "constraint.waterfalls-drain-to-river",
+      "kind": "drainsToward",
+      "subject": "western_cliff_waterfalls",
+      "reference": "river_basin",
+      "evidenceRefs": [
+        "visual_feature.western_cliff_waterfalls",
+        "visual_feature.riverwatch_main_course"
+      ]
+    },
+    {
+      "id": "constraint.pass-breaks-range",
+      "kind": "breaksRange",
+      "subject": "high_pass",
+      "reference": "northern_snow_range",
+      "evidenceRefs": [
+        "visual_feature.high_pass"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+schemaVersion: 1
+review:
+  id: pilot-region-geography-review-v2
+  proposalId: pilot-region-hydrography-proposal-v1
+  reviewer: AuthorDecision
+  reviewedAt: "2026-08-10"
+  decisions:
+    - proposalId: hydrography.river-basin
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.hydrography
+        factId: regions.pilot-region.hydrography.f1
+    - proposalId: hydrography.western-waterfall-channel
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.hydrography
+        factId: regions.pilot-region.hydrography.f2
+    - proposalId: hydrography.southern-water-body
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.hydrography
+        factId: regions.pilot-region.hydrography.f3
+      reason: "Water reaches the southern body; classification as sea, estuary or delta remains unresolved."
+    - proposalId: hydrography.northern-mountain-catchment
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.hydrography
+        factId: regions.pilot-region.hydrography.f4
+    - proposalId: hydrography.southern-lowland-wetland
+      decision: defer
+      reason: "The image does not distinguish wetland, delta marsh and floodplain."
+    - proposalId: hydrography.lake-candidate
+      decision: defer
+      reason: "No lake is observed in the reference image; no lake is added to Canon."
+    - proposalId: elevation.band-hierarchy
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.elevation
+        factId: regions.pilot-region.elevation.f1
+    - proposalId: elevation.drainage-constraints
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.elevation
+        factId: regions.pilot-region.elevation.f2
+

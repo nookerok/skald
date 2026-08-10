@@ -1,0 +1,138 @@
+schemaVersion: 1
+regionId: riverwatch-basin
+status: open
+gaps:
+  - id: gap.southern-water-classification
+    subjectId: southern_water_body
+    question: What is the southern water body?
+    candidates:
+      - sea_coast
+      - estuary
+      - river_delta
+      - inland_lake
+    currentStatus: ambiguous
+    evidenceRefs:
+      - visual_feature.riverwatch_main_course
+      - visual-observation.coverage.coast
+    blocks:
+      - coastal_simulation
+      - downstream_hydrology
+      - canonical_toponym
+    resolutionRequired: author_decision
+    responsible: AuthorDecision
+    lifecycle: open
+  - id: gap.possible-tributaries
+    subjectId: western_waterfall_channel
+    question: Do the western cascades form a tributary channel?
+    candidates:
+      - tributary
+      - seasonal_runoff
+      - isolated_waterfall
+    currentStatus: ambiguous
+    evidenceRefs:
+      - visual_feature.western_cliff_waterfalls
+      - visual-observation.coverage.tributary
+    blocks:
+      - tributary_process
+    resolutionRequired: author_decision
+    responsible: AuthorDecision
+    lifecycle: open
+  - id: gap.southern-wetlands
+    subjectId: southern_lowland_wetland
+    question: Does the southern lowland contain a wetland or delta marsh?
+    candidates:
+      - wetland
+      - delta_marsh
+      - floodplain
+      - none_confirmed
+    currentStatus: ambiguous
+    evidenceRefs:
+      - visual-observation.coverage.wetland
+    blocks:
+      - wetland_travel_cost
+      - marsh_ecology
+    resolutionRequired: author_decision
+    responsible: AuthorDecision
+    lifecycle: open
+  - id: gap.coastline
+    subjectId: southern_water_body
+    question: Is a coast visible inside the authored region boundary?
+    candidates:
+      - coast
+      - estuary_edge
+      - delta_edge
+      - not_observed
+    currentStatus: ambiguous
+    evidenceRefs:
+      - visual-observation.coverage.coast
+    blocks:
+      - coastal_simulation
+      - tidal_rules
+    resolutionRequired: author_decision
+    responsible: AuthorDecision
+    lifecycle: open
+  - id: gap.lake
+    subjectId: lake_candidate
+    question: Is there a lake in the authored region?
+    candidates:
+      - author_confirmed_absent
+      - outside_reference_unknown
+      - proposed
+      - observed
+    currentStatus: not_observed
+    evidenceRefs:
+      - visual-observation.coverage.lake
+    blocks:
+      - lake_process
+    resolutionRequired: author_decision
+    responsible: AuthorDecision
+    lifecycle: open
+  - id: gap.basin-boundary
+    subjectId: riverwatch_basin
+    question: Where is the hydrological boundary of the visible basin?
+    candidates:
+      - northern_watershed
+      - image_boundary_only
+      - unresolved_catchment
+    currentStatus: ambiguous
+    evidenceRefs:
+      - visual_feature.northern_snow_range
+      - visual_feature.riverwatch_valley
+    blocks:
+      - catchment_area
+      - runoff_projection
+    resolutionRequired: author_decision
+    responsible: AuthorDecision
+    lifecycle: open
+  - id: gap.eastern-upland-height
+    subjectId: eastern_uplands
+    question: What is the relative height of the eastern uplands?
+    candidates:
+      - raised_plain
+      - foothill
+      - ridge
+    currentStatus: observed_relative_only
+    evidenceRefs:
+      - visual_feature.eastern_uplands
+    blocks:
+      - precise_elevation
+    resolutionRequired: relative_model
+    responsible: RegionCompiler
+    lifecycle: open
+  - id: gap.northern-watershed
+    subjectId: northern_snow_range
+    question: Which northern ridges form the watershed?
+    candidates:
+      - northern_range
+      - high_pass_divide
+      - unresolved_watershed
+    currentStatus: observed_relative_only
+    evidenceRefs:
+      - visual_feature.northern_snow_range
+      - visual_feature.high_pass
+    blocks:
+      - exact_drainage_divide
+    resolutionRequired: relative_model
+    responsible: RegionCompiler
+    lifecycle: open
+

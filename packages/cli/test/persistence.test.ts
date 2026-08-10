@@ -41,6 +41,15 @@ describe("PersistenceStore", () => {
     store.close();
   });
 
+  it("roundtrips Canon provenance references", () => {
+    const db = tmpDb();
+    const store = createSqliteStore(db);
+    store.commitBatch([{ ...testEvent, eventId: "canon-1", type: "CanonGenesisRecorded", payload: { regionId: "riverwatch-basin", regionVersion: 3, provenance: { canonicalRefs: ["regions.pilot-region.geography.f1"], compilerVersion: "pilot-region-compiler-v5" } } }]);
+    const loaded = store.loadAll()[0]!;
+    expect(loaded.payload).toEqual(expect.objectContaining({ regionId: "riverwatch-basin", provenance: expect.objectContaining({ canonicalRefs: ["regions.pilot-region.geography.f1"] }) }));
+    store.close();
+  });
+
   it("preserves null causationId", () => {
     const db = tmpDb();
     const store = createSqliteStore(db);

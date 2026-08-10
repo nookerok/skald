@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SKALD Hydrography Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "regionId",
+    "artifactRef",
+    "coordinateSystem",
+    "waterBodies",
+    "watercourses",
+    "wetlands",
+    "catchments"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "regionId": {
+      "const": "riverwatch-basin"
+    },
+    "artifactRef": {
+      "type": "string"
+    },
+    "coordinateSystem": {
+      "const": "normalized_image"
+    },
+    "waterBodies": {
+      "type": "array"
+    },
+    "watercourses": {
+      "type": "array"
+    },
+    "wetlands": {
+      "type": "array"
+    },
+    "catchments": {
+      "type": "array"
+    }
+  }
+}

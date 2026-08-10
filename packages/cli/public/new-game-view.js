@@ -57,12 +57,45 @@ export function renderNewGame() {
   const container = document.getElementById("new-game-container");
   if (!container) return;
   container.replaceChildren();
+  container.className = "new-game-screen";
+  container.dataset.step = step;
+  container.appendChild(renderJourneyProgress(step));
 
   switch (step) {
     case "character": renderCharacterStep(container); break;
     case "world": renderWorldStep(container); break;
     case "confirm": renderConfirmStep(container); break;
   }
+}
+
+function renderJourneyProgress(activeStep) {
+  const steps = [
+    ["character", "\u0413\u0435\u0440\u043e\u0439"],
+    ["world", "\u041c\u0438\u0440"],
+    ["confirm", "\u041d\u0430\u0447\u0430\u043b\u043e"],
+  ];
+  const progress = document.createElement("ol");
+  progress.className = "ng-progress";
+  progress.setAttribute("aria-label", "\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u043d\u043e\u0432\u043e\u0439 \u0438\u0433\u0440\u044b");
+  const activeIndex = steps.findIndex(([id]) => id === activeStep);
+  steps.forEach(([id, label], index) => {
+    const item = document.createElement("li");
+    item.className = "ng-progress-step";
+    if (index < activeIndex) item.dataset.state = "complete";
+    if (id === activeStep) {
+      item.dataset.state = "active";
+      item.setAttribute("aria-current", "step");
+    }
+    const number = document.createElement("span");
+    number.className = "ng-progress-index";
+    number.textContent = String(index + 1).padStart(2, "0");
+    const text = document.createElement("span");
+    text.className = "ng-progress-label";
+    text.textContent = label;
+    item.append(number, text);
+    progress.appendChild(item);
+  });
+  return progress;
 }
 
 function renderCharacterStep(container) {

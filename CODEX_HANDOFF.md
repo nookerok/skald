@@ -2,12 +2,22 @@
 
 ## Current work (2026-08-09)
 
-- UX-7.1 Chat Core implemented in the working tree from ADR-0024: the main Game Screen is a chronicle-first dialogue with #chat-feed as the dominant surface and the free-text composer as the only permanent game control.
-- GameShellSnapshot/journal DTOs, Domain Events, Rules and HTTP contracts are unchanged. World-stage and map remain available under the Context -> Мир overlay; dynamic context details render into #context-world-details so renderContextRail cannot erase the stage.
-- Suggestions, D-pad and action/social chips are not rendered in the first layer.
-- Focused client tests: 86 passed. Full npm run validate: PASS (110 files, 1373 passed, 1 skipped).
-- Local NTFS browser QA: PASS on desktop 1440x900 and mobile 390x844; Chat Core composer, overlays, stage persistence, reload, no overflow and console errors 0. Mutation budget used only for one temporary Presence acknowledge; no gameplay mutation.
-- Changes are not committed, pushed or deployed yet.
+- Historical evidence layer implemented (ADR-0027): accepted physical traces for ancient culture, abandoned infrastructure, possible conflict damage, forest/climate shift and former river course; runtime discovery definitions require independent evidence and expose supported/contradicted/inconclusive read-side resolution.
+- Resource node vertical slice implemented (ADR-0026): accepted Blackwood timber definition is compiled into bootstrap, projected with integer stock, supports extraction, depletion, deterministic world-time regeneration and blocking situations; command handler and RuleRegistry are wired.
+- Region compiler/runtime genericization implemented: --region, --all and catalog checks; runtime loads generated bundles by region ID through region-catalog.json; pilot wrappers remain compatibility APIs.
+- Validation after this milestone: npm run validate PASS (115 files, 1402 passed, 1 skipped); Canon and region authoring checks PASS. Changes remain uncommitted, unpushed and undeployed.
+
+- A cohesive premium game interface is implemented in the working tree across the main menu, new-game journey, return screen, focused game HUD, Context, Chronicle, Discoveries, loading/error states and mobile layouts.
+- Context now has a dedicated Map tab rendered from observer-scoped SVG/vector data. The reference artwork is authoring-only; runtime consumes only `ObserverMapDTO` from `/api/worlds/:id/map`.
+- Deterministic fog of war reveals only the observer, traversed/observed/glimpsed locations and observed paths. Rumored locations create no marker, reveal or `knownArea` expansion, so hidden geometry never reaches the normal player renderer.
+- Multi-world shell wiring now loads and unwraps the map endpoint independently from the game-shell snapshot, with an honest unavailable state. Desktop and mobile width constraints keep the full map inside the Context dialog.
+- New-game rendering exposes an accessible three-step progress indicator (Hero / World / Beginning) without changing creation semantics.
+
+- Image -> Canon pipeline implemented for the pilot region (ADR-0025): reference artifact manifest with exact SHA-256, normalized visual observation layer, proposed hypotheses/resources, human review, deterministic compiler projection and versioned pilot-region.v5.json bundle with region/content/discovery/simulation definitions and object provenance. Bootstrap begins with CanonGenesisRecorded and carries canonicalRefs/digests in payload provenance. Canon validation fails on stale compiled output; proposal-only waterfall/resource/hypothesis items are excluded from runtime.
+- Runtime no longer reads region artwork: the public PNG/JPG/WebP assets and image-backed map foundation were removed. ObserverMapDTO v2 exposes only bounded knownTerrain vector patches; map SVG renders those patches under the existing fog mask.
+- Full `npm run validate`: PASS (112 files, 1392 passed, 1 skipped), including typecheck, Canon, simulation, eval and diff gates.
+- Local NTFS browser QA: PASS at 1440x960 and 390x844. SVG artwork, fog mask, 3 reveal circles, 2 corridor paths, observer scope, focus trap, Escape/opener restore, responsive overflow and zero console warnings/errors were verified; gameplay commands: 0 and worldTime remained T0.
+- Changes are not committed, pushed or deployed.
 
 
 Mutable milestone note. Git, tests and current source outrank this file.
@@ -470,6 +480,7 @@ deterministic gate pipeline is accepted.
   `docs/canon/regions/pilot-region/visual-interpretation.yaml`.
 - Added deterministic validation through
   `scripts/canon/validate-visual-canon.mjs`, wired into `npm run canon:validate`.
-- Existing southern-borough and initial-observation bootstrap entries are
-  recorded as already compiled; no duplicate events or image/runtime coupling
-  were introduced.
+- Added reference manifest registration, strict visual observation/proposal/review/toponymy validation, and authoring CLI flags.
+- Added generic Canon loader/IR builder and compiled bundle v5 with region/content/discovery/simulation definitions, regionVersion, digests and per-object provenance. Runtime discovery now reads accepted definitions from the bundle.
+- Existing southern-borough and initial-observation bootstrap entries are recorded as already compiled; no duplicate events or image/runtime coupling were introduced.
+- Gate evidence 2026-08-09: `npm run validate` PASS (112 files, 1389 passed, 1 skipped; Canon, authoring, compile check, simulation, eval and diff checks PASS).

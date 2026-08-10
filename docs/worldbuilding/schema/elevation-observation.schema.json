@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SKALD Relative Elevation Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "regionId",
+    "artifactRef",
+    "coordinateSystem",
+    "elevationBands",
+    "controlAreas",
+    "constraints"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "regionId": {
+      "const": "riverwatch-basin"
+    },
+    "artifactRef": {
+      "type": "string"
+    },
+    "coordinateSystem": {
+      "const": "normalized_image"
+    },
+    "elevationBands": {
+      "type": "array",
+      "minItems": 1
+    },
+    "controlAreas": {
+      "type": "array",
+      "minItems": 1
+    },
+    "constraints": {
+      "type": "array"
+    }
+  }
+}

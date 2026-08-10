@@ -55,6 +55,9 @@ export const EventType = {
   // Interaction Model v1 — Slice 2 (listening law)
   SoundObserved: "SoundObserved",
 
+  // Canon compiler provenance — design-time input committed before bootstrap
+  CanonGenesisRecorded: "CanonGenesisRecorded",
+
   // First living region — spatial bootstrap and observer evidence
   RegionDefined: "RegionDefined",
   SpatialObservationRecorded: "SpatialObservationRecorded",
@@ -87,6 +90,12 @@ export const EventType = {
   // Settlement Pattern (PR-7.4, first long-lived object)
   SettlementCreated: "SettlementCreated",
   SettlementStateChanged: "SettlementStateChanged",
+
+  // Resource nodes and deterministic extraction/recovery
+  ResourceNodeDefined: "ResourceNodeDefined",
+  ResourceExtractionRequested: "ResourceExtractionRequested",
+  ResourceExtracted: "ResourceExtracted",
+  ResourceRegenerated: "ResourceRegenerated",
 
 } as const;
 

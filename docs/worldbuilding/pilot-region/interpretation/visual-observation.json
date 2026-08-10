@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "artifactRef": "pilot-region-reference-001",
+  "coordinateSystem": "normalized_image",
+  "interpretationStatus": "observed",
+  "coverage": {
+    "region_boundary": {
+      "status": "observed"
+    },
+    "mountain_range": {
+      "status": "observed"
+    },
+    "mountain_pass": {
+      "status": "observed"
+    },
+    "valley": {
+      "status": "observed"
+    },
+    "river": {
+      "status": "observed"
+    },
+    "tributary": {
+      "status": "ambiguous",
+      "note": "Western waterfalls visibly feed the central basin; tributary topology is not fully resolved."
+    },
+    "lake": {
+      "status": "not_observed"
+    },
+    "forest": {
+      "status": "observed"
+    },
+    "plain": {
+      "status": "observed"
+    },
+    "wetland": {
+      "status": "ambiguous",
+      "note": "Southern lowland may contain marsh or delta terrain."
+    },
+    "coast": {
+      "status": "ambiguous",
+      "note": "The southern water body may be a coast, estuary or broad river delta."
+    },
+    "elevation_hierarchy": {
+      "status": "observed"
+    }
+  },
+  "features": [
+    {
+      "id": "visual_feature.northern_snow_range",
+      "kind": "mountain_range",
+      "geometry": {
+        "bounds": {
+          "minX": 0,
+          "minY": 0,
+          "maxX": 1,
+          "maxY": 0.22
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "Snow-capped peaks and high ridges occupy the northern fifth of the image.",
+        "confidence": 0.97
+      },
+      "elevationHierarchy": "highest",
+      "relations": [
+        "visual_feature.high_pass",
+        "visual_feature.riverwatch_main_course"
+      ],
+      "simulationImportance": [
+        "river_source",
+        "passability",
+        "visibility"
+      ],
+      "approximateSize": "regional_band",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.blackwood_forest",
+      "kind": "forest",
+      "geometry": {
+        "bounds": {
+          "minX": 0,
+          "minY": 0.25,
+          "maxX": 0.42,
+          "maxY": 1
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "A continuous dark forest mass fills the western flank and reaches the lower edge.",
+        "confidence": 0.94
+      },
+      "elevationHierarchy": "foothills_to_valley",
+      "relations": [
+        "visual_feature.blackwood_edge",
+        "visual_feature.riverwatch_valley"
+      ],
+      "simulationImportance": [
+        "visibility",
+        "travel_cost",
+        "resource_candidate"
+      ],
+      "approximateSize": "large_flank",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.riverwatch_valley",
+      "kind": "valley",
+      "geometry": {
+        "bounds": {
+          "minX": 0.28,
+          "minY": 0.18,
+          "maxX": 0.86,
+          "maxY": 0.96
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "Open ground follows the central river from northern highlands toward the lower frame.",
+        "confidence": 0.91
+      },
+      "elevationHierarchy": "lowland_corridor",
+      "relations": [
+        "visual_feature.riverwatch_main_course",
+        "visual_feature.riverplain_fields"
+      ],
+      "simulationImportance": [
+        "settlement",
+        "travel",
+        "hydrology"
+      ],
+      "approximateSize": "major_corridor",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.eastern_uplands",
+      "kind": "ridge",
+      "geometry": {
+        "bounds": {
+          "minX": 0.67,
+          "minY": 0.18,
+          "maxX": 1,
+          "maxY": 0.75
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "Open cultivated-looking terrain and rocky elevated ridge dominate the eastern half.",
+        "confidence": 0.83
+      },
+      "elevationHierarchy": "raised_plain",
+      "relations": [
+        "visual_feature.old_ruins"
+      ],
+      "simulationImportance": [
+        "settlement",
+        "visibility",
+        "ruin_access"
+      ],
+      "approximateSize": "elevated_half_region",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.glass_crater",
+      "kind": "depression",
+      "geometry": {
+        "bounds": {
+          "minX": 0.12,
+          "minY": 0.58,
+          "maxX": 0.28,
+          "maxY": 0.82
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "A near-circular dark depression with a reflective centre is visible inside the western forest.",
+        "confidence": 0.89
+      },
+      "elevationHierarchy": "local_low",
+      "relations": [
+        "visual_feature.blackwood_forest"
+      ],
+      "simulationImportance": [
+        "discovery",
+        "visibility",
+        "unknown_hazard"
+      ],
+      "approximateSize": "local_depression",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.riverwatch_main_course",
+      "kind": "river",
+      "geometry": {
+        "kind": "directional",
+        "from": "northern_highlands",
+        "to": "southern_lowlands",
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "A central watercourse descends from the northern range through the valley.",
+        "confidence": 0.88
+      },
+      "elevationHierarchy": "descending",
+      "relations": [
+        "visual_feature.western_cliff_waterfalls",
+        "visual_feature.riverplain_fields"
+      ],
+      "simulationImportance": [
+        "river_process",
+        "crossing",
+        "settlement_pressure"
+      ],
+      "approximateSize": "major_watercourse",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.western_cliff_waterfalls",
+      "kind": "landmark",
+      "geometry": {
+        "bounds": {
+          "minX": 0.3,
+          "minY": 0.16,
+          "maxX": 0.47,
+          "maxY": 0.36
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "Several cascades fall from western cliffs toward the valley.",
+        "confidence": 0.86
+      },
+      "elevationHierarchy": "cliff_to_valley",
+      "relations": [
+        "visual_feature.riverwatch_main_course"
+      ],
+      "simulationImportance": [
+        "water_supply",
+        "landmark",
+        "accessibility"
+      ],
+      "approximateSize": "local_landmark_group",
+      "status": "observed"
+    },
+    {
+      "id": "visual_feature.high_pass",
+      "kind": "mountain_pass",
+      "geometry": {
+        "bounds": {
+          "minX": 0.72,
+          "minY": 0.02,
+          "maxX": 0.88,
+          "maxY": 0.2
+        },
+        "coordinateSystem": "normalized_image"
+      },
+      "evidence": {
+        "description": "A break in the northern snow range suggests a pass where the river begins.",
+        "confidence": 0.78
+      },
+      "elevationHierarchy": "high",
+      "relations": [
+        "visual_feature.northern_snow_range",
+        "visual_feature.riverwatch_main_course"
+      ],
+      "simulationImportance": [
+        "passability",
+        "river_source",
+        "visibility"
+      ],
+      "approximateSize": "local_pass",
+      "status": "observed"
+    }
+  ]
+}

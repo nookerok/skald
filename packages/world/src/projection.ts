@@ -9,6 +9,8 @@ import { SpatialProjector } from "./region/spatial-projector.js";
 import { WeatherProjector } from "./weather/projector.js";
 import { HeatProjector } from "./heat/projector.js";
 import { SettlementProjector } from "./settlement/projector.js";
+import { ResourceProjector } from "./resource/projector.js";
+import type { ResourceReadView } from "./resource/types.js";
 
 /** Event types whose read-view projection must be refreshed after apply. */
 const SPATIAL_EVENT_TYPES = new Set([
@@ -115,6 +117,8 @@ export interface ReadonlyWorld {
   readonly heat: import("./heat/types.js").HeatReadView | null;
   // Settlement read view for Rules (PR-7.4, first long-lived object)
   readonly settlement: import("./settlement/types.js").SettlementReadView | null;
+  /** Resource node definitions and event-sourced stock state. */
+  readonly resources: ResourceReadView | null;
 }
 
 export interface WorldState {
@@ -151,6 +155,7 @@ export interface WorldState {
   heat: import("./heat/types.js").HeatReadView | null;
   // Settlement read view for Rules (PR-7.4, first long-lived object)
   settlement: import("./settlement/types.js").SettlementReadView | null;
+  resources: ResourceReadView | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -309,6 +314,12 @@ function freeze(state: WorldState): ReadonlyWorld {
           settlements: cloneMap(state.settlement.settlements),
         }
       : null,
+    resources: state.resources
+      ? {
+          definitions: cloneMap(state.resources.definitions),
+          states: cloneMap(state.resources.states),
+        }
+      : null,
   }) as ReadonlyWorld;
 }
 
@@ -318,6 +329,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
   private readonly weatherProjector = new WeatherProjector();
   private readonly heatProjector = new HeatProjector();
   private readonly settlementProjector = new SettlementProjector();
+  private readonly resourceProjector = new ResourceProjector();
 
   constructor() {
     this.state = {
@@ -353,6 +365,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       heat: null,
       // Settlement read view for Rules (PR-7.4, first long-lived object)
       settlement: null,
+      resources: null,
     };
   }
 
@@ -370,6 +383,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     this.weatherProjector.apply(event);
     this.heatProjector.apply(event);
     this.settlementProjector.apply(event);
+    this.resourceProjector.apply(event);
 
     switch (event.type) {
       case "PlayerSpawned": {
@@ -584,6 +598,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     if (WEATHER_EVENT_TYPES.has(event.type)) s.weather = this.weatherProjector.getSnapshot();
     if (HEAT_EVENT_TYPES.has(event.type)) s.heat = this.heatProjector.getSnapshot();
     if (SETTLEMENT_EVENT_TYPES.has(event.type)) s.settlement = this.settlementProjector.getSnapshot();
+    if (event.type === "ResourceNodeDefined" || event.type === "ResourceExtracted" || event.type === "ResourceRegenerated") s.resources = this.resourceProjector.getSnapshot();
   }
 
   clone(): ProjectionStore<ReadonlyWorld> {
@@ -619,6 +634,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       weather: this.state.weather,
       heat: this.state.heat,
       settlement: this.state.settlement,
+      resources: this.state.resources,
     };
     copy.seedReadViewProjectors();
     return copy;
@@ -631,6 +647,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     this.weatherProjector.seed(this.state.weather);
     this.heatProjector.seed(this.state.heat);
     this.settlementProjector.seed(this.state.settlement);
+    this.resourceProjector.seed(this.state.resources);
   }
 }
 

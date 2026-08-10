@@ -105,3 +105,16 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     rg "buildNarrative|narrateLLM|Presentation" packages
     rg "handleCommand|handleNarrative|/api/" packages/cli
     rg "sqlite|integrity_check|restore-skald" packages/cli/deploy docs
+
+
+## Region canonization authoring
+
+| Need | Read first |
+|---|---|
+| Reference artifact and image interpretation | docs/worldbuilding/pilot-region/reference/; docs/worldbuilding/pilot-region/interpretation/ |
+| Proposals, toponyms and hypotheses | docs/worldbuilding/pilot-region/proposals/; docs/worldbuilding/pilot-region/toponymy/ |
+| Author decisions | docs/worldbuilding/pilot-region/reviews/ |
+| Deterministic Canon projection | docs/canon/regions/pilot-region/compiler-projection.yaml; scripts/canon/region/load-region-canon.mjs; scripts/canon/region/build-region-ir.mjs |
+| Generated runtime bundle | packages/world/src/region/compiled/pilot-region.v5.json |
+
+Authoring files are design-time inputs. Runtime reads only the generated bundle and the Event Log.

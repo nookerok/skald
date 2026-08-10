@@ -18,6 +18,7 @@ export function renderMapLegend(container) {
     { color: "#9b59b6", label: "Ориентир", type: "diamond" },
     { color: "#7f8c8d", label: "Маршрут", type: "line" },
     { color: "#e67e22", label: "Переправа", type: "line" },
+    { color: "#081017", label: "Туман войны", type: "fog" },
   ];
 
   const list = document.createElement("ul");
@@ -49,6 +50,10 @@ export function renderMapLegend(container) {
       swatch.style.transform = "rotate(45deg)";
       swatch.style.width = "10px";
       swatch.style.height = "10px";
+    } else if (item.type === "fog") {
+      swatch.style.borderRadius = "3px";
+      swatch.style.background = "linear-gradient(135deg, #14242d, #02070b)";
+      swatch.style.border = "1px solid #61747b";
     } else {
       swatch.style.height = "2px";
       swatch.style.backgroundColor = item.color;

@@ -21,6 +21,7 @@ import { crossingCondition } from "./crossing-condition.js";
 import { weatherProcess } from "./weather.js";
 import { heatTransferProcess } from "./heat-transfer.js";
 import { settlementPattern } from "./settlement-pattern.js";
+import { resourceExtraction, resourceRegeneration } from "../resource/rules.js";
 import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js";
 
 /**
@@ -89,6 +90,10 @@ export function createRules(
 
   // Settlement Pattern (PR-7.4, first long-lived object)
   registry.register(settlementPattern);
+
+  // Resource nodes and deterministic extraction/recovery
+  registry.register(resourceExtraction);
+  registry.register(resourceRegeneration);
 
   // Critical check rules (Iteration 15)
   for (const rule of criticalCheckRules) registry.register(rule);

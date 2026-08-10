@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SKALD Visual Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "regionId",
+    "artifactRef",
+    "coordinateSystem",
+    "interpretationStatus",
+    "coverage",
+    "features"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifactRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coordinateSystem": {
+      "const": "normalized_image"
+    },
+    "interpretationStatus": {
+      "enum": [
+        "observed",
+        "reviewed"
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "minProperties": 12
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/feature"
+      }
+    }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "geometry",
+        "approximateSize",
+        "evidence",
+        "elevationHierarchy",
+        "relations",
+        "simulationImportance",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "region_boundary",
+            "mountain_range",
+            "mountain_pass",
+            "valley",
+            "river",
+            "tributary",
+            "lake",
+            "forest",
+            "plain",
+            "wetland",
+            "coast",
+            "ridge",
+            "depression",
+            "landmark"
+          ]
+        },
+        "geometry": {
+          "type": "object",
+          "required": [
+            "coordinateSystem"
+          ],
+          "properties": {
+            "coordinateSystem": {
+              "const": "normalized_image"
+            },
+            "bounds": {
+              "type": "object",
+              "required": [
+                "minX",
+                "minY",
+                "maxX",
+                "maxY"
+              ],
+              "properties": {
+                "minX": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "minY": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "maxX": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "maxY": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            "kind": {
+              "const": "directional"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          }
+        },
+        "approximateSize": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "object",
+          "required": [
+            "description",
+            "confidence"
+          ],
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "elevationHierarchy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "simulationImportance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "const": "observed"
+        }
+      }
+    }
+  }
+}

@@ -132,6 +132,7 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
     if (!stage) continue;
 
     const rendered = def.render(stage);
+    const resolution = def.resolve?.(evidence);
     cards.push(deepFreeze({
       discoveryId: def.id,
       definitionVersion: def.version,
@@ -143,6 +144,7 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
       lastSeenAt: evidence[evidence.length - 1]!.worldTime,
       evidenceCount: evidence.length,
       evidence: deepFreeze(evidence),
+      ...(resolution ? { resolution: resolution.resolution, contradictionCount: resolution.contradictionCount } : {}),
     }));
   }
 

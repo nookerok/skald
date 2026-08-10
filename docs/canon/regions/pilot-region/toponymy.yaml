@@ -1,0 +1,201 @@
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.toponymy
+  scope: Regional
+  domain: Culture
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "RegionInterpretationLayer(toponym-proposals.yaml)"
+    acceptedBy: "AuthorDecision(pilot-region-toponym-review-v1, 2026-08-10)"
+  relations:
+    - type: dependsOn
+      target: regions.pilot-region.geography
+  runtimeMapping:
+    runtime:
+      - "Accepted labels and aliases in RegionDefinition"
+    rules: []
+    events:
+      - "RegionDefined"
+    projection:
+      - "SpatialWorldProjection location labels"
+    discovery:
+      - "Discovery cards use accepted labels only"
+    narrative:
+      - "Narrative may use accepted names without asserting etymology"
+    ui:
+      - "Player-facing labels and aliases"
+  facts:
+    - id: regions.pilot-region.toponymy.f1
+      statement: "The accepted regional label for riverwatch-basin is Бассейн Речного Стража; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f2
+      statement: "The accepted regional label for northern_snow_range is Северный снежный хребет; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f3
+      statement: "The accepted regional label for high_pass is Северный перевал; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f4
+      statement: "The accepted regional label for river_basin is Река из северных гор; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f5
+      statement: "The accepted regional label for western_cliff_waterfalls is Водопады западных утёсов; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f6
+      statement: "The accepted regional label for blackwood_forest is Чёрный лес; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f7
+      statement: "The accepted regional label for riverwatch_valley is Долина Стража; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f8
+      statement: "The accepted regional label for eastern_uplands is Восточные высоты; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f9
+      statement: "The accepted regional label for glass_crater is Стеклянная впадина; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f10
+      statement: "The accepted regional label for riverwatch_city is Речной Страж; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f11
+      statement: "The accepted regional label for southern_borough is Южный посад; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f12
+      statement: "The accepted regional label for old_ruins is Развалины на уступе; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+    - id: regions.pilot-region.toponymy.f13
+      statement: "The accepted regional label for suspended_monolith is Парящий монолит; the label is descriptive and does not prove an unverified historical origin."
+      type: Cultural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: Testimony
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-toponym-review-v1"
+      consequences:
+        - "The compiler may expose the accepted label and reviewed aliases."
+

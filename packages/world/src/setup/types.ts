@@ -15,4 +15,5 @@ export interface WorldTemplate {
   readonly startingQuestion: string;
   readonly templateVersion: number;
   readonly available: boolean;
+  readonly regionId?: string;
 }

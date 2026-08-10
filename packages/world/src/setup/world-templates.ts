@@ -24,6 +24,7 @@ const _templates: Record<string, WorldTemplate> = {
     startingQuestion: "Что изменится вокруг переправы, пока ты пытаешься понять этот край?",
     templateVersion: 1,
     available: true,
+    regionId: "riverwatch-basin",
   },
 };
 

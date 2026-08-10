@@ -1,0 +1,97 @@
+# Accepted physical traces and questions for the pilot region.
+# Explanations remain hypotheses until independent evidence changes their status.
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.history
+  scope: Regional
+  domain: History
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "Region interpretation review"
+    acceptedBy: "AuthorDecision(historical-layer-review-v1)"
+  relations:
+    - type: dependsOn
+      target: regions.pilot-region.geography
+  runtimeMapping:
+    runtime:
+      - "compiled historical discovery definitions"
+    rules: []
+    events: []
+    projection:
+      - "DiscoveryJournal derived from Event Log"
+    discovery:
+      - "evidence-based confirmation and contradiction"
+    narrative:
+      - "player-facing summaries of observed evidence"
+    ui:
+      - "Knowledge discovery cards"
+  facts:
+    - id: regions.pilot-region.history.f1
+      statement: "The eastern ruins contain repeated masonry alignments that are observable as a physical trace."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorAccepted
+        source: "historical-layer-review-v1"
+      consequences:
+        - "The trace can seed a discovery question without asserting its cause."
+    - id: regions.pilot-region.history.f2
+      statement: "The road between the principal city and the eastern ruins contains regular cuts that may be an abandoned infrastructure trace."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorAccepted
+        source: "historical-layer-review-v1"
+      consequences:
+        - "The trace can seed a discovery question without asserting its cause."
+    - id: regions.pilot-region.history.f3
+      statement: "The river basin contains a possible dry channel trace; its former course and cause remain unresolved."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorAccepted
+        source: "historical-layer-review-v1"
+      consequences:
+        - "The trace can seed a discovery question without asserting its cause."
+    - id: regions.pilot-region.history.f4
+      statement: "A darkened masonry layer is observable in the eastern ruins; its origin is unresolved."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorAccepted
+        source: "historical-layer-review-v1"
+      consequences:
+        - "The layer can support a conflict or fire question without asserting either cause."
+    - id: regions.pilot-region.history.f5
+      statement: "A possible former forest boundary is observable near the Blackwood edge; climate and land use remain alternatives."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorAccepted
+        source: "historical-layer-review-v1"
+      consequences:
+        - "The boundary can seed a climate or land-use discovery question."

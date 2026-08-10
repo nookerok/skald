@@ -33,10 +33,15 @@ export async function loadObserverMap(worldId, signal) {
       throw new Error(`Map request failed: ${response.status} ${response.statusText}`);
     }
 
-    const dto = await response.json();
+    const body = await response.json();
+    const dto = body?.ok ? body.map : null;
+
+    if (!dto) {
+      throw new Error("Invalid map response: missing map");
+    }
 
     // Validate schema version
-    if (dto.schemaVersion !== 1) {
+    if (dto.schemaVersion !== 1 && dto.schemaVersion !== 2) {
       throw new Error(`Unsupported map schema version: ${dto.schemaVersion}`);
     }
 
@@ -44,7 +49,7 @@ export async function loadObserverMap(worldId, signal) {
     if (!dto.revision || typeof dto.revision.eventNumber !== "number") {
       throw new Error("Invalid map DTO: missing revision");
     }
-    if (!Array.isArray(dto.locations) || !Array.isArray(dto.landmarks) || !Array.isArray(dto.routes)) {
+    if (!Array.isArray(dto.locations) || !Array.isArray(dto.landmarks) || !Array.isArray(dto.routes) || (dto.knownTerrain != null && !Array.isArray(dto.knownTerrain)) || (dto.knownWatercourses != null && !Array.isArray(dto.knownWatercourses)) || (dto.knownWaterBodies != null && !Array.isArray(dto.knownWaterBodies))) {
       throw new Error("Invalid map DTO: missing locations/landmarks/routes");
     }
 

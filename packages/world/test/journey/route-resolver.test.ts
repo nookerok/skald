@@ -29,7 +29,7 @@ function makeSpatial(overrides?: {
   };
 }
 
-function makeObserverMap(overrides?: { locations?: Array<{ ref: string; name: string; knowledge: "rumored" | "glimpsed" | "observed" | "traversed"; confidence?: number; freshness?: number; xMetres?: number; yMetres?: number }> }): ObserverMapDTO {
+function makeObserverMap(overrides?: { locations?: Array<{ ref: string; name: string; aliases?: readonly string[]; knowledge: "rumored" | "glimpsed" | "observed" | "traversed"; confidence?: number; freshness?: number; xMetres?: number; yMetres?: number }> }): ObserverMapDTO {
   const locations = (overrides?.locations ?? [
     { ref: "river_waystation", name: "Переправа у Чёрного леса", knowledge: "traversed" as const, confidence: 1, freshness: 1, xMetres: 8000, yMetres: 9500 },
     { ref: "riverwatch_city", name: "Речной Страж", knowledge: "observed" as const, confidence: 0.9, freshness: 0.8, xMetres: 13500, yMetres: 7500 },
@@ -63,6 +63,15 @@ describe("resolveJourneyRoute", () => {
     }
   });
 
+  it("resolves a reviewed location alias", () => {
+    const map = makeObserverMap({ locations: [
+      { ref: "river_waystation", name: "Переправа у Чёрного леса", knowledge: "traversed" },
+      { ref: "riverwatch_city", name: "Речной Страж", aliases: ["город у реки"], knowledge: "observed" },
+    ] });
+    const result = resolveJourneyRoute("город у реки", "river_waystation", makeSpatial(), map);
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") expect(result.toLocationId).toBe("riverwatch_city");
+  });
   it("resolves partial location name", () => {
     const result = resolveJourneyRoute("Страж", "river_waystation", makeSpatial(), makeObserverMap());
     expect(result.kind).toBe("resolved");

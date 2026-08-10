@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SKALD Reference Artifact Manifest",
+  "type": "object",
+  "required": ["schemaVersion", "artifact"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "artifact": {
+      "type": "object",
+      "required": ["id", "role", "mediaType", "file", "provenance", "registration"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "role": { "const": "reference_artifact" },
+        "mediaType": { "const": "image/png" },
+        "file": {
+          "type": "object",
+          "required": ["path", "sha256", "widthPx", "heightPx"],
+          "properties": {
+            "path": { "type": "string" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "widthPx": { "type": "integer", "minimum": 1 },
+            "heightPx": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["authoringOnly", "runtimeAllowed"],
+          "properties": {
+            "authoringOnly": { "const": true },
+            "runtimeAllowed": { "const": false }
+          }
+        }
+      }
+    }
+  }
+}

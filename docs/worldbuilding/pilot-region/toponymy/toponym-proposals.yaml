@@ -1,0 +1,161 @@
+schemaVersion: 1
+regionId: riverwatch-basin
+status: proposed
+proposals:
+  - proposalId: toponym.riverwatch-basin
+    subjectId: riverwatch-basin
+    name: Бассейн Речного Стража
+    aliases:
+      - речной бассейн
+    languageLayer: common_trade
+    cultureRef: regional_common
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Central basin and city dominate the visible region.
+    status: proposed
+  - proposalId: toponym.northern-snow-range
+    subjectId: northern_snow_range
+    name: Северный снежный хребет
+    aliases:
+      - северный хребет
+    languageLayer: traveller
+    cultureRef: regional_common
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Highest continuous relief occupies the northern boundary.
+    status: proposed
+  - proposalId: toponym.high-pass
+    subjectId: high_pass
+    name: Северный перевал
+    aliases:
+      - горный проход
+    languageLayer: traveller
+    cultureRef: waystation_tradition
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: A visible break interrupts the northern ridge.
+    status: proposed
+  - proposalId: toponym.river-basin
+    subjectId: river_basin
+    name: Река из северных гор
+    aliases:
+      - северное русло
+    languageLayer: common_trade
+    cultureRef: riverwatch_city
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: The main watercourse follows the valley axis.
+    status: proposed
+  - proposalId: toponym.western-cliff-waterfalls
+    subjectId: western_cliff_waterfalls
+    name: Водопады западных утёсов
+    aliases:
+      - западные каскады
+    languageLayer: traveller
+    cultureRef: waystation_tradition
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Cascades descend from the western escarpment.
+    status: proposed
+  - proposalId: toponym.blackwood-forest
+    subjectId: blackwood_forest
+    name: Чёрный лес
+    aliases:
+      - чёрная чаща
+    languageLayer: local_common
+    cultureRef: regional_common
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Dense dark woodland fills the western flank.
+    status: proposed
+  - proposalId: toponym.riverwatch-valley
+    subjectId: riverwatch_valley
+    name: Долина Стража
+    aliases:
+      - речная долина
+    languageLayer: local_common
+    cultureRef: riverwatch_city
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Open ground follows the river corridor.
+    status: proposed
+  - proposalId: toponym.eastern-uplands
+    subjectId: eastern_uplands
+    name: Восточные высоты
+    aliases:
+      - восточный кряж
+    languageLayer: traveller
+    cultureRef: waystation_tradition
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Rocky raised terrain occupies the eastern side.
+    status: proposed
+  - proposalId: toponym.glass-crater
+    subjectId: glass_crater
+    name: Стеклянная впадина
+    aliases:
+      - стеклянный кратер
+    languageLayer: local_common
+    cultureRef: regional_common
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: A circular reflective depression is visible in the forest.
+    status: proposed
+  - proposalId: toponym.riverwatch-city
+    subjectId: riverwatch_city
+    name: Речной Страж
+    aliases:
+      - город у реки
+    languageLayer: local_common
+    cultureRef: riverwatch_city
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: The principal walled settlement occupies the basin.
+    status: proposed
+  - proposalId: toponym.southern-borough
+    subjectId: southern_borough
+    name: Южный посад
+    aliases:
+      - южный квартал
+    languageLayer: local_common
+    cultureRef: riverwatch_city
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: A secondary settlement lies south on a river bend.
+    status: proposed
+  - proposalId: toponym.old-ruins
+    subjectId: old_ruins
+    name: Развалины на уступе
+    aliases:
+      - каменный уступ
+    languageLayer: traveller
+    cultureRef: waystation_tradition
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: Isolated stone remains sit on an eastern escarpment.
+    status: proposed
+  - proposalId: toponym.suspended-monolith
+    subjectId: suspended_monolith
+    name: Парящий монолит
+    aliases:
+      - висячий камень
+    languageLayer: local_common
+    cultureRef: regional_common
+    rootMeaning: descriptive regional label
+    etymology: Appearance-based working name; it does not assert an unverified origin.
+    historicalAge: unknown
+    geographicReason: A dark elevated silhouette is visible above the clouds.
+    status: proposed
+

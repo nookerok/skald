@@ -1,140 +1,145 @@
 import type { DomainEvent } from "@skald/event-bus";
-import { buildPilotRegionDefinition } from "./definition.js";
-import type { SpatialObservationPayload } from "./types.js";
-import { PILOT_REGION_CONTENT_OBJECTS } from "./content.js";
+import type { ElevationDefinition, HydrographyDefinition, RegionDefinition, RegionToponymIndex, TerrainSurface } from "./types.js";
+import type { CompiledRegionBundle } from "./bundle-loader.js";
+import type { ResourceNodeDefinition } from "../resource/types.js";
+import { loadCompiledRegionBundle } from "./bundle-loader.js";
 
-function event<T extends string>(eventId: string, type: T, payload: unknown, causationId: string | null = "boot#region"): DomainEvent<T> {
-  return { eventId, type, schemaVersion: 1, payload, timestamp: 0, correlationId: "boot#region", causationId };
+interface TerrainRules {
+  readonly river: { readonly centerMetres: number; readonly amplitudeMetres: number; readonly periodMetres: number; readonly halfWidthMetres: number };
+  readonly marsh: { readonly maxYMetres: number; readonly minXMetres: number; readonly maxXMetres: number };
+  readonly forest: { readonly maxXMetres: number; readonly minYMetres: number };
+  readonly mountains: { readonly minYMetres: number; readonly eastMinXMetres: number; readonly eastMinYMetres: number };
+  readonly crater: { readonly centerXMetres: number; readonly centerYMetres: number; readonly radiusMetres: number };
 }
 
-/** Compiles the authored pilot region into deterministic bootstrap facts. */
+interface CompactRegion extends Omit<RegionDefinition, "tiles" | "cells"> {
+  readonly terrainRules: TerrainRules;
+  readonly cellGrid: { readonly columns: number; readonly rows: number; readonly cellSizeMetres: number };
+}
+
+function bounds(x: number, y: number, size: number) {
+  return { minXMetres: x, minYMetres: y, maxXMetres: x + size, maxYMetres: y + size };
+}
+
+function materializeRegion(compact: CompactRegion): RegionDefinition {
+  const { terrainRules, cellGrid, ...base } = compact;
+  const surfaceFor = (x: number, y: number): { surface: TerrainSurface; elevationBand: number; slopeBand: number } => {
+    const riverX = terrainRules.river.centerMetres + Math.round(Math.sin(y / terrainRules.river.periodMetres) * terrainRules.river.amplitudeMetres);
+    const inRiver = Math.abs(x - riverX) <= terrainRules.river.halfWidthMetres;
+    const inMarsh = y < terrainRules.marsh.maxYMetres && x > terrainRules.marsh.minXMetres && x < terrainRules.marsh.maxXMetres;
+    const inForest = x < terrainRules.forest.maxXMetres && y > terrainRules.forest.minYMetres;
+    const inMountains = y > terrainRules.mountains.minYMetres || (x > terrainRules.mountains.eastMinXMetres && y > terrainRules.mountains.eastMinYMetres);
+    const inCrater = (x - terrainRules.crater.centerXMetres) ** 2 + (y - terrainRules.crater.centerYMetres) ** 2 < terrainRules.crater.radiusMetres ** 2;
+    if (inRiver) return { surface: "water", elevationBand: 1, slopeBand: 1 };
+    if (inMarsh) return { surface: "marsh", elevationBand: 2, slopeBand: 1 };
+    if (inCrater || inMountains) return { surface: "rock", elevationBand: inMountains ? 5 : 3, slopeBand: inMountains ? 5 : 3 };
+    if (inForest) return { surface: "forest", elevationBand: 3, slopeBand: 2 };
+    return { surface: "soil", elevationBand: 2, slopeBand: 1 };
+  };
+  const tiles = [];
+  const tileCount = base.bounds.maxXMetres / base.terrainTileSizeMetres;
+  for (let y = 0; y < tileCount; y += 1) for (let x = 0; x < tileCount; x += 1) {
+    const px = x * base.terrainTileSizeMetres;
+    const py = y * base.terrainTileSizeMetres;
+    tiles.push({ id: `tile-${x}-${y}`, bounds: bounds(px, py, base.terrainTileSizeMetres), ...surfaceFor(px + base.terrainTileSizeMetres / 2, py + base.terrainTileSizeMetres / 2) });
+  }
+  const cells = [];
+  for (let y = 0; y < cellGrid.rows; y += 1) for (let x = 0; x < cellGrid.columns; x += 1) {
+    const neighbourIds: string[] = [];
+    if (x > 0) neighbourIds.push(`cell-${x - 1}-${y}`);
+    if (x < cellGrid.columns - 1) neighbourIds.push(`cell-${x + 1}-${y}`);
+    if (y > 0) neighbourIds.push(`cell-${x}-${y - 1}`);
+    if (y < cellGrid.rows - 1) neighbourIds.push(`cell-${x}-${y + 1}`);
+    cells.push({ id: `cell-${x}-${y}`, bounds: bounds(x * cellGrid.cellSizeMetres, y * cellGrid.cellSizeMetres, cellGrid.cellSizeMetres), neighbourIds });
+  }
+  return { ...base, tiles, cells } as RegionDefinition;
+}
+
+interface MaterializedBundle {
+  readonly bundle: CompiledRegionBundle;
+  readonly region: RegionDefinition;
+  readonly events: readonly DomainEvent[];
+}
+
+function materializeBundle(regionId: string): MaterializedBundle {
+  const bundle = loadCompiledRegionBundle(regionId);
+  const compact = bundle.regionDefinition as CompactRegion;
+  if (!compact || typeof compact !== "object") throw new Error("compiled region has no regionDefinition: " + regionId);
+  const region = materializeRegion(compact);
+  const events = Object.freeze(bundle.events.map((entry) => {
+    if (entry.type !== "RegionDefined") return Object.freeze({ ...entry });
+    const payload = entry.payload as { region: CompactRegion; provenance?: unknown };
+    return Object.freeze({ ...entry, payload: { ...payload, region } });
+  }));
+  return { bundle, region, events };
+}
+
+const DEFAULT_REGION_ID = "riverwatch-basin";
+
+/** Generic compiled bootstrap for a selected region. */
+export function buildRegionBootstrapEvents(regionId = DEFAULT_REGION_ID): readonly DomainEvent[] {
+  return materializeBundle(regionId).events;
+}
+
+/** Generic runtime region definition. */
+export function buildRegionDefinition(regionId = DEFAULT_REGION_ID): RegionDefinition {
+  return materializeBundle(regionId).region;
+}
+
+export function buildRegionHydrographyDefinition(regionId = DEFAULT_REGION_ID): HydrographyDefinition {
+  return materializeBundle(regionId).bundle.hydrographyDefinition;
+}
+
+export function buildRegionElevationDefinition(regionId = DEFAULT_REGION_ID): ElevationDefinition {
+  return materializeBundle(regionId).bundle.elevationDefinition;
+}
+
+export function buildRegionToponymIndex(regionId = DEFAULT_REGION_ID): RegionToponymIndex {
+  return materializeBundle(regionId).bundle.toponymIndex;
+}
+
+export function buildRegionSimulationDefinitions(regionId = DEFAULT_REGION_ID): readonly unknown[] {
+  return materializeBundle(regionId).bundle.simulationDefinitions;
+}
+
+export function buildRegionContentDefinitions(regionId = DEFAULT_REGION_ID): readonly unknown[] {
+  return materializeBundle(regionId).bundle.contentDefinitions;
+}
+
+export function buildRegionResourceDefinitions(regionId = DEFAULT_REGION_ID): readonly ResourceNodeDefinition[] {
+  return materializeBundle(regionId).bundle.resourceDefinitions ?? [];
+}
+
+/** Compatibility wrappers for existing living-region callers. */
 export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
-  const region = buildPilotRegionDefinition();
-  const events: DomainEvent[] = [event("boot#region", "RegionDefined", { region }, null)];
-  events.push(event("boot#region#PlayerSpawned", "PlayerSpawned", { x: 0, y: 0 }));
-  for (const location of region.locations) {
-    events.push(event(`boot#region#LocationDefined#${location.id}`, "LocationDefined", {
-      id: location.id,
-      name: location.name,
-      description: location.description,
-      objectIds: [],
-      connections: {},
-    }));
-  }
-  // Authored region content becomes deterministic physical witnesses.
-  for (const object of PILOT_REGION_CONTENT_OBJECTS) {
-    events.push(event("boot#region#WorldObjectPlaced#" + object.id, "WorldObjectPlaced", {
-      id: object.id,
-      name: object.name,
-      aliases: [...(object.aliases ?? [])],
-      description: object.description,
-      material: object.material,
-      locationId: object.locationId,
-      integrity: object.integrity,
-      temperature: object.temperature,
-      state: { ...object.initialState },
-    }));
-  }
-
-  events.push(event("boot#region#PlayerLocationChanged", "PlayerLocationChanged", { locationId: "river_waystation" }));
-
-  // Travel metadata for each spatial relation
-  const travelMetadata: Array<{
-    relationId: string;
-    kind: "road" | "crossing" | "river" | "visibility";
-    fromId: string;
-    toId: string;
-    distanceMetres: number;
-    baseTravelTicks: number;
-    terrainCost: number;
-    passability: "open" | "blocked";
-  }> = [
-    { relationId: "road_waystation_city", kind: "road", fromId: "river_waystation", toId: "riverwatch_city", distanceMetres: 5_500, baseTravelTicks: 4, terrainCost: 1.0, passability: "open" },
-    { relationId: "road_waystation_forest", kind: "road", fromId: "river_waystation", toId: "blackwood_edge", distanceMetres: 3_200, baseTravelTicks: 3, terrainCost: 1.2, passability: "open" },
-    { relationId: "road_city_ruins", kind: "road", fromId: "riverwatch_city", toId: "old_ruins", distanceMetres: 6_800, baseTravelTicks: 5, terrainCost: 1.0, passability: "open" },
-    { relationId: "river_crossing", kind: "crossing", fromId: "river_waystation", toId: "riverwatch_city", distanceMetres: 2_000, baseTravelTicks: 2, terrainCost: 1.5, passability: "open" },
-    { relationId: "river_basin", kind: "river", fromId: "high_pass", toId: "riverwatch_city", distanceMetres: 12_000, baseTravelTicks: 0, terrainCost: 0, passability: "blocked" },
-    { relationId: "road_city_south", kind: "road", fromId: "riverwatch_city", toId: "southern_borough", distanceMetres: 4_500, baseTravelTicks: 3, terrainCost: 1.0, passability: "open" },
-    { relationId: "road_forest_waterfalls", kind: "road", fromId: "blackwood_edge", toId: "western_cliff_waterfalls", distanceMetres: 4_200, baseTravelTicks: 4, terrainCost: 1.6, passability: "open" },
-    { relationId: "road_waystation_waterfalls", kind: "road", fromId: "river_waystation", toId: "western_cliff_waterfalls", distanceMetres: 6_800, baseTravelTicks: 5, terrainCost: 1.5, passability: "open" },
-  ];
-  travelMetadata.forEach((payload, index) => {
-    events.push(event(`boot#region#Travel#${index}`, "TravelMetadataAttached", payload));
-  });
-
-  // River hydrology process (ADR-0017)
-  events.push(event("boot#region#RiverProcess", "RiverProcessDefined", {
-    processId: "river-basin-process",
-    watercourseId: "river_basin",
-    baselineLevel: 40,
-    minimumLevel: 20,
-    maximumLevel: 90,
-    cycleLengthTicks: 16,
-    phaseOffset: 0,
-    riseRate: 8,
-    fallRate: 5,
-  }));
-
-  // Crossing condition definition (ADR-0017)
-  events.push(event("boot#region#CrossingInit", "CrossingConditionInitialized", {
-    crossingId: "river_crossing",
-    watercourseId: "river_basin",
-    openAtOrBelow: 55,
-    difficultAtOrBelow: 75,
-    closedAbove: 75,
-    baseTravelCostTicks: 2,
-  }));
-
-  // Weather process (ADR-0020, influences graph)
-  events.push(event("boot#region#WeatherProcess", "WeatherProcessDefined", {
-    processId: "weather-region",
-    climateZone: "temperate",
-    seasonCycleTicks: 100,
-    phaseOffset: 0,
-  }));
-
-  // Heat transfer process (PR-7.1, second independent system)
-  events.push(event("boot#region#HeatProcess", "HeatProcessDefined", {
-    processId: "heat-region",
-    ambientTemperature: 18,
-    transferRate: 0.1,
-    dissipationRate: 0.05,
-    zoneThresholds: { cold: 0, warm: 25, hot: 60 },
-  }));
-
-  // Settlement pattern (PR-7.4, first long-lived object)
-  events.push(event("boot#region#Settlement", "SettlementCreated", {
-    settlementId: "riverwatch_city",
-    population: 60,
-    risk: 40,
-    status: "active",
-    createdAt: 0,
-    updatedAt: 0,
-  }));
-
-  // Secondary settlement visible in the region illustration (visual canon P1)
-  events.push(event("boot#region#Settlement#southern", "SettlementCreated", {
-    settlementId: "southern_borough",
-    population: 35,
-    risk: 25,
-    status: "active",
-    createdAt: 0,
-    updatedAt: 0,
-  }));
-
-  const observations: SpatialObservationPayload[] = [
-    { subjectKind: "location", subjectId: "river_waystation", knowledge: "traversed", observedAt: 0, confidence: 1 },
-    { subjectKind: "relation", subjectId: "road_waystation_city", knowledge: "observed", observedAt: 0, confidence: 0.9 },
-    { subjectKind: "relation", subjectId: "river_crossing", knowledge: "observed", observedAt: 0, confidence: 0.85 },
-    { subjectKind: "landmark", subjectId: "suspended_monolith", knowledge: "glimpsed", observedAt: 0, confidence: 0.45, bearing: "северо-восток" },
-    // Visual canon D6.1: initial knowledge as confidence-based observations,
-    // not facts — the world is discovered through further observation.
-    { subjectKind: "location", subjectId: "blackwood_edge", knowledge: "observed", observedAt: 0, confidence: 0.7 },
-    { subjectKind: "location", subjectId: "glass_crater", knowledge: "rumored", observedAt: 0, confidence: 0.3 },
-    { subjectKind: "landmark", subjectId: "glass_crater", knowledge: "rumored", observedAt: 0, confidence: 0.25, bearing: "юго-запад" },
-    { subjectKind: "relation", subjectId: "road_waystation_forest", knowledge: "rumored", observedAt: 0, confidence: 0.5 },
-  ];
-  observations.forEach((payload, index) => events.push(event(`boot#region#Observation#${index}`, "SpatialObservationRecorded", payload)));
-  events.push(event("boot#region#StrategySet", "StrategySet", { entries: [{ condition: "always", action: "idle" }] }));
-  return Object.freeze(events.map((entry) => Object.freeze({ ...entry })));
+  return buildRegionBootstrapEvents(DEFAULT_REGION_ID);
 }
+
+export function buildPilotRegionDefinition(): RegionDefinition {
+  return buildRegionDefinition(DEFAULT_REGION_ID);
+}
+
+export function buildPilotRegionHydrographyDefinition(): HydrographyDefinition {
+  return buildRegionHydrographyDefinition(DEFAULT_REGION_ID);
+}
+
+export function buildPilotRegionElevationDefinition(): ElevationDefinition {
+  return buildRegionElevationDefinition(DEFAULT_REGION_ID);
+}
+
+export function buildPilotRegionToponymIndex(): RegionToponymIndex {
+  return buildRegionToponymIndex(DEFAULT_REGION_ID);
+}
+
+export function buildPilotRegionSimulationDefinitions(): readonly unknown[] {
+  return buildRegionSimulationDefinitions(DEFAULT_REGION_ID);
+}
+
+export function buildPilotRegionContentDefinitions(): readonly unknown[] {
+  return buildRegionContentDefinitions(DEFAULT_REGION_ID);
+}
+
+export const PILOT_REGION_ID = DEFAULT_REGION_ID;
+export const PILOT_REGION_SIZE_METRES = buildPilotRegionDefinition().bounds.maxXMetres;
+export const PILOT_TILE_SIZE_METRES = buildPilotRegionDefinition().terrainTileSizeMetres;
+export const PILOT_CELL_SIZE_METRES = buildPilotRegionDefinition().simulationCellSizeMetres;

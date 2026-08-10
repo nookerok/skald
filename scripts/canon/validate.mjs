@@ -55,10 +55,11 @@ export function validateCanon() {
   const concepts = new Map();
   const anchors = [];
   const claims = [];
+  const compilerProjections = [];
 
   for (const doc of documents) {
     if (doc.kind === "unknown") {
-      errors.push(`${doc.file}: unrecognized Canon document (expected concept/anchors/claims/tools top key)`);
+      errors.push(`${doc.file}: unrecognized Canon document (expected concept/anchors/claims/tools/compilerProjection top key)`);
       continue;
     }
     if (doc.data?.schemaVersion !== 1) {
@@ -78,6 +79,37 @@ export function validateCanon() {
     }
     if (doc.kind === "anchors") anchors.push(...doc.data.anchors.map((a) => ({ ...a, file: doc.file })));
     if (doc.kind === "claims") claims.push(...doc.data.claims.map((c) => ({ ...c, file: doc.file })));
+    if (doc.kind === "compilerProjection") {
+      const projection = doc.data.compilerProjection;
+      compilerProjections.push({ projection, file: doc.file });
+      if (!projection?.id || !projection.regionId || !projection.compilerVersion) errors.push(doc.file + ": compilerProjection.id, regionId and compilerVersion are required");
+      if (!Array.isArray(projection?.canonicalRefs) || projection.canonicalRefs.length === 0) errors.push(doc.file + ": compilerProjection.canonicalRefs must be a non-empty list");
+      if (projection?.region?.sizeMetres !== 20000 || projection?.region?.tileSizeMetres !== 250 || projection?.region?.cellSizeMetres !== 1000) errors.push(doc.file + ": pilot compiler projection resolution must remain 20km / 250m / 1km");
+      for (const [key, entries] of Object.entries({ locations: projection?.locations, landmarks: projection?.landmarks, relations: projection?.relations, travel: projection?.travel, observations: projection?.observations, discoveryDefinitions: projection?.discoveryDefinitions, simulationMetadata: projection?.simulationMetadata })) {
+        if (!Array.isArray(entries) || entries.length === 0) errors.push(doc.file + ": compilerProjection." + key + " must be a non-empty list");
+      }
+      if (projection?.locations?.length !== 8 || projection?.landmarks?.length !== 5 || projection?.relations?.length !== 8 || projection?.travel?.length !== 8 || projection?.observations?.length !== 8) errors.push(doc.file + ": pilot compiler projection entity counts changed; review bootstrap parity explicitly");
+      for (const [key, entries] of Object.entries({ hydrography: projection?.hydrography, elevation: projection?.elevation, toponymIndex: projection?.toponymIndex })) {
+        if (!entries || typeof entries !== "object") errors.push(doc.file + ": compilerProjection." + key + " is required for region v4");
+      }
+      const hydro = projection?.hydrography;
+      if (hydro) {
+        for (const [key, entries] of Object.entries({ waterBodies: hydro.waterBodies, watercourses: hydro.watercourses, catchments: hydro.catchments, wetlands: hydro.wetlands })) {
+          if (!Array.isArray(entries)) errors.push(doc.file + ": compilerProjection.hydrography." + key + " must be an array");
+          for (const item of entries ?? []) if (item.status && item.status !== "canon") errors.push(doc.file + ": compilerProjection.hydrography." + key + " contains non-Canon item " + (item.id ?? "<missing>"));
+        }
+        if (hydro.watercourses?.length !== 2 || hydro.waterBodies?.length !== 1 || hydro.catchments?.length !== 1) errors.push(doc.file + ": accepted hydrography topology changed; review geography decisions explicitly");
+        if ((hydro.wetlands ?? []).length !== 0) errors.push(doc.file + ": deferred wetlands must not enter runtime projection");
+        if (JSON.stringify(hydro).match(/coast|tidal|estuary|delta/i)) errors.push(doc.file + ": unresolved southern water must not enable coast/tidal/estuary/delta simulation");
+      }
+      const elevation = projection?.elevation;
+      if (elevation && (!Array.isArray(elevation.bands) || elevation.bands.length !== 4 || !Array.isArray(elevation.controlAreas) || elevation.controlAreas.length < 3 || !Array.isArray(elevation.constraints) || elevation.constraints.length < 2)) errors.push(doc.file + ": relative elevation projection is incomplete");
+      const names = projection?.toponymIndex;
+      if (names && (!Array.isArray(names.subjects) || names.subjects.length !== 13 || names.subjects.some((entry) => !entry.id || !entry.canonicalName || !Array.isArray(entry.aliases)))) errors.push(doc.file + ": reviewed toponym index is incomplete");
+      for (const item of [...(projection?.locations ?? []), ...(projection?.landmarks ?? []), ...(projection?.relations ?? []), ...(projection?.observations ?? []), ...(projection?.content ?? []), ...(projection?.settlements ?? []), ...(projection?.discoveryDefinitions ?? []), ...(projection?.simulationMetadata ?? [])]) {
+        if (!Array.isArray(item.canonicalRefs) || item.canonicalRefs.length === 0) errors.push(doc.file + ": compilerProjection entry " + (item.id ?? item.relationId ?? item.subjectId ?? item.settlementId ?? "<missing>") + " requires canonicalRefs");
+      }
+    }
   }
 
   for (const { concept, file } of concepts.values()) {
@@ -132,6 +164,21 @@ export function validateCanon() {
           errors.push(`${fwhere}: fact lifecycle ${fact.lifecycle} exceeds concept lifecycle ${concept.lifecycle} (A-10)`);
         }
       }
+    }
+  }
+
+  // Compiler projection references are checked after all concepts/facts load.
+  const canonicalIds = new Set([...concepts.keys(), ...[...concepts.values()].flatMap(({ concept }) => (concept.facts ?? []).map((fact) => fact.id))]);
+  const collectCanonicalRefs = (value, out = []) => {
+    if (!value || typeof value !== "object") return out;
+    if (Array.isArray(value)) { for (const item of value) collectCanonicalRefs(item, out); return out; }
+    for (const ref of value.canonicalRefs ?? []) out.push(ref);
+    for (const [key, child] of Object.entries(value)) if (key !== "canonicalRefs" && child && typeof child === "object") collectCanonicalRefs(child, out);
+    return out;
+  };
+  for (const { projection, file } of compilerProjections) {
+    for (const ref of [...(projection?.canonicalRefs ?? []), ...collectCanonicalRefs(projection)]) {
+      if (!canonicalIds.has(ref)) errors.push(file + ": compilerProjection references unknown Canon id " + ref);
     }
   }
 

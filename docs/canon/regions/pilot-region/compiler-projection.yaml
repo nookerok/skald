@@ -1,0 +1,1050 @@
+# Deterministic Canon -> bootstrap projection for the pilot region.
+# This is design-time input. Runtime consumes only the generated bundle.
+schemaVersion: 1
+compilerProjection:
+  id: regions.pilot-region.compiler-projection
+  regionId: riverwatch-basin
+  compilerVersion: pilot-region-compiler-v5
+  canonicalRefs:
+    - regions.pilot-region.geography.f1
+    - regions.pilot-region.geography.f2
+    - regions.pilot-region.geography.f3
+    - regions.pilot-region.geography.f5
+    - regions.pilot-region.geography.f6
+    - regions.pilot-region.visual-interpretation.f3
+    - regions.pilot-region.visual-interpretation.f5
+    - universal.laws.time_and_ticks
+    - universal.laws.heat_dynamics
+    - regions.pilot-region.hydrography.f1
+    - regions.pilot-region.hydrography.f2
+    - regions.pilot-region.hydrography.f3
+    - regions.pilot-region.hydrography.f4
+    - regions.pilot-region.elevation.f1
+    - regions.pilot-region.elevation.f2
+    - regions.pilot-region.toponymy.f1
+    - regions.pilot-region.toponymy.f2
+    - regions.pilot-region.toponymy.f3
+    - regions.pilot-region.toponymy.f4
+    - regions.pilot-region.toponymy.f5
+    - regions.pilot-region.toponymy.f6
+    - regions.pilot-region.toponymy.f7
+    - regions.pilot-region.toponymy.f8
+    - regions.pilot-region.toponymy.f9
+    - regions.pilot-region.toponymy.f10
+    - regions.pilot-region.toponymy.f11
+    - regions.pilot-region.toponymy.f12
+    - regions.pilot-region.toponymy.f13
+    - regions.pilot-region.history.f1
+    - regions.pilot-region.history.f2
+    - regions.pilot-region.history.f3
+    - regions.pilot-region.history.f4
+    - regions.pilot-region.history.f5
+  region:
+    id: riverwatch-basin
+    name: Бассейн Речного Стража
+    version: 4
+    sizeMetres: 20000
+    tileSizeMetres: 250
+    cellSizeMetres: 1000
+  bootstrap:
+    startLocationId: river_waystation
+    playerSpawn:
+      x: 0
+      y: 0
+  terrain:
+    river:
+      centerMetres: 9500
+      amplitudeMetres: 1100
+      periodMetres: 1850
+      halfWidthMetres: 220
+    marsh:
+      maxYMetres: 3000
+      minXMetres: 5000
+      maxXMetres: 14000
+    forest:
+      maxXMetres: 7000
+      minYMetres: 4000
+    mountains:
+      minYMetres: 16000
+      eastMinXMetres: 15000
+      eastMinYMetres: 10000
+    crater:
+      centerXMetres: 3800
+      centerYMetres: 4200
+      radiusMetres: 1300
+  locations:
+    - id: river_waystation
+      name: Переправа у Чёрного леса
+      description: Небольшой путевой двор у реки и кромки леса.
+      xMetres: 8000
+      yMetres: 9500
+      footprintTileIds:
+        - tile-31-38
+        - tile-32-38
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - id: riverwatch_city
+      name: Речной Страж
+      description: Город за стенами, где сходятся торговые дороги.
+      xMetres: 13500
+      yMetres: 7500
+      footprintTileIds:
+        - tile-53-29
+        - tile-54-29
+        - tile-53-30
+        - tile-54-30
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: blackwood_edge
+      name: Кромка Чёрного леса
+      description: Дорога исчезает среди тёмных елей.
+      xMetres: 6000
+      yMetres: 12000
+      footprintTileIds:
+        - tile-23-47
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: old_ruins
+      name: Развалины на уступе
+      description: Каменные остатки над долиной, занесённые травой.
+      xMetres: 16000
+      yMetres: 14000
+      footprintTileIds:
+        - tile-63-55
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: glass_crater
+      name: Стеклянная впадина
+      description: Круглая чаша земли, где камень блестит после дождя.
+      xMetres: 3800
+      yMetres: 4200
+      footprintTileIds:
+        - tile-14-16
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+        - regions.pilot-region.visual-interpretation.f5
+    - id: high_pass
+      name: Северный перевал
+      description: Каменный проход под снегом и облаками.
+      xMetres: 12000
+      yMetres: 18000
+      footprintTileIds:
+        - tile-47-71
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: western_cliff_waterfalls
+      name: Водопады западных утёсов
+      description: Несколько потоков падают с уступа и питают реку.
+      xMetres: 6500
+      yMetres: 16000
+      footprintTileIds:
+        - tile-26-64
+        - tile-27-64
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f3
+        - regions.pilot-region.visual-interpretation.f5
+    - id: southern_borough
+      name: Южный посад
+      description: Посад за стенами при изгибе реки, южнее главного города.
+      xMetres: 9500
+      yMetres: 5000
+      footprintTileIds:
+        - tile-37-19
+        - tile-38-19
+      canonicalRefs:
+        - regions.pilot-region.geography.f6
+  landmarks:
+    - id: riverwatch_city
+      name: Речной Страж
+      description: Городская стена и башни над рекой.
+      silhouetteClass: city
+      xMetres: 13500
+      yMetres: 7500
+      elevationMetres: 40
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: glass_crater
+      name: Стеклянная впадина
+      description: Тёмный круг в лесной кромке.
+      silhouetteClass: crater
+      xMetres: 3800
+      yMetres: 4200
+      elevationMetres: 20
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f5
+    - id: old_ruins
+      name: Развалины на уступе
+      description: Одинокие камни на восточном уступе.
+      silhouetteClass: ruin
+      xMetres: 16000
+      yMetres: 14000
+      elevationMetres: 190
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: suspended_monolith
+      name: Парящий монолит
+      description: Тёмный силуэт, иногда видимый над северными облаками.
+      silhouetteClass: monolith
+      xMetres: 11000
+      yMetres: 18000
+      elevationMetres: 1400
+      canonicalRefs:
+        - regions.pilot-region.monolith.f1
+        - regions.pilot-region.monolith.f4
+    - id: western_cliff_waterfalls
+      name: Водопады западных утёсов
+      description: Белые потоки на западных скалах, слышные после дождя.
+      silhouetteClass: waterfall
+      xMetres: 6500
+      yMetres: 16000
+      elevationMetres: 800
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f3
+        - regions.pilot-region.visual-interpretation.f5
+  relations:
+    - id: road_waystation_city
+      kind: road
+      fromId: river_waystation
+      toId: riverwatch_city
+      label: Дорога к Речному Стражу
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+      points:
+        - xMetres: 8000
+          yMetres: 9500
+        - xMetres: 10500
+          yMetres: 8500
+        - xMetres: 13500
+          yMetres: 7500
+    - id: road_waystation_forest
+      kind: road
+      fromId: river_waystation
+      toId: blackwood_edge
+      label: Лесная дорога
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+        - regions.pilot-region.geography.f5
+      points:
+        - xMetres: 8000
+          yMetres: 9500
+        - xMetres: 7000
+          yMetres: 10500
+        - xMetres: 6000
+          yMetres: 12000
+    - id: road_city_ruins
+      kind: road
+      fromId: riverwatch_city
+      toId: old_ruins
+      label: Восточный тракт
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+      points:
+        - xMetres: 13500
+          yMetres: 7500
+        - xMetres: 15000
+          yMetres: 10500
+        - xMetres: 16000
+          yMetres: 14000
+    - id: river_crossing
+      kind: crossing
+      fromId: river_waystation
+      toId: riverwatch_city
+      label: Переправа
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+        - regions.pilot-region.geography.f5
+      points:
+        - xMetres: 8000
+          yMetres: 9500
+        - xMetres: 9500
+          yMetres: 9400
+        - xMetres: 10000
+          yMetres: 9000
+    - id: river_basin
+      kind: river
+      fromId: high_pass
+      toId: riverwatch_city
+      label: Река из северных гор
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+        - regions.pilot-region.geography.f3
+      points:
+        - xMetres: 12000
+          yMetres: 18000
+        - xMetres: 10500
+          yMetres: 13000
+        - xMetres: 9500
+          yMetres: 9000
+        - xMetres: 13500
+          yMetres: 7500
+    - id: road_city_south
+      kind: road
+      fromId: riverwatch_city
+      toId: southern_borough
+      label: Южный тракт
+      canonicalRefs:
+        - regions.pilot-region.geography.f6
+      points:
+        - xMetres: 13500
+          yMetres: 7500
+        - xMetres: 11500
+          yMetres: 6200
+        - xMetres: 9500
+          yMetres: 5000
+    - id: road_forest_waterfalls
+      kind: road
+      fromId: blackwood_edge
+      toId: western_cliff_waterfalls
+      label: Тропа к западным утёсам
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+        - regions.pilot-region.visual-interpretation.f5
+      points:
+        - xMetres: 6000
+          yMetres: 12000
+        - xMetres: 6200
+          yMetres: 14000
+        - xMetres: 6500
+          yMetres: 16000
+    - id: road_waystation_waterfalls
+      kind: road
+      fromId: river_waystation
+      toId: western_cliff_waterfalls
+      label: Тропа к водопадам
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+        - regions.pilot-region.visual-interpretation.f5
+      points:
+        - xMetres: 8000
+          yMetres: 9500
+        - xMetres: 7000
+          yMetres: 12500
+        - xMetres: 6500
+          yMetres: 16000
+  travel:
+    - relationId: road_waystation_city
+      kind: road
+      fromId: river_waystation
+      toId: riverwatch_city
+      distanceMetres: 5500
+      baseTravelTicks: 4
+      terrainCost: 1
+      passability: open
+    - relationId: road_waystation_forest
+      kind: road
+      fromId: river_waystation
+      toId: blackwood_edge
+      distanceMetres: 3200
+      baseTravelTicks: 3
+      terrainCost: 1.2
+      passability: open
+    - relationId: road_city_ruins
+      kind: road
+      fromId: riverwatch_city
+      toId: old_ruins
+      distanceMetres: 6800
+      baseTravelTicks: 5
+      terrainCost: 1
+      passability: open
+    - relationId: river_crossing
+      kind: crossing
+      fromId: river_waystation
+      toId: riverwatch_city
+      distanceMetres: 2000
+      baseTravelTicks: 2
+      terrainCost: 1.5
+      passability: open
+    - relationId: river_basin
+      kind: river
+      fromId: high_pass
+      toId: riverwatch_city
+      distanceMetres: 12000
+      baseTravelTicks: 0
+      terrainCost: 0
+      passability: blocked
+    - relationId: road_city_south
+      kind: road
+      fromId: riverwatch_city
+      toId: southern_borough
+      distanceMetres: 4500
+      baseTravelTicks: 3
+      terrainCost: 1
+      passability: open
+    - relationId: road_forest_waterfalls
+      kind: road
+      fromId: blackwood_edge
+      toId: western_cliff_waterfalls
+      distanceMetres: 4200
+      baseTravelTicks: 4
+      terrainCost: 1.6
+      passability: open
+    - relationId: road_waystation_waterfalls
+      kind: road
+      fromId: river_waystation
+      toId: western_cliff_waterfalls
+      distanceMetres: 6800
+      baseTravelTicks: 5
+      terrainCost: 1.5
+      passability: open
+  processes:
+    river:
+      processId: river-basin-process
+      watercourseId: river_basin
+      baselineLevel: 40
+      minimumLevel: 20
+      maximumLevel: 90
+      cycleLengthTicks: 16
+      phaseOffset: 0
+      riseRate: 8
+      fallRate: 5
+    crossing:
+      crossingId: river_crossing
+      watercourseId: river_basin
+      openAtOrBelow: 55
+      difficultAtOrBelow: 75
+      closedAbove: 75
+      baseTravelCostTicks: 2
+    weather:
+      processId: weather-region
+      climateZone: temperate
+      seasonCycleTicks: 100
+      phaseOffset: 0
+    heat:
+      processId: heat-region
+      ambientTemperature: 18
+      transferRate: 0.1
+      dissipationRate: 0.05
+      zoneThresholds:
+        cold: 0
+        warm: 25
+        hot: 60
+  settlements:
+    - settlementId: riverwatch_city
+      population: 60
+      risk: 40
+      status: active
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - settlementId: southern_borough
+      population: 35
+      risk: 25
+      status: active
+      canonicalRefs:
+        - regions.pilot-region.geography.f6
+  observations:
+    - subjectKind: location
+      subjectId: river_waystation
+      knowledge: traversed
+      observedAt: 0
+      confidence: 1
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - subjectKind: relation
+      subjectId: road_waystation_city
+      knowledge: observed
+      observedAt: 0
+      confidence: 0.9
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - subjectKind: relation
+      subjectId: river_crossing
+      knowledge: observed
+      observedAt: 0
+      confidence: 0.85
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - subjectKind: landmark
+      subjectId: suspended_monolith
+      knowledge: glimpsed
+      observedAt: 0
+      confidence: 0.45
+      bearing: северо-восток
+      canonicalRefs:
+        - regions.pilot-region.monolith.f1
+    - subjectKind: location
+      subjectId: blackwood_edge
+      knowledge: observed
+      observedAt: 0
+      confidence: 0.7
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - subjectKind: location
+      subjectId: glass_crater
+      knowledge: rumored
+      observedAt: 0
+      confidence: 0.3
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f5
+    - subjectKind: landmark
+      subjectId: glass_crater
+      knowledge: rumored
+      observedAt: 0
+      confidence: 0.25
+      bearing: юго-запад
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f5
+    - subjectKind: relation
+      subjectId: road_waystation_forest
+      knowledge: rumored
+      observedAt: 0
+      confidence: 0.5
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+  content:
+    - id: glass_crater_surface
+      name: Стеклянная поверхность впадины
+      aliases:
+        - стеклянная поверхность
+        - блестящий камень
+      description: На дне чаши камень отражает свет после дождя. Причина блеска неясна.
+      material: glass
+      locationId: glass_crater
+      integrity: 100
+      temperature: 9
+      initialState:
+        contentKind: discovery_node
+        reflective: true
+        origin: unknown
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f5
+    - id: western_cliff_waterfalls
+      name: Водопады западных утёсов
+      aliases:
+        - водопад
+        - водопады
+      description: Несколько потоков падают с уступа и разбиваются о камни, питая реку.
+      material: water
+      locationId: western_cliff_waterfalls
+      integrity: 100
+      temperature: 8
+      initialState:
+        contentKind: landmark
+        supportsRelation: river_basin
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f3
+        - regions.pilot-region.visual-interpretation.f5
+
+  discoveryDefinitions:
+    - id: western_waterfalls
+      version: 1
+      subjectKind: object
+      objectIds:
+        - western_cliff_waterfalls
+      signalKind: landmark_trace
+      title: Водопады питают реку
+      question: Связаны ли потоки на западных утёсах с уровнем реки?
+      summaries:
+        trace: Ты увидел потоки, падающие с западных утёсов.
+        hypothesis: Похоже, водопады связаны с руслом реки.
+        discovered: Ты собрал повторные наблюдения: водопады остаются частью речного бассейна.
+      evidenceText: С уступа падают несколько потоков; внизу слышно движение воды.
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f3
+        - regions.pilot-region.visual-interpretation.f5
+    - id: crater_surface
+      version: 1
+      subjectKind: object
+      objectIds:
+        - glass_crater_surface
+      signalKind: physical_trace
+      title: Блеск Стеклянной впадины
+      question: Почему поверхность впадины отражает свет?
+      summaries:
+        trace: На дне чаши камень блестит после дождя.
+        hypothesis: Поверхность ведёт себя не как обычный камень.
+        discovered: Повторные осмотры подтверждают особое отражение, но не объясняют происхождение впадины.
+      evidenceText: Свет отражается от гладкого слоя; происхождение слоя остаётся неизвестным.
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f5
+    - id: ancient_culture_traces
+      version: 1
+      subjectKind: historical_trace
+      subjectIds:
+        - old_ruins
+      signalKind: structural_trace
+      title: Echoes of an older culture
+      question: Were the ruins built by one older tradition?
+      summaries:
+        trace: The stonework repeats a pattern you have seen before.
+        hypothesis: The ruins may share a building tradition with distant works.
+        discovered: Independent observations support a shared older building tradition.
+      evidenceText: Masonry joints and alignments repeat across the ruin.
+      evidenceRules:
+        - id: ancient_culture_traces.support
+          subjectRefs:
+            - old_ruins
+          signalKinds:
+            - structural_trace
+          minDistinctWorldTimes: 2
+          minIndependentSources: 2
+      contradictionRules:
+        - id: ancient_culture_traces.contradiction
+          subjectRefs:
+            - old_ruins
+          signalKinds:
+            - structural_trace
+          minDistinctWorldTimes: 2
+      stageThresholds:
+        hypothesis: 2
+        discovered: 3
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.history.f1
+    - id: abandoned_infrastructure
+      version: 1
+      subjectKind: historical_trace
+      subjectIds:
+        - road_city_ruins
+      signalKind: physical_trace
+      title: Road without a destination
+      question: What abandoned route once crossed the eastern heights?
+      summaries:
+        trace: The old road continues beyond the settled paths.
+        hypothesis: The road may belong to infrastructure older than the city.
+        discovered: Repeated traces support an abandoned route rather than a natural track.
+      evidenceText: Cut stones and a regular grade mark an older route.
+      evidenceRules:
+        - id: abandoned_infrastructure.support
+          subjectRefs:
+            - road_city_ruins
+          signalKinds:
+            - physical_trace
+          minDistinctWorldTimes: 2
+          minIndependentSources: 2
+      contradictionRules:
+        - id: abandoned_infrastructure.contradiction
+          subjectRefs:
+            - road_city_ruins
+          signalKinds:
+            - physical_trace
+          minDistinctWorldTimes: 2
+      stageThresholds:
+        hypothesis: 2
+        discovered: 3
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.history.f2
+    - id: river_course_shift
+      version: 1
+      subjectKind: historical_trace
+      subjectIds:
+        - river_basin
+      signalKind: water_trace
+      title: The river remembers another course
+      question: Did the river once run through a different channel?
+      summaries:
+        trace: Dry cuts remain beside the present river.
+        hypothesis: The basin may preserve an older course.
+        discovered: Independent water traces support a former channel without fixing its cause.
+      evidenceText: Sediment and a dry channel suggest water once moved here.
+      evidenceRules:
+        - id: river_course_shift.support
+          subjectRefs:
+            - river_basin
+          signalKinds:
+            - water_trace
+          minDistinctWorldTimes: 2
+          minIndependentSources: 2
+      contradictionRules:
+        - id: river_course_shift.contradiction
+          subjectRefs:
+            - river_basin
+          signalKinds:
+            - water_trace
+          minDistinctWorldTimes: 2
+      stageThresholds:
+        hypothesis: 2
+        discovered: 3
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.history.f3
+    - id: conflict_trace
+      version: 1
+      subjectKind: historical_trace
+      subjectIds:
+        - old_ruins
+      signalKind: structural_trace
+      title: A scar in the stone
+      question: Was the eastern site damaged by conflict?
+      summaries:
+        trace: One masonry layer is darker and more damaged than the rest.
+        hypothesis: The damage may have followed a violent event, but fire and weather remain possible.
+        discovered: Repeated evidence supports a damaged layer while leaving its cause unresolved.
+      evidenceText: A darkened masonry layer interrupts the older stonework.
+      evidenceRules:
+        - id: conflict_trace.support
+          subjectRefs:
+            - old_ruins
+          signalKinds:
+            - structural_trace
+          minDistinctWorldTimes: 2
+          minIndependentSources: 2
+      contradictionRules:
+        - id: conflict_trace.contradiction
+          subjectRefs:
+            - old_ruins
+          signalKinds:
+            - structural_trace
+          minDistinctWorldTimes: 2
+      stageThresholds:
+        hypothesis: 2
+        discovered: 3
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.history.f4
+    - id: climate_shift
+      version: 1
+      subjectKind: historical_trace
+      subjectIds:
+        - blackwood_edge
+      signalKind: physical_trace
+      title: The old forest line
+      question: Did the forest once reach farther into the valley?
+      summaries:
+        trace: The vegetation changes along a strangely regular boundary.
+        hypothesis: The boundary may record climate change or older land use.
+        discovered: Independent traces support a former forest line without choosing its cause.
+      evidenceText: Soil and vegetation change beyond the present forest edge.
+      evidenceRules:
+        - id: climate_shift.support
+          subjectRefs:
+            - blackwood_edge
+          signalKinds:
+            - physical_trace
+          minDistinctWorldTimes: 2
+          minIndependentSources: 2
+      contradictionRules:
+        - id: climate_shift.contradiction
+          subjectRefs:
+            - blackwood_edge
+          signalKinds:
+            - physical_trace
+          minDistinctWorldTimes: 2
+      stageThresholds:
+        hypothesis: 2
+        discovered: 3
+      status: runtime
+      canonicalRefs:
+        - regions.pilot-region.history.f5
+  simulationMetadata:
+    - locationId: river_waystation
+      biome: valley_edge
+      resources:
+        - water
+        - timber
+      strategicValue: river_crossing_and_road_junction
+      accessibility: open
+      settlementPotential: established_waystation
+      dangers:
+        - seasonal_flood
+      possibleEvents:
+        - CrossingConditionChanged
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - locationId: riverwatch_city
+      biome: river_plain
+      resources:
+        - trade_goods
+        - grain
+      strategicValue: principal_settlement
+      accessibility: open
+      settlementPotential: established_city
+      dangers:
+        - river_pressure
+      possibleEvents:
+        - SettlementPopulationChanged
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - locationId: blackwood_edge
+      biome: ancient_forest_edge
+      resources:
+        - timber
+        - herbs
+      strategicValue: forest_access
+      accessibility: constrained
+      settlementPotential: outpost_candidate
+      dangers:
+        - low_visibility
+        - forest_fire
+      possibleEvents:
+        - HeatSourceCreated
+      status: derived
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - locationId: old_ruins
+      biome: eastern_uplands
+      resources:
+        - stone
+      strategicValue: elevated_lookout
+      accessibility: open
+      settlementPotential: unknown
+      dangers:
+        - unstable_masonry
+      possibleEvents:
+        - EntityExamined
+      status: derived
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - locationId: glass_crater
+      biome: forest_depression
+      resources:
+        - unknown_material
+      strategicValue: discovery_site
+      accessibility: constrained
+      settlementPotential: none
+      dangers:
+        - unknown_origin
+      possibleEvents:
+        - ObjectObserved
+      status: derived
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f5
+    - locationId: high_pass
+      biome: alpine_pass
+      resources:
+        - stone
+        - snowmelt
+      strategicValue: northern_route
+      accessibility: blocked
+      settlementPotential: none
+      dangers:
+        - snow
+        - steep_slope
+      possibleEvents:
+        - CrossingConditionChanged
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - locationId: western_cliff_waterfalls
+      biome: cliff_waterfall
+      resources:
+        - fresh_water
+      strategicValue: river_source_landmark
+      accessibility: constrained
+      settlementPotential: none
+      dangers:
+        - falling
+        - wet_rock
+      possibleEvents:
+        - ObjectObserved
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.visual-interpretation.f3
+    - locationId: southern_borough
+      biome: river_bend
+      resources:
+        - grain
+        - fish
+      strategicValue: secondary_settlement
+      accessibility: open
+      settlementPotential: established_borough
+      dangers:
+        - flood
+      possibleEvents:
+        - SettlementPopulationChanged
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f6
+
+  resourceDefinitions:
+    - id: resource.blackwood_timber
+      resourceKind: timber
+      locationId: blackwood_edge
+      capacityUnits: 100
+      initialStockUnits: 100
+      quality: common
+      extractionMethods:
+        - id: manual_felling
+          maximumPerAction: 5
+          difficulty: 1
+      regeneration:
+        intervalWorldTime: 24
+        amountUnits: 2
+        maximumUnits: 100
+        blockedBy:
+          - forest_fire
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+  hydrography:
+    waterBodies:
+      - id: southern_water_body
+        kind: unresolved_water_body
+        classification: unresolved
+        inflows:
+          - river_basin
+        outflows: []
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.hydrography.f3
+    watercourses:
+      - id: river_basin
+        kind: main_course
+        sourceRef: northern_snow_range
+        sinkRef: southern_water_body
+        flowDirection: north_to_south
+        tributaryRefs:
+          - western_waterfall_channel
+        seasonality: perennial
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.hydrography.f1
+      - id: western_waterfall_channel
+        kind: tributary
+        sourceRef: western_cliff_waterfalls
+        sinkRef: river_basin
+        flowDirection: west_to_centre
+        seasonality: unresolved
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.hydrography.f2
+    catchments:
+      - id: northern_mountain_catchment
+        drainsTo: river_basin
+        terrainRefs:
+          - northern_snow_range
+          - high_pass
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.hydrography.f4
+    wetlands: []
+  elevation:
+    bands:
+      - id: band.lowland
+        rank: 1
+        label: river_lowland
+        elevationBand: 1
+        slopeBand: 1
+      - id: band.foothill
+        rank: 2
+        label: western_foothills
+        elevationBand: 3
+        slopeBand: 2
+      - id: band.upland
+        rank: 3
+        label: eastern_uplands
+        elevationBand: 4
+        slopeBand: 3
+      - id: band.alpine
+        rank: 4
+        label: northern_range
+        elevationBand: 5
+        slopeBand: 5
+    controlAreas:
+      - id: elevation.northern_range
+        bandRef: band.alpine
+        regionZone: northern_mountains
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.elevation.f1
+      - id: elevation.river_corridor
+        bandRef: band.lowland
+        regionZone: central_valley
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.elevation.f1
+      - id: elevation.eastern_uplands
+        bandRef: band.upland
+        regionZone: eastern_uplands
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.elevation.f1
+    constraints:
+      - id: constraint.northern-higher-than-valley
+        kind: higherThan
+        subject: northern_snow_range
+        reference: riverwatch_valley
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.elevation.f2
+      - id: constraint.waterfalls-drain-to-river
+        kind: drainsToward
+        subject: western_cliff_waterfalls
+        reference: river_basin
+        status: canon
+        canonicalRefs:
+          - regions.pilot-region.elevation.f2
+  toponymIndex:
+    subjects:
+      - id: riverwatch-basin
+        canonicalName: Бассейн Речного Стража
+        aliases:
+          - речной бассейн
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f1
+      - id: northern_snow_range
+        canonicalName: Северный снежный хребет
+        aliases:
+          - северный хребет
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f2
+      - id: high_pass
+        canonicalName: Северный перевал
+        aliases:
+          - горный проход
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f3
+      - id: river_basin
+        canonicalName: Река из северных гор
+        aliases:
+          - северное русло
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f4
+      - id: western_cliff_waterfalls
+        canonicalName: Водопады западных утёсов
+        aliases:
+          - западные каскады
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f5
+      - id: blackwood_forest
+        canonicalName: Чёрный лес
+        aliases:
+          - чёрная чаща
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f6
+      - id: riverwatch_valley
+        canonicalName: Долина Стража
+        aliases:
+          - речная долина
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f7
+      - id: eastern_uplands
+        canonicalName: Восточные высоты
+        aliases:
+          - восточный кряж
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f8
+      - id: glass_crater
+        canonicalName: Стеклянная впадина
+        aliases:
+          - стеклянный кратер
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f9
+      - id: riverwatch_city
+        canonicalName: Речной Страж
+        aliases:
+          - город у реки
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f10
+      - id: southern_borough
+        canonicalName: Южный посад
+        aliases:
+          - южный квартал
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f11
+      - id: old_ruins
+        canonicalName: Развалины на уступе
+        aliases:
+          - каменный уступ
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f12
+      - id: suspended_monolith
+        canonicalName: Парящий монолит
+        aliases:
+          - висячий камень
+        canonicalRefs:
+          - regions.pilot-region.toponymy.f13

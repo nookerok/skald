@@ -1,0 +1,3528 @@
+{
+  "schemaVersion": 5,
+  "regionId": "riverwatch-basin",
+  "regionVersion": 4,
+  "compilerVersion": "pilot-region-compiler-v5",
+  "provenance": {
+    "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+    "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+    "bootstrapDigest": "d3a84c6c191798632a17f1b254294cef3f281f8377db01077afcd2899344807f",
+    "canonicalRefs": [
+      "regions.pilot-region.elevation.f1",
+      "regions.pilot-region.elevation.f2",
+      "regions.pilot-region.geography.f1",
+      "regions.pilot-region.geography.f2",
+      "regions.pilot-region.geography.f3",
+      "regions.pilot-region.geography.f5",
+      "regions.pilot-region.geography.f6",
+      "regions.pilot-region.history.f1",
+      "regions.pilot-region.history.f2",
+      "regions.pilot-region.history.f3",
+      "regions.pilot-region.history.f4",
+      "regions.pilot-region.history.f5",
+      "regions.pilot-region.hydrography.f1",
+      "regions.pilot-region.hydrography.f2",
+      "regions.pilot-region.hydrography.f3",
+      "regions.pilot-region.hydrography.f4",
+      "regions.pilot-region.toponymy.f1",
+      "regions.pilot-region.toponymy.f10",
+      "regions.pilot-region.toponymy.f11",
+      "regions.pilot-region.toponymy.f12",
+      "regions.pilot-region.toponymy.f13",
+      "regions.pilot-region.toponymy.f2",
+      "regions.pilot-region.toponymy.f3",
+      "regions.pilot-region.toponymy.f4",
+      "regions.pilot-region.toponymy.f5",
+      "regions.pilot-region.toponymy.f6",
+      "regions.pilot-region.toponymy.f7",
+      "regions.pilot-region.toponymy.f8",
+      "regions.pilot-region.toponymy.f9",
+      "regions.pilot-region.visual-interpretation.f3",
+      "regions.pilot-region.visual-interpretation.f5",
+      "universal.laws.heat_dynamics",
+      "universal.laws.time_and_ticks"
+    ],
+    "referenceArtifactRuntimeAllowed": false
+  },
+  "regionDefinition": {
+    "id": "riverwatch-basin",
+    "name": "Бассейн Речного Стража",
+    "version": 4,
+    "bounds": {
+      "minXMetres": 0,
+      "minYMetres": 0,
+      "maxXMetres": 20000,
+      "maxYMetres": 20000
+    },
+    "terrainTileSizeMetres": 250,
+    "simulationCellSizeMetres": 1000,
+    "locations": [
+      {
+        "id": "blackwood_edge",
+        "name": "Кромка Чёрного леса",
+        "description": "Дорога исчезает среди тёмных елей.",
+        "anchor": {
+          "xMetres": 6000,
+          "yMetres": 12000
+        },
+        "footprintTileIds": [
+          "tile-23-47"
+        ]
+      },
+      {
+        "id": "glass_crater",
+        "name": "Стеклянная впадина",
+        "description": "Круглая чаша земли, где камень блестит после дождя.",
+        "anchor": {
+          "xMetres": 3800,
+          "yMetres": 4200
+        },
+        "footprintTileIds": [
+          "tile-14-16"
+        ]
+      },
+      {
+        "id": "high_pass",
+        "name": "Северный перевал",
+        "description": "Каменный проход под снегом и облаками.",
+        "anchor": {
+          "xMetres": 12000,
+          "yMetres": 18000
+        },
+        "footprintTileIds": [
+          "tile-47-71"
+        ]
+      },
+      {
+        "id": "old_ruins",
+        "name": "Развалины на уступе",
+        "description": "Каменные остатки над долиной, занесённые травой.",
+        "anchor": {
+          "xMetres": 16000,
+          "yMetres": 14000
+        },
+        "footprintTileIds": [
+          "tile-63-55"
+        ]
+      },
+      {
+        "id": "river_waystation",
+        "name": "Переправа у Чёрного леса",
+        "description": "Небольшой путевой двор у реки и кромки леса.",
+        "anchor": {
+          "xMetres": 8000,
+          "yMetres": 9500
+        },
+        "footprintTileIds": [
+          "tile-31-38",
+          "tile-32-38"
+        ]
+      },
+      {
+        "id": "riverwatch_city",
+        "name": "Речной Страж",
+        "description": "Город за стенами, где сходятся торговые дороги.",
+        "anchor": {
+          "xMetres": 13500,
+          "yMetres": 7500
+        },
+        "footprintTileIds": [
+          "tile-53-29",
+          "tile-54-29",
+          "tile-53-30",
+          "tile-54-30"
+        ]
+      },
+      {
+        "id": "southern_borough",
+        "name": "Южный посад",
+        "description": "Посад за стенами при изгибе реки, южнее главного города.",
+        "anchor": {
+          "xMetres": 9500,
+          "yMetres": 5000
+        },
+        "footprintTileIds": [
+          "tile-37-19",
+          "tile-38-19"
+        ]
+      },
+      {
+        "id": "western_cliff_waterfalls",
+        "name": "Водопады западных утёсов",
+        "description": "Несколько потоков падают с уступа и питают реку.",
+        "anchor": {
+          "xMetres": 6500,
+          "yMetres": 16000
+        },
+        "footprintTileIds": [
+          "tile-26-64",
+          "tile-27-64"
+        ]
+      }
+    ],
+    "landmarks": [
+      {
+        "id": "glass_crater",
+        "name": "Стеклянная впадина",
+        "description": "Тёмный круг в лесной кромке.",
+        "anchor": {
+          "xMetres": 3800,
+          "yMetres": 4200
+        },
+        "elevationMetres": 20,
+        "silhouetteClass": "crater"
+      },
+      {
+        "id": "old_ruins",
+        "name": "Развалины на уступе",
+        "description": "Одинокие камни на восточном уступе.",
+        "anchor": {
+          "xMetres": 16000,
+          "yMetres": 14000
+        },
+        "elevationMetres": 190,
+        "silhouetteClass": "ruin"
+      },
+      {
+        "id": "riverwatch_city",
+        "name": "Речной Страж",
+        "description": "Городская стена и башни над рекой.",
+        "anchor": {
+          "xMetres": 13500,
+          "yMetres": 7500
+        },
+        "elevationMetres": 40,
+        "silhouetteClass": "city"
+      },
+      {
+        "id": "suspended_monolith",
+        "name": "Парящий монолит",
+        "description": "Тёмный силуэт, иногда видимый над северными облаками.",
+        "anchor": {
+          "xMetres": 11000,
+          "yMetres": 18000
+        },
+        "elevationMetres": 1400,
+        "silhouetteClass": "monolith"
+      },
+      {
+        "id": "western_cliff_waterfalls",
+        "name": "Водопады западных утёсов",
+        "description": "Белые потоки на западных скалах, слышные после дождя.",
+        "anchor": {
+          "xMetres": 6500,
+          "yMetres": 16000
+        },
+        "elevationMetres": 800,
+        "silhouetteClass": "waterfall"
+      }
+    ],
+    "relations": [
+      {
+        "id": "river_basin",
+        "kind": "river",
+        "fromId": "high_pass",
+        "toId": "riverwatch_city",
+        "label": "Река из северных гор",
+        "points": [
+          {
+            "xMetres": 12000,
+            "yMetres": 18000
+          },
+          {
+            "xMetres": 10500,
+            "yMetres": 13000
+          },
+          {
+            "xMetres": 9500,
+            "yMetres": 9000
+          },
+          {
+            "xMetres": 13500,
+            "yMetres": 7500
+          }
+        ]
+      },
+      {
+        "id": "river_crossing",
+        "kind": "crossing",
+        "fromId": "river_waystation",
+        "toId": "riverwatch_city",
+        "label": "Переправа",
+        "points": [
+          {
+            "xMetres": 8000,
+            "yMetres": 9500
+          },
+          {
+            "xMetres": 9500,
+            "yMetres": 9400
+          },
+          {
+            "xMetres": 10000,
+            "yMetres": 9000
+          }
+        ]
+      },
+      {
+        "id": "road_city_ruins",
+        "kind": "road",
+        "fromId": "riverwatch_city",
+        "toId": "old_ruins",
+        "label": "Восточный тракт",
+        "points": [
+          {
+            "xMetres": 13500,
+            "yMetres": 7500
+          },
+          {
+            "xMetres": 15000,
+            "yMetres": 10500
+          },
+          {
+            "xMetres": 16000,
+            "yMetres": 14000
+          }
+        ]
+      },
+      {
+        "id": "road_city_south",
+        "kind": "road",
+        "fromId": "riverwatch_city",
+        "toId": "southern_borough",
+        "label": "Южный тракт",
+        "points": [
+          {
+            "xMetres": 13500,
+            "yMetres": 7500
+          },
+          {
+            "xMetres": 11500,
+            "yMetres": 6200
+          },
+          {
+            "xMetres": 9500,
+            "yMetres": 5000
+          }
+        ]
+      },
+      {
+        "id": "road_forest_waterfalls",
+        "kind": "road",
+        "fromId": "blackwood_edge",
+        "toId": "western_cliff_waterfalls",
+        "label": "Тропа к западным утёсам",
+        "points": [
+          {
+            "xMetres": 6000,
+            "yMetres": 12000
+          },
+          {
+            "xMetres": 6200,
+            "yMetres": 14000
+          },
+          {
+            "xMetres": 6500,
+            "yMetres": 16000
+          }
+        ]
+      },
+      {
+        "id": "road_waystation_city",
+        "kind": "road",
+        "fromId": "river_waystation",
+        "toId": "riverwatch_city",
+        "label": "Дорога к Речному Стражу",
+        "points": [
+          {
+            "xMetres": 8000,
+            "yMetres": 9500
+          },
+          {
+            "xMetres": 10500,
+            "yMetres": 8500
+          },
+          {
+            "xMetres": 13500,
+            "yMetres": 7500
+          }
+        ]
+      },
+      {
+        "id": "road_waystation_forest",
+        "kind": "road",
+        "fromId": "river_waystation",
+        "toId": "blackwood_edge",
+        "label": "Лесная дорога",
+        "points": [
+          {
+            "xMetres": 8000,
+            "yMetres": 9500
+          },
+          {
+            "xMetres": 7000,
+            "yMetres": 10500
+          },
+          {
+            "xMetres": 6000,
+            "yMetres": 12000
+          }
+        ]
+      },
+      {
+        "id": "road_waystation_waterfalls",
+        "kind": "road",
+        "fromId": "river_waystation",
+        "toId": "western_cliff_waterfalls",
+        "label": "Тропа к водопадам",
+        "points": [
+          {
+            "xMetres": 8000,
+            "yMetres": 9500
+          },
+          {
+            "xMetres": 7000,
+            "yMetres": 12500
+          },
+          {
+            "xMetres": 6500,
+            "yMetres": 16000
+          }
+        ]
+      }
+    ],
+    "hydrography": {
+      "waterBodies": [
+        {
+          "id": "southern_water_body",
+          "kind": "unresolved_water_body",
+          "classification": "unresolved",
+          "inflows": [
+            "river_basin"
+          ],
+          "outflows": [],
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.hydrography.f3"
+          ]
+        }
+      ],
+      "watercourses": [
+        {
+          "id": "river_basin",
+          "kind": "main_course",
+          "sourceRef": "northern_snow_range",
+          "sinkRef": "southern_water_body",
+          "flowDirection": "north_to_south",
+          "tributaryRefs": [
+            "western_waterfall_channel"
+          ],
+          "seasonality": "perennial",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.hydrography.f1"
+          ]
+        },
+        {
+          "id": "western_waterfall_channel",
+          "kind": "tributary",
+          "sourceRef": "western_cliff_waterfalls",
+          "sinkRef": "river_basin",
+          "flowDirection": "west_to_centre",
+          "seasonality": "unresolved",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.hydrography.f2"
+          ]
+        }
+      ],
+      "catchments": [
+        {
+          "id": "northern_mountain_catchment",
+          "drainsTo": "river_basin",
+          "terrainRefs": [
+            "northern_snow_range",
+            "high_pass"
+          ],
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.hydrography.f4"
+          ]
+        }
+      ],
+      "wetlands": []
+    },
+    "elevation": {
+      "bands": [
+        {
+          "id": "band.lowland",
+          "rank": 1,
+          "label": "river_lowland",
+          "elevationBand": 1,
+          "slopeBand": 1
+        },
+        {
+          "id": "band.foothill",
+          "rank": 2,
+          "label": "western_foothills",
+          "elevationBand": 3,
+          "slopeBand": 2
+        },
+        {
+          "id": "band.upland",
+          "rank": 3,
+          "label": "eastern_uplands",
+          "elevationBand": 4,
+          "slopeBand": 3
+        },
+        {
+          "id": "band.alpine",
+          "rank": 4,
+          "label": "northern_range",
+          "elevationBand": 5,
+          "slopeBand": 5
+        }
+      ],
+      "controlAreas": [
+        {
+          "id": "elevation.eastern_uplands",
+          "bandRef": "band.upland",
+          "regionZone": "eastern_uplands",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1"
+          ]
+        },
+        {
+          "id": "elevation.northern_range",
+          "bandRef": "band.alpine",
+          "regionZone": "northern_mountains",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1"
+          ]
+        },
+        {
+          "id": "elevation.river_corridor",
+          "bandRef": "band.lowland",
+          "regionZone": "central_valley",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "id": "constraint.northern-higher-than-valley",
+          "kind": "higherThan",
+          "subject": "northern_snow_range",
+          "reference": "riverwatch_valley",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f2"
+          ]
+        },
+        {
+          "id": "constraint.waterfalls-drain-to-river",
+          "kind": "drainsToward",
+          "subject": "western_cliff_waterfalls",
+          "reference": "river_basin",
+          "status": "canon",
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f2"
+          ]
+        }
+      ]
+    },
+    "toponymIndex": {
+      "subjects": [
+        {
+          "id": "blackwood_forest",
+          "canonicalName": "Чёрный лес",
+          "aliases": [
+            "чёрная чаща"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f6"
+          ]
+        },
+        {
+          "id": "eastern_uplands",
+          "canonicalName": "Восточные высоты",
+          "aliases": [
+            "восточный кряж"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f8"
+          ]
+        },
+        {
+          "id": "glass_crater",
+          "canonicalName": "Стеклянная впадина",
+          "aliases": [
+            "стеклянный кратер"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f9"
+          ]
+        },
+        {
+          "id": "high_pass",
+          "canonicalName": "Северный перевал",
+          "aliases": [
+            "горный проход"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f3"
+          ]
+        },
+        {
+          "id": "northern_snow_range",
+          "canonicalName": "Северный снежный хребет",
+          "aliases": [
+            "северный хребет"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f2"
+          ]
+        },
+        {
+          "id": "old_ruins",
+          "canonicalName": "Развалины на уступе",
+          "aliases": [
+            "каменный уступ"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f12"
+          ]
+        },
+        {
+          "id": "river_basin",
+          "canonicalName": "Река из северных гор",
+          "aliases": [
+            "северное русло"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f4"
+          ]
+        },
+        {
+          "id": "riverwatch_city",
+          "canonicalName": "Речной Страж",
+          "aliases": [
+            "город у реки"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f10"
+          ]
+        },
+        {
+          "id": "riverwatch_valley",
+          "canonicalName": "Долина Стража",
+          "aliases": [
+            "речная долина"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f7"
+          ]
+        },
+        {
+          "id": "riverwatch-basin",
+          "canonicalName": "Бассейн Речного Стража",
+          "aliases": [
+            "речной бассейн"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f1"
+          ]
+        },
+        {
+          "id": "southern_borough",
+          "canonicalName": "Южный посад",
+          "aliases": [
+            "южный квартал"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f11"
+          ]
+        },
+        {
+          "id": "suspended_monolith",
+          "canonicalName": "Парящий монолит",
+          "aliases": [
+            "висячий камень"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f13"
+          ]
+        },
+        {
+          "id": "western_cliff_waterfalls",
+          "canonicalName": "Водопады западных утёсов",
+          "aliases": [
+            "западные каскады"
+          ],
+          "canonicalRefs": [
+            "regions.pilot-region.toponymy.f5"
+          ]
+        }
+      ]
+    },
+    "contentDigest": "3625ec3f",
+    "terrainRules": {
+      "river": {
+        "centerMetres": 9500,
+        "amplitudeMetres": 1100,
+        "periodMetres": 1850,
+        "halfWidthMetres": 220
+      },
+      "marsh": {
+        "maxYMetres": 3000,
+        "minXMetres": 5000,
+        "maxXMetres": 14000
+      },
+      "forest": {
+        "maxXMetres": 7000,
+        "minYMetres": 4000
+      },
+      "mountains": {
+        "minYMetres": 16000,
+        "eastMinXMetres": 15000,
+        "eastMinYMetres": 10000
+      },
+      "crater": {
+        "centerXMetres": 3800,
+        "centerYMetres": 4200,
+        "radiusMetres": 1300
+      }
+    },
+    "cellGrid": {
+      "columns": 20,
+      "rows": 20,
+      "cellSizeMetres": 1000
+    }
+  },
+  "hydrographyDefinition": {
+    "waterBodies": [
+      {
+        "id": "southern_water_body",
+        "kind": "unresolved_water_body",
+        "classification": "unresolved",
+        "inflows": [
+          "river_basin"
+        ],
+        "outflows": [],
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.hydrography.f3"
+        ]
+      }
+    ],
+    "watercourses": [
+      {
+        "id": "river_basin",
+        "kind": "main_course",
+        "sourceRef": "northern_snow_range",
+        "sinkRef": "southern_water_body",
+        "flowDirection": "north_to_south",
+        "tributaryRefs": [
+          "western_waterfall_channel"
+        ],
+        "seasonality": "perennial",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.hydrography.f1"
+        ]
+      },
+      {
+        "id": "western_waterfall_channel",
+        "kind": "tributary",
+        "sourceRef": "western_cliff_waterfalls",
+        "sinkRef": "river_basin",
+        "flowDirection": "west_to_centre",
+        "seasonality": "unresolved",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.hydrography.f2"
+        ]
+      }
+    ],
+    "catchments": [
+      {
+        "id": "northern_mountain_catchment",
+        "drainsTo": "river_basin",
+        "terrainRefs": [
+          "northern_snow_range",
+          "high_pass"
+        ],
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.hydrography.f4"
+        ]
+      }
+    ],
+    "wetlands": []
+  },
+  "elevationDefinition": {
+    "bands": [
+      {
+        "id": "band.lowland",
+        "rank": 1,
+        "label": "river_lowland",
+        "elevationBand": 1,
+        "slopeBand": 1
+      },
+      {
+        "id": "band.foothill",
+        "rank": 2,
+        "label": "western_foothills",
+        "elevationBand": 3,
+        "slopeBand": 2
+      },
+      {
+        "id": "band.upland",
+        "rank": 3,
+        "label": "eastern_uplands",
+        "elevationBand": 4,
+        "slopeBand": 3
+      },
+      {
+        "id": "band.alpine",
+        "rank": 4,
+        "label": "northern_range",
+        "elevationBand": 5,
+        "slopeBand": 5
+      }
+    ],
+    "controlAreas": [
+      {
+        "id": "elevation.eastern_uplands",
+        "bandRef": "band.upland",
+        "regionZone": "eastern_uplands",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.elevation.f1"
+        ]
+      },
+      {
+        "id": "elevation.northern_range",
+        "bandRef": "band.alpine",
+        "regionZone": "northern_mountains",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.elevation.f1"
+        ]
+      },
+      {
+        "id": "elevation.river_corridor",
+        "bandRef": "band.lowland",
+        "regionZone": "central_valley",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.elevation.f1"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "id": "constraint.northern-higher-than-valley",
+        "kind": "higherThan",
+        "subject": "northern_snow_range",
+        "reference": "riverwatch_valley",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.elevation.f2"
+        ]
+      },
+      {
+        "id": "constraint.waterfalls-drain-to-river",
+        "kind": "drainsToward",
+        "subject": "western_cliff_waterfalls",
+        "reference": "river_basin",
+        "status": "canon",
+        "canonicalRefs": [
+          "regions.pilot-region.elevation.f2"
+        ]
+      }
+    ]
+  },
+  "toponymIndex": {
+    "subjects": [
+      {
+        "id": "blackwood_forest",
+        "canonicalName": "Чёрный лес",
+        "aliases": [
+          "чёрная чаща"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f6"
+        ]
+      },
+      {
+        "id": "eastern_uplands",
+        "canonicalName": "Восточные высоты",
+        "aliases": [
+          "восточный кряж"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f8"
+        ]
+      },
+      {
+        "id": "glass_crater",
+        "canonicalName": "Стеклянная впадина",
+        "aliases": [
+          "стеклянный кратер"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f9"
+        ]
+      },
+      {
+        "id": "high_pass",
+        "canonicalName": "Северный перевал",
+        "aliases": [
+          "горный проход"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f3"
+        ]
+      },
+      {
+        "id": "northern_snow_range",
+        "canonicalName": "Северный снежный хребет",
+        "aliases": [
+          "северный хребет"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f2"
+        ]
+      },
+      {
+        "id": "old_ruins",
+        "canonicalName": "Развалины на уступе",
+        "aliases": [
+          "каменный уступ"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f12"
+        ]
+      },
+      {
+        "id": "river_basin",
+        "canonicalName": "Река из северных гор",
+        "aliases": [
+          "северное русло"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f4"
+        ]
+      },
+      {
+        "id": "riverwatch_city",
+        "canonicalName": "Речной Страж",
+        "aliases": [
+          "город у реки"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f10"
+        ]
+      },
+      {
+        "id": "riverwatch_valley",
+        "canonicalName": "Долина Стража",
+        "aliases": [
+          "речная долина"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f7"
+        ]
+      },
+      {
+        "id": "riverwatch-basin",
+        "canonicalName": "Бассейн Речного Стража",
+        "aliases": [
+          "речной бассейн"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f1"
+        ]
+      },
+      {
+        "id": "southern_borough",
+        "canonicalName": "Южный посад",
+        "aliases": [
+          "южный квартал"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f11"
+        ]
+      },
+      {
+        "id": "suspended_monolith",
+        "canonicalName": "Парящий монолит",
+        "aliases": [
+          "висячий камень"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f13"
+        ]
+      },
+      {
+        "id": "western_cliff_waterfalls",
+        "canonicalName": "Водопады западных утёсов",
+        "aliases": [
+          "западные каскады"
+        ],
+        "canonicalRefs": [
+          "regions.pilot-region.toponymy.f5"
+        ]
+      }
+    ]
+  },
+  "contentDefinitions": [
+    {
+      "id": "glass_crater_surface",
+      "name": "Стеклянная поверхность впадины",
+      "aliases": [
+        "стеклянная поверхность",
+        "блестящий камень"
+      ],
+      "description": "На дне чаши камень отражает свет после дождя. Причина блеска неясна.",
+      "material": "glass",
+      "locationId": "glass_crater",
+      "integrity": 100,
+      "temperature": 9,
+      "initialState": {
+        "contentKind": "discovery_node",
+        "reflective": true,
+        "origin": "unknown"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    {
+      "id": "western_cliff_waterfalls",
+      "name": "Водопады западных утёсов",
+      "aliases": [
+        "водопад",
+        "водопады"
+      ],
+      "description": "Несколько потоков падают с уступа и разбиваются о камни, питая реку.",
+      "material": "water",
+      "locationId": "western_cliff_waterfalls",
+      "integrity": 100,
+      "temperature": 8,
+      "initialState": {
+        "contentKind": "landmark",
+        "supportsRelation": "river_basin"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f3",
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    }
+  ],
+  "discoveryDefinitions": [
+    {
+      "id": "abandoned_infrastructure",
+      "version": 1,
+      "subjectKind": "historical_trace",
+      "subjectIds": [
+        "road_city_ruins"
+      ],
+      "signalKind": "physical_trace",
+      "title": "Road without a destination",
+      "question": "What abandoned route once crossed the eastern heights?",
+      "summaries": {
+        "trace": "The old road continues beyond the settled paths.",
+        "hypothesis": "The road may belong to infrastructure older than the city.",
+        "discovered": "Repeated traces support an abandoned route rather than a natural track."
+      },
+      "evidenceText": "Cut stones and a regular grade mark an older route.",
+      "evidenceRules": [
+        {
+          "id": "abandoned_infrastructure.support",
+          "subjectRefs": [
+            "road_city_ruins"
+          ],
+          "signalKinds": [
+            "physical_trace"
+          ],
+          "minDistinctWorldTimes": 2,
+          "minIndependentSources": 2
+        }
+      ],
+      "contradictionRules": [
+        {
+          "id": "abandoned_infrastructure.contradiction",
+          "subjectRefs": [
+            "road_city_ruins"
+          ],
+          "signalKinds": [
+            "physical_trace"
+          ],
+          "minDistinctWorldTimes": 2
+        }
+      ],
+      "stageThresholds": {
+        "hypothesis": 2,
+        "discovered": 3
+      },
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.history.f2"
+      ]
+    },
+    {
+      "id": "ancient_culture_traces",
+      "version": 1,
+      "subjectKind": "historical_trace",
+      "subjectIds": [
+        "old_ruins"
+      ],
+      "signalKind": "structural_trace",
+      "title": "Echoes of an older culture",
+      "question": "Were the ruins built by one older tradition?",
+      "summaries": {
+        "trace": "The stonework repeats a pattern you have seen before.",
+        "hypothesis": "The ruins may share a building tradition with distant works.",
+        "discovered": "Independent observations support a shared older building tradition."
+      },
+      "evidenceText": "Masonry joints and alignments repeat across the ruin.",
+      "evidenceRules": [
+        {
+          "id": "ancient_culture_traces.support",
+          "subjectRefs": [
+            "old_ruins"
+          ],
+          "signalKinds": [
+            "structural_trace"
+          ],
+          "minDistinctWorldTimes": 2,
+          "minIndependentSources": 2
+        }
+      ],
+      "contradictionRules": [
+        {
+          "id": "ancient_culture_traces.contradiction",
+          "subjectRefs": [
+            "old_ruins"
+          ],
+          "signalKinds": [
+            "structural_trace"
+          ],
+          "minDistinctWorldTimes": 2
+        }
+      ],
+      "stageThresholds": {
+        "hypothesis": 2,
+        "discovered": 3
+      },
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.history.f1"
+      ]
+    },
+    {
+      "id": "climate_shift",
+      "version": 1,
+      "subjectKind": "historical_trace",
+      "subjectIds": [
+        "blackwood_edge"
+      ],
+      "signalKind": "physical_trace",
+      "title": "The old forest line",
+      "question": "Did the forest once reach farther into the valley?",
+      "summaries": {
+        "trace": "The vegetation changes along a strangely regular boundary.",
+        "hypothesis": "The boundary may record climate change or older land use.",
+        "discovered": "Independent traces support a former forest line without choosing its cause."
+      },
+      "evidenceText": "Soil and vegetation change beyond the present forest edge.",
+      "evidenceRules": [
+        {
+          "id": "climate_shift.support",
+          "subjectRefs": [
+            "blackwood_edge"
+          ],
+          "signalKinds": [
+            "physical_trace"
+          ],
+          "minDistinctWorldTimes": 2,
+          "minIndependentSources": 2
+        }
+      ],
+      "contradictionRules": [
+        {
+          "id": "climate_shift.contradiction",
+          "subjectRefs": [
+            "blackwood_edge"
+          ],
+          "signalKinds": [
+            "physical_trace"
+          ],
+          "minDistinctWorldTimes": 2
+        }
+      ],
+      "stageThresholds": {
+        "hypothesis": 2,
+        "discovered": 3
+      },
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.history.f5"
+      ]
+    },
+    {
+      "id": "conflict_trace",
+      "version": 1,
+      "subjectKind": "historical_trace",
+      "subjectIds": [
+        "old_ruins"
+      ],
+      "signalKind": "structural_trace",
+      "title": "A scar in the stone",
+      "question": "Was the eastern site damaged by conflict?",
+      "summaries": {
+        "trace": "One masonry layer is darker and more damaged than the rest.",
+        "hypothesis": "The damage may have followed a violent event, but fire and weather remain possible.",
+        "discovered": "Repeated evidence supports a damaged layer while leaving its cause unresolved."
+      },
+      "evidenceText": "A darkened masonry layer interrupts the older stonework.",
+      "evidenceRules": [
+        {
+          "id": "conflict_trace.support",
+          "subjectRefs": [
+            "old_ruins"
+          ],
+          "signalKinds": [
+            "structural_trace"
+          ],
+          "minDistinctWorldTimes": 2,
+          "minIndependentSources": 2
+        }
+      ],
+      "contradictionRules": [
+        {
+          "id": "conflict_trace.contradiction",
+          "subjectRefs": [
+            "old_ruins"
+          ],
+          "signalKinds": [
+            "structural_trace"
+          ],
+          "minDistinctWorldTimes": 2
+        }
+      ],
+      "stageThresholds": {
+        "hypothesis": 2,
+        "discovered": 3
+      },
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.history.f4"
+      ]
+    },
+    {
+      "id": "crater_surface",
+      "version": 1,
+      "subjectKind": "object",
+      "objectIds": [
+        "glass_crater_surface"
+      ],
+      "signalKind": "physical_trace",
+      "title": "Блеск Стеклянной впадины",
+      "question": "Почему поверхность впадины отражает свет?",
+      "summaries": {
+        "trace": "На дне чаши камень блестит после дождя.",
+        "hypothesis": "Поверхность ведёт себя не как обычный камень.",
+        "discovered": "Повторные осмотры подтверждают особое отражение, но не объясняют происхождение впадины."
+      },
+      "evidenceText": "Свет отражается от гладкого слоя; происхождение слоя остаётся неизвестным.",
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    {
+      "id": "river_course_shift",
+      "version": 1,
+      "subjectKind": "historical_trace",
+      "subjectIds": [
+        "river_basin"
+      ],
+      "signalKind": "water_trace",
+      "title": "The river remembers another course",
+      "question": "Did the river once run through a different channel?",
+      "summaries": {
+        "trace": "Dry cuts remain beside the present river.",
+        "hypothesis": "The basin may preserve an older course.",
+        "discovered": "Independent water traces support a former channel without fixing its cause."
+      },
+      "evidenceText": "Sediment and a dry channel suggest water once moved here.",
+      "evidenceRules": [
+        {
+          "id": "river_course_shift.support",
+          "subjectRefs": [
+            "river_basin"
+          ],
+          "signalKinds": [
+            "water_trace"
+          ],
+          "minDistinctWorldTimes": 2,
+          "minIndependentSources": 2
+        }
+      ],
+      "contradictionRules": [
+        {
+          "id": "river_course_shift.contradiction",
+          "subjectRefs": [
+            "river_basin"
+          ],
+          "signalKinds": [
+            "water_trace"
+          ],
+          "minDistinctWorldTimes": 2
+        }
+      ],
+      "stageThresholds": {
+        "hypothesis": 2,
+        "discovered": 3
+      },
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.history.f3"
+      ]
+    },
+    {
+      "id": "western_waterfalls",
+      "version": 1,
+      "subjectKind": "object",
+      "objectIds": [
+        "western_cliff_waterfalls"
+      ],
+      "signalKind": "landmark_trace",
+      "title": "Водопады питают реку",
+      "question": "Связаны ли потоки на западных утёсах с уровнем реки?",
+      "summaries": {
+        "trace": "Ты увидел потоки, падающие с западных утёсов.",
+        "hypothesis": "Похоже, водопады связаны с руслом реки.",
+        "discovered": "Ты собрал повторные наблюдения: водопады остаются частью речного бассейна."
+      },
+      "evidenceText": "С уступа падают несколько потоков; внизу слышно движение воды.",
+      "status": "runtime",
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f3",
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    }
+  ],
+  "simulationDefinitions": [
+    {
+      "locationId": "blackwood_edge",
+      "biome": "ancient_forest_edge",
+      "resources": [
+        "timber",
+        "herbs"
+      ],
+      "strategicValue": "forest_access",
+      "accessibility": "constrained",
+      "settlementPotential": "outpost_candidate",
+      "dangers": [
+        "low_visibility",
+        "forest_fire"
+      ],
+      "possibleEvents": [
+        "HeatSourceCreated"
+      ],
+      "status": "derived",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    {
+      "locationId": "glass_crater",
+      "biome": "forest_depression",
+      "resources": [
+        "unknown_material"
+      ],
+      "strategicValue": "discovery_site",
+      "accessibility": "constrained",
+      "settlementPotential": "none",
+      "dangers": [
+        "unknown_origin"
+      ],
+      "possibleEvents": [
+        "ObjectObserved"
+      ],
+      "status": "derived",
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    {
+      "locationId": "high_pass",
+      "biome": "alpine_pass",
+      "resources": [
+        "stone",
+        "snowmelt"
+      ],
+      "strategicValue": "northern_route",
+      "accessibility": "blocked",
+      "settlementPotential": "none",
+      "dangers": [
+        "snow",
+        "steep_slope"
+      ],
+      "possibleEvents": [
+        "CrossingConditionChanged"
+      ],
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    {
+      "locationId": "old_ruins",
+      "biome": "eastern_uplands",
+      "resources": [
+        "stone"
+      ],
+      "strategicValue": "elevated_lookout",
+      "accessibility": "open",
+      "settlementPotential": "unknown",
+      "dangers": [
+        "unstable_masonry"
+      ],
+      "possibleEvents": [
+        "EntityExamined"
+      ],
+      "status": "derived",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    {
+      "locationId": "river_waystation",
+      "biome": "valley_edge",
+      "resources": [
+        "water",
+        "timber"
+      ],
+      "strategicValue": "river_crossing_and_road_junction",
+      "accessibility": "open",
+      "settlementPotential": "established_waystation",
+      "dangers": [
+        "seasonal_flood"
+      ],
+      "possibleEvents": [
+        "CrossingConditionChanged"
+      ],
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    {
+      "locationId": "riverwatch_city",
+      "biome": "river_plain",
+      "resources": [
+        "trade_goods",
+        "grain"
+      ],
+      "strategicValue": "principal_settlement",
+      "accessibility": "open",
+      "settlementPotential": "established_city",
+      "dangers": [
+        "river_pressure"
+      ],
+      "possibleEvents": [
+        "SettlementPopulationChanged"
+      ],
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    {
+      "locationId": "southern_borough",
+      "biome": "river_bend",
+      "resources": [
+        "grain",
+        "fish"
+      ],
+      "strategicValue": "secondary_settlement",
+      "accessibility": "open",
+      "settlementPotential": "established_borough",
+      "dangers": [
+        "flood"
+      ],
+      "possibleEvents": [
+        "SettlementPopulationChanged"
+      ],
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f6"
+      ]
+    },
+    {
+      "locationId": "western_cliff_waterfalls",
+      "biome": "cliff_waterfall",
+      "resources": [
+        "fresh_water"
+      ],
+      "strategicValue": "river_source_landmark",
+      "accessibility": "constrained",
+      "settlementPotential": "none",
+      "dangers": [
+        "falling",
+        "wet_rock"
+      ],
+      "possibleEvents": [
+        "ObjectObserved"
+      ],
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f3"
+      ]
+    }
+  ],
+  "resourceDefinitions": [
+    {
+      "id": "resource.blackwood_timber",
+      "resourceKind": "timber",
+      "locationId": "blackwood_edge",
+      "capacityUnits": 100,
+      "initialStockUnits": 100,
+      "quality": "common",
+      "extractionMethods": [
+        {
+          "id": "manual_felling",
+          "maximumPerAction": 5,
+          "difficulty": 1
+        }
+      ],
+      "regeneration": {
+        "intervalWorldTime": 24,
+        "amountUnits": 2,
+        "maximumUnits": 100,
+        "blockedBy": [
+          "forest_fire"
+        ]
+      },
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    }
+  ],
+  "objectProvenance": {
+    "blackwood_edge": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    "glass_crater": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f9"
+      ]
+    },
+    "high_pass": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f3"
+      ]
+    },
+    "old_ruins": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f12"
+      ]
+    },
+    "river_waystation": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    "riverwatch_city": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f10"
+      ]
+    },
+    "southern_borough": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f11"
+      ]
+    },
+    "western_cliff_waterfalls": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f5"
+      ]
+    },
+    "suspended_monolith": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f13"
+      ]
+    },
+    "river_basin": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f4"
+      ]
+    },
+    "river_crossing": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f3",
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    "road_city_ruins": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f3"
+      ]
+    },
+    "road_city_south": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f6"
+      ]
+    },
+    "road_forest_waterfalls": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f3",
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    "road_waystation_city": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f3"
+      ]
+    },
+    "road_waystation_forest": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f3",
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    "road_waystation_waterfalls": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f3",
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    "glass_crater_surface": {
+      "canonicalRefs": [
+        "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    "resource.blackwood_timber": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    "southern_water_body": {
+      "canonicalRefs": [
+        "regions.pilot-region.hydrography.f3"
+      ]
+    },
+    "western_waterfall_channel": {
+      "canonicalRefs": [
+        "regions.pilot-region.hydrography.f2"
+      ]
+    },
+    "northern_mountain_catchment": {
+      "canonicalRefs": [
+        "regions.pilot-region.hydrography.f4"
+      ]
+    },
+    "elevation.eastern_uplands": {
+      "canonicalRefs": [
+        "regions.pilot-region.elevation.f1"
+      ]
+    },
+    "elevation.northern_range": {
+      "canonicalRefs": [
+        "regions.pilot-region.elevation.f1"
+      ]
+    },
+    "elevation.river_corridor": {
+      "canonicalRefs": [
+        "regions.pilot-region.elevation.f1"
+      ]
+    },
+    "constraint.northern-higher-than-valley": {
+      "canonicalRefs": [
+        "regions.pilot-region.elevation.f2"
+      ]
+    },
+    "constraint.waterfalls-drain-to-river": {
+      "canonicalRefs": [
+        "regions.pilot-region.elevation.f2"
+      ]
+    },
+    "blackwood_forest": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f6"
+      ]
+    },
+    "eastern_uplands": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f8"
+      ]
+    },
+    "northern_snow_range": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f2"
+      ]
+    },
+    "riverwatch_valley": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f7"
+      ]
+    },
+    "riverwatch-basin": {
+      "canonicalRefs": [
+        "regions.pilot-region.toponymy.f1"
+      ]
+    }
+  },
+  "events": [
+    {
+      "eventId": "boot#canon-genesis",
+      "type": "CanonGenesisRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "regionId": "riverwatch-basin",
+        "regionVersion": 4,
+        "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+        "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+        "compilerVersion": "pilot-region-compiler-v5",
+        "canonicalRefs": [
+          "regions.pilot-region.elevation.f1",
+          "regions.pilot-region.elevation.f2",
+          "regions.pilot-region.geography.f1",
+          "regions.pilot-region.geography.f2",
+          "regions.pilot-region.geography.f3",
+          "regions.pilot-region.geography.f5",
+          "regions.pilot-region.geography.f6",
+          "regions.pilot-region.history.f1",
+          "regions.pilot-region.history.f2",
+          "regions.pilot-region.history.f3",
+          "regions.pilot-region.history.f4",
+          "regions.pilot-region.history.f5",
+          "regions.pilot-region.hydrography.f1",
+          "regions.pilot-region.hydrography.f2",
+          "regions.pilot-region.hydrography.f3",
+          "regions.pilot-region.hydrography.f4",
+          "regions.pilot-region.toponymy.f1",
+          "regions.pilot-region.toponymy.f10",
+          "regions.pilot-region.toponymy.f11",
+          "regions.pilot-region.toponymy.f12",
+          "regions.pilot-region.toponymy.f13",
+          "regions.pilot-region.toponymy.f2",
+          "regions.pilot-region.toponymy.f3",
+          "regions.pilot-region.toponymy.f4",
+          "regions.pilot-region.toponymy.f5",
+          "regions.pilot-region.toponymy.f6",
+          "regions.pilot-region.toponymy.f7",
+          "regions.pilot-region.toponymy.f8",
+          "regions.pilot-region.toponymy.f9",
+          "regions.pilot-region.visual-interpretation.f3",
+          "regions.pilot-region.visual-interpretation.f5",
+          "universal.laws.heat_dynamics",
+          "universal.laws.time_and_ticks"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1",
+            "regions.pilot-region.elevation.f2",
+            "regions.pilot-region.geography.f1",
+            "regions.pilot-region.geography.f2",
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.geography.f5",
+            "regions.pilot-region.geography.f6",
+            "regions.pilot-region.history.f1",
+            "regions.pilot-region.history.f2",
+            "regions.pilot-region.history.f3",
+            "regions.pilot-region.history.f4",
+            "regions.pilot-region.history.f5",
+            "regions.pilot-region.hydrography.f1",
+            "regions.pilot-region.hydrography.f2",
+            "regions.pilot-region.hydrography.f3",
+            "regions.pilot-region.hydrography.f4",
+            "regions.pilot-region.toponymy.f1",
+            "regions.pilot-region.toponymy.f10",
+            "regions.pilot-region.toponymy.f11",
+            "regions.pilot-region.toponymy.f12",
+            "regions.pilot-region.toponymy.f13",
+            "regions.pilot-region.toponymy.f2",
+            "regions.pilot-region.toponymy.f3",
+            "regions.pilot-region.toponymy.f4",
+            "regions.pilot-region.toponymy.f5",
+            "regions.pilot-region.toponymy.f6",
+            "regions.pilot-region.toponymy.f7",
+            "regions.pilot-region.toponymy.f8",
+            "regions.pilot-region.toponymy.f9",
+            "regions.pilot-region.visual-interpretation.f3",
+            "regions.pilot-region.visual-interpretation.f5",
+            "universal.laws.heat_dynamics",
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": null
+    },
+    {
+      "eventId": "boot#region",
+      "type": "RegionDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "region": {
+          "id": "riverwatch-basin",
+          "name": "Бассейн Речного Стража",
+          "version": 4,
+          "bounds": {
+            "minXMetres": 0,
+            "minYMetres": 0,
+            "maxXMetres": 20000,
+            "maxYMetres": 20000
+          },
+          "terrainTileSizeMetres": 250,
+          "simulationCellSizeMetres": 1000,
+          "locations": [
+            {
+              "id": "blackwood_edge",
+              "name": "Кромка Чёрного леса",
+              "description": "Дорога исчезает среди тёмных елей.",
+              "anchor": {
+                "xMetres": 6000,
+                "yMetres": 12000
+              },
+              "footprintTileIds": [
+                "tile-23-47"
+              ]
+            },
+            {
+              "id": "glass_crater",
+              "name": "Стеклянная впадина",
+              "description": "Круглая чаша земли, где камень блестит после дождя.",
+              "anchor": {
+                "xMetres": 3800,
+                "yMetres": 4200
+              },
+              "footprintTileIds": [
+                "tile-14-16"
+              ]
+            },
+            {
+              "id": "high_pass",
+              "name": "Северный перевал",
+              "description": "Каменный проход под снегом и облаками.",
+              "anchor": {
+                "xMetres": 12000,
+                "yMetres": 18000
+              },
+              "footprintTileIds": [
+                "tile-47-71"
+              ]
+            },
+            {
+              "id": "old_ruins",
+              "name": "Развалины на уступе",
+              "description": "Каменные остатки над долиной, занесённые травой.",
+              "anchor": {
+                "xMetres": 16000,
+                "yMetres": 14000
+              },
+              "footprintTileIds": [
+                "tile-63-55"
+              ]
+            },
+            {
+              "id": "river_waystation",
+              "name": "Переправа у Чёрного леса",
+              "description": "Небольшой путевой двор у реки и кромки леса.",
+              "anchor": {
+                "xMetres": 8000,
+                "yMetres": 9500
+              },
+              "footprintTileIds": [
+                "tile-31-38",
+                "tile-32-38"
+              ]
+            },
+            {
+              "id": "riverwatch_city",
+              "name": "Речной Страж",
+              "description": "Город за стенами, где сходятся торговые дороги.",
+              "anchor": {
+                "xMetres": 13500,
+                "yMetres": 7500
+              },
+              "footprintTileIds": [
+                "tile-53-29",
+                "tile-54-29",
+                "tile-53-30",
+                "tile-54-30"
+              ]
+            },
+            {
+              "id": "southern_borough",
+              "name": "Южный посад",
+              "description": "Посад за стенами при изгибе реки, южнее главного города.",
+              "anchor": {
+                "xMetres": 9500,
+                "yMetres": 5000
+              },
+              "footprintTileIds": [
+                "tile-37-19",
+                "tile-38-19"
+              ]
+            },
+            {
+              "id": "western_cliff_waterfalls",
+              "name": "Водопады западных утёсов",
+              "description": "Несколько потоков падают с уступа и питают реку.",
+              "anchor": {
+                "xMetres": 6500,
+                "yMetres": 16000
+              },
+              "footprintTileIds": [
+                "tile-26-64",
+                "tile-27-64"
+              ]
+            }
+          ],
+          "landmarks": [
+            {
+              "id": "glass_crater",
+              "name": "Стеклянная впадина",
+              "description": "Тёмный круг в лесной кромке.",
+              "anchor": {
+                "xMetres": 3800,
+                "yMetres": 4200
+              },
+              "elevationMetres": 20,
+              "silhouetteClass": "crater"
+            },
+            {
+              "id": "old_ruins",
+              "name": "Развалины на уступе",
+              "description": "Одинокие камни на восточном уступе.",
+              "anchor": {
+                "xMetres": 16000,
+                "yMetres": 14000
+              },
+              "elevationMetres": 190,
+              "silhouetteClass": "ruin"
+            },
+            {
+              "id": "riverwatch_city",
+              "name": "Речной Страж",
+              "description": "Городская стена и башни над рекой.",
+              "anchor": {
+                "xMetres": 13500,
+                "yMetres": 7500
+              },
+              "elevationMetres": 40,
+              "silhouetteClass": "city"
+            },
+            {
+              "id": "suspended_monolith",
+              "name": "Парящий монолит",
+              "description": "Тёмный силуэт, иногда видимый над северными облаками.",
+              "anchor": {
+                "xMetres": 11000,
+                "yMetres": 18000
+              },
+              "elevationMetres": 1400,
+              "silhouetteClass": "monolith"
+            },
+            {
+              "id": "western_cliff_waterfalls",
+              "name": "Водопады западных утёсов",
+              "description": "Белые потоки на западных скалах, слышные после дождя.",
+              "anchor": {
+                "xMetres": 6500,
+                "yMetres": 16000
+              },
+              "elevationMetres": 800,
+              "silhouetteClass": "waterfall"
+            }
+          ],
+          "relations": [
+            {
+              "id": "river_basin",
+              "kind": "river",
+              "fromId": "high_pass",
+              "toId": "riverwatch_city",
+              "label": "Река из северных гор",
+              "points": [
+                {
+                  "xMetres": 12000,
+                  "yMetres": 18000
+                },
+                {
+                  "xMetres": 10500,
+                  "yMetres": 13000
+                },
+                {
+                  "xMetres": 9500,
+                  "yMetres": 9000
+                },
+                {
+                  "xMetres": 13500,
+                  "yMetres": 7500
+                }
+              ]
+            },
+            {
+              "id": "river_crossing",
+              "kind": "crossing",
+              "fromId": "river_waystation",
+              "toId": "riverwatch_city",
+              "label": "Переправа",
+              "points": [
+                {
+                  "xMetres": 8000,
+                  "yMetres": 9500
+                },
+                {
+                  "xMetres": 9500,
+                  "yMetres": 9400
+                },
+                {
+                  "xMetres": 10000,
+                  "yMetres": 9000
+                }
+              ]
+            },
+            {
+              "id": "road_city_ruins",
+              "kind": "road",
+              "fromId": "riverwatch_city",
+              "toId": "old_ruins",
+              "label": "Восточный тракт",
+              "points": [
+                {
+                  "xMetres": 13500,
+                  "yMetres": 7500
+                },
+                {
+                  "xMetres": 15000,
+                  "yMetres": 10500
+                },
+                {
+                  "xMetres": 16000,
+                  "yMetres": 14000
+                }
+              ]
+            },
+            {
+              "id": "road_city_south",
+              "kind": "road",
+              "fromId": "riverwatch_city",
+              "toId": "southern_borough",
+              "label": "Южный тракт",
+              "points": [
+                {
+                  "xMetres": 13500,
+                  "yMetres": 7500
+                },
+                {
+                  "xMetres": 11500,
+                  "yMetres": 6200
+                },
+                {
+                  "xMetres": 9500,
+                  "yMetres": 5000
+                }
+              ]
+            },
+            {
+              "id": "road_forest_waterfalls",
+              "kind": "road",
+              "fromId": "blackwood_edge",
+              "toId": "western_cliff_waterfalls",
+              "label": "Тропа к западным утёсам",
+              "points": [
+                {
+                  "xMetres": 6000,
+                  "yMetres": 12000
+                },
+                {
+                  "xMetres": 6200,
+                  "yMetres": 14000
+                },
+                {
+                  "xMetres": 6500,
+                  "yMetres": 16000
+                }
+              ]
+            },
+            {
+              "id": "road_waystation_city",
+              "kind": "road",
+              "fromId": "river_waystation",
+              "toId": "riverwatch_city",
+              "label": "Дорога к Речному Стражу",
+              "points": [
+                {
+                  "xMetres": 8000,
+                  "yMetres": 9500
+                },
+                {
+                  "xMetres": 10500,
+                  "yMetres": 8500
+                },
+                {
+                  "xMetres": 13500,
+                  "yMetres": 7500
+                }
+              ]
+            },
+            {
+              "id": "road_waystation_forest",
+              "kind": "road",
+              "fromId": "river_waystation",
+              "toId": "blackwood_edge",
+              "label": "Лесная дорога",
+              "points": [
+                {
+                  "xMetres": 8000,
+                  "yMetres": 9500
+                },
+                {
+                  "xMetres": 7000,
+                  "yMetres": 10500
+                },
+                {
+                  "xMetres": 6000,
+                  "yMetres": 12000
+                }
+              ]
+            },
+            {
+              "id": "road_waystation_waterfalls",
+              "kind": "road",
+              "fromId": "river_waystation",
+              "toId": "western_cliff_waterfalls",
+              "label": "Тропа к водопадам",
+              "points": [
+                {
+                  "xMetres": 8000,
+                  "yMetres": 9500
+                },
+                {
+                  "xMetres": 7000,
+                  "yMetres": 12500
+                },
+                {
+                  "xMetres": 6500,
+                  "yMetres": 16000
+                }
+              ]
+            }
+          ],
+          "hydrography": {
+            "waterBodies": [
+              {
+                "id": "southern_water_body",
+                "kind": "unresolved_water_body",
+                "classification": "unresolved",
+                "inflows": [
+                  "river_basin"
+                ],
+                "outflows": [],
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.hydrography.f3"
+                ]
+              }
+            ],
+            "watercourses": [
+              {
+                "id": "river_basin",
+                "kind": "main_course",
+                "sourceRef": "northern_snow_range",
+                "sinkRef": "southern_water_body",
+                "flowDirection": "north_to_south",
+                "tributaryRefs": [
+                  "western_waterfall_channel"
+                ],
+                "seasonality": "perennial",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.hydrography.f1"
+                ]
+              },
+              {
+                "id": "western_waterfall_channel",
+                "kind": "tributary",
+                "sourceRef": "western_cliff_waterfalls",
+                "sinkRef": "river_basin",
+                "flowDirection": "west_to_centre",
+                "seasonality": "unresolved",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.hydrography.f2"
+                ]
+              }
+            ],
+            "catchments": [
+              {
+                "id": "northern_mountain_catchment",
+                "drainsTo": "river_basin",
+                "terrainRefs": [
+                  "northern_snow_range",
+                  "high_pass"
+                ],
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.hydrography.f4"
+                ]
+              }
+            ],
+            "wetlands": []
+          },
+          "elevation": {
+            "bands": [
+              {
+                "id": "band.lowland",
+                "rank": 1,
+                "label": "river_lowland",
+                "elevationBand": 1,
+                "slopeBand": 1
+              },
+              {
+                "id": "band.foothill",
+                "rank": 2,
+                "label": "western_foothills",
+                "elevationBand": 3,
+                "slopeBand": 2
+              },
+              {
+                "id": "band.upland",
+                "rank": 3,
+                "label": "eastern_uplands",
+                "elevationBand": 4,
+                "slopeBand": 3
+              },
+              {
+                "id": "band.alpine",
+                "rank": 4,
+                "label": "northern_range",
+                "elevationBand": 5,
+                "slopeBand": 5
+              }
+            ],
+            "controlAreas": [
+              {
+                "id": "elevation.eastern_uplands",
+                "bandRef": "band.upland",
+                "regionZone": "eastern_uplands",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.elevation.f1"
+                ]
+              },
+              {
+                "id": "elevation.northern_range",
+                "bandRef": "band.alpine",
+                "regionZone": "northern_mountains",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.elevation.f1"
+                ]
+              },
+              {
+                "id": "elevation.river_corridor",
+                "bandRef": "band.lowland",
+                "regionZone": "central_valley",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.elevation.f1"
+                ]
+              }
+            ],
+            "constraints": [
+              {
+                "id": "constraint.northern-higher-than-valley",
+                "kind": "higherThan",
+                "subject": "northern_snow_range",
+                "reference": "riverwatch_valley",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.elevation.f2"
+                ]
+              },
+              {
+                "id": "constraint.waterfalls-drain-to-river",
+                "kind": "drainsToward",
+                "subject": "western_cliff_waterfalls",
+                "reference": "river_basin",
+                "status": "canon",
+                "canonicalRefs": [
+                  "regions.pilot-region.elevation.f2"
+                ]
+              }
+            ]
+          },
+          "toponymIndex": {
+            "subjects": [
+              {
+                "id": "blackwood_forest",
+                "canonicalName": "Чёрный лес",
+                "aliases": [
+                  "чёрная чаща"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f6"
+                ]
+              },
+              {
+                "id": "eastern_uplands",
+                "canonicalName": "Восточные высоты",
+                "aliases": [
+                  "восточный кряж"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f8"
+                ]
+              },
+              {
+                "id": "glass_crater",
+                "canonicalName": "Стеклянная впадина",
+                "aliases": [
+                  "стеклянный кратер"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f9"
+                ]
+              },
+              {
+                "id": "high_pass",
+                "canonicalName": "Северный перевал",
+                "aliases": [
+                  "горный проход"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f3"
+                ]
+              },
+              {
+                "id": "northern_snow_range",
+                "canonicalName": "Северный снежный хребет",
+                "aliases": [
+                  "северный хребет"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f2"
+                ]
+              },
+              {
+                "id": "old_ruins",
+                "canonicalName": "Развалины на уступе",
+                "aliases": [
+                  "каменный уступ"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f12"
+                ]
+              },
+              {
+                "id": "river_basin",
+                "canonicalName": "Река из северных гор",
+                "aliases": [
+                  "северное русло"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f4"
+                ]
+              },
+              {
+                "id": "riverwatch_city",
+                "canonicalName": "Речной Страж",
+                "aliases": [
+                  "город у реки"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f10"
+                ]
+              },
+              {
+                "id": "riverwatch_valley",
+                "canonicalName": "Долина Стража",
+                "aliases": [
+                  "речная долина"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f7"
+                ]
+              },
+              {
+                "id": "riverwatch-basin",
+                "canonicalName": "Бассейн Речного Стража",
+                "aliases": [
+                  "речной бассейн"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f1"
+                ]
+              },
+              {
+                "id": "southern_borough",
+                "canonicalName": "Южный посад",
+                "aliases": [
+                  "южный квартал"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f11"
+                ]
+              },
+              {
+                "id": "suspended_monolith",
+                "canonicalName": "Парящий монолит",
+                "aliases": [
+                  "висячий камень"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f13"
+                ]
+              },
+              {
+                "id": "western_cliff_waterfalls",
+                "canonicalName": "Водопады западных утёсов",
+                "aliases": [
+                  "западные каскады"
+                ],
+                "canonicalRefs": [
+                  "regions.pilot-region.toponymy.f5"
+                ]
+              }
+            ]
+          },
+          "contentDigest": "3625ec3f",
+          "terrainRules": {
+            "river": {
+              "centerMetres": 9500,
+              "amplitudeMetres": 1100,
+              "periodMetres": 1850,
+              "halfWidthMetres": 220
+            },
+            "marsh": {
+              "maxYMetres": 3000,
+              "minXMetres": 5000,
+              "maxXMetres": 14000
+            },
+            "forest": {
+              "maxXMetres": 7000,
+              "minYMetres": 4000
+            },
+            "mountains": {
+              "minYMetres": 16000,
+              "eastMinXMetres": 15000,
+              "eastMinYMetres": 10000
+            },
+            "crater": {
+              "centerXMetres": 3800,
+              "centerYMetres": 4200,
+              "radiusMetres": 1300
+            }
+          },
+          "cellGrid": {
+            "columns": 20,
+            "rows": 20,
+            "cellSizeMetres": 1000
+          }
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1",
+            "regions.pilot-region.elevation.f2",
+            "regions.pilot-region.geography.f1",
+            "regions.pilot-region.geography.f2",
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.geography.f5",
+            "regions.pilot-region.geography.f6",
+            "regions.pilot-region.history.f1",
+            "regions.pilot-region.history.f2",
+            "regions.pilot-region.history.f3",
+            "regions.pilot-region.history.f4",
+            "regions.pilot-region.history.f5",
+            "regions.pilot-region.hydrography.f1",
+            "regions.pilot-region.hydrography.f2",
+            "regions.pilot-region.hydrography.f3",
+            "regions.pilot-region.hydrography.f4",
+            "regions.pilot-region.toponymy.f1",
+            "regions.pilot-region.toponymy.f10",
+            "regions.pilot-region.toponymy.f11",
+            "regions.pilot-region.toponymy.f12",
+            "regions.pilot-region.toponymy.f13",
+            "regions.pilot-region.toponymy.f2",
+            "regions.pilot-region.toponymy.f3",
+            "regions.pilot-region.toponymy.f4",
+            "regions.pilot-region.toponymy.f5",
+            "regions.pilot-region.toponymy.f6",
+            "regions.pilot-region.toponymy.f7",
+            "regions.pilot-region.toponymy.f8",
+            "regions.pilot-region.toponymy.f9",
+            "regions.pilot-region.visual-interpretation.f3",
+            "regions.pilot-region.visual-interpretation.f5",
+            "universal.laws.heat_dynamics",
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": null
+    },
+    {
+      "eventId": "boot#region#PlayerSpawned",
+      "type": "PlayerSpawned",
+      "schemaVersion": 1,
+      "payload": {
+        "x": 0,
+        "y": 0,
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1",
+            "regions.pilot-region.elevation.f2",
+            "regions.pilot-region.geography.f1",
+            "regions.pilot-region.geography.f2",
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.geography.f5",
+            "regions.pilot-region.geography.f6",
+            "regions.pilot-region.history.f1",
+            "regions.pilot-region.history.f2",
+            "regions.pilot-region.history.f3",
+            "regions.pilot-region.history.f4",
+            "regions.pilot-region.history.f5",
+            "regions.pilot-region.hydrography.f1",
+            "regions.pilot-region.hydrography.f2",
+            "regions.pilot-region.hydrography.f3",
+            "regions.pilot-region.hydrography.f4",
+            "regions.pilot-region.toponymy.f1",
+            "regions.pilot-region.toponymy.f10",
+            "regions.pilot-region.toponymy.f11",
+            "regions.pilot-region.toponymy.f12",
+            "regions.pilot-region.toponymy.f13",
+            "regions.pilot-region.toponymy.f2",
+            "regions.pilot-region.toponymy.f3",
+            "regions.pilot-region.toponymy.f4",
+            "regions.pilot-region.toponymy.f5",
+            "regions.pilot-region.toponymy.f6",
+            "regions.pilot-region.toponymy.f7",
+            "regions.pilot-region.toponymy.f8",
+            "regions.pilot-region.toponymy.f9",
+            "regions.pilot-region.visual-interpretation.f3",
+            "regions.pilot-region.visual-interpretation.f5",
+            "universal.laws.heat_dynamics",
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#blackwood_edge",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "blackwood_edge",
+        "name": "Кромка Чёрного леса",
+        "description": "Дорога исчезает среди тёмных елей.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#glass_crater",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "glass_crater",
+        "name": "Стеклянная впадина",
+        "description": "Круглая чаша земли, где камень блестит после дождя.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2",
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#high_pass",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "high_pass",
+        "name": "Северный перевал",
+        "description": "Каменный проход под снегом и облаками.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#old_ruins",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "old_ruins",
+        "name": "Развалины на уступе",
+        "description": "Каменные остатки над долиной, занесённые травой.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#river_waystation",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "river_waystation",
+        "name": "Переправа у Чёрного леса",
+        "description": "Небольшой путевой двор у реки и кромки леса.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#riverwatch_city",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "riverwatch_city",
+        "name": "Речной Страж",
+        "description": "Город за стенами, где сходятся торговые дороги.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#southern_borough",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "southern_borough",
+        "name": "Южный посад",
+        "description": "Посад за стенами при изгибе реки, южнее главного города.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f6"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#LocationDefined#western_cliff_waterfalls",
+      "type": "LocationDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "western_cliff_waterfalls",
+        "name": "Водопады западных утёсов",
+        "description": "Несколько потоков падают с уступа и питают реку.",
+        "objectIds": [],
+        "connections": {},
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.visual-interpretation.f3",
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#glass_crater_surface",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "glass_crater_surface",
+        "name": "Стеклянная поверхность впадины",
+        "aliases": [
+          "стеклянная поверхность",
+          "блестящий камень"
+        ],
+        "description": "На дне чаши камень отражает свет после дождя. Причина блеска неясна.",
+        "material": "glass",
+        "locationId": "glass_crater",
+        "integrity": 100,
+        "temperature": 9,
+        "state": {
+          "contentKind": "discovery_node",
+          "reflective": true,
+          "origin": "unknown"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#western_cliff_waterfalls",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "western_cliff_waterfalls",
+        "name": "Водопады западных утёсов",
+        "aliases": [
+          "водопад",
+          "водопады"
+        ],
+        "description": "Несколько потоков падают с уступа и разбиваются о камни, питая реку.",
+        "material": "water",
+        "locationId": "western_cliff_waterfalls",
+        "integrity": 100,
+        "temperature": 8,
+        "state": {
+          "contentKind": "landmark",
+          "supportsRelation": "river_basin"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.visual-interpretation.f3",
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#PlayerLocationChanged",
+      "type": "PlayerLocationChanged",
+      "schemaVersion": 1,
+      "payload": {
+        "locationId": "river_waystation",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.elevation.f1",
+            "regions.pilot-region.elevation.f2",
+            "regions.pilot-region.geography.f1",
+            "regions.pilot-region.geography.f2",
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.geography.f5",
+            "regions.pilot-region.geography.f6",
+            "regions.pilot-region.history.f1",
+            "regions.pilot-region.history.f2",
+            "regions.pilot-region.history.f3",
+            "regions.pilot-region.history.f4",
+            "regions.pilot-region.history.f5",
+            "regions.pilot-region.hydrography.f1",
+            "regions.pilot-region.hydrography.f2",
+            "regions.pilot-region.hydrography.f3",
+            "regions.pilot-region.hydrography.f4",
+            "regions.pilot-region.toponymy.f1",
+            "regions.pilot-region.toponymy.f10",
+            "regions.pilot-region.toponymy.f11",
+            "regions.pilot-region.toponymy.f12",
+            "regions.pilot-region.toponymy.f13",
+            "regions.pilot-region.toponymy.f2",
+            "regions.pilot-region.toponymy.f3",
+            "regions.pilot-region.toponymy.f4",
+            "regions.pilot-region.toponymy.f5",
+            "regions.pilot-region.toponymy.f6",
+            "regions.pilot-region.toponymy.f7",
+            "regions.pilot-region.toponymy.f8",
+            "regions.pilot-region.toponymy.f9",
+            "regions.pilot-region.visual-interpretation.f3",
+            "regions.pilot-region.visual-interpretation.f5",
+            "universal.laws.heat_dynamics",
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#0",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "river_basin",
+        "kind": "river",
+        "fromId": "high_pass",
+        "toId": "riverwatch_city",
+        "distanceMetres": 12000,
+        "baseTravelTicks": 0,
+        "terrainCost": 0,
+        "passability": "blocked",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2",
+            "regions.pilot-region.geography.f3"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#1",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "river_crossing",
+        "kind": "crossing",
+        "fromId": "river_waystation",
+        "toId": "riverwatch_city",
+        "distanceMetres": 2000,
+        "baseTravelTicks": 2,
+        "terrainCost": 1.5,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#2",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "road_city_ruins",
+        "kind": "road",
+        "fromId": "riverwatch_city",
+        "toId": "old_ruins",
+        "distanceMetres": 6800,
+        "baseTravelTicks": 5,
+        "terrainCost": 1,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f3"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#3",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "road_city_south",
+        "kind": "road",
+        "fromId": "riverwatch_city",
+        "toId": "southern_borough",
+        "distanceMetres": 4500,
+        "baseTravelTicks": 3,
+        "terrainCost": 1,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f6"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#4",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "road_forest_waterfalls",
+        "kind": "road",
+        "fromId": "blackwood_edge",
+        "toId": "western_cliff_waterfalls",
+        "distanceMetres": 4200,
+        "baseTravelTicks": 4,
+        "terrainCost": 1.6,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#5",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "road_waystation_city",
+        "kind": "road",
+        "fromId": "river_waystation",
+        "toId": "riverwatch_city",
+        "distanceMetres": 5500,
+        "baseTravelTicks": 4,
+        "terrainCost": 1,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f3"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#6",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "road_waystation_forest",
+        "kind": "road",
+        "fromId": "river_waystation",
+        "toId": "blackwood_edge",
+        "distanceMetres": 3200,
+        "baseTravelTicks": 3,
+        "terrainCost": 1.2,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Travel#7",
+      "type": "TravelMetadataAttached",
+      "schemaVersion": 1,
+      "payload": {
+        "relationId": "road_waystation_waterfalls",
+        "kind": "road",
+        "fromId": "river_waystation",
+        "toId": "western_cliff_waterfalls",
+        "distanceMetres": 6800,
+        "baseTravelTicks": 5,
+        "terrainCost": 1.5,
+        "passability": "open",
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f3",
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Process#river",
+      "type": "RiverProcessDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "processId": "river-basin-process",
+        "watercourseId": "river_basin",
+        "baselineLevel": 40,
+        "minimumLevel": 20,
+        "maximumLevel": 90,
+        "cycleLengthTicks": 16,
+        "phaseOffset": 0,
+        "riseRate": 8,
+        "fallRate": 5,
+        "provenance": {
+          "canonicalRefs": [
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Process#crossing",
+      "type": "CrossingConditionInitialized",
+      "schemaVersion": 1,
+      "payload": {
+        "crossingId": "river_crossing",
+        "watercourseId": "river_basin",
+        "openAtOrBelow": 55,
+        "difficultAtOrBelow": 75,
+        "closedAbove": 75,
+        "baseTravelCostTicks": 2,
+        "provenance": {
+          "canonicalRefs": [
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Process#weather",
+      "type": "WeatherProcessDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "processId": "weather-region",
+        "climateZone": "temperate",
+        "seasonCycleTicks": 100,
+        "phaseOffset": 0,
+        "provenance": {
+          "canonicalRefs": [
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Process#heat",
+      "type": "HeatProcessDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "processId": "heat-region",
+        "ambientTemperature": 18,
+        "transferRate": 0.1,
+        "dissipationRate": 0.05,
+        "zoneThresholds": {
+          "cold": 0,
+          "warm": 25,
+          "hot": 60
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "universal.laws.heat_dynamics"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Settlement#riverwatch_city",
+      "type": "SettlementCreated",
+      "schemaVersion": 1,
+      "payload": {
+        "settlementId": "riverwatch_city",
+        "population": 60,
+        "risk": 40,
+        "status": "active",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f2"
+        ],
+        "createdAt": 0,
+        "updatedAt": 0,
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Settlement#southern_borough",
+      "type": "SettlementCreated",
+      "schemaVersion": 1,
+      "payload": {
+        "settlementId": "southern_borough",
+        "population": 35,
+        "risk": 25,
+        "status": "active",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f6"
+        ],
+        "createdAt": 0,
+        "updatedAt": 0,
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f6"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#0",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "location",
+        "subjectId": "river_waystation",
+        "knowledge": "traversed",
+        "observedAt": 0,
+        "confidence": 1,
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#1",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "relation",
+        "subjectId": "road_waystation_city",
+        "knowledge": "observed",
+        "observedAt": 0,
+        "confidence": 0.9,
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#2",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "relation",
+        "subjectId": "river_crossing",
+        "knowledge": "observed",
+        "observedAt": 0,
+        "confidence": 0.85,
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#3",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "landmark",
+        "subjectId": "suspended_monolith",
+        "knowledge": "glimpsed",
+        "observedAt": 0,
+        "confidence": 0.45,
+        "bearing": "северо-восток",
+        "canonicalRefs": [
+          "regions.pilot-region.monolith.f1"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.monolith.f1"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#4",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "location",
+        "subjectId": "blackwood_edge",
+        "knowledge": "observed",
+        "observedAt": 0,
+        "confidence": 0.7,
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#5",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "location",
+        "subjectId": "glass_crater",
+        "knowledge": "rumored",
+        "observedAt": 0,
+        "confidence": 0.3,
+        "canonicalRefs": [
+          "regions.pilot-region.visual-interpretation.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#6",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "landmark",
+        "subjectId": "glass_crater",
+        "knowledge": "rumored",
+        "observedAt": 0,
+        "confidence": 0.25,
+        "bearing": "юго-запад",
+        "canonicalRefs": [
+          "regions.pilot-region.visual-interpretation.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.visual-interpretation.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#Observation#7",
+      "type": "SpatialObservationRecorded",
+      "schemaVersion": 1,
+      "payload": {
+        "subjectKind": "relation",
+        "subjectId": "road_waystation_forest",
+        "knowledge": "rumored",
+        "observedAt": 0,
+        "confidence": 0.5,
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#ResourceNodeDefined#resource.blackwood_timber",
+      "type": "ResourceNodeDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "resource.blackwood_timber",
+        "resourceKind": "timber",
+        "locationId": "blackwood_edge",
+        "capacityUnits": 100,
+        "initialStockUnits": 100,
+        "quality": "common",
+        "extractionMethods": [
+          {
+            "id": "manual_felling",
+            "maximumPerAction": 5,
+            "difficulty": 1
+          }
+        ],
+        "regeneration": {
+          "intervalWorldTime": 24,
+          "amountUnits": 2,
+          "maximumUnits": 100,
+          "blockedBy": [
+            "forest_fire"
+          ]
+        },
+        "status": "runtime_backed",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f2"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#StrategySet",
+      "type": "StrategySet",
+      "schemaVersion": 1,
+      "payload": {
+        "entries": [
+          {
+            "condition": "always",
+            "action": "idle"
+          }
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "universal.laws.time_and_ticks"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    }
+  ]
+}

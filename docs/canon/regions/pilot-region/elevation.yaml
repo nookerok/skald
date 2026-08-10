@@ -1,0 +1,59 @@
+schemaVersion: 1
+concept:
+  id: regions.pilot-region.elevation
+  scope: Regional
+  domain: Space
+  temporalScope:
+    scale: Epoch
+    mutation: Evolving
+  lifecycle: Canon
+  simulationDepth: Observable
+  provenance:
+    proposedBy: "RegionInterpretationLayer(elevation-observation.json)"
+    acceptedBy: "AuthorDecision(pilot-region-geography-review-v2, 2026-08-10)"
+  relations:
+    - type: dependsOn
+      target: regions.pilot-region.geography
+  runtimeMapping:
+    runtime:
+      - "Relative elevation definition in RegionDefined"
+    rules:
+      - "Terrain compiler derives slope and elevation bands"
+    events:
+      - "RegionDefined"
+    projection:
+      - "RegionDefinition elevation constraints"
+    discovery:
+      - "Visibility remains observer-scoped"
+    narrative:
+      - "Only observed relative relief may be described"
+    ui:
+      - "Map never reveals hidden exact elevation"
+  facts:
+    - id: regions.pilot-region.elevation.f1
+      statement: "The reference establishes a relative hierarchy from river lowland through foothill and upland bands to the northern alpine range."
+      type: Structural
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Common
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-geography-review-v2"
+      consequences:
+        - "Compiler derives deterministic elevationBand and slopeBand values."
+    - id: regions.pilot-region.elevation.f2
+      statement: "The northern range stands higher than the central river valley, and the western cascades drain toward that valley."
+      type: Causal
+      temporalScope:
+        scale: Epoch
+        mutation: Evolving
+      observability: DirectObservation
+      knowledgeCost: Uncommon
+      provenance:
+        type: AuthorDecision
+        source: "pilot-region-geography-review-v2"
+      consequences:
+        - "Relative drainage constraints are compiled without inventing absolute metres."
+

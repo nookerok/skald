@@ -56,6 +56,80 @@ export interface SpatialRelation {
   readonly points: readonly SpatialPoint[];
 }
 
+export interface HydrographyWaterBody {
+  readonly id: string;
+  readonly kind: string;
+  readonly classification: string;
+  readonly inflows: readonly string[];
+  readonly outflows: readonly string[];
+}
+
+export interface HydrographyWatercourse {
+  readonly id: string;
+  readonly kind: string;
+  readonly sourceRef: string;
+  readonly sinkRef: string;
+  readonly flowDirection: string;
+  readonly tributaryRefs: readonly string[];
+  readonly seasonality: string;
+}
+
+export interface HydrographyCatchment {
+  readonly id: string;
+  readonly drainsTo: string;
+  readonly terrainRefs: readonly string[];
+}
+
+export interface HydrographyWetland {
+  readonly id: string;
+  readonly kind: string;
+  readonly waterBodyRef: string;
+}
+
+export interface HydrographyDefinition {
+  readonly waterBodies: readonly HydrographyWaterBody[];
+  readonly watercourses: readonly HydrographyWatercourse[];
+  readonly catchments: readonly HydrographyCatchment[];
+  readonly wetlands: readonly HydrographyWetland[];
+}
+
+export interface ElevationBandDefinition {
+  readonly id: string;
+  readonly rank: number;
+  readonly label: string;
+  readonly elevationBand: number;
+  readonly slopeBand: number;
+}
+
+export interface ElevationControlArea {
+  readonly id: string;
+  readonly bandRef: string;
+  readonly regionZone: string;
+}
+
+export interface ElevationConstraint {
+  readonly id: string;
+  readonly kind: string;
+  readonly subject: string;
+  readonly reference: string;
+}
+
+export interface ElevationDefinition {
+  readonly bands: readonly ElevationBandDefinition[];
+  readonly controlAreas: readonly ElevationControlArea[];
+  readonly constraints: readonly ElevationConstraint[];
+}
+
+export interface RegionToponym {
+  readonly id: string;
+  readonly canonicalName: string;
+  readonly aliases: readonly string[];
+}
+
+export interface RegionToponymIndex {
+  readonly subjects: readonly RegionToponym[];
+}
+
 export interface RegionDefinition {
   readonly id: string;
   readonly name: string;
@@ -69,6 +143,9 @@ export interface RegionDefinition {
   readonly locations: readonly RegionLocation[];
   readonly landmarks: readonly RegionLandmark[];
   readonly relations: readonly SpatialRelation[];
+  readonly hydrography?: HydrographyDefinition;
+  readonly elevation?: ElevationDefinition;
+  readonly toponymIndex?: RegionToponymIndex;
 }
 
 export interface RegionDefinedPayload {
@@ -147,6 +224,9 @@ export interface SpatialReadView {
   readonly crossingDefinitions: ReadonlyMap<string, CrossingDefinition>;
   readonly crossingStates: ReadonlyMap<string, CrossingState>;
   readonly travelRelations: ReadonlyMap<string, TravelRelation>;
+  readonly hydrography?: HydrographyDefinition | null;
+  readonly elevation?: ElevationDefinition | null;
+  readonly toponymIndex?: RegionToponymIndex | null;
 }
 
 export interface SpatialWorldProjection extends SpatialReadView {
@@ -162,19 +242,34 @@ export interface SpatialWorldProjection extends SpatialReadView {
 }
 
 export interface ObserverMapDTO {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 1 | 2;
   readonly revision: { readonly worldTime: number; readonly eventNumber: number };
   readonly region: { readonly ref: string; readonly name: string } | null;
   readonly observer: { readonly locationRef: string | null; readonly xMetres: number | null; readonly yMetres: number | null };
   readonly knownArea: SpatialBounds | null;
+  /** Observer-scoped vector terrain; hidden tiles never cross this boundary. */
+  readonly knownTerrain?: readonly ObserverMapTerrainPatch[];
   readonly locations: readonly ObserverMapLocation[];
   readonly landmarks: readonly ObserverMapLandmark[];
   readonly routes: readonly ObserverMapRoute[];
+  /** Hydrography is observer-scoped evidence; unresolved/hidden water is omitted. */
+  readonly knownWatercourses?: readonly ObserverMapWatercourse[];
+  /** Only explicitly observed bodies cross the observer boundary. */
+  readonly knownWaterBodies?: readonly ObserverMapWaterBody[];
+}
+
+export interface ObserverMapTerrainPatch {
+  readonly bounds: SpatialBounds;
+  readonly surface: TerrainSurface;
+  readonly elevationBand: number;
+  readonly slopeBand: number;
 }
 
 export interface ObserverMapLocation {
   readonly ref: string;
   readonly name: string;
+  /** Reviewed aliases only; omitted when no Canon label exists. */
+  readonly aliases?: readonly string[];
   readonly knowledge: SpatialKnowledge;
   readonly confidence: number;
   readonly freshness: number;
@@ -213,5 +308,27 @@ export interface ObserverMapRoute {
   readonly knowledge: SpatialKnowledge;
   readonly confidence: number;
   readonly freshness: number;
+  readonly geometry: ObserverMapRouteGeometry;
+}
+
+export interface ObserverMapWatercourse {
+  readonly ref: string;
+  readonly name: string | null;
+  readonly kind: string;
+  readonly knowledge: SpatialKnowledge;
+  readonly confidence: number;
+  readonly freshness: number;
+  readonly geometry: ObserverMapRouteGeometry;
+}
+
+export interface ObserverMapWaterBody {
+  readonly ref: string;
+  readonly name: string | null;
+  readonly classification: string;
+  readonly classificationConfidence: number;
+  readonly knowledge: SpatialKnowledge;
+  readonly confidence: number;
+  readonly freshness: number;
+  /** Null until a bounded observed geometry exists; never canonical image bounds. */
   readonly geometry: ObserverMapRouteGeometry;
 }

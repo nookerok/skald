@@ -16,6 +16,23 @@ function renderConnection(snapshot) {
   const position = world.position || { x: 0, y: 0 };
   setText("pos-display", position.x + ", " + position.y);
 }
+export function renderLivingWorldMap(mapDto) {
+  const mapContainer = byId("player-map-canvas");
+  const legendContainer = byId("player-map-legend");
+  if (!mapContainer) return;
+  if (!mapDto) {
+    mapContainer.replaceChildren(makeNode("p", {
+      className: "map-empty-state",
+      text: "Карта временно недоступна.",
+      attrs: { role: "status" },
+    }));
+    if (legendContainer) legendContainer.replaceChildren();
+    return;
+  }
+  renderObserverMap(mapContainer, mapDto);
+  if (legendContainer) renderMapLegend(legendContainer);
+}
+
 export function renderLivingWorld(snapshot) {
   if (!snapshot) return;
   renderConnection(snapshot);
@@ -26,11 +43,7 @@ export function renderLivingWorld(snapshot) {
   renderCausalChain(snapshot.lastTurn?.causalChain || []);
   renderCriticalCheck(snapshot.lastTurn?.causalChain || []);
 
-  // Render map if observer map data is available
-  const mapContainer = byId("player-map-canvas");
-  const legendContainer = byId("player-map-legend");
-  if (mapContainer && snapshot.observerMap) {
-    renderObserverMap(mapContainer, snapshot.observerMap);
-    if (legendContainer) renderMapLegend(legendContainer);
-  }
+  // Some single-world snapshots still embed the DTO. Multi-world shells
+  // load the same observer-scoped contract through map-client.js.
+  if (snapshot.observerMap) renderLivingWorldMap(snapshot.observerMap);
 }

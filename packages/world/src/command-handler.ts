@@ -2,6 +2,8 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ActionIntentCommand, InteractionCommand, JourneyIntent } from "@skald/intent-parser";
 import { commandEventId } from "./ids.js";
 import { isKnownInteractionVerb } from "./interaction-registry.js";
+import { handleResourceExtractionCommand } from "./resource/commands.js";
+import type { ResourceExtractionCommand } from "./resource/commands.js";
 
 /**
  * Command Handler (infra, NOT a Rule — AGENTS invariant #7, §9.9).
@@ -20,7 +22,7 @@ import { isKnownInteractionVerb } from "./interaction-registry.js";
  * counter — never Date.now()).
  */
 export function handleCommand(
-  command: ActionIntentCommand | InteractionCommand | JourneyIntent,
+  command: ActionIntentCommand | InteractionCommand | JourneyIntent | ResourceExtractionCommand,
   correlationId: string,
   timestamp: number,
 ): DomainEvent {
@@ -33,7 +35,7 @@ export function handleCommand(
 
   // Validate required fields
   const commandType = (command as { type?: unknown }).type;
-  if (commandType !== "ActionIntentCommand" && commandType !== "InteractionCommand" && commandType !== "JourneyIntent") {
+  if (commandType !== "ActionIntentCommand" && commandType !== "InteractionCommand" && commandType !== "JourneyIntent" && commandType !== "ResourceExtractionCommand") {
     const eventId = commandEventId(correlationId, "CommandRejected");
     return {
       ...base,
@@ -41,6 +43,10 @@ export function handleCommand(
       type: "CommandRejected",
       payload: { reason: `invalid command type: ${String(commandType)}` },
     };
+  }
+
+  if (command.type === "ResourceExtractionCommand") {
+    return handleResourceExtractionCommand(command, correlationId, timestamp);
   }
 
   if (command.type === "JourneyIntent") {

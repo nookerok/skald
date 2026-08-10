@@ -1,0 +1,29 @@
+schemaVersion: 1
+review:
+  id: historical-layer-review-v1
+  proposalId: pilot-region-historical-layer-v1
+  regionId: riverwatch-basin
+  decisions:
+    - proposalId: trace.eastern-masonry
+      decision: accept_as_trace
+      acceptedAs: regions.pilot-region.history.f1
+    - proposalId: trace.eastern-road
+      decision: accept_as_trace
+      acceptedAs: regions.pilot-region.history.f2
+    - proposalId: trace.dry-channel
+      decision: accept_as_trace
+      acceptedAs: regions.pilot-region.history.f3
+    - proposalId: trace.burned-layer
+      decision: accept_as_trace
+      acceptedAs: regions.pilot-region.history.f4
+    - proposalId: trace.forest-line
+      decision: accept_as_trace
+      acceptedAs: regions.pilot-region.history.f5
+    - proposalId: hypothesis.shared-eastern-tradition
+      decision: accept_as_discovery_question
+    - proposalId: hypothesis.former-river-course
+      decision: accept_as_discovery_question
+    - proposalId: hypothesis.eastern-conflict
+      decision: accept_as_discovery_question
+    - proposalId: hypothesis.former-forest-line
+      decision: accept_as_discovery_question

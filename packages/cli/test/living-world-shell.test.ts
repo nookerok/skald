@@ -100,6 +100,10 @@ describe("Visual Shell — presentation purity", () => {
     expect(html).toContain('<div id="context-world"');
     expect(html).toContain('<section id="world-stage"');
     expect(html).toContain('id="context-world-details"');
+    expect(html).toContain('data-context="map"');
+    expect(html).toContain('aria-controls="context-map"');
+    expect(html).toContain('id="context-map"');
+    expect(html).toContain('id="player-map-canvas"');
     expect(html).not.toContain('suggestion-chip');
     expect(html).not.toContain('guidance-action');
   });

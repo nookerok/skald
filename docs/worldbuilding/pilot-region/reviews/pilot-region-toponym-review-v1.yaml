@@ -1,0 +1,73 @@
+schemaVersion: 1
+review:
+  id: pilot-region-toponym-review-v1
+  proposalId: pilot-region-toponym-proposals-v1
+  reviewer: AuthorDecision
+  reviewedAt: "2026-08-10"
+  decisions:
+    - proposalId: toponym.riverwatch-basin
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f1
+    - proposalId: toponym.northern-snow-range
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f2
+    - proposalId: toponym.high-pass
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f3
+    - proposalId: toponym.river-basin
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f4
+    - proposalId: toponym.western-cliff-waterfalls
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f5
+    - proposalId: toponym.blackwood-forest
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f6
+    - proposalId: toponym.riverwatch-valley
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f7
+    - proposalId: toponym.eastern-uplands
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f8
+    - proposalId: toponym.glass-crater
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f9
+    - proposalId: toponym.riverwatch-city
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f10
+    - proposalId: toponym.southern-borough
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f11
+    - proposalId: toponym.old-ruins
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f12
+    - proposalId: toponym.suspended-monolith
+      decision: accept
+      acceptedAs:
+        conceptId: regions.pilot-region.toponymy
+        factId: regions.pilot-region.toponymy.f13
+

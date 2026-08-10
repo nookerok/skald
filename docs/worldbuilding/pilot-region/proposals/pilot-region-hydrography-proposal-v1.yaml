@@ -1,0 +1,81 @@
+schemaVersion: 1
+proposal:
+  id: pilot-region-hydrography-proposal-v1
+  regionId: riverwatch-basin
+  sourceArtifact: pilot-region-reference-001
+  status: proposed
+  waterBodies:
+    - proposalId: hydrography.southern-water-body
+      subjectId: southern_water_body
+      proposedType: unresolved_water_body
+      classificationStatus: ambiguous
+      evidenceRefs:
+        - visual_feature.riverwatch_main_course
+        - visual-observation.coverage.coast
+      inflows:
+        - river_basin
+      outflows: []
+      confidence: 0.55
+      status: proposed
+    - proposalId: hydrography.lake-candidate
+      subjectId: lake_candidate
+      proposedType: lake
+      classificationStatus: not_observed
+      evidenceRefs:
+        - visual-observation.coverage.lake
+      confidence: 0.1
+      status: ambiguous
+  watercourses:
+    - proposalId: hydrography.river-basin
+      subjectId: river_basin
+      kind: main_course
+      source:
+        type: mountain_catchment
+        ref: northern_snow_range
+      sink:
+        type: unresolved_water_body
+        ref: southern_water_body
+      flowDirection: north_to_south
+      tributaries:
+        - western_waterfall_channel
+      seasonality: perennial
+      evidenceRefs:
+        - visual_feature.riverwatch_main_course
+      confidence: 0.88
+      status: proposed
+    - proposalId: hydrography.western-waterfall-channel
+      subjectId: western_waterfall_channel
+      kind: tributary
+      source:
+        type: cliff_catchment
+        ref: western_cliff_waterfalls
+      sink:
+        type: confluence
+        ref: river_basin
+      flowDirection: west_to_centre
+      evidenceRefs:
+        - visual_feature.western_cliff_waterfalls
+      confidence: 0.76
+      status: proposed
+  wetlands:
+    - proposalId: hydrography.southern-lowland-wetland
+      subjectId: southern_lowland_wetland
+      kind: unresolved
+      waterBodyRef: southern_water_body
+      evidenceRefs:
+        - visual-observation.coverage.wetland
+      confidence: 0.48
+      status: ambiguous
+  catchments:
+    - proposalId: hydrography.northern-mountain-catchment
+      subjectId: northern_mountain_catchment
+      drainsTo: river_basin
+      terrainRefs:
+        - northern_snow_range
+        - high_pass
+      evidenceRefs:
+        - visual_feature.northern_snow_range
+        - visual_feature.high_pass
+      confidence: 0.78
+      status: proposed
+

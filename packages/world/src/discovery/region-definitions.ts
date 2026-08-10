@@ -1,96 +1,130 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { DiscoveryDefinition } from "./definitions.js";
-import type { DiscoveryEvidence, DiscoveryStage, DiscoverySignalKind, EvidenceSource } from "./types.js";
+import type { DiscoveryEvidence, DiscoveryResolution, DiscoveryStage, DiscoverySignalKind, EvidenceSource } from "./types.js";
 import { deepFreeze } from "./builder.js";
+import { loadCompiledRegionBundle } from "../region/bundle-loader.js";
 
-function makeEvidence(
-  definitionId: string,
-  kind: DiscoverySignalKind,
-  event: DomainEvent,
-  text: string,
-  subjectRef: string,
-  locationId?: string | null,
-): DiscoveryEvidence {
+interface EvidenceRule {
+  readonly id: string;
+  readonly subjectRefs?: readonly string[];
+  readonly signalKinds?: readonly DiscoverySignalKind[];
+  readonly minDistinctWorldTimes?: number;
+  readonly minDistinctLocations?: number;
+  readonly minIndependentSources?: number;
+}
+
+interface CompiledDiscoveryDefinition {
+  readonly id: string;
+  readonly version: number;
+  readonly subjectKind: string;
+  readonly objectIds?: readonly string[];
+  readonly subjectIds?: readonly string[];
+  readonly contradictionObjectIds?: readonly string[];
+  readonly signalKind: DiscoverySignalKind;
+  readonly title: string;
+  readonly question: string;
+  readonly summaries: Readonly<Record<DiscoveryStage, string>>;
+  readonly evidenceText: string;
+  readonly status: string;
+  readonly evidenceRules?: readonly EvidenceRule[];
+  readonly contradictionRules?: readonly EvidenceRule[];
+  readonly stageThresholds?: { readonly hypothesis?: number; readonly discovered?: number };
+}
+
+function distinctCount(items: readonly DiscoveryEvidence[], selector: (item: DiscoveryEvidence) => string | null): number {
+  return new Set(items.map(selector).filter((value): value is string => value !== null && value.length > 0)).size;
+}
+
+function matchesRule(items: readonly DiscoveryEvidence[], rule: EvidenceRule): boolean {
+  const filtered = items.filter((item) => {
+    if (rule.subjectRefs && !rule.subjectRefs.includes(item.subjectRef)) return false;
+    if (rule.signalKinds && !rule.signalKinds.includes(item.kind)) return false;
+    return true;
+  });
+  if (filtered.length === 0) return false;
+  if (distinctCount(filtered, (item) => String(item.worldTime)) < (rule.minDistinctWorldTimes ?? 1)) return false;
+  if (distinctCount(filtered, (item) => item.locationRef) < (rule.minDistinctLocations ?? 0)) return false;
+  if (distinctCount(filtered, (item) => item.sourceEventIds[0] ?? null) < (rule.minIndependentSources ?? 1)) return false;
+  return true;
+}
+
+function sourceFromPayload(payload: Record<string, unknown>): EvidenceSource {
+  if (payload.evidenceSource === "sound" || payload.evidenceSource === "social" || payload.evidenceSource === "environment" || payload.evidenceSource === "reconstruction") return payload.evidenceSource;
+  if (payload.knowledge === "rumored") return "social";
+  return "direct_observation";
+}
+
+function evidence(definition: CompiledDiscoveryDefinition, event: DomainEvent, subjectRef: string, locationId: string | null, payload: Record<string, unknown>): DiscoveryEvidence {
+  const role = payload.evidenceRole === "contradiction" ? "contradiction" : "support";
   return deepFreeze({
-    evidenceId: definitionId + ":ev:" + event.eventId,
-    kind,
+    evidenceId: definition.id + ":ev:" + event.eventId,
+    kind: definition.signalKind,
     subjectRef,
     worldTime: event.timestamp,
-    text,
+    text: typeof payload.evidenceText === "string" ? payload.evidenceText : definition.evidenceText,
     sourceEventIds: [event.eventId],
     journalTurnId: "turn:" + event.timestamp,
-    confidence: 0.82,
-    freshness: 1.0,
-    source: "direct_observation" as EvidenceSource,
-    locationRef: locationId ?? null,
-    bearing: null,
-    contradictionGroup: null,
+    confidence: typeof payload.confidence === "number" ? Math.max(0, Math.min(1, payload.confidence)) : 0.82,
+    freshness: 1,
+    source: sourceFromPayload(payload),
+    locationRef: locationId,
+    bearing: typeof payload.bearing === "string" ? payload.bearing : null,
+    contradictionGroup: role === "contradiction" ? definition.id + ":contradiction" : null,
   });
 }
 
-function objectDiscovery(
-  id: string,
-  objectIds: readonly string[],
-  kind: DiscoverySignalKind,
-  title: string,
-  question: string,
-  summaries: { trace: string; hypothesis: string; discovered: string },
-  textFor: (objectId: string) => string,
-): DiscoveryDefinition {
+function buildDefinition(config: CompiledDiscoveryDefinition): DiscoveryDefinition {
+  const subjectIds = new Set([...(config.subjectIds ?? []), ...(config.objectIds ?? [])]);
+  const contradictionIds = new Set(config.contradictionObjectIds ?? []);
+  const collect = (event: DomainEvent, locationId?: string | null): DiscoveryEvidence | null => {
+    const payload = event.payload as Record<string, unknown>;
+    if (event.type === "ObjectObserved" || event.type === "EntityExamined") {
+      const objectId = typeof payload.objectId === "string" ? payload.objectId : typeof payload.entityId === "string" ? payload.entityId : null;
+      if (!objectId || !subjectIds.has(objectId)) return null;
+      return evidence(config, event, objectId, locationId ?? null, { ...payload, evidenceRole: contradictionIds.has(objectId) ? "contradiction" : payload.evidenceRole });
+    }
+    if (event.type === "SpatialObservationRecorded") {
+      const subjectId = typeof payload.subjectId === "string" ? payload.subjectId : null;
+      if (!subjectId || !subjectIds.has(subjectId)) return null;
+      return evidence(config, event, subjectId, locationId ?? null, payload);
+    }
+    return null;
+  };
+  const classify = (items: readonly DiscoveryEvidence[]): DiscoveryStage | null => {
+    if (items.length === 0) return null;
+    const times = distinctCount(items, (item) => String(item.worldTime));
+    const hypothesis = config.stageThresholds?.hypothesis ?? 2;
+    const discovered = config.stageThresholds?.discovered ?? 3;
+    if (times >= discovered) return "discovered";
+    if (times >= hypothesis) return "hypothesis";
+    return "trace";
+  };
   return {
-    id,
-    version: 1,
-    subjectKind: "object",
-    collect(event: DomainEvent, locationId?: string | null): DiscoveryEvidence | null {
-      if (event.type !== "ObjectObserved" && event.type !== "EntityExamined") return null;
-      const payload = event.payload as { objectId?: string; entityId?: string };
-      const objectId = payload.objectId ?? payload.entityId;
-      if (!objectId || !objectIds.includes(objectId)) return null;
-      return makeEvidence(id, kind, event, textFor(objectId), objectId, locationId);
+    id: config.id,
+    version: config.version,
+    subjectKind: config.subjectKind,
+    collect,
+    classify,
+    resolve(items: readonly DiscoveryEvidence[]): { readonly resolution: DiscoveryResolution; readonly contradictionCount: number } {
+      const contradictionCount = items.filter((item) => item.contradictionGroup !== null).length;
+      const supports = (config.evidenceRules ?? []).some((rule) => matchesRule(items, rule));
+      const contradicts = contradictionCount > 0 && (config.contradictionRules ?? []).some((rule) => matchesRule(items, rule));
+      if (contradicts) return { resolution: "contradicted", contradictionCount };
+      if (supports) return { resolution: "supported", contradictionCount };
+      return { resolution: items.length > 0 ? "inconclusive" : "unresolved", contradictionCount };
     },
-    classify(evidence: readonly DiscoveryEvidence[]): DiscoveryStage | null {
-      const times = new Set(evidence.map((entry) => entry.worldTime));
-      if (times.size >= 3) return "discovered";
-      if (times.size >= 2) return "hypothesis";
-      if (evidence.length > 0) return "trace";
-      return null;
-    },
-    render(stage: DiscoveryStage): { title: string; question: string; summary: string } {
-      return { title, question, summary: summaries[stage] };
+    render(stage: DiscoveryStage) {
+      return { title: config.title, question: config.question, summary: config.summaries[stage] };
     },
   };
 }
 
-const WATERFALL_EVIDENCE = objectDiscovery(
-  "western_waterfalls",
-  ["western_cliff_waterfalls"],
-  "landmark_trace",
-  "Водопады питают реку",
-  "Связаны ли потоки на западных утёсах с уровнем реки?",
-  {
-    trace: "Ты увидел потоки, падающие с западных утёсов.",
-    hypothesis: "Похоже, водопады связаны с руслом реки.",
-    discovered: "Ты собрал повторные наблюдения: водопады остаются частью речного бассейна.",
-  },
-  () => "С уступа падают несколько потоков; внизу слышно движение воды.",
-);
+export function buildRegionContentDefinitions(regionId = "riverwatch-basin"): readonly DiscoveryDefinition[] {
+  const bundle = loadCompiledRegionBundle(regionId);
+  return Object.freeze(bundle.discoveryDefinitions.filter((entry) => {
+    const status = (entry as { status?: string }).status;
+    return status === "runtime";
+  }).map((entry) => buildDefinition(entry as CompiledDiscoveryDefinition)));
+}
 
-const CRATER_SURFACE = objectDiscovery(
-  "crater_surface",
-  ["glass_crater_surface"],
-  "physical_trace",
-  "Блеск Стеклянной впадины",
-  "Почему поверхность впадины отражает свет?",
-  {
-    trace: "На дне чаши камень блестит после дождя.",
-    hypothesis: "Поверхность ведёт себя не как обычный камень.",
-    discovered: "Повторные осмотры подтверждают особое отражение, но не объясняют происхождение впадины.",
-  },
-  () => "Свет отражается от гладкого слоя; происхождение слоя остаётся неизвестным.",
-);
-
-
-export const REGION_CONTENT_DEFINITIONS: readonly DiscoveryDefinition[] = [
-  WATERFALL_EVIDENCE,
-  CRATER_SURFACE,
-];
+export const REGION_CONTENT_DEFINITIONS: readonly DiscoveryDefinition[] = buildRegionContentDefinitions();

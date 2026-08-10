@@ -22,7 +22,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "validate": "bash scripts/validate.sh",
-    "canon:validate": "node scripts/canon/lib/mini-yaml.test.mjs && node scripts/canon/validate.mjs && node scripts/canon/validate-visual-canon.mjs",
+    "canon:validate": "node scripts/canon/lib/mini-yaml.test.mjs && node scripts/canon/validate.mjs && node scripts/canon/validate-visual-canon.mjs && node scripts/canon/region/compile-region.mjs --check",
     "canon:generate-wb": "node scripts/canon/generate-wb.mjs",
     "simulation:validate": "node scripts/simulation/validate.mjs",
     "eval": "node --import tsx packages/cli/src/eval/run-all.ts",
@@ -32,7 +32,16 @@
     "eval:living": "node --import tsx packages/cli/src/eval/run-living.ts",
     "start:repl": "node --import tsx packages/cli/src/repl.ts",
     "start:server": "node --import tsx packages/cli/src/server.ts",
-    "start": "npm run start:server"
+    "start": "npm run start:server",
+    "region:authoring:validate": "node scripts/canon/validate-region-authoring.mjs",
+    "canon:region:compile": "node scripts/canon/region/compile-region.mjs",
+    "canon:region:compile:check": "node scripts/canon/region/compile-region.mjs --check",
+    "canon:region:compile:all": "node scripts/canon/region/compile-region.mjs --all",
+    "canon:region:compile:all:check": "node scripts/canon/region/compile-region.mjs --all --check",
+    "region:artifact:init": "node scripts/canon/region/init-reference-artifact.mjs",
+    "region:proposal:validate": "node scripts/canon/validate-region-authoring.mjs",
+    "region:proposal:report": "node scripts/canon/region/report-region-authoring.mjs",
+    "region:review:validate": "node scripts/canon/validate-region-authoring.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
