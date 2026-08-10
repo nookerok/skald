@@ -554,6 +554,19 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         break;
       }
       // Spatial Movement (ADR-0015)
+      case "TickPassed": {
+        if (s.activeJourneyId) {
+          const journey = s.journeys.get(s.activeJourneyId);
+          if (journey) {
+            const delta = (event.payload as { delta?: number }).delta ?? 1;
+            s.journeys.set(journey.journeyId, {
+              ...journey,
+              elapsedTicks: Math.min(journey.plannedTicks, journey.elapsedTicks + Math.max(0, delta)),
+            });
+          }
+        }
+        break;
+      }
       case "JourneyStarted": {
         const p = event.payload as {
           journeyId: string;

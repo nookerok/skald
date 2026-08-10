@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "assetVersion": 1,
+  "presentationOnly": true,
+  "simulationAuthority": false,
+  "labelsInRaster": false,
+  "runtimeFacts": false,
+  "sourceReference": "docs/worldbuilding/pilot-region/reference/region-source.png",
+  "asset": {
+    "path": "riverwatch-basin-blackwood-crater.png",
+    "mediaType": "image/png",
+    "widthPx": 2048,
+    "heightPx": 1536,
+    "sha256": "3dd55b31098c328299dc8f7a33f566faef9b65876e5496197d8517af94a2eadb",
+    "version": 1,
+    "src": "/assets/maps/riverwatch-basin-blackwood-crater.png"
+  },
+  "canonicalBoundingBox": [
+    0.0,
+    0.258,
+    0.483,
+    0.921
+  ],
+  "sourceCropPx": [
+    0,
+    280,
+    960,
+    1000
+  ],
+  "registrationAnchors": [
+    "blackwood_edge",
+    "glass_crater",
+    "river_waystation"
+  ]
+}

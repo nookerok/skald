@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, extname } from "node:path";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const PUBLIC = resolve(import.meta.dirname, "../public");
 
@@ -14,6 +15,29 @@ describe("Browser JS syntax gate", () => {
       execFileSync(process.execPath, ["--check", filePath]);
     });
   }
+});
+
+describe("Presentation map asset registration", () => {
+  it("registers a versioned, hashed overview and five high-resolution detail maps", () => {
+    const maps = resolve(PUBLIC, "assets/maps");
+    const manifest = JSON.parse(readFileSync(resolve(maps, "riverwatch-basin.manifest.json"), "utf8"));
+    expect(manifest.presentationOnly).toBe(true);
+    expect(manifest.simulationAuthority).toBe(false);
+    expect(manifest.labelsInRaster).toBe(false);
+    expect(manifest.details).toHaveLength(5);
+    for (const detail of manifest.details) {
+      expect(detail.asset.widthPx).toBeGreaterThanOrEqual(2048);
+      expect(detail.asset.heightPx).toBeGreaterThanOrEqual(1536);
+      const assetPath = resolve(maps, detail.asset.path);
+      const bytes = readFileSync(assetPath);
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(detail.asset.sha256);
+      const detailManifest = JSON.parse(readFileSync(resolve(maps, "riverwatch-basin-" + detail.id + ".manifest.json"), "utf8"));
+      expect(detailManifest.presentationOnly).toBe(true);
+      expect(detailManifest.simulationAuthority).toBe(false);
+      expect(detailManifest.canonicalBoundingBox).toEqual(detail.canonicalBoundingBox);
+      expect(detailManifest.registrationAnchors.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("Browser ES modules — import link integrity", () => {
@@ -67,7 +91,8 @@ describe("Browser ES modules — import link integrity", () => {
     const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
     const client = readFileSync(resolve(PUBLIC, "map-client.js"), "utf-8");
     expect(app).toContain('import { loadObserverMap } from "./map-client.js"');
-    expect(app).toContain("renderLivingWorldMap(await loadObserverMap(currentWorldId))");
+    expect(app).toContain("const mapDto = await loadObserverMap(currentWorldId);");
+    expect(app).toContain("renderLivingWorldMap(mapDto, result.body.snapshot.journey)");
     expect(client).toContain("const dto = body?.ok ? body.map : null");
   });
 
@@ -259,13 +284,11 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).not.toContain("onCommand");
   });
 
-  it("game shell registers the threads tab inside the context menu", () => {
+  it("keeps the full threads renderer available without adding a fourth player tab", () => {
     const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
-    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
     const rail = readFileSync(resolve(PUBLIC, "context-rail-view.js"), "utf-8");
-    expect(html).toContain('data-context="threads"');
-    expect(html).toContain('aria-controls="context-threads"');
-    expect(shell).toContain('target === "context-threads"');
+    expect(html).not.toContain('data-context="threads"');
+    expect(html).not.toContain('aria-controls="context-threads"');
     expect(rail).toContain('renderThreadsPanel');
     expect(rail).toContain('snapshot.observerThreads');
   });
@@ -282,11 +305,12 @@ describe("Browser ES modules — import link integrity", () => {
     expect(html).not.toContain('id="activity-panel"');
     expect(html).not.toContain('id="causal-panel"');
     expect(html).not.toContain("lower-panels");
-    expect(html).toContain('data-context="activity"');
-    expect(html).toContain('id="context-activity"');
-    expect(html).toContain('data-context="causal"');
-    expect(html).toContain('id="context-causal"');
-    expect(shell).toContain('target === "context-activity"');
+    expect(html).toContain('data-context="map"');
+    expect(html).toContain('data-context="character"');
+    expect(html).toContain('data-context="knowledge"');
+    expect(html).not.toContain('data-context="activity"');
+    expect(html).not.toContain('data-context="causal"');
+    expect(shell).not.toContain('target === "context-activity"');
   });
 
   it("presentation-view.js does not expose raw event type in presentation rendering", () => {

@@ -1,6 +1,6 @@
 import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderLatestResponse, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay } from "./game-shell-view.js";
+import { renderGameShell, renderLatestResponse, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, bindIntentWorldTime } from "./game-shell-view.js";
 import { createNarrationPoll } from "./narration-poll.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -114,9 +114,10 @@ async function refreshShell() {
   if (!result.body?.ok || !result.body.snapshot) { showShellError("Сервер не вернул состояние мира."); return false; }
   renderGameShell(result.body.snapshot);
   try {
-    renderLivingWorldMap(await loadObserverMap(currentWorldId));
+    const mapDto = await loadObserverMap(currentWorldId);
+    renderLivingWorldMap(mapDto, result.body.snapshot.journey);
   } catch {
-    renderLivingWorldMap(null);
+    renderLivingWorldMap(null, result.body.snapshot.journey);
   }
   clearShellError();
   return true;
@@ -162,6 +163,7 @@ async function refreshDev() {
 async function handle(input, overrideKey) {
   if (!interactionReady || state.command === CMD.PENDING || isExitInProgress()) return;
   const key = overrideKey || createRequestKey();
+  const sessionIntent = overrideKey ? null : addLocalIntent(input);
   setRetryVisible(false);
   dispatch("COMMAND_START", { input, key });
   setControlsBusy(true);
@@ -171,6 +173,9 @@ async function handle(input, overrideKey) {
     const result = await sendCommand(input, key);
     if (result.body?.ok) {
       if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
+      if (sessionIntent && Number.isFinite(result.body.state?.worldTime)) {
+        bindIntentWorldTime(sessionIntent, result.body.state.worldTime);
+      }
       const inputElement = document.getElementById("command-input");
       if (inputElement) inputElement.value = "";
       dispatch("COMMAND_SUCCESS");

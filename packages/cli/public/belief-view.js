@@ -51,6 +51,16 @@ function isBounded(value) {
 
 const EVIDENCE_TYPES = new Set(["sensory", "pattern-match", "testimony", "anomaly", "ritual", "inference"]);
 const HYPOTHESIS_STATUSES = new Set(["open", "strengthening", "weakening", "confirmed", "refuted"]);
+const HYPOTHESIS_STATUS_LABELS = {
+  open: "открыта",
+  strengthening: "укрепляется",
+  weakening: "слабеет",
+  confirmed: "подтверждена",
+  refuted: "опровергнута",
+};
+function hypothesisStatusLabel(status) {
+  return HYPOTHESIS_STATUS_LABELS[status] || "статус неясен";
+}
 const RELATION_TYPES = new Set(["supports", "feeds", "threatens", "depends", "enables", "constrains"]);
 const TRENDS = new Set(["rising", "stable", "falling", "unknown"]);
 
@@ -175,7 +185,7 @@ export function renderBeliefModel(container, model) {
     const section = makeNode("section", { className: "belief-hypotheses" });
     section.appendChild(makeNode("h3", { text: "Активные гипотезы" }));
     for (const hypothesis of hypotheses.slice(0, 6)) {
-      section.appendChild(makeNode("p", { text: hypothesis.statement + " · " + percent(hypothesis.confidence) + "% · " + hypothesis.status }));
+      section.appendChild(makeNode("p", { text: hypothesis.statement + " · " + percent(hypothesis.confidence) + "% · " + hypothesisStatusLabel(hypothesis.status) }));
     }
     container.appendChild(section);
   }

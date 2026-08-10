@@ -6,6 +6,8 @@
  */
 
 import { projectPoint, computeBounds } from "./map-layout.js";
+import { getPresentationMap } from "./presentation-map.js";
+import { drawPresentationImage, buildMapControls, buildDetailGallery, readMapView, rememberMapAsset } from "./map-presentation-view.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const FOG_MASK_ID = "player-map-fog-mask";
@@ -67,7 +69,7 @@ export function buildFogRevealModel(mapDto, knownArea, viewport) {
  * @param {HTMLElement} container - Target container
  * @param {object} mapDto - ObserverMapDTO
  */
-export function renderObserverMap(container, mapDto) {
+export function renderObserverMap(container, mapDto, viewState = {}) {
   if (!container || !mapDto) return;
 
   container.replaceChildren();
@@ -107,6 +109,18 @@ export function renderObserverMap(container, mapDto) {
   desc.textContent = buildMapDescription(mapDto);
   svg.appendChild(desc);
 
+  const presentationMap = getPresentationMap(mapDto);
+  let artwork = null;
+  if (presentationMap) {
+    const savedView = readMapView(presentationMap.regionId);
+    const savedAsset = [presentationMap.overview, ...presentationMap.details]
+      .find((asset) => asset.id === savedView.assetId) || presentationMap.overview;
+    artwork = drawPresentationImage(svg, presentationMap, viewport, savedAsset);
+    svg.setAttribute("data-map-view", savedAsset.id);
+  }
+  const currentPoint = mapDto.observer?.xMetres != null && mapDto.observer?.yMetres != null
+    ? projectPoint(mapDto.observer.xMetres, mapDto.observer.yMetres, knownArea, viewport)
+    : null;
   drawMapFoundation(svg, mapDto, knownArea, viewport);
 
   for (const route of mapDto.routes || []) drawRoute(svg, route, knownArea, viewport);
@@ -135,6 +149,20 @@ export function renderObserverMap(container, mapDto) {
     ? "\u041e\u0442\u043a\u0440\u044b\u0442\u043e \u043c\u0435\u0441\u0442: " + exactLocations + ". \u041e\u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0440\u0435\u0433\u0438\u043e\u043d \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c."
     : "\u0420\u0435\u0433\u0438\u043e\u043d \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c. \u0418\u0441\u0441\u043b\u0435\u0434\u0443\u0439 \u043c\u0438\u0440, \u0447\u0442\u043e\u0431\u044b \u043e\u0442\u043a\u0440\u044b\u0442\u044c \u043a\u0430\u0440\u0442\u0443.";
   container.appendChild(fogStatus);
+  container.appendChild(buildMapStatus(mapDto, viewState.journey));
+  container.appendChild(buildMapControls(svg, {
+    regionId: presentationMap?.regionId || mapDto.region?.ref || "region",
+    currentPoint,
+  }));
+  if (presentationMap && artwork) {
+    container.appendChild(buildDetailGallery(presentationMap, (asset) => {
+      artwork.setAttribute("href", asset.src);
+      artwork.setAttribute("data-map-artifact", asset.id);
+      artwork.setAttribute("aria-label", asset.alt || "\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u0443\u0447\u0430\u0441\u0442\u043e\u043a \u0440\u0435\u0433\u0438\u043e\u043d\u0430");
+      svg.setAttribute("data-map-view", asset.id);
+      rememberMapAsset(presentationMap.regionId, asset.id);
+    }));
+  }
   container.appendChild(buildMapList(mapDto));
 }
 
@@ -301,6 +329,49 @@ function drawRoute(svg, route, knownArea, viewport) {
     text.textContent = route.label + " — " + route.geometry.bearing;
     svg.appendChild(text);
   }
+}
+
+
+function buildMapStatus(mapDto, journey) {
+  const section = document.createElement("section");
+  section.className = "map-current-status";
+  section.setAttribute("aria-label", "\u0422\u0435\u043a\u0443\u0449\u0435\u0435 \u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0438 \u043f\u0443\u0442\u044c");
+
+  const current = (mapDto.locations || []).find(
+    (location) => location.ref === mapDto.observer?.locationRef && location.knowledge !== "rumored",
+  );
+  const area = document.createElement("p");
+  area.className = "map-current-area";
+  area.textContent = current
+    ? "\u0422\u044b \u0441\u0435\u0439\u0447\u0430\u0441: " + current.name
+    : "\u0422\u0435\u043a\u0443\u0449\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c \u043f\u043e\u043a\u0430 \u043d\u0435 \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0430.";
+  section.appendChild(area);
+
+  if (journey?.status === "traveling") {
+    const travel = document.createElement("p");
+    travel.className = "map-travel-status";
+    const elapsed = Number.isFinite(journey.elapsedTicks) ? journey.elapsedTicks : 0;
+    const total = Number.isFinite(journey.totalTicks) ? journey.totalTicks : 0;
+    travel.textContent = journey.to
+      ? "\u0412 \u043f\u0443\u0442\u0438 \u043a " + journey.to + " \u00b7 \u044d\u0442\u0430\u043f " + Math.min(elapsed + 1, Math.max(total, 1)) + " \u0438\u0437 " + Math.max(total, 1)
+      : "\u0422\u044b \u0432 \u043f\u0443\u0442\u0438. \u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u0432\u0430\u0436\u043d\u044b\u0439 \u043c\u043e\u043c\u0435\u043d\u0442 \u043f\u0440\u0435\u0440\u0432\u0435\u0442 \u0434\u043e\u0440\u043e\u0433\u0443.";
+    section.appendChild(travel);
+  } else if (journey?.status === "completed" && journey.to) {
+    const arrival = document.createElement("p");
+    arrival.className = "map-travel-status map-travel-status--arrived";
+    arrival.textContent = "\u041f\u0443\u0442\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d: " + journey.to;
+    section.appendChild(arrival);
+  }
+
+  const hazards = Array.isArray(mapDto.knownHazards) ? mapDto.knownHazards : [];
+  for (const hazard of hazards) {
+    if (!hazard || typeof hazard.label !== "string") continue;
+    const item = document.createElement("p");
+    item.className = "map-known-hazard";
+    item.textContent = "\u041e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u044c: " + hazard.label;
+    section.appendChild(item);
+  }
+  return section;
 }
 
 function buildMapList(mapDto) {

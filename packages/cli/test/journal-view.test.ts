@@ -123,7 +123,7 @@ describe("journal-view", () => {
       // Find and click the first thread button
       const threadBar = container._children.find((c) => c._attrs.role === "group");
       expect(threadBar).toBeTruthy();
-      const threadBtns = threadBar._children.filter((c) => c.tagName === "button" && c.textContent !== "Все ходы");
+      const threadBtns = threadBar._children.filter((c) => c.tagName === "button" && c.textContent !== "Все сцены");
       expect(threadBtns.length).toBeGreaterThanOrEqual(1);
 
       // Click the first thread button
@@ -149,7 +149,7 @@ describe("journal-view", () => {
       expect(sessionStorage.getItem).toHaveBeenCalledWith("skald:journal:thread");
     });
 
-    it("removes filter from sessionStorage when 'Все ходы' is clicked", async () => {
+    it("removes filter from sessionStorage when 'Все сцены' is clicked", async () => {
       storage["skald:journal:thread"] = "th1";
 
       fetchMock.mockResolvedValueOnce({
@@ -163,7 +163,7 @@ describe("journal-view", () => {
       await journalViewMod.loadJournal();
 
       const threadBar = container._children.find((c) => c._attrs.role === "group");
-      const allBtn = threadBar._children.find((c) => c.textContent === "Все ходы");
+      const allBtn = threadBar._children.find((c) => c.textContent === "Все сцены");
       allBtn.click();
 
       expect(sessionStorage.removeItem).toHaveBeenCalledWith("skald:journal:thread");
@@ -183,7 +183,7 @@ describe("journal-view", () => {
       await journalViewMod.loadJournal();
 
       const threadBar = container._children.find((c) => c._attrs.role === "group");
-      const allBtn = threadBar._children.find((c) => c.textContent === "Все ходы");
+      const allBtn = threadBar._children.find((c) => c.textContent === "Все сцены");
       expect(allBtn._attrs["aria-pressed"]).toBe("true");
 
       const threadBtn = threadBar._children.find((c) => c.textContent === "Movement");

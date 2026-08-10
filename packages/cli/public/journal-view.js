@@ -62,10 +62,10 @@ export function renderJournal() {
   const threadBar = document.createElement("div");
   threadBar.className = "thread-bar";
   threadBar.setAttribute("role", "group");
-  threadBar.setAttribute("aria-label", "Фильтры хроники");
+  threadBar.setAttribute("aria-label", "Фильтры сцен");
 
   const allBtn = document.createElement("button");
-  allBtn.textContent = "Все ходы";
+  allBtn.textContent = "Все сцены";
   allBtn.setAttribute("aria-pressed", String(!currentThreadFilter));
   allBtn.addEventListener("click", () => {
     currentThreadFilter = null;
@@ -94,11 +94,21 @@ export function renderJournal() {
   const turnsList = document.createElement("div");
   turnsList.className = "turns-list";
   turnsList.setAttribute("role", "list");
-  turnsList.setAttribute("aria-label", "Хроника ходов");
+  turnsList.setAttribute("aria-label", "Хроника сцен");
 
   const filteredTurns = getFilteredTurns();
-  for (let i = 0; i < filteredTurns.length; i++) {
-    const turn = filteredTurns[i];
+  const uniqueTurns = [];
+  const seenSceneKeys = new Set();
+  for (const turn of filteredTurns) {
+    const primary = turn.presentation?.primary?.text || "";
+    const notable = (turn.presentation?.notable || []).slice(0, 1).map((entry) => entry.text).join("|");
+    const key = primary || notable ? primary + "|" + notable : turn.turnId;
+    if (seenSceneKeys.has(key)) continue;
+    seenSceneKeys.add(key);
+    uniqueTurns.push(turn);
+  }
+  for (let i = 0; i < uniqueTurns.length; i++) {
+    const turn = uniqueTurns[i];
     const turnEl = document.createElement("div");
     turnEl.className = "turn-entry";
     turnEl.setAttribute("role", "listitem");
@@ -107,7 +117,7 @@ export function renderJournal() {
 
     const header = document.createElement("div");
     header.className = "turn-header";
-    header.textContent = "T" + turn.worldTime;
+    header.textContent = sceneLabel(turn, i);
     header.setAttribute("role", "button");
     header.setAttribute("tabindex", "0");
     header.setAttribute("aria-expanded", String(isFirst));
@@ -127,7 +137,7 @@ export function renderJournal() {
     body.id = "body-" + turnId;
     body.style.display = isFirst ? "block" : "none";
     body.setAttribute("role", "region");
-    body.setAttribute("aria-label", "Детали хода T" + turn.worldTime);
+    body.setAttribute("aria-label", "Содержание сцены " + (i + 1));
     const pres = turn.presentation;
 
     if (pres && pres.primary) {
@@ -179,7 +189,7 @@ export function renderJournal() {
   }
 
   // Track seen turn IDs for dedup
-  for (const t of filteredTurns) {
+  for (const t of uniqueTurns) {
     const id = t.turnId || ("t" + t.worldTime);
     SEEN_TURN_IDS.add(id);
   }
@@ -208,6 +218,16 @@ export function renderJournal() {
     });
     container.appendChild(moreBtn);
   }
+}
+
+function sceneLabel(turn, index) {
+  const text = String(turn.presentation?.primary?.text || "").toLowerCase();
+  if (/путь|дорог|переправ|добрал|водопад|руин/.test(text)) return "Путешествие";
+  if (/откры|замет|след|наблюд|узнаёт/.test(text)) return "Открытие";
+  if (/отнош|общин|довер|уважен/.test(text)) return "Отношение";
+  if (/опас|преград|огонь|жар|тревог/.test(text)) return "Опасность";
+  if (/последств|изменил|проявил/.test(text)) return "Последствие";
+  return "Сцена " + (index + 1);
 }
 
 function markLabel(m) {

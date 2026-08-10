@@ -22,7 +22,7 @@ export function resolveJourneyRoute(
 
   const normalizedDest = destination.toLowerCase().trim();
   if (normalizedDest.length === 0) {
-    return { kind: "blocked", reason: "unknown_destination", playerText: "Ты не указал, куда muốn идти." };
+    return { kind: "blocked", reason: "unknown_destination", playerText: "Ты не указал, куда идти." };
   }
 
   // Find candidate locations from observer knowledge

@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 2,
+  "regionId": "riverwatch-basin",
+  "assetVersion": 1,
+  "presentationOnly": true,
+  "simulationAuthority": false,
+  "labelsInRaster": false,
+  "runtimeFacts": false,
+  "sourceReference": "docs/worldbuilding/pilot-region/reference/region-source.png",
+  "registration": {
+    "method": "anchor_based_oblique",
+    "uniformScale": false,
+    "anchors": [
+      {
+        "subjectId": "river_waystation",
+        "pixelX": 520,
+        "pixelY": 640,
+        "xMetres": 8000,
+        "yMetres": 9500
+      },
+      {
+        "subjectId": "suspended_monolith",
+        "pixelX": 700,
+        "pixelY": 250,
+        "xMetres": 11000,
+        "yMetres": 18000
+      }
+    ]
+  },
+  "overview": {
+    "id": "overview",
+    "src": "/assets/maps/riverwatch-basin-overview.png",
+    "asset": {
+      "path": "riverwatch-basin-overview.png",
+      "mediaType": "image/png",
+      "widthPx": 1448,
+      "heightPx": 1086,
+      "sha256": "7feb764999fb39cede4531265bc0da7447dd4e6f9dfe2c406fa8d26883c6a1fb",
+      "version": 1
+    },
+    "fit": "contain"
+  },
+  "details": [
+    {
+      "id": "central-valley",
+      "src": "/assets/maps/riverwatch-basin-central-valley.png",
+      "asset": {
+        "path": "riverwatch-basin-central-valley.png",
+        "mediaType": "image/png",
+        "widthPx": 2048,
+        "heightPx": 1536,
+        "sha256": "ee169c30dce2f43988aadc9acd3d9c13c6264be3c2c0871f93b982cf30ea460d",
+        "version": 1
+      },
+      "canonicalBoundingBox": [
+        0.249,
+        0.23,
+        0.76,
+        0.856
+      ],
+      "sourceCropPx": [
+        277,
+        250,
+        1184,
+        930
+      ],
+      "registrationAnchors": [
+        "river_waystation",
+        "riverwatch_city",
+        "suspended_monolith"
+      ],
+      "status": "presentation"
+    },
+    {
+      "id": "blackwood-crater",
+      "src": "/assets/maps/riverwatch-basin-blackwood-crater.png",
+      "asset": {
+        "path": "riverwatch-basin-blackwood-crater.png",
+        "mediaType": "image/png",
+        "widthPx": 2048,
+        "heightPx": 1536,
+        "sha256": "3dd55b31098c328299dc8f7a33f566faef9b65876e5496197d8517af94a2eadb",
+        "version": 1
+      },
+      "canonicalBoundingBox": [
+        0.0,
+        0.258,
+        0.483,
+        0.921
+      ],
+      "sourceCropPx": [
+        0,
+        280,
+        960,
+        1000
+      ],
+      "registrationAnchors": [
+        "blackwood_edge",
+        "glass_crater",
+        "river_waystation"
+      ],
+      "status": "presentation"
+    },
+    {
+      "id": "northern-pass",
+      "src": "/assets/maps/riverwatch-basin-northern-pass.png",
+      "asset": {
+        "path": "riverwatch-basin-northern-pass.png",
+        "mediaType": "image/png",
+        "widthPx": 2048,
+        "heightPx": 1536,
+        "sha256": "65e4bea97fadb91b49c125165c68e1f5d924f5fbac87851b4d70d9672b95ea13",
+        "version": 1
+      },
+      "canonicalBoundingBox": [
+        0.0,
+        0.0,
+        1.0,
+        0.433
+      ],
+      "sourceCropPx": [
+        0,
+        0,
+        1448,
+        1086
+      ],
+      "registrationAnchors": [
+        "high_pass",
+        "suspended_monolith",
+        "western_cliff_waterfalls"
+      ],
+      "status": "presentation"
+    },
+    {
+      "id": "eastern-uplands",
+      "src": "/assets/maps/riverwatch-basin-eastern-uplands.png",
+      "asset": {
+        "path": "riverwatch-basin-eastern-uplands.png",
+        "mediaType": "image/png",
+        "widthPx": 2048,
+        "heightPx": 1536,
+        "sha256": "e30ffa9899780a4233c05311a261d81d5867867d488fc5bd2e78f460f27d6000",
+        "version": 1
+      },
+      "canonicalBoundingBox": [
+        0.566,
+        0.156,
+        1.0,
+        0.783
+      ],
+      "sourceCropPx": [
+        540,
+        169,
+        1448,
+        850
+      ],
+      "registrationAnchors": [
+        "old_ruins",
+        "riverwatch_city"
+      ],
+      "status": "presentation"
+    },
+    {
+      "id": "southern-borough",
+      "src": "/assets/maps/riverwatch-basin-southern-borough.png",
+      "asset": {
+        "path": "riverwatch-basin-southern-borough.png",
+        "mediaType": "image/png",
+        "widthPx": 2048,
+        "heightPx": 1536,
+        "sha256": "ba1e67de75c6a7926721e3cb9b60f8c4afc76886c3d3ccb32dfddfd77753f317",
+        "version": 1
+      },
+      "canonicalBoundingBox": [
+        0.193,
+        0.644,
+        0.856,
+        1.0
+      ],
+      "sourceCropPx": [
+        279,
+        366,
+        1239,
+        1086
+      ],
+      "registrationAnchors": [
+        "riverwatch_city",
+        "river_basin",
+        "river_waystation"
+      ],
+      "status": "presentation"
+    }
+  ]
+}

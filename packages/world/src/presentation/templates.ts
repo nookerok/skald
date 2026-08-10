@@ -164,7 +164,7 @@ export const ACTION_ATTEMPTED: PresentationTemplate = {
   present: (event, _world) => {
     const p = event.payload as { operation: string; target?: { raw: string } | null };
     const target = p.target?.raw ? ` → ${relationTargetLabelOrRaw(p.target.raw)}` : "";
-    return cand("action_attempted", "action", "primary", 100, `Ты пытаешься: ${operationLabel(p.operation)}${target}.`, event);
+    return cand("action_attempted", "action", "primary", 100, `Ты формулируешь: ${operationLabel(p.operation)}${target}.`, event);
   },
 };
 
@@ -282,12 +282,51 @@ export const CRITICAL_CHECK_RESOLVED: PresentationTemplate = {
   },
 };
 
+export const JOURNEY_REQUESTED: PresentationTemplate = {
+  id: "journey_requested", listens: ["JourneyRequested"],
+  present: (event, _world) => {
+    const p = event.payload as { destination?: string };
+    const destination = typeof p.destination === "string" && p.destination.trim() ? p.destination.trim() : "неизвестному месту";
+    return cand("journey_requested", "action", "notable", 70, "Ты выбираешь путь к «" + destination + "».", event, "journey:request:" + destination);
+  },
+};
+
+export const JOURNEY_STARTED: PresentationTemplate = {
+  id: "journey_started", listens: ["JourneyStarted"],
+  present: (event, world) => {
+    const p = event.payload as { toLocationId?: string; plannedTicks?: number };
+    const destination = p.toLocationId ? world.locations.get(p.toLocationId)?.name || p.toLocationId : "новому месту";
+    const ticks = typeof p.plannedTicks === "number" ? p.plannedTicks : 0;
+    return cand("journey_started", "action", "primary", 105,
+      ticks > 0 ? "Ты отправляешься к «" + destination + "». Путь займёт время и несколько тяжёлых этапов." : "Ты отправляешься к «" + destination + "».",
+      event, "journey:start:" + (p.toLocationId || destination));
+  },
+};
+
+export const JOURNEY_BLOCKED: PresentationTemplate = {
+  id: "journey_blocked", listens: ["JourneyBlocked"],
+  present: (event, _world) => {
+    const p = event.payload as { playerText?: string };
+    return cand("journey_blocked", "action", "primary", 110, p.playerText || "Путь пока не складывается.", event);
+  },
+};
+
+export const JOURNEY_COMPLETED: PresentationTemplate = {
+  id: "journey_completed", listens: ["JourneyCompleted"],
+  present: (event, world) => {
+    const p = event.payload as { journeyId?: string };
+    const journey = p.journeyId ? world.journeys.get(p.journeyId) : undefined;
+    const destination = journey?.toLocationId ? world.locations.get(journey.toLocationId)?.name || journey.toLocationId : "новое место";
+    return cand("journey_completed", "action", "primary", 120, "Ты добрался до «" + destination + "».", event, "journey:complete:" + (p.journeyId || destination));
+  },
+};
+
 export const PLAYER_LOCATION_CHANGED: PresentationTemplate = {
   id: "player_location_changed", listens: ["PlayerLocationChanged"],
   present: (event, _world) => {
     const p = event.payload as { locationName: string };
-    return cand("player_location_changed", "action", "primary", 95,
-      `Ты перемещаешься: ${p.locationName}.`,
+    return cand("player_location_changed", "action", "notable", 82,
+      "Мир узнаёт тебя в месте «" + p.locationName + "».",
       event, "location");
   },
 };
@@ -310,6 +349,10 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   HEAT_RADIATED,
   TICK_PASSED,
   // Iteration 15 — Open Intent templates
+  JOURNEY_REQUESTED,
+  JOURNEY_STARTED,
+  JOURNEY_BLOCKED,
+  JOURNEY_COMPLETED,
   ACTION_ATTEMPTED,
   ACTION_RESOLVED,
   ACTION_BLOCKED,

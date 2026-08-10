@@ -38,6 +38,15 @@ export interface AttentionView {
   explanation: string;
 }
 
+export interface JourneyView {
+  status: "idle" | "traveling" | "completed";
+  from: string | null;
+  to: string | null;
+  elapsedTicks: number;
+  totalTicks: number;
+  text: string;
+}
+
 export interface SituationView {
   situationId: string;
   title: string;
@@ -107,6 +116,7 @@ export interface GameShellSnapshot {
   character: CharacterView;
   world: WorldContextView;
   currentSituation: SituationView | null;
+  journey: JourneyView;
   attention: AttentionView;
   lastTurn: PlayerTurnView | null;
   recentActivity: readonly WorldActivityItem[];
@@ -119,6 +129,7 @@ export interface ShellDelta {
   revision: { worldTime: number; eventNumber: number };
   turn: PlayerTurnView | null;
   currentSituation: SituationView | null;
+  journey: JourneyView;
   attention: AttentionView;
   activity: readonly WorldActivityItem[];
   knowledge: KnowledgeSummary;

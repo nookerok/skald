@@ -256,6 +256,8 @@ export interface ObserverMapDTO {
   readonly knownWatercourses?: readonly ObserverMapWatercourse[];
   /** Only explicitly observed bodies cross the observer boundary. */
   readonly knownWaterBodies?: readonly ObserverMapWaterBody[];
+  /** Only hazards explicitly present in observer knowledge may be shown. */
+  readonly knownHazards?: readonly ObserverMapHazard[];
 }
 
 export interface ObserverMapTerrainPatch {
@@ -309,6 +311,13 @@ export interface ObserverMapRoute {
   readonly confidence: number;
   readonly freshness: number;
   readonly geometry: ObserverMapRouteGeometry;
+}
+
+export interface ObserverMapHazard {
+  readonly ref: string;
+  readonly label: string;
+  readonly severity: "warning" | "danger";
+  readonly knowledge: Exclude<SpatialKnowledge, "rumored">;
 }
 
 export interface ObserverMapWatercourse {

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "assetVersion": 1,
+  "presentationOnly": true,
+  "simulationAuthority": false,
+  "labelsInRaster": false,
+  "runtimeFacts": false,
+  "sourceReference": "docs/worldbuilding/pilot-region/reference/region-source.png",
+  "asset": {
+    "path": "riverwatch-basin-northern-pass.png",
+    "mediaType": "image/png",
+    "widthPx": 2048,
+    "heightPx": 1536,
+    "sha256": "65e4bea97fadb91b49c125165c68e1f5d924f5fbac87851b4d70d9672b95ea13",
+    "version": 1,
+    "src": "/assets/maps/riverwatch-basin-northern-pass.png"
+  },
+  "canonicalBoundingBox": [
+    0.0,
+    0.0,
+    1.0,
+    0.433
+  ],
+  "sourceCropPx": [
+    0,
+    0,
+    1448,
+    1086
+  ],
+  "registrationAnchors": [
+    "high_pass",
+    "suspended_monolith",
+    "western_cliff_waterfalls"
+  ]
+}

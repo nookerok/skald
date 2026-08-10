@@ -42,6 +42,7 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".webp": "image/webp",
+  ".json": "application/json; charset=utf-8",
 };
 
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'";
@@ -170,7 +171,7 @@ export async function startServer(options?: {
       // Static files
       if (method === "GET") {
         if (url.pathname === "/" || url.pathname === "/index.html") { serveStatic("/index.html", res, corsOrigin); return; }
-        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/offline-queue.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/chat-feed-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/threads-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js", "/known-worlds-view.js", "/presence-card-view.js", "/presence-entry-state.js", "/presence-entry-controller.js", "/presence-view.js", "/focus-view.js", "/presence-lease.js", "/presence-route.js", "/presence-exit-state.js", "/presence-exit-controller.js", "/map-view.js", "/map-layout.js", "/map-state.js", "/map-client.js", "/map-legend.js", "/map-accessibility.js", "/narration-poll.js"];
+        const jsFiles = ["/app.js", "/api-client.js", "/world-api-client.js", "/offline-queue.js", "/presentation-view.js", "/journal-view.js", "/ui-state.js", "/client-state.js", "/status-view.js", "/discovery-view.js", "/guidance-view.js", "/menu-view.js", "/new-game-view.js", "/new-game-state.js", "/game-shell-view.js", "/chat-feed-view.js", "/living-world-shell.js", "/dom-helpers.js", "/world-stage-view.js", "/world-sidebar-view.js", "/context-rail-view.js", "/threads-view.js", "/activity-view.js", "/causal-view.js", "/critical-check-view.js", "/turn-history-view.js", "/belief-view.js", "/known-worlds-view.js", "/presence-card-view.js", "/presence-entry-state.js", "/presence-entry-controller.js", "/presence-view.js", "/focus-view.js", "/presence-lease.js", "/presence-route.js", "/presence-exit-state.js", "/presence-exit-controller.js", "/map-view.js", "/map-presentation-view.js", "/presentation-map.js", "/map-layout.js", "/map-state.js", "/map-client.js", "/map-legend.js", "/map-accessibility.js", "/narration-poll.js"];
         if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
         const cssFiles = ["/styles.css", "/guidance.css", "/menu.css", "/new-game.css", "/game-shell.css", "/living-world.css", "/presence-entry.css", "/skald-aaa.css"];
         if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }

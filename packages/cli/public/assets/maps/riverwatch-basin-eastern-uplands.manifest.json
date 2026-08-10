@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "assetVersion": 1,
+  "presentationOnly": true,
+  "simulationAuthority": false,
+  "labelsInRaster": false,
+  "runtimeFacts": false,
+  "sourceReference": "docs/worldbuilding/pilot-region/reference/region-source.png",
+  "asset": {
+    "path": "riverwatch-basin-eastern-uplands.png",
+    "mediaType": "image/png",
+    "widthPx": 2048,
+    "heightPx": 1536,
+    "sha256": "e30ffa9899780a4233c05311a261d81d5867867d488fc5bd2e78f460f27d6000",
+    "version": 1,
+    "src": "/assets/maps/riverwatch-basin-eastern-uplands.png"
+  },
+  "canonicalBoundingBox": [
+    0.566,
+    0.156,
+    1.0,
+    0.783
+  ],
+  "sourceCropPx": [
+    540,
+    169,
+    1448,
+    850
+  ],
+  "registrationAnchors": [
+    "old_ruins",
+    "riverwatch_city"
+  ]
+}

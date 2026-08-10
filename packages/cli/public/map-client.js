@@ -49,7 +49,7 @@ export async function loadObserverMap(worldId, signal) {
     if (!dto.revision || typeof dto.revision.eventNumber !== "number") {
       throw new Error("Invalid map DTO: missing revision");
     }
-    if (!Array.isArray(dto.locations) || !Array.isArray(dto.landmarks) || !Array.isArray(dto.routes) || (dto.knownTerrain != null && !Array.isArray(dto.knownTerrain)) || (dto.knownWatercourses != null && !Array.isArray(dto.knownWatercourses)) || (dto.knownWaterBodies != null && !Array.isArray(dto.knownWaterBodies))) {
+    if (!Array.isArray(dto.locations) || !Array.isArray(dto.landmarks) || !Array.isArray(dto.routes) || (dto.knownTerrain != null && !Array.isArray(dto.knownTerrain)) || (dto.knownWatercourses != null && !Array.isArray(dto.knownWatercourses)) || (dto.knownWaterBodies != null && !Array.isArray(dto.knownWaterBodies)) || (dto.knownHazards != null && !Array.isArray(dto.knownHazards))) {
       throw new Error("Invalid map DTO: missing locations/landmarks/routes");
     }
 

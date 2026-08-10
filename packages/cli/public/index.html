@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/new-game.css">
 <link rel="stylesheet" href="/game-shell.css">
 <link rel="stylesheet" href="/living-world.css">
-<link rel="stylesheet" href="/skald-aaa.css">
+<link rel="stylesheet" href="/skald-aaa.css?v=21-voice-fallback">
 </head>
 <body>
 <div id="app">
@@ -29,7 +29,6 @@
         <div class="skald-brand"><span class="brand-sigil" aria-hidden="true">✦</span> SKALD <span id="active-world-label">Living World</span></div>
         <div class="topbar-place"><span id="time-display">Ход 0</span><span class="meta-separator">·</span><span id="place-display">Место неизвестно</span></div>
         <div class="connection-state"><span id="connection-dot" class="connection-dot"></span><span id="status-text" aria-live="polite" role="status">Загрузка...</span></div>
-        <div class="topbar-meta"><span id="pos-display">0, 0</span></div>
         <div class="topbar-actions">
           <button id="exit-world-btn" class="topbar-button" aria-label="Выйти из мира">Выйти</button>
           <button id="open-context-btn" class="topbar-button">Контекст</button>
@@ -41,73 +40,55 @@
       <div class="skald-layout">
         <main id="panel-game" class="skald-center" aria-label="Разговор с живым миром">
           <section id=latest-response class=latest-response aria-live=polite aria-labelledby=latest-response-title>
+            <div id="latest-intent" class="latest-intent" aria-label="Последнее намерение" hidden></div>
             <span class=eyebrow>ОТКЛИК МИРА</span>
             <h1 id=latest-response-title>Мир ждёт твоего действия.</h1>
             <div id=latest-response-notable class=latest-response-notable></div>
           </section>
+          <section id="journey-status" class="journey-status" aria-live="polite" hidden><span class="eyebrow">ПУТЬ</span><p id="journey-status-text"></p><span id="journey-status-stage"></span></section>
           <section class="narrative-stack" aria-label="Последствия хода">
             <div id="critical-check-card" class="critical-check-card" hidden></div>
             <section id="situation-card" class="situation-card" hidden></section>
+          </section>
+          <section id="chronicle-preview" class="chronicle-preview" aria-labelledby="chronicle-preview-title">
+            <header class="chronicle-preview-header">
+              <div><span class="eyebrow">ПАМЯТЬ ПУТИ</span><h2 id="chronicle-preview-title">Последние сцены</h2></div>
+              <button id="open-journal-inline" class="text-button" type="button">Вся хроника</button>
+            </header>
+            <div id="chronicle-scene-list" class="chronicle-scene-list"></div>
           </section>
           <section id="controls-section" class="command-dock" aria-busy="true" aria-labelledby="composer-title">
             <p id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></p>
             <form id="command-form" class="command-line">
               <label id="composer-title" class="command-label" for="command-input">Что ты делаешь?</label>
-              <textarea id="command-input" class="command-input" rows="2" autocomplete="off" placeholder="Опиши своё намерение миру…"></textarea>
-              <button id="send-btn" class="command-send" type="submit">Продолжить</button>
+              <textarea id="command-input" class="command-input" rows="2" autocomplete="off" placeholder="Например: «Иду к северному проходу и держусь ближе к реке»"></textarea>
+              <button id="voice-btn" class="voice-button voice-fallback-hidden" type="button" hidden aria-label="Надиктовать намерение" title="Голосовой ввод">◉</button>
+              <button id="voice-cancel-btn" class="voice-cancel-button" type="button" aria-label="Отменить голосовое намерение" title="Очистить распознанный текст" hidden>×</button>
+              <button id="send-btn" class="command-send" type="submit">Отправить</button>
               <button id="retry-btn" class="command-retry" type="button" hidden>Повторить</button>
             </form>
-            <p class="command-hint">Enter — продолжить · Shift+Enter — новая строка</p>
+            <p class="command-hint">Пиши или говори намерение. Enter — отправить · Shift+Enter — новая строка <span id="voice-status" role="status" aria-live="polite"></span></p>
           </section>
         </main>
       </div>
-      <section id="context-overlay" class="panel-overlay context-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Контекст мира">
-        <header><h2>Контекст мира</h2><button data-close-overlay="context-overlay" aria-label="Закрыть">×</button></header>
+      <section id="context-overlay" class="panel-overlay context-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Пространство игрока">
+        <header><h2>Твоё пространство</h2><button data-close-overlay="context-overlay" aria-label="Закрыть">×</button></header>
         <div class="context-overlay-grid">
-          <aside class="world-sidebar" aria-label="Известный мир">
-            <div class="sidebar-heading"><span class="eyebrow">WORLD</span><span class="sidebar-ornament" aria-hidden="true">✧</span></div>
-            <section class="sidebar-section"><h2>Вокруг</h2><div id="world-sidebar-nearby" class="sidebar-list"></div></section>
-            <section class="sidebar-section"><h2>Места</h2><div id="world-sidebar-places" class="sidebar-list"></div></section>
-            <section class="sidebar-section"><h2>Отношения</h2><div id="world-sidebar-relations" class="sidebar-list"></div></section>
-            <section class="sidebar-section"><h2>Интересное</h2><div id="world-sidebar-interest" class="sidebar-list"></div></section>
-          </aside>
-          <aside class="context-rail" aria-label="Контекст">
-            <div class="context-tabs" role="tablist" aria-label="Контекст мира">
-              <button id="context-tab-world" class="context-tab active" data-context="world" role="tab" aria-selected="true" aria-controls="context-world">Мир</button>
-              <button id="context-tab-map" class="context-tab" data-context="map" role="tab" aria-selected="false" aria-controls="context-map">Карта</button>
+          <aside class="context-rail" aria-label="Контекст игрока">
+            <div class="context-tabs" role="tablist" aria-label="Контекст игрока">
+              <button id="context-tab-map" class="context-tab active" data-context="map" role="tab" aria-selected="true" aria-controls="context-map">Карта</button>
               <button id="context-tab-character" class="context-tab" data-context="character" role="tab" aria-selected="false" aria-controls="context-character">Ты</button>
               <button id="context-tab-knowledge" class="context-tab" data-context="knowledge" role="tab" aria-selected="false" aria-controls="context-knowledge">Знания</button>
-              <button id="context-tab-threads" class="context-tab" data-context="threads" role="tab" aria-selected="false" aria-controls="context-threads">Нити</button>
-              <button id="context-tab-activity" class="context-tab" data-context="activity" role="tab" aria-selected="false" aria-controls="context-activity">Вокруг</button>
-              <button id="context-tab-causal" class="context-tab" data-context="causal" role="tab" aria-selected="false" aria-controls="context-causal">Почему</button>
             </div>
-            <div id="context-world" class="context-panel active" role="tabpanel" aria-labelledby="context-tab-world">
-              <section id="world-stage" class="world-stage" aria-label="Сцена известного мира">
-                <div class="world-stage-vignette" aria-hidden="true"></div>
-                <div class="stage-header"><span class="eyebrow">ИЗВЕСТНЫЙ МИР</span><h1 id="stage-location-title">Место неизвестно</h1><p id="stage-location-description">Летопись ещё не открыла это место.</p></div>
-                <div id="stage-marker" class="stage-marker"><span class="marker-pulse" aria-hidden="true"></span><span class="marker-label">Ты здесь</span></div>
-                <div id="stage-links" class="stage-links" aria-label="Известные связанные места"></div>
-                <div class="stage-footer"><div id="stage-attention" class="attention-marks" aria-label="Внимание мира"></div><span id="stage-attention-text">Мир спокоен</span></div>
-              </section>
-              <div id="context-world-details" class="context-world-details" aria-live="polite"></div>
-            </div>
-            <div id="context-map" class="context-panel context-map" role="tabpanel" aria-labelledby="context-tab-map" hidden>
+            <div id="context-map" class="context-panel context-map active" role="tabpanel" aria-labelledby="context-tab-map">
               <section class="player-map player-map--full" aria-labelledby="map-title">
-                <header class="player-map__header"><div><span class="eyebrow">ИЗВЕСТНЫЙ РЕГИОН</span><h3 id="map-title">Карта</h3><p>Туман отступает только там, где ты побывал или что-то наблюдал.</p></div><span class="map-fog-key">Неизведанное скрыто</span></header>
+                <header class="player-map__header"><div><span class="eyebrow">ИЗВЕСТНЫЙ РЕГИОН</span><h3 id="map-title">Карта</h3><p>Канонический рисунок — только визуальная опора. Туман, места и маршруты открываются по наблюдениям.</p></div><span class="map-fog-key">Неизведанное скрыто</span></header>
                 <div id="player-map-canvas" class="player-map__canvas" role="img" aria-label="Карта известного пространства"></div>
                 <div id="player-map-legend" class="player-map__legend"></div>
               </section>
             </div>
             <div id="context-character" class="context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></div>
             <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden></div>
-            <div id="context-threads" class="context-panel" role="tabpanel" aria-labelledby="context-tab-threads" hidden></div>
-            <div id="context-activity" class="context-panel" role="tabpanel" aria-labelledby="context-tab-activity" hidden>
-              <div class="panel-heading"><div><span class="eyebrow">WORLD ACTIVITY</span><h2>Вокруг тебя</h2></div><div id="activity-filters" class="segmented-control" role="tablist" aria-label="Область активности"><button type="button" data-activity-scope="visible" role="tab" aria-selected="true">Видимое</button><button type="button" data-activity-scope="known" role="tab" aria-selected="false">Известное</button><button type="button" data-activity-scope="global" role="tab" aria-selected="false">Мир</button></div></div>
-              <div id="world-activity-list" class="activity-list"></div>
-            </div>
-            <div id="context-causal" class="context-panel" role="tabpanel" aria-labelledby="context-tab-causal" hidden>
-              <div class="panel-heading"><div><span class="eyebrow">CAUSAL THREAD</span><h2>Почему это произошло</h2></div></div><ol id="causal-timeline" class="causal-list"></ol>
-            </div>
           </aside>
         </div>
       </section>
@@ -120,6 +101,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="/app.js?v=19-map-fog"></script>
+<script type="module" src="/app.js?v=21-voice-fallback"></script>
 </body>
 </html>

@@ -203,7 +203,7 @@ export function buildObserverMap(
   }
 
   const current = locationId ? spatial.locations.get(locationId) : undefined;
-  return Object.freeze({ schemaVersion: 2, revision: { worldTime, eventNumber: events.length }, region: spatial.region ? { ref: ref("region", spatial.region.id), name: spatial.region.name } : null, observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: current?.anchor.xMetres ?? null, yMetres: current?.anchor.yMetres ?? null }, knownArea, knownTerrain: Object.freeze(knownTerrain), locations: Object.freeze(locations), landmarks: Object.freeze(landmarks), routes: Object.freeze(routes), knownWatercourses: Object.freeze(knownWatercourses), knownWaterBodies: Object.freeze(knownWaterBodies) });
+  return Object.freeze({ schemaVersion: 2, revision: { worldTime, eventNumber: events.length }, region: spatial.region ? { ref: ref("region", spatial.region.id), name: spatial.region.name } : null, observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: current?.anchor.xMetres ?? null, yMetres: current?.anchor.yMetres ?? null }, knownArea, knownTerrain: Object.freeze(knownTerrain), locations: Object.freeze(locations), landmarks: Object.freeze(landmarks), routes: Object.freeze(routes), knownWatercourses: Object.freeze(knownWatercourses), knownWaterBodies: Object.freeze(knownWaterBodies), knownHazards: Object.freeze([]) });
 }
 
 /**

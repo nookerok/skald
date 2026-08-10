@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "assetVersion": 1,
+  "presentationOnly": true,
+  "simulationAuthority": false,
+  "labelsInRaster": false,
+  "runtimeFacts": false,
+  "sourceReference": "docs/worldbuilding/pilot-region/reference/region-source.png",
+  "asset": {
+    "path": "riverwatch-basin-central-valley.png",
+    "mediaType": "image/png",
+    "widthPx": 2048,
+    "heightPx": 1536,
+    "sha256": "ee169c30dce2f43988aadc9acd3d9c13c6264be3c2c0871f93b982cf30ea460d",
+    "version": 1,
+    "src": "/assets/maps/riverwatch-basin-central-valley.png"
+  },
+  "canonicalBoundingBox": [
+    0.249,
+    0.23,
+    0.76,
+    0.856
+  ],
+  "sourceCropPx": [
+    277,
+    250,
+    1184,
+    930
+  ],
+  "registrationAnchors": [
+    "river_waystation",
+    "riverwatch_city",
+    "suspended_monolith"
+  ]
+}

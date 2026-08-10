@@ -16,29 +16,12 @@ function listValues(values, emptyText) {
 }
 export function renderContextRail(snapshot = {}) {
   currentSnapshot = snapshot;
-  const world = snapshot.world || {};
-  const attention = snapshot.attention || {};
   const character = snapshot.character || {};
   const beliefModel = snapshot.beliefModel;
-  const worldPanel = byId("context-world-details") || byId("context-world");
   const characterPanel = byId("context-character");
   const knowledgePanel = byId("context-knowledge");
   const threadsPanel = byId("context-threads");
   if (threadsPanel) renderThreadsPanel(threadsPanel, snapshot.observerThreads);
-  if (worldPanel) {
-    worldPanel.replaceChildren();
-    const placeCard = makeNode("div", { className: "place-card" });
-    placeCard.appendChild(makeNode("span", { className: "place-glyph", text: "✦" }));
-    const copy = makeNode("div", { className: "place-copy" });
-    copy.append(makeNode("strong", { text: world.locationName || "Место неизвестно" }), makeNode("small", { text: world.locationDescription || "Сведений пока мало." }));
-    placeCard.appendChild(copy);
-    worldPanel.appendChild(placeCard);
-    const state = makeNode("div", { className: "stat-stack" });
-    state.append(makeNode("div", { className: "stat-row", text: "Координаты: " + (world.position?.x ?? 0) + ", " + (world.position?.y ?? 0) }), makeNode("div", { className: "stat-row", text: "Тепло: " + (world.heatDescription || "не ощущается") }), makeNode("div", { className: "stat-row", text: "Внимание: " + (attention.explanation || attention.level || "спокойно") }));
-    addSection(worldPanel, "Состояние места", state);
-    addSection(worldPanel, "Связанные места", listValues(world.connectedLocations, "Связей пока нет."));
-    if (snapshot.currentSituation) addSection(worldPanel, "Ситуация", makeNode("p", { className: "context-copy", text: snapshot.currentSituation.description || snapshot.currentSituation.title }));
-  }
   if (characterPanel) {
     characterPanel.replaceChildren(makeNode("div", { className: "character-card", text: character.displayName || "Странник" }));
     addSection(characterPanel, "Рана", makeNode("p", { className: "context-copy", text: character.wound || "—" }));

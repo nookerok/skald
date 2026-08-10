@@ -440,7 +440,7 @@ describe("HTTP Server", () => {
     });
     expect(res.status).toBe(400);
   });
-  it("serves Visual Shell modules without region artwork", async () => {
+  it("serves Visual Shell modules and presentation region artwork", async () => {
     const moduleResponse = await fetch(server!.url + "/living-world-shell.js");
     expect(moduleResponse.status).toBe(200);
     expect(moduleResponse.headers.get("content-type")).toContain("application/javascript");
@@ -448,10 +448,12 @@ describe("HTTP Server", () => {
     const cssResponse = await fetch(server!.url + "/living-world.css");
     expect(cssResponse.status).toBe(200);
     expect(cssResponse.headers.get("content-type")).toContain("text/css");
-    const imageResponse = await fetch(server!.url + "/assets/maps/visual-shell-region.webp");
-    expect(imageResponse.status).toBe(404);
-    const mapResponse = await fetch(server!.url + "/assets/maps/pilot-region-map.png");
-    expect(mapResponse.status).toBe(404);
+    const imageResponse = await fetch(server!.url + "/assets/maps/riverwatch-basin-overview.png");
+    expect(imageResponse.status).toBe(200);
+    expect(imageResponse.headers.get("content-type")).toContain("image/png");
+    const detailResponse = await fetch(server!.url + "/assets/maps/riverwatch-basin-northern-pass.png");
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.headers.get("content-type")).toContain("image/png");
   });
 
 });

@@ -43,7 +43,7 @@ function classifyOriginFromEvent(type: string): ActivityOrigin | null {
 
 export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: number): CausalStep[] {
   const root = events.find((e) => e.timestamp === turnWorldTime &&
-    (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" || e.type === "TickPassed"));
+    (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "ActionAttempted" || e.type === "JourneyRequested" || e.type === "JourneyStarted" || e.type === "TickPassed"));
   if (!root) return [];
   const turnEvents = events.filter((e) => e.correlationId === root.correlationId && e.timestamp === turnWorldTime);
   const visited = new Set<string>();
@@ -63,7 +63,12 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
     switch (event.type) {
       case "MoveRequested": text = "Ты пытаешься сделать шаг."; break;
       case "GiveRequested": text = "Ты пытаешься повлиять на отношения."; break;
-      case "ActionAttempted": text = "Ты пытаешься: " + operationLabel(p.operation) + "."; break;
+      case "ActionAttempted": text = "Ты формулируешь намерение: " + operationLabel(p.operation) + "."; break;
+      case "JourneyRequested": text = "Ты выбираешь путь к «" + (typeof p.destination === "string" ? p.destination : "новому месту") + "».";
+        break;
+      case "JourneyStarted": text = "Путь начался. Мир потребует времени и нескольких тяжёлых этапов."; break;
+      case "JourneyBlocked": text = typeof p.playerText === "string" ? p.playerText : "Путь пока не складывается."; break;
+      case "JourneyCompleted": text = "Путешествие завершено."; break;
       case "ActionValidated": case "GiveValidated": text = "Действие принято."; break;
       case "ActionResolved": text = typeof p.description === "string" ? p.description : "Действие получило результат."; break;
       case "ActionBlocked": text = "Действие заблокировано: " + blockedReasonLabel(p.reason) + "."; break;
@@ -86,7 +91,7 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       default: continue;
     }
     const step: CausalStep = {
-      kind: event.type === "MoveRequested" || event.type === "GiveRequested" || event.type === "ActionAttempted" ? "intention"
+      kind: event.type === "MoveRequested" || event.type === "GiveRequested" || event.type === "ActionAttempted" || event.type === "JourneyRequested" || event.type === "JourneyStarted" ? "intention"
         : event.type === "ObservationUpdated" ? "observation"
         : event.type === "ConsequenceCreated" || event.type === "ConsequenceFired" || event.type === "AudacityTriggered" ? "consequence" : "outcome",
       text,
@@ -104,6 +109,45 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
     steps.push(step);
   }
   return steps;
+}
+
+function buildJourneyView(world: ReadonlyWorld): import("./types.js").JourneyView {
+  const journeys = [...world.journeys.values()].sort((a, b) => a.startedAt - b.startedAt);
+  const journey = (world.activeJourneyId ? world.journeys.get(world.activeJourneyId) : undefined) ?? journeys.at(-1);
+  if (!journey) {
+    return {
+      status: "idle",
+      from: null,
+      to: null,
+      elapsedTicks: 0,
+      totalTicks: 0,
+      text: "\u041f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432\u0438\u0435 \u043d\u0430\u0447\u043d\u0451\u0442\u0441\u044f, \u043a\u043e\u0433\u0434\u0430 \u0442\u044b \u0432\u044b\u0431\u0435\u0440\u0435\u0448\u044c \u043f\u0443\u0442\u044c.",
+    };
+  }
+  const from = world.locations.get(journey.fromLocationId)?.name ?? null;
+  const to = world.locations.get(journey.toLocationId)?.name ?? null;
+  if (journey.status === "active") {
+    return {
+      status: "traveling",
+      from,
+      to,
+      elapsedTicks: journey.elapsedTicks,
+      totalTicks: journey.plannedTicks,
+      text: to
+        ? "\u0422\u044b \u0432 \u043f\u0443\u0442\u0438 \u043a \u00ab" + to + "\u00bb."
+        : "\u0422\u044b \u0432 \u043f\u0443\u0442\u0438.",
+    };
+  }
+  return {
+    status: "completed",
+    from,
+    to,
+    elapsedTicks: journey.plannedTicks,
+    totalTicks: journey.plannedTicks,
+    text: to
+      ? "\u0422\u044b \u0434\u043e\u0431\u0440\u0430\u043b\u0441\u044f \u0434\u043e \u00ab" + to + "\u00bb."
+      : "\u041f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432\u0438\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e.",
+  };
 }
 
 function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
@@ -247,6 +291,7 @@ export function buildGameShellSnapshot(
     character: buildCharacterView(characterProfile, world),
     world: buildWorldContextView(world),
     currentSituation: buildSituationView(world),
+    journey: buildJourneyView(world),
     attention: buildAttentionView(world, events),
     lastTurn,
     recentActivity: activity,
@@ -300,6 +345,7 @@ export function buildShellDelta(
     revision: { worldTime: world.time, eventNumber: world.eventNumber },
     turn,
     currentSituation: buildSituationView(world),
+    journey: buildJourneyView(world),
     attention: buildAttentionView(world, events),
     activity,
     knowledge: buildKnowledgeSummary(beliefModel),

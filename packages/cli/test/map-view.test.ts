@@ -12,6 +12,7 @@ function element(tag) {
     className: "",
     style: {},
     textContent: "",
+    listeners: {},
     classList: {
       add(...names) { names.forEach((name) => classes.add(name)); },
       contains(name) { return classes.has(name); },
@@ -20,6 +21,8 @@ function element(tag) {
     replaceChildren(...children) { this.children = children; },
     setAttribute(name, value) { this.attributes[name] = String(value); },
     getAttribute(name) { return this.attributes[name]; },
+    addEventListener(name, handler) { (this.listeners[name] ||= []).push(handler); },
+    dispatchEvent(event) { for (const handler of this.listeners[event.type] || []) handler(event); },
   };
 }
 
@@ -31,7 +34,7 @@ function mapDto() {
   return {
     schemaVersion: 2,
     revision: { worldTime: 4, eventNumber: 12 },
-    region: { ref: "region-1", name: "Pilot" },
+    region: { ref: "riverwatch-basin", name: "Pilot" },
     observer: { locationRef: "loc-home", xMetres: 20, yMetres: 30 },
     knownArea: { minXMetres: 0, minYMetres: 0, maxXMetres: 100, maxYMetres: 100 },
     knownTerrain: [{ bounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 50, maxYMetres: 50 }, surface: "forest", elevationBand: 3, slopeBand: 2 }],
@@ -57,6 +60,11 @@ function mapDto() {
 
 describe("observer map fog of war", () => {
   beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      values: {},
+      getItem(key) { return this.values[key] ?? null; },
+      setItem(key, value) { this.values[key] = String(value); },
+    });
     vi.stubGlobal("document", {
       createElement: (tag) => element(tag),
       createElementNS: (_namespace, tag) => element(tag),
@@ -77,17 +85,56 @@ describe("observer map fog of war", () => {
     expect(Object.isFrozen(model.corridors)).toBe(true);
   });
 
-  it("renders observer-scoped vector terrain below fog and never plots rumored coordinates", () => {
+  it("renders reference artwork below observer-scoped fog and never plots rumored coordinates", () => {
     const container = element("div");
     renderObserverMap(container, mapDto());
 
     const nodes = descendants(container);
-    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(false);
+    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(true);
     expect(nodes.filter((node) => node.classList.contains("player-map-terrain"))).toHaveLength(1);
     expect(nodes.some((node) => node.classList.contains("player-map-fog"))).toBe(true);
     expect(nodes.filter((node) => node.classList.contains("map-location"))).toHaveLength(3);
     expect(nodes.filter((node) => node.classList.contains("map-observer-marker"))).toHaveLength(1);
     expect(nodes.map((node) => node.textContent).join(" ")).toContain("Rumor");
+  });
+
+
+  it("persists zoom, pan and selected detail artwork across rerender", () => {
+    const first = element("div");
+    renderObserverMap(first, mapDto());
+    const nodes = descendants(first);
+    const zoomIn = nodes.find((node) => node.attributes["data-map-control"] === "zoom-in");
+    zoomIn.dispatchEvent({ type: "click" });
+    const detail = nodes.find((node) => node.attributes["data-map-detail"] === "northern-pass");
+    detail.dispatchEvent({ type: "click" });
+    const overview = nodes.find((node) => node.attributes["data-map-detail"] === "overview");
+    overview.dispatchEvent({ type: "click" });
+
+    const second = element("div");
+    renderObserverMap(second, mapDto());
+    const image = descendants(second).find((node) => node.tagName === "IMAGE");
+    const svg = descendants(second).find((node) => node.tagName === "SVG");
+    expect(image.attributes.href).toContain("riverwatch-basin-overview.png");
+    expect(svg.attributes["data-map-view"]).toBe("overview");
+    expect(svg.attributes["data-zoom"]).toBe("1.15");
+  });
+
+
+  it("registers pilot artwork by canonical region name when runtime ref is opaque", () => {
+    const container = element("div");
+    renderObserverMap(container, { ...mapDto(), region: { ref: "region-15q72dw", name: "\u0411\u0430\u0441\u0441\u0435\u0439\u043d \u0420\u0435\u0447\u043d\u043e\u0433\u043e \u0421\u0442\u0440\u0430\u0436\u0430" } });
+    const nodes = descendants(container);
+    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(true);
+    expect(nodes.filter((node) => node.classList.contains("map-detail-card"))).toHaveLength(5);
+  });
+
+  it("does not borrow pilot raster artwork for an unregistered region", () => {
+    const container = element("div");
+    renderObserverMap(container, { ...mapDto(), region: { ref: "unknown-region", name: "Other" } });
+    const nodes = descendants(container);
+    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(false);
+    expect(nodes.filter((node) => node.classList.contains("map-detail-card"))).toHaveLength(0);
+    expect(nodes.some((node) => node.classList.contains("player-map-fog"))).toBe(true);
   });
 
   it("keeps a fully fogged map surface when no exact knowledge exists", () => {
@@ -102,9 +149,10 @@ describe("observer map fog of war", () => {
     renderObserverMap(container, dto);
 
     const nodes = descendants(container);
-    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(false);
+    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(true);
     expect(nodes.filter((node) => node.classList.contains("map-location"))).toHaveLength(0);
     expect(nodes.some((node) => node.classList.contains("player-map-fog"))).toBe(true);
+    expect(nodes.filter((node) => node.classList.contains("map-detail-card"))).toHaveLength(5);
   });
 });
 

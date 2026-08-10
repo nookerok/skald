@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "regionId": "riverwatch-basin",
+  "assetVersion": 1,
+  "presentationOnly": true,
+  "simulationAuthority": false,
+  "labelsInRaster": false,
+  "runtimeFacts": false,
+  "sourceReference": "docs/worldbuilding/pilot-region/reference/region-source.png",
+  "asset": {
+    "path": "riverwatch-basin-southern-borough.png",
+    "mediaType": "image/png",
+    "widthPx": 2048,
+    "heightPx": 1536,
+    "sha256": "ba1e67de75c6a7926721e3cb9b60f8c4afc76886c3d3ccb32dfddfd77753f317",
+    "version": 1,
+    "src": "/assets/maps/riverwatch-basin-southern-borough.png"
+  },
+  "canonicalBoundingBox": [
+    0.193,
+    0.644,
+    0.856,
+    1.0
+  ],
+  "sourceCropPx": [
+    279,
+    366,
+    1239,
+    1086
+  ],
+  "registrationAnchors": [
+    "riverwatch_city",
+    "river_basin",
+    "river_waystation"
+  ]
+}
