@@ -128,6 +128,15 @@ describe("observer map fog of war", () => {
     expect(nodes.filter((node) => node.classList.contains("map-detail-card"))).toHaveLength(5);
   });
 
+  it("keeps pilot artwork for a legacy map without region metadata", () => {
+    const container = element("div");
+    renderObserverMap(container, { ...mapDto(), region: null });
+    const nodes = descendants(container);
+    expect(nodes.some((node) => node.tagName === "IMAGE")).toBe(true);
+    expect(nodes.filter((node) => node.classList.contains("map-detail-card"))).toHaveLength(5);
+    expect(nodes.some((node) => node.classList.contains("player-map-fog"))).toBe(true);
+  });
+
   it("does not borrow pilot raster artwork for an unregistered region", () => {
     const container = element("div");
     renderObserverMap(container, { ...mapDto(), region: { ref: "unknown-region", name: "Other" } });

@@ -50,7 +50,10 @@ export function renderChroniclePreview(journal) {
     const text = humanizeLatestResponse(primary?.text || "");
     if (!text || seen.has(text)) continue;
     seen.add(text);
-    scenes.push({ label: chronicleSceneLabel(text, scenes.length), text, mark: primary.discoveryMark });
+    const time = Number.isFinite(turn?.worldTime)
+      ? turn.worldTime
+      : Number.isFinite(primary?.timestamp) ? primary.timestamp : null;
+    scenes.push({ label: chronicleSceneLabel(text, scenes.length), text, mark: primary.discoveryMark, time });
     if (scenes.length >= 3) break;
   }
   if (!scenes.length) {
@@ -65,7 +68,7 @@ export function renderChroniclePreview(journal) {
     card.className = "chronicle-scene";
     const time = document.createElement("span");
     time.className = "chronicle-scene-time";
-    time.textContent = "Ход " + scene.time;
+    time.textContent = scene.time == null ? "Сцена" : "Ход " + scene.time;
     const copy = document.createElement("p");
     copy.textContent = scene.text;
     card.append(time, copy);

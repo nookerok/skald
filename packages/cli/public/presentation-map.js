@@ -71,6 +71,8 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
 
 export function getPresentationMap(mapDto) {
   const regionId = mapDto?.region?.ref || mapDto?.region?.id;
+  // Legacy worlds predate the compiled RegionDefined event.
+  if (!mapDto?.region) return PRESENTATION_MAP_MANIFEST;
   // Only the pilot presentation bundle is registered. Unknown regions keep
   // their DTO-driven map without borrowing another region's artwork.
   const isPilotRegion = regionId === PRESENTATION_MAP_MANIFEST.regionId
