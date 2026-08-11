@@ -2,6 +2,8 @@
 
 ## Current work (2026-08-11)
 
+- Production world entrypoint implemented (ADR-0029): SQLite schema v6 adds primary/succession tables; `world:cutover` creates and verifies an isolated `riverwatch-main` from `living_region`; `/api/continue` and unscoped gameplay resolve the primary world; superseded routes return 410 and browser redirects to the replacement presence entry. `npm run validate` PASS (121 files, 1428 passed, 1 skipped). Changes remain uncommitted, unpushed and undeployed.
+
 - Conversation shell restored in the working tree (ADR-0024 amendment): the main surface now uses the two-voice `#chat-feed`; gateway clarifications render as transient Master replies; top navigation is Map / You / Knowledge; Dev and the separate discoveries overlay are removed from the player shell. Full validation PASS (118 files, 1422 passed, 1 skipped). Fixed NTFS browser QA PASS for the static shell at localhost:3010 on desktop/mobile widths; actual mounted Game Shell/Map runtime remained BLOCKED because the read-only budget forbade Presence acknowledgement and the local database had no entered world. Changes remain uncommitted, unpushed and undeployed.
 
 ## Current work (2026-08-09)

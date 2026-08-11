@@ -15,6 +15,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Worldbuilding principles and checklists | docs/worldbuilding/README.md; docs/adr/0007-worldbuilding-principles.md |
 | Canon Model (design-time world knowledge) | docs/WORLD_BIBLE_ARCHITECTURE.md; docs/canon/; docs/adr/0021-world-bible-canon-model.md |
 | First living region and observer map | docs/LIVING_WORLD_REGION_ARCHITECTURE.md; docs/adr/0012-first-living-region.md |
+| Production world entrypoint and Pilot Region cutover | docs/adr/0029-production-world-entrypoint.md; packages/cli/src/admin/world-cutover.ts |
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
 | Orange Pi operations | .agents/skills/skald-orange-pi-deploy/SKILL.md |
@@ -83,7 +84,8 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> SpatialWorldProjection (backend truth) -> Observation/Belief
     -> ObserverMapDTO (known/uncertain space only) -> normal Player Map UI
 
-    SQLite open -> Event Log replay -> Projection rebuild -> HTTP readiness
+    SQLite open -> schema migration -> primary entrypoint resolution ->
+    Event Log replay -> Projection rebuild -> HTTP readiness
 
     backup + integrity gate -> fast-forward update -> validation -> restart
     -> health + state + idempotent smoke request

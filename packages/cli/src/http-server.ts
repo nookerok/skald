@@ -201,6 +201,7 @@ export async function startServer(options?: {
       }
 
       // Mapping from unscoped paths to world-scoped sub-paths
+      const defaultWorldId = store.getPrimaryWorldId() ?? LEGACY_WORLD_ID;
       const UNSCoped_PATH: Record<string, string> = {
         "/api/state": "/state", "/api/command": "/command", "/api/wait": "/wait",
         "/api/narrative": "/narrative", "/api/narrative-llm": "/narrative",
@@ -209,7 +210,7 @@ export async function startServer(options?: {
       };
       const scopedSub = UNSCoped_PATH[url.pathname];
       if (scopedSub) {
-        const newPath = `/api/worlds/${LEGACY_WORLD_ID}${scopedSub}`;
+        const newPath = `/api/worlds/${defaultWorldId}${scopedSub}`;
         url = new URL(newPath + url.search, `http://${req.headers.host ?? "localhost"}`);
       }
 
@@ -225,6 +226,12 @@ export async function startServer(options?: {
         const worldId = m[1]!;
         const sub = m[2] ?? "";
         if (!validateWorldId(worldId)) { errHandle(400, "invalid_world_id", "world ID must be 1-128 chars"); return; }
+
+        const successorWorldId = store.getWorldSuccessor(worldId);
+        if (successorWorldId) {
+          handle(410, { ok: false, error: { code: "world_superseded", message: "world has been superseded", replacementWorldId: successorWorldId } });
+          return;
+        }
 
         let runtime;
         try { runtime = await runtimes.get(worldId); } catch (err: any) {

@@ -131,9 +131,9 @@ export async function fetchState() {
   try {
     const res = await fetch(`${apiBase()}/state`, { signal: AbortSignal.timeout(5000) });
     const body = await res.json();
-    return { body };
+    return { status: res.status, body };
   } catch {
-    return { body: null };
+    return { status: 0, body: null };
   }
 }
 

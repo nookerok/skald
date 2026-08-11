@@ -170,7 +170,7 @@ describe("turn narrations persistence (v5)", () => {
     store.close();
 
     const reopened = new DatabaseSync(dbPath);
-    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 6 });
     expect(reopened.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
     const tables = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_narrations'").all() as { name: string }[];
     expect(tables.length).toBe(1);

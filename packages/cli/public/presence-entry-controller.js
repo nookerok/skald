@@ -117,6 +117,13 @@ function render() {
 }
 async function loadSession() {
   const result = await fetchObserverSession(worldId);
+  const replacementWorldId = result.body?.error?.code === "world_superseded"
+    ? result.body.error.replacementWorldId
+    : null;
+  if (typeof replacementWorldId === "string" && replacementWorldId.length > 0) {
+    window.location.replace("#/world/" + encodeURIComponent(replacementWorldId) + "/return");
+    return;
+  }
   if (!result.body || !result.body.ok) {
     state = transitionPresenceEntry(state, result.status >= 400 && result.status < 500 ? ACTION.SESSION_FAIL : ACTION.UNAVAILABLE);
     render();

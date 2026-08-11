@@ -41,7 +41,8 @@
     "region:artifact:init": "node scripts/canon/region/init-reference-artifact.mjs",
     "region:proposal:validate": "node scripts/canon/validate-region-authoring.mjs",
     "region:proposal:report": "node scripts/canon/region/report-region-authoring.mjs",
-    "region:review:validate": "node scripts/canon/validate-region-authoring.mjs"
+    "region:review:validate": "node scripts/canon/validate-region-authoring.mjs",
+    "world:cutover": "node --import tsx packages/cli/src/admin/world-cutover.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -49,13 +49,17 @@ describe("multi-world persistence migration", () => {
     store.close();
 
     const reopened = new DatabaseSync(dbPath);
-    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 6 });
     expect(reopened.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
     // observer_checkpoints must exist after the chained v3→v4 migration
     const tables = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='observer_checkpoints'").all() as { name: string }[];
     expect(tables.length).toBe(1);
     const narrations = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_narrations'").all() as { name: string }[];
     expect(narrations.length).toBe(1);
+    const entrypoints = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='world_entrypoints'").all() as { name: string }[];
+    expect(entrypoints.length).toBe(1);
+    const successions = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='world_successions'").all() as { name: string }[];
+    expect(successions.length).toBe(1);
     reopened.close();
   });
 
@@ -74,7 +78,7 @@ describe("multi-world persistence migration", () => {
     store.close();
 
     const reopened = new DatabaseSync(dbPath);
-    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 6 });
     // world_creation_requests table should exist (verify by reading schema)
     const tables = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='world_creation_requests'").all() as { name: string }[];
     expect(tables.length).toBe(1);

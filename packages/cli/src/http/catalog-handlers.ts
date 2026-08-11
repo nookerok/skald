@@ -25,7 +25,13 @@ export function handleWorlds(runtimes: WorldRuntimeManager) {
 }
 
 export function handleContinue(_runtimes: WorldRuntimeManager) {
-  const worlds = _runtimes["store"].listWorlds();
+  const store = _runtimes["store"];
+  const primaryWorldId = store.getPrimaryWorldId();
+  if (primaryWorldId) {
+    const primary = store.getWorldRecord(primaryWorldId);
+    if (primary?.status === "active") return json({ worldId: primaryWorldId, source: "primary" });
+  }
+  const worlds = store.listWorlds();
   const active = worlds.filter((w) => w.status === "active");
   if (active.length === 0) return error("not_found", "no active worlds", 404);
 

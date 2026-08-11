@@ -40,6 +40,15 @@ export class WorldRuntimeManager {
   constructor(private readonly store: MultiWorldStore) {}
 
   async get(worldId: WorldId): Promise<WorldRuntime> {
+    const record = this.store.getWorldRecord(worldId);
+    if (!record) throw Object.assign(new Error(`World not found: ${worldId}`), { statusCode: 404 });
+    if (record.status !== "active") {
+      throw Object.assign(new Error(`World is ${record.status}: ${worldId}`), { statusCode: 409 });
+    }
+    const successorWorldId = this.store.getWorldSuccessor(worldId);
+    if (successorWorldId) {
+      throw Object.assign(new Error(`World superseded by ${successorWorldId}: ${worldId}`), { statusCode: 409, successorWorldId });
+    }
     const cached = this.runtimes.get(worldId);
     if (cached) return cached;
     const pending = this.initializing.get(worldId);

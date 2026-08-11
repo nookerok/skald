@@ -232,6 +232,15 @@ async function connect() {
   setShellLoading(true);
   setShellBusy(true, "Читаем летопись…");
   const stateResult = await fetchState();
+  const replacementWorldId = stateResult.body?.error?.code === "world_superseded"
+    ? stateResult.body.error.replacementWorldId
+    : null;
+  if (typeof replacementWorldId === "string" && replacementWorldId.length > 0) {
+    setShellLoading(false);
+    setShellBusy(false);
+    window.location.replace("#/world/" + encodeURIComponent(replacementWorldId) + "/return");
+    return;
+  }
   const shellOk = await refreshShell();
   if (!stateResult.body || !shellOk) {
     setShellLoading(false);

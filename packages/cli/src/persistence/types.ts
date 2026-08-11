@@ -28,6 +28,8 @@ export interface WorldRecord {
   createdAt: number;
   lastPlayedAt: number | null;
   worldTime: number;
+  isPrimary: boolean;
+  successorWorldId: string | null;
 }
 
 export const LEGACY_WORLD_ID = "legacy-world";

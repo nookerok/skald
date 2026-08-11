@@ -36,6 +36,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-028 | Chat/Chronicle-first interface: the main Game Screen is a vertical chronicle of player intentions and world answers; the composer is the only permanent control; suggestions stay in the DTO but are never rendered as buttons/chips in the first UI layer; map/knowledge/character/threads are tabs, not a HUD; intent bubbles are session-scoped because a PlayerCommand is not an Event | accepted | docs/adr/0024-chat-chronicle-interface.md |
 | D-029 | AI-DM intent interpretation is a non-authoritative gateway: deterministic fast path or closed LLM IntentProposalV1, one primary intent, no hidden world input, clarification without Events, and existing Rules remain authoritative after the root Event | accepted | docs/adr/0028-ai-dm-intent-proposal.md |
 | D-030 | Conversation shell: the main player surface is a two-voice DTO-only feed; gateway clarifications are transient Master replies; Map/You/Knowledge are the only top-level player spaces and diagnostics stay outside the shell | accepted | docs/adr/0024-chat-chronicle-interface.md |
+| D-031 | Production selects an explicit primary world entrypoint; Pilot Region cutover creates an isolated compiled world, records succession, and leaves legacy Event Logs immutable | accepted | docs/adr/0029-production-world-entrypoint.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

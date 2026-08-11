@@ -1,4 +1,4 @@
-export const USER_VERSION = 5;
+export const USER_VERSION = 6;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
@@ -74,7 +74,7 @@ export function execSchemaV3(db: { exec(sql: string): void }): void {
 
 export function execSchemaV4(db: { exec(sql: string): void }): void {
   execSchemaV3(db);
-  db.exec(`PRAGMA user_version = ${USER_VERSION}`);
+  db.exec(`PRAGMA user_version = 4`);
 
   db.exec(`CREATE TABLE IF NOT EXISTS observer_checkpoints (
     world_id                   TEXT NOT NULL,
@@ -104,7 +104,7 @@ export function execSchemaV4(db: { exec(sql: string): void }): void {
 
 export function execSchemaV5(db: { exec(sql: string): void }): void {
   execSchemaV4(db);
-  db.exec(`PRAGMA user_version = ${USER_VERSION}`);
+  db.exec(`PRAGMA user_version = 5`);
 
   // Non-authoritative literary narration (ADR-0024 "МИР" voice), keyed per turn.
   // This is a read-side journal decoration, never part of the Event Log.
@@ -117,5 +117,26 @@ export function execSchemaV5(db: { exec(sql: string): void }): void {
     latency_ms    INTEGER NOT NULL,
     FOREIGN KEY (world_id) REFERENCES worlds(world_id),
     PRIMARY KEY (world_id, world_time)
+  ) STRICT`);
+}
+
+
+export function execSchemaV6(db: { exec(sql: string): void }): void {
+  execSchemaV5(db);
+  db.exec(`PRAGMA user_version = 6`);
+  db.exec(`CREATE TABLE IF NOT EXISTS world_entrypoints (
+    entrypoint TEXT PRIMARY KEY CHECK (entrypoint = 'primary'),
+    world_id TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (world_id) REFERENCES worlds(world_id)
+  ) STRICT`);
+  db.exec(`CREATE TABLE IF NOT EXISTS world_successions (
+    from_world_id TEXT PRIMARY KEY,
+    to_world_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (from_world_id) REFERENCES worlds(world_id),
+    FOREIGN KEY (to_world_id) REFERENCES worlds(world_id),
+    CHECK (from_world_id <> to_world_id)
   ) STRICT`);
 }

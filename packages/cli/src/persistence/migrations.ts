@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -135,9 +135,38 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 2) return "migrateV3";
   if (v === 3) return "migrateV4";
   if (v === 4) return "migrateV5";
-  if (v === 5) return "open";
+  if (v === 5) return "migrateV6";
+  if (v === 6) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-5.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-6.`);
+}
+
+export function migrateV5ToV6(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS world_entrypoints (
+      entrypoint TEXT PRIMARY KEY CHECK (entrypoint = 'primary'),
+      world_id TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id)
+    ) STRICT`);
+    db.exec(`CREATE TABLE IF NOT EXISTS world_successions (
+      from_world_id TEXT PRIMARY KEY,
+      to_world_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (from_world_id) REFERENCES worlds(world_id),
+      FOREIGN KEY (to_world_id) REFERENCES worlds(world_id),
+      CHECK (from_world_id <> to_world_id)
+    ) STRICT`);
+    db.exec("PRAGMA user_version = 6");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  verifyIntegrity(db);
 }
 
 export function migrateV4ToV5(db: SqliteHandle): void {
