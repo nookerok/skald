@@ -242,7 +242,7 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "ждать", mode: "wait", operation: "wait" },
   { verb: "выждать", mode: "wait", operation: "wait" },
   { verb: "подождать", mode: "wait", operation: "wait" },
-  { verb: "остановиться", mode: "wait", operation: "wait" },
+  { verb: "остановиться", mode: "travel", operation: "interrupt" },
   { verb: "жду", mode: "wait", operation: "wait" },
   { verb: "жди", mode: "wait", operation: "wait" },
   { verb: "ждем", mode: "wait", operation: "wait" },
@@ -721,6 +721,16 @@ export function interpretIntent(
       operation: "wait",
       rawText,
       interpretation: { source: "deterministic", confidence: 0.9, ambiguities: [] },
+    };
+  }
+
+  if (verb.operation === "interrupt") {
+    return {
+      type: "ActionIntentCommand",
+      mode: "travel",
+      operation: "interrupt",
+      rawText,
+      interpretation: { source: "deterministic", confidence: 0.95, ambiguities: [] },
     };
   }
 

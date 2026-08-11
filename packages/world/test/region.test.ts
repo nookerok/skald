@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
+import type { SpatialWorldProjection } from "@skald/world";
 import {
   buildObserverMap,
+  rebuildProjection,
   buildPilotRegionBootstrapEvents,
   buildPilotRegionDefinition,
   buildSpatialWorldProjection,
@@ -117,6 +119,65 @@ describe("first living region", () => {
     expect(JSON.stringify(map)).not.toContain("suspended_monolith");
     expect(map.knownTerrain?.length).toBeGreaterThan(0);
     expect(JSON.stringify(map.knownTerrain)).not.toContain("tile-");
+    expect(map.schemaVersion).toBe(3);
+    expect(map.availableDetails?.map((detail) => detail.id)).toEqual([
+      "overview",
+      "central-valley",
+      "blackwood-crater",
+    ]);
+    expect(map.availableDetails?.find((detail) => detail.id === "central-valley")?.coverageBounds).toEqual({
+      minXMetres: 5_000,
+      minYMetres: 7_000,
+      maxXMetres: 12_000,
+      maxYMetres: 14_000,
+    });
+  });
+
+  it("replays the observer map byte-for-byte after spatial observations", () => {
+    const bootstrap = buildPilotRegionBootstrapEvents();
+    const observation: DomainEvent = {
+      eventId: "observe-city",
+      type: "SpatialObservationRecorded",
+      schemaVersion: 1,
+      payload: {
+        subjectKind: "location",
+        subjectId: "riverwatch_city",
+        knowledge: "glimpsed",
+        observedAt: 12,
+        confidence: 0.48,
+        bearing: "северо-восток",
+        observerId: "player",
+      },
+      timestamp: 12,
+      correlationId: "replay",
+      causationId: null,
+    };
+    const events = [...bootstrap, observation];
+    const direct = buildObserverMap(events, buildSpatialWorldProjection(events), true);
+    const replayedWorld = rebuildProjection(events).getSnapshot();
+    expect(replayedWorld.spatial).toBeTruthy();
+    const replayed = buildObserverMap(events, replayedWorld.spatial as SpatialWorldProjection, true);
+    expect(JSON.stringify(replayed)).toBe(JSON.stringify(direct));
+  });
+
+  it("clips an interrupted journey to the physically traversed route prefix", () => {
+    const bootstrap = buildPilotRegionBootstrapEvents();
+    const spatial = buildSpatialWorldProjection(bootstrap);
+    const relation = spatial.relations.get("road_city_south");
+    expect(relation).toBeTruthy();
+    const events: DomainEvent[] = [...bootstrap, {
+      eventId: "partial-route", type: "SpatialObservationRecorded", schemaVersion: 1,
+      payload: {
+        subjectKind: "relation", subjectId: "road_city_south", knowledge: "observed",
+        observedAt: 20, confidence: 0.75, observerId: "player", progressFraction: 0.5,
+      },
+      timestamp: 20, correlationId: "journey", causationId: null,
+    } as DomainEvent];
+    const map = buildObserverMap(events, spatial);
+    const route = map.routes.find((entry) => entry.geometry?.kind === "observed_path" && entry.geometry.points.length < relation!.points.length);
+    if (!route || route.geometry?.kind !== "observed_path") throw new Error("partial route geometry missing");
+    expect(route.geometry.points.length).toBeLessThan(relation!.points.length);
+    expect(route.geometry.points.at(-1)).not.toEqual(relation!.points.at(-1));
   });
 
   it("keeps hydrography observer-scoped and preserves unresolved body classification", () => {

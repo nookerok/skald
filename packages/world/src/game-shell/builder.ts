@@ -138,6 +138,16 @@ function buildJourneyView(world: ReadonlyWorld): import("./types.js").JourneyVie
         : "\u0422\u044b \u0432 \u043f\u0443\u0442\u0438.",
     };
   }
+  if (journey.status === "interrupted") {
+    return {
+      status: "interrupted",
+      from,
+      to,
+      elapsedTicks: journey.elapsedTicks,
+      totalTicks: journey.plannedTicks,
+      text: "Путь прерван. Ты сохранил знание только о пройденном участке.",
+    };
+  }
   return {
     status: "completed",
     from,

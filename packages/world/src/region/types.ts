@@ -155,12 +155,16 @@ export interface RegionDefinedPayload {
 export type SpatialKnowledge = "rumored" | "glimpsed" | "observed" | "traversed";
 
 export interface SpatialObservationPayload {
-  readonly subjectKind: "location" | "landmark" | "relation";
+  readonly subjectKind: "location" | "landmark" | "relation" | "water";
   readonly subjectId: string;
   readonly knowledge: SpatialKnowledge;
   readonly observedAt: number;
   readonly confidence: number;
   readonly bearing?: string;
+  /** Defaults to the player for legacy bootstrap events. */
+  readonly observerId?: string;
+  /** Fraction of a relation physically traversed before an interruption. */
+  readonly progressFraction?: number;
 }
 
 export interface TravelRelation {
@@ -219,6 +223,12 @@ export interface CrossingState {
  * never through SpatialWorldProjection directly.
  */
 export interface SpatialReadView {
+  /** Optional full geometry is present for living-region observers; legacy
+   * read views expose only hydrology/travel data. */
+  readonly region?: RegionDefinition | null;
+  readonly locations?: ReadonlyMap<string, RegionLocation> | undefined;
+  readonly landmarks?: ReadonlyMap<string, RegionLandmark> | undefined;
+  readonly relations?: ReadonlyMap<string, SpatialRelation> | undefined;
   readonly riverProcesses: ReadonlyMap<string, RiverProcessDefinition>;
   readonly riverStates: ReadonlyMap<string, RiverState>;
   readonly crossingDefinitions: ReadonlyMap<string, CrossingDefinition>;
@@ -241,12 +251,30 @@ export interface SpatialWorldProjection extends SpatialReadView {
   readonly crossingStates: ReadonlyMap<string, CrossingState>;
 }
 
+export interface ObserverMapRevealZone {
+  readonly kind: "vicinity" | "route";
+  readonly center?: ObserverMapPoint;
+  readonly radiusMetres?: number;
+  readonly path?: readonly ObserverMapPoint[];
+  readonly widthMetres?: number;
+  readonly strength: number;
+}
+
+export interface ObserverMapDetail {
+  readonly id: string;
+  readonly coverageBounds: SpatialBounds;
+}
+
 export interface ObserverMapDTO {
-  readonly schemaVersion: 1 | 2;
+  readonly schemaVersion: 1 | 2 | 3;
   readonly revision: { readonly worldTime: number; readonly eventNumber: number };
   readonly region: { readonly ref: string; readonly name: string } | null;
   readonly observer: { readonly locationRef: string | null; readonly xMetres: number | null; readonly yMetres: number | null };
   readonly knownArea: SpatialBounds | null;
+  /** Server-owned reveal geometry; the browser only projects and draws it. */
+  readonly revealZones?: readonly ObserverMapRevealZone[];
+  /** Detail assets already unlocked for this observer; no hidden URLs or labels. */
+  readonly availableDetails?: readonly ObserverMapDetail[];
   /** Observer-scoped vector terrain; hidden tiles never cross this boundary. */
   readonly knownTerrain?: readonly ObserverMapTerrainPatch[];
   readonly locations: readonly ObserverMapLocation[];
@@ -275,8 +303,10 @@ export interface ObserverMapLocation {
   readonly knowledge: SpatialKnowledge;
   readonly confidence: number;
   readonly freshness: number;
-  readonly xMetres: number;
-  readonly yMetres: number;
+  /** Exact coordinates are withheld until observed/traversed. */
+  readonly xMetres: number | null;
+  readonly yMetres: number | null;
+  readonly bearing?: string | null;
 }
 
 export interface ObserverMapLandmark {

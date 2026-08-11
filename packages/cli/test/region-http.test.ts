@@ -28,6 +28,14 @@ describe("living region HTTP boundary", () => {
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.map.region.name).toBe("Бассейн Речного Стража");
+    expect(body.map.schemaVersion).toBe(3);
+    expect(body.map.revealZones.length).toBeGreaterThan(0);
+    expect(body.map.availableDetails.map((detail: any) => detail.id)).toEqual([
+      "overview",
+      "central-valley",
+      "blackwood-crater",
+    ]);
+    expect(JSON.stringify(body.map)).not.toContain("northern-pass");
     // Invariant-based: the initial state may grow, but key subjects must exist.
     expect(body.map.locations.length).toBeGreaterThanOrEqual(1);
     expect(body.map.locations.map((location: any) => location.name)).toContain("Переправа у Чёрного леса");

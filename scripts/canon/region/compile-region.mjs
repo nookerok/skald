@@ -8,6 +8,7 @@ import { listRegionIds, loadRegionCanon } from "./load-region-canon.mjs";
 import { buildRegionIR } from "./build-region-ir.mjs";
 import { canonicalJson } from "./canonical-json.mjs";
 import { sha256 } from "./digest.mjs";
+import { validateMapKnowledgeMatrix } from "../validate-map-knowledge-matrix.mjs";
 
 const ROOT = resolve(process.cwd());
 const COMPILED_DIR = resolve(ROOT, "packages/world/src/region/compiled");
@@ -129,6 +130,8 @@ const catalogEntries = [];
 for (const regionId of regionIds) {
   const loadedForPath = loadRegionCanon(ROOT, regionId);
   const bundle = compileRegion(regionId);
+  const matrixCheck = validateMapKnowledgeMatrix(ROOT, bundle);
+  if (matrixCheck.errors.length) throw new Error("map knowledge matrix invalid: " + matrixCheck.errors.join("; "));
   const fileStem = basename(dirname(loadedForPath.sourceFile));
   const outputPath = resolve(COMPILED_DIR, fileStem + ".v" + BUNDLE_SCHEMA_VERSION + ".json");
   const serialized = JSON.stringify(bundle, null, 2) + "\n";

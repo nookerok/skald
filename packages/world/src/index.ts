@@ -157,6 +157,8 @@ export type {
 // Spatial Movement (ADR-0015)
 export * from "./journey/index.js";
 export { journeyStart } from "./rules/journey-start.js";
+export { journeyProgress } from "./rules/journey-progress.js";
+export { journeyInterrupt } from "./rules/journey-interrupt.js";
 export { createJourneyValidationRule } from "./rules/journey-validation.js";
 
 // Visibility Engine (ADR-0016)

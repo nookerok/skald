@@ -15,12 +15,25 @@ import { ruleEventId } from "../ids.js";
 export const durationCheck: Rule<ReadonlyWorld> = {
   id: "simulation.duration_check",
   phase: "validation",
-  listens: ["ActionAttempted", "MoveRequested", "GiveRequested", "InteractionRequested", "JourneyRequested"],
-  produces: ["ActionValidated", "GiveValidated", "InteractionTimeValidated", "JourneyValidated", "ActionRejected"],
+  listens: ["ActionAttempted", "MoveRequested", "GiveRequested", "InteractionRequested", "JourneyRequested", "JourneyInterruptRequested"],
+  produces: ["ActionValidated", "GiveValidated", "InteractionTimeValidated", "JourneyValidated", "JourneyInterruptValidated", "ActionRejected"],
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
     const now = event.timestamp;
 
-    // Block all actions while traveling
+    // A stop command is the one player action allowed while traveling.
+    if (event.type === "JourneyInterruptRequested") {
+      return [{
+        eventId: ruleEventId(event.eventId, "JourneyInterruptValidated", 0),
+        type: "JourneyInterruptValidated",
+        schemaVersion: 1,
+        payload: event.payload,
+        timestamp: event.timestamp,
+        correlationId: event.correlationId,
+        causationId: event.eventId,
+      }];
+    }
+
+    // Block all other actions while traveling.
     if (world.activeJourneyId != null && event.type !== "TickPassed") {
       return [
         {

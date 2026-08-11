@@ -1,4 +1,5 @@
 /** Presentation-only image layer and map affordances. */
+import { isPresentationDetailUnlocked } from "./presentation-map.js";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const VIEW_STORAGE_PREFIX = "skald.map.view.";
 
@@ -60,6 +61,7 @@ export function drawPresentationImage(svg, manifest, viewport, asset = manifest.
   image.setAttribute("preserveAspectRatio", "xMidYMid meet");
   image.setAttribute("href", asset.src);
   image.setAttribute("data-map-artifact", asset.id);
+  image.setAttribute("data-map-coverage", JSON.stringify(asset.coverageBounds || null));
   image.setAttribute("aria-label", asset.alt);
   svg.appendChild(image);
   return image;
@@ -146,7 +148,7 @@ export function buildMapControls(svg, options = {}) {
   return controls;
 }
 
-export function buildDetailGallery(manifest, onSelect) {
+export function buildDetailGallery(manifest, onSelect, mapDto) {
   const section = document.createElement("section");
   const selectAsset = (event, asset) => {
     event?.preventDefault?.();
@@ -178,33 +180,43 @@ export function buildDetailGallery(manifest, onSelect) {
   const grid = document.createElement("div");
   grid.className = "map-detail-grid";
   for (const detail of manifest.details) {
+    const unlocked = isPresentationDetailUnlocked(detail, mapDto);
     const figure = document.createElement("figure");
-    figure.className = "map-detail-card";
     figure.classList.add("map-detail-card");
-    figure.setAttribute("role", "button");
-    figure.setAttribute("tabindex", "0");
-    figure.setAttribute("aria-label", "Показать " + detail.label);
-    figure.setAttribute("data-map-detail", detail.id);
-    figure.setAttribute("data-map-asset", detail.id);
+    if (!unlocked) figure.classList.add("map-detail-card--locked");
+    figure.setAttribute("role", unlocked ? "button" : "img");
+    if (unlocked) {
+      // Identifiers, labels and coverage metadata become public only after the
+      // server-scoped knowledge policy allows this detail.
+      figure.setAttribute("data-map-detail", detail.id);
+      figure.setAttribute("data-map-asset", detail.id);
+      figure.setAttribute("tabindex", "0");
+      figure.setAttribute("aria-label", "Показать " + detail.label);
+    } else {
+      figure.setAttribute("data-map-detail-state", "locked");
+      figure.setAttribute("aria-label", "Участок карты скрыт туманом");
+      figure.setAttribute("aria-disabled", "true");
+    }
     const image = document.createElement("img");
-    image.src = detail.src;
-    image.alt = detail.alt;
+    if (unlocked) {
+      image.src = detail.src;
+      image.setAttribute("data-map-detail-image", detail.id);
+      image.setAttribute("data-map-coverage", JSON.stringify(detail.coverageBounds || null));
+    }
+    image.alt = unlocked ? detail.alt : "Участок скрыт туманом";
     image.loading = "lazy";
-    image.setAttribute("data-map-detail-image", detail.id);
     figure.appendChild(image);
     const veil = document.createElement("span");
     veil.className = "map-detail-fog";
     veil.setAttribute("aria-hidden", "true");
     figure.appendChild(veil);
     const caption = document.createElement("figcaption");
-    caption.textContent = detail.label;
+    caption.textContent = unlocked ? detail.label : "Неизвестная область";
     figure.appendChild(caption);
-    if (figure.addEventListener) {
+    if (unlocked && figure.addEventListener) {
       figure.addEventListener("click", (event) => selectAsset(event, detail));
       figure.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          selectAsset(event, detail);
-        }
+        if (event.key === "Enter" || event.key === " ") selectAsset(event, detail);
       });
     }
     grid.appendChild(figure);

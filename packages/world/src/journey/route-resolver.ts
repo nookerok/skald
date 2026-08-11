@@ -1,6 +1,7 @@
 import type { JourneyResolution } from "./types.js";
 import type { SpatialWorldProjection, TravelRelation, SpatialRelationKind, CrossingState } from "../region/types.js";
 import type { ObserverMapDTO } from "../region/types.js";
+import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
 
 /**
  * Pure function: resolves a journey destination from observer-scoped
@@ -25,15 +26,28 @@ export function resolveJourneyRoute(
     return { kind: "blocked", reason: "unknown_destination", playerText: "Ты не указал, куда идти." };
   }
 
-  // Find candidate locations from observer knowledge
+  // Match observer-visible map entries back to canonical IDs without using
+  // presentation refs as domain identifiers. Exact destination navigation
+  // requires observed or traversed knowledge.
   const candidateLocations: Array<{ id: string; name: string }> = [];
-
-  for (const loc of observerMap.locations) {
-    if (loc.knowledge === "rumored" || loc.knowledge === "glimpsed" || loc.knowledge === "observed" || loc.knowledge === "traversed") {
-      const names = [loc.name, ...(loc.aliases ?? [])].map((name) => name.toLowerCase());
-      if (names.some((name) => name === normalizedDest || name.includes(normalizedDest) || normalizedDest.includes(name))) {
-        candidateLocations.push({ id: loc.ref, name: loc.name });
-      }
+  for (const location of spatial.locations.values()) {
+    const aliases = spatial.toponymIndex?.subjects.find((subject) => subject.id === location.id)?.aliases ?? [];
+    const visible = observerMap.locations.find((entry) => {
+      if (spatialKnowledgeRank(entry.knowledge) < spatialKnowledgeRank("observed")) return false;
+      // Observer DTOs may carry a reviewed alias instead of the canonical
+      // name. Coordinates are a safe fallback because they are only emitted
+      // for observed/traversed locations.
+      const sameName = entry.name === location.name || aliases.includes(entry.name);
+      const sameAnchor = entry.xMetres !== null && entry.yMetres !== null
+        && entry.xMetres === location.anchor.xMetres
+        && entry.yMetres === location.anchor.yMetres;
+      return sameName || sameAnchor;
+    });
+    if (!visible) continue;
+    const names = [location.name, ...aliases, visible.name, ...(visible.aliases ?? [])]
+      .map((name) => name.toLowerCase());
+    if (names.some((name) => name === normalizedDest || name.includes(normalizedDest) || normalizedDest.includes(name))) {
+      candidateLocations.push({ id: location.id, name: location.name });
     }
   }
 

@@ -240,13 +240,20 @@ describe("interpretIntent — wait", () => {
     "ждать",
     "подождать",
     "выждать",
-    "остановиться",
   ])("recognizes wait verb: %j", (input) => {
     const result = interpretIntent(input);
     expect(result.type).toBe("ActionIntentCommand");
     const cmd = result as ActionIntentCommand;
     expect(cmd.mode).toBe("wait");
     expect(cmd.operation).toBe("wait");
+  });
+
+  it("recognizes interrupt verb: остановиться", () => {
+    const result = interpretIntent("остановиться");
+    expect(result.type).toBe("ActionIntentCommand");
+    const cmd = result as ActionIntentCommand;
+    expect(cmd.mode).toBe("travel");
+    expect(cmd.operation).toBe("interrupt");
   });
 });
 

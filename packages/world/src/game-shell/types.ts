@@ -39,7 +39,7 @@ export interface AttentionView {
 }
 
 export interface JourneyView {
-  status: "idle" | "traveling" | "completed";
+  status: "idle" | "traveling" | "completed" | "interrupted";
   from: string | null;
   to: string | null;
   elapsedTicks: number;

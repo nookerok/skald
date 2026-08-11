@@ -19,6 +19,7 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
     widthPx: 1448,
     heightPx: 1086,
     sha256: "7feb764999fb39cede4531265bc0da7447dd4e6f9dfe2c406fa8d26883c6a1fb",
+    coverageBounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 20000, maxYMetres: 20000 },
   }),
   details: Object.freeze([
     Object.freeze({
@@ -29,6 +30,8 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
       widthPx: 2048,
       heightPx: 1536,
       sha256: "ee169c30dce2f43988aadc9acd3d9c13c6264be3c2c0871f93b982cf30ea460d",
+      coverageBounds: { minXMetres: 5000, minYMetres: 7000, maxXMetres: 12000, maxYMetres: 14000 },
+      unlock: { point: { xMetres: 8000, yMetres: 9500 }, minimumKnowledge: "traversed" },
     }),
     Object.freeze({
       id: "blackwood-crater",
@@ -38,6 +41,8 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
       widthPx: 2048,
       heightPx: 1536,
       sha256: "3dd55b31098c328299dc8f7a33f566faef9b65876e5496197d8517af94a2eadb",
+      coverageBounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 8000, maxYMetres: 17000 },
+      unlock: { point: { xMetres: 6000, yMetres: 12000 }, minimumKnowledge: "observed" },
     }),
     Object.freeze({
       id: "northern-pass",
@@ -47,6 +52,8 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
       widthPx: 2048,
       heightPx: 1536,
       sha256: "65e4bea97fadb91b49c125165c68e1f5d924f5fbac87851b4d70d9672b95ea13",
+      coverageBounds: { minXMetres: 5000, minYMetres: 14000, maxXMetres: 15000, maxYMetres: 20000 },
+      unlock: { point: { xMetres: 12000, yMetres: 18000 }, minimumKnowledge: "observed" },
     }),
     Object.freeze({
       id: "eastern-uplands",
@@ -56,6 +63,8 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
       widthPx: 2048,
       heightPx: 1536,
       sha256: "e30ffa9899780a4233c05311a261d81d5867867d488fc5bd2e78f460f27d6000",
+      coverageBounds: { minXMetres: 12000, minYMetres: 10000, maxXMetres: 20000, maxYMetres: 18000 },
+      unlock: { point: { xMetres: 16000, yMetres: 9000 }, minimumKnowledge: "observed" },
     }),
     Object.freeze({
       id: "southern-borough",
@@ -65,9 +74,32 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
       widthPx: 2048,
       heightPx: 1536,
       sha256: "ba1e67de75c6a7926721e3cb9b60f8c4afc76886c3d3ccb32dfddfd77753f317",
+      coverageBounds: { minXMetres: 7000, minYMetres: 3000, maxXMetres: 17000, maxYMetres: 10000 },
+      unlock: { point: { xMetres: 9500, yMetres: 5000 }, minimumKnowledge: "observed" },
     }),
   ]),
 });
+
+const KNOWLEDGE_RANK = Object.freeze({ rumored: 1, glimpsed: 2, observed: 3, traversed: 4 });
+
+export function isPresentationDetailUnlocked(detail, mapDto) {
+  if (!detail?.unlock) return true;
+  // DTO v3 is authoritative: only IDs explicitly returned by the server are
+  // available to the observer. No URL, title or coverage is exposed for the
+  // remaining cards.
+  if (Array.isArray(mapDto?.availableDetails)) {
+    return mapDto.availableDetails.some((entry) => entry?.id === detail.id);
+  }
+  // Compatibility for v1/v2 fixtures and older worlds that have no
+  // server-owned detail list yet.
+  const point = detail.unlock.point;
+  const minimum = KNOWLEDGE_RANK[detail.unlock.minimumKnowledge] || 3;
+  return (mapDto?.locations || []).some((location) => {
+    if (KNOWLEDGE_RANK[location.knowledge] < minimum) return false;
+    if (!Number.isFinite(location.xMetres) || !Number.isFinite(location.yMetres)) return false;
+    return Math.hypot(location.xMetres - point.xMetres, location.yMetres - point.yMetres) <= 800;
+  });
+}
 
 export function getPresentationMap(mapDto) {
   const regionId = mapDto?.region?.ref || mapDto?.region?.id;

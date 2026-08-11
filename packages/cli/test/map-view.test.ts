@@ -85,6 +85,41 @@ describe("observer map fog of war", () => {
     expect(Object.isFrozen(model.corridors)).toBe(true);
   });
 
+  it("uses the server detail allow-list for DTO v3", () => {
+    const container = element("div");
+    renderObserverMap(container, {
+      ...mapDto(),
+      schemaVersion: 3,
+      availableDetails: [{
+        id: "central-valley",
+        coverageBounds: { minXMetres: 5_000, minYMetres: 7_000, maxXMetres: 12_000, maxYMetres: 14_000 },
+      }],
+    });
+    const nodes = descendants(container);
+    const central = nodes.find((node) => node.attributes["data-map-detail"] === "central-valley");
+    const locked = nodes.filter((node) => node.attributes["data-map-detail-state"] === "locked");
+    expect(central.classList.contains("map-detail-card--locked")).toBe(false);
+    expect(locked).toHaveLength(4);
+  });
+
+  it("projects server-owned reveal zones and ignores client-side inference", () => {
+    const dto = {
+      ...mapDto(),
+      schemaVersion: 3,
+      revealZones: [
+        { kind: "vicinity", center: { xMetres: 20, yMetres: 30 }, radiusMetres: 20, strength: 1 },
+        { kind: "route", path: [{ xMetres: 20, yMetres: 30 }, { xMetres: 50, yMetres: 60 }], widthMetres: 10, strength: 0.5 },
+      ],
+    };
+    const model = buildFogRevealModel(dto, dto.knownArea, { width: 400, height: 300 });
+    expect(model.circles).toHaveLength(1);
+    expect(model.circles[0].radius).toBe(60);
+    expect(model.corridors).toHaveLength(1);
+    expect(model.corridors[0].width).toBe(30);
+    expect(model.circles[0].strength).toBe(1);
+    expect(model.corridors[0].strength).toBe(0.5);
+  });
+
   it("renders reference artwork below observer-scoped fog and never plots rumored coordinates", () => {
     const container = element("div");
     renderObserverMap(container, mapDto());
@@ -100,18 +135,25 @@ describe("observer map fog of war", () => {
 
 
   it("persists zoom, pan and selected detail artwork across rerender", () => {
+    const dto = {
+      ...mapDto(),
+      locations: [...mapDto().locations, {
+        ref: "loc-central", name: "Central", knowledge: "traversed",
+        xMetres: 8000, yMetres: 9500,
+      }],
+    };
     const first = element("div");
-    renderObserverMap(first, mapDto());
+    renderObserverMap(first, dto);
     const nodes = descendants(first);
     const zoomIn = nodes.find((node) => node.attributes["data-map-control"] === "zoom-in");
     zoomIn.dispatchEvent({ type: "click" });
-    const detail = nodes.find((node) => node.attributes["data-map-detail"] === "northern-pass");
+    const detail = nodes.find((node) => node.attributes["data-map-detail"] === "central-valley");
     detail.dispatchEvent({ type: "click" });
     const overview = nodes.find((node) => node.attributes["data-map-detail"] === "overview");
     overview.dispatchEvent({ type: "click" });
 
     const second = element("div");
-    renderObserverMap(second, mapDto());
+    renderObserverMap(second, dto);
     const image = descendants(second).find((node) => node.tagName === "IMAGE");
     const svg = descendants(second).find((node) => node.tagName === "SVG");
     expect(image.attributes.href).toContain("riverwatch-basin-overview.png");
@@ -162,9 +204,28 @@ describe("observer map fog of war", () => {
     expect(nodes.filter((node) => node.classList.contains("map-location"))).toHaveLength(0);
     expect(nodes.some((node) => node.classList.contains("player-map-fog"))).toBe(true);
     expect(nodes.filter((node) => node.classList.contains("map-detail-card"))).toHaveLength(5);
+  });  it("locks detail artwork until observer knowledge reaches its coverage", () => {
+    const container = element("div");
+    renderObserverMap(container, {
+      ...mapDto(),
+      locations: [{
+        ref: "loc-waystation", name: "Waystation", knowledge: "traversed",
+        xMetres: 8000, yMetres: 9500,
+      }],
+    });
+    const nodes = descendants(container);
+    const central = nodes.find((node) => node.attributes["data-map-detail"] === "central-valley");
+    const northern = nodes.find((node) => node.attributes["data-map-detail-state"] === "locked");
+    expect(central.classList.contains("map-detail-card--locked")).toBe(false);
+    expect(northern.classList.contains("map-detail-card--locked")).toBe(true);
+    expect(northern.attributes["aria-disabled"]).toBe("true");
+    expect(northern.attributes["data-map-detail"]).toBeUndefined();
+    const lockedImage = northern.children.find((node) => node.tagName === "IMG");
+    expect(lockedImage.attributes.src).toBeUndefined();
+    expect(lockedImage.attributes["data-src"]).toBeUndefined();
+    expect(lockedImage.attributes["data-map-coverage"]).toBeUndefined();
   });
 });
-
 describe("observer map HTTP client", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -182,4 +243,6 @@ describe("observer map HTTP client", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+
 });

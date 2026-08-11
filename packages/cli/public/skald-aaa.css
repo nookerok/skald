@@ -189,6 +189,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,[role=button]:fo
 .map-detail-card{position:relative;min-width:0;aspect-ratio:1.4;border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;background:#07131a}
 .map-detail-card img{display:block;width:100%;height:100%;object-fit:cover;filter:brightness(.64) saturate(.72);transition:filter .18s,transform .18s}
 .map-detail-card:hover img{filter:brightness(.82) saturate(.9);transform:scale(1.04)}
+.map-detail-card--locked{cursor:default;filter:saturate(.45);opacity:.68}.map-detail-card--locked:hover,.map-detail-card--locked:focus-visible{border-color:rgba(255,255,255,.08);transform:none;box-shadow:none}.map-detail-card--locked img{filter:blur(5px) brightness(.42) saturate(.35)}
 .map-detail-fog{position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(3,10,15,.5),rgba(3,10,15,.13) 44%,rgba(2,7,10,.72));mix-blend-mode:multiply}
 .map-detail-card figcaption{position:absolute;left:8px;right:8px;bottom:7px;color:#d9e1d8;font-size:.66rem;text-shadow:0 1px 4px #000}
 .context-overlay-grid{display:block!important}

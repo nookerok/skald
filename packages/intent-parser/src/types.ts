@@ -34,6 +34,7 @@ export type IntentOperation =
   | "open"
   | "give"
   | "travel"
+  | "interrupt"
   | "unknown";
 
 export interface IntentReference {

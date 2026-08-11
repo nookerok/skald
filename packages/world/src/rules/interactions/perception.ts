@@ -14,6 +14,8 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import { ruleEventId } from "../../ids.js";
 import type { ReadonlyWorld } from "../../projection.js";
+import { computeVisibility } from "../../visibility/visibility-engine.js";
+import type { SpatialWorldProjection } from "../../region/types.js";
 
 function baseFrom(event: DomainEvent) {
   return {
@@ -29,7 +31,7 @@ export const perceptionObserve: Rule<ReadonlyWorld> = {
   id: "perception.observe",
   phase: "physics",
   listens: ["InteractionValidated"],
-  produces: ["EntityExamined", "ObjectObserved", "ActionResolved"],
+  produces: ["EntityExamined", "ObjectObserved", "ActionResolved", "SpatialObservationRecorded"],
   handle: (event, world) => {
     const payload = event.payload as { law?: string; verb?: string; entityId?: string; locationId?: string };
     if (payload.law !== "perception") return [];
@@ -38,7 +40,7 @@ export const perceptionObserve: Rule<ReadonlyWorld> = {
     if (payload.verb === "observe" && payload.locationId && !payload.entityId) {
       const location = world.locations.get(payload.locationId);
       if (!location) return [];
-      return [{
+      const events: DomainEvent[] = [{
         ...baseFrom(event),
         eventId: ruleEventId(event.eventId, "ActionResolved", 0),
         type: "ActionResolved",
@@ -48,6 +50,51 @@ export const perceptionObserve: Rule<ReadonlyWorld> = {
           description: location.description,
         },
       }];
+      const spatial = world.spatial;
+      const spatialLocations = spatial?.locations;
+      const spatialLandmarks = spatial?.landmarks;
+      const spatialRelations = spatial?.relations;
+      const observerLocation = spatialLocations?.get(payload.locationId);
+      if (!spatial?.region || !spatialLocations || !spatialLandmarks || !spatialRelations || !observerLocation) {
+        return events;
+      }
+      const visibility = computeVisibility(
+        {
+          locationRef: payload.locationId,
+          xMetres: observerLocation.anchor.xMetres,
+          yMetres: observerLocation.anchor.yMetres,
+          elevationMetres: 0,
+        },
+        spatial as SpatialWorldProjection,
+      );
+      let index = 1;
+      for (const [subjectId, result] of visibility) {
+        if (!result.visible) continue;
+        const subjectKind = spatialLocations.has(subjectId)
+          ? "location"
+          : spatialLandmarks.has(subjectId)
+            ? "landmark"
+            : spatialRelations.has(subjectId)
+              ? "relation"
+              : null;
+        if (!subjectKind) continue;
+        events.push({
+          ...baseFrom(event),
+          eventId: ruleEventId(event.eventId, "SpatialObservationRecorded", index),
+          type: "SpatialObservationRecorded",
+          payload: {
+            subjectKind,
+            subjectId,
+            knowledge: result.knowledge,
+            observedAt: event.timestamp,
+            confidence: result.confidence,
+            bearing: result.bearing,
+            observerId: "player",
+          },
+        });
+        index += 1;
+      }
+      return events;
     }
 
     if (!payload.entityId) return [];

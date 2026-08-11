@@ -20,6 +20,12 @@ function towerWorld(events: readonly DomainEvent[] = buildBootstrapEvents("old_t
   return projector.getSnapshot();
 }
 
+function livingRegionWorld(): ReadonlyWorld {
+  const projector = new WorldProjector();
+  for (const e of buildBootstrapEvents("living_region")) projector.apply(e);
+  return projector.getSnapshot();
+}
+
 describe("Slice 1 — perception law over WorldObject targets", () => {
   it("resolve_target resolves a location-scoped WorldObject by alias", () => {
     const out = interactionResolveTarget.handle(
@@ -108,6 +114,18 @@ describe("Slice 1 — observe without a target describes surroundings", () => {
         description: "Трава и камни у основания башни. Здесь стоит потухшая жаровня и кучка пепла.",
       },
     });
+  });
+
+  it("living-region observe records only observer-scoped visibility facts", () => {
+    const out = perceptionObserve.handle(
+      event("InteractionValidated", "living-law-1", { law: "perception", locationId: "river_waystation", verb: "observe" }),
+      livingRegionWorld(),
+    );
+    const observations = out.filter((entry) => entry.type === "SpatialObservationRecorded");
+    expect(out[0]?.type).toBe("ActionResolved");
+    expect(observations.length).toBeGreaterThan(0);
+    expect(observations[0]?.payload).not.toHaveProperty("xMetres");
+    expect(observations[0]?.payload).toMatchObject({ observerId: "player" });
   });
 
   it("inspect without a target stays structurally rejected by the Command Handler", () => {

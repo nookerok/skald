@@ -51,6 +51,19 @@ describe("WorldProjector — JourneyState (ADR-0015)", () => {
     expect(world.activeJourneyId).toBeNull();
   });
 
+  it("marks a journey interrupted and clears the active journey", () => {
+    const projector = new WorldProjector();
+    projector.apply(evt("JourneyStarted", "js-1", {
+      journeyId: "j-1", relationId: "road_waystation_city", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 4,
+    }, 5));
+    projector.apply(evt("JourneyInterrupted", "ji-1", { journeyId: "j-1", elapsedTicks: 1, plannedTicks: 4 }, 6));
+    const world = projector.getSnapshot();
+    expect(world.journeys.get("j-1")!.status).toBe("interrupted");
+    expect(world.journeys.get("j-1")!.elapsedTicks).toBe(1);
+    expect(world.activeJourneyId).toBeNull();
+  });
+
   it("JourneyBlocked does not create JourneyState", () => {
     const projector = new WorldProjector();
     projector.apply(evt("JourneyBlocked", "jb-1", { reason: "unknown_destination", playerText: "Test" }, 5));

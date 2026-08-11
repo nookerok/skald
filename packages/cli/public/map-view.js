@@ -6,7 +6,7 @@
  */
 
 import { projectPoint, computeBounds } from "./map-layout.js";
-import { getPresentationMap } from "./presentation-map.js";
+import { getPresentationMap, isPresentationDetailUnlocked } from "./presentation-map.js";
 import { drawPresentationImage, buildMapControls, buildDetailGallery, readMapView, rememberMapAsset } from "./map-presentation-view.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -37,25 +37,60 @@ export function buildFogRevealModel(mapDto, knownArea, viewport) {
     if (point) circles.push(Object.freeze({ x: point.x, y: point.y, radius, strength }));
   };
 
-  if (mapDto.observer?.xMetres != null && mapDto.observer?.yMetres != null) {
-    addCircle(mapDto.observer.xMetres, mapDto.observer.yMetres, REVEAL_RADIUS.observer, 1);
-  }
-  for (const location of mapDto.locations || []) {
-    if (location.knowledge === "rumored") continue;
-    const radius = REVEAL_RADIUS[location.knowledge] || REVEAL_RADIUS.glimpsed;
-    addCircle(location.xMetres, location.yMetres, radius, location.knowledge === "glimpsed" ? 0.48 : 1);
-  }
-  for (const route of mapDto.routes || []) {
-    if (route.geometry?.kind !== "observed_path") continue;
-    const points = route.geometry.points
-      .map((point) => projectPoint(point.xMetres, point.yMetres, knownArea, viewport))
-      .filter(Boolean);
-    if (points.length < 2) continue;
-    corridors.push(Object.freeze({
-      points: Object.freeze(points),
-      width: route.knowledge === "traversed" ? 34 : 24,
-      strength: route.knowledge === "glimpsed" ? 0.48 : 1,
-    }));
+  // Server-owned reveal geometry is authoritative for schema v3+. The browser
+  // only projects world metres into the current viewport; it does not infer
+  // visibility from canonical locations or routes.
+  if (Array.isArray(mapDto.revealZones)) {
+    const spanX = Math.max(1, Number(knownArea.maxXMetres) - Number(knownArea.minXMetres));
+    const spanY = Math.max(1, Number(knownArea.maxYMetres) - Number(knownArea.minYMetres));
+    const pixelsPerMetre = Math.min(viewport.width / spanX, viewport.height / spanY);
+    for (const zone of mapDto.revealZones) {
+      if (zone?.kind === "vicinity" && zone.center
+        && Number.isFinite(zone.center.xMetres)
+        && Number.isFinite(zone.center.yMetres)
+        && Number.isFinite(zone.radiusMetres)) {
+        addCircle(
+          zone.center.xMetres,
+          zone.center.yMetres,
+          Math.max(0, zone.radiusMetres * pixelsPerMetre),
+          Number.isFinite(zone.strength) ? zone.strength : 1,
+        );
+      } else if (zone?.kind === "route" && Array.isArray(zone.path)) {
+        const points = zone.path
+          .map((point) => projectPoint(point.xMetres, point.yMetres, knownArea, viewport))
+          .filter(Boolean);
+        if (points.length < 2) continue;
+        corridors.push(Object.freeze({
+          points: Object.freeze(points),
+          width: Math.max(0, Number(zone.widthMetres || 0) * pixelsPerMetre),
+          strength: Number.isFinite(zone.strength) ? zone.strength : 1,
+        }));
+      }
+    }
+  } else {
+    // Compatibility for legacy DTO fixtures. This fallback is deliberately
+    // unreachable for the production schema v3 server response.
+    if (mapDto.observer?.xMetres != null && mapDto.observer?.yMetres != null) {
+      addCircle(mapDto.observer.xMetres, mapDto.observer.yMetres, REVEAL_RADIUS.observer, 1);
+    }
+    for (const location of mapDto.locations || []) {
+      if (location.knowledge === "rumored") continue;
+      if (location.xMetres == null || location.yMetres == null) continue;
+      const radius = REVEAL_RADIUS[location.knowledge] || REVEAL_RADIUS.glimpsed;
+      addCircle(location.xMetres, location.yMetres, radius, location.knowledge === "glimpsed" ? 0.48 : 1);
+    }
+    for (const route of mapDto.routes || []) {
+      if (route.geometry?.kind !== "observed_path") continue;
+      const points = route.geometry.points
+        .map((point) => projectPoint(point.xMetres, point.yMetres, knownArea, viewport))
+        .filter(Boolean);
+      if (points.length < 2) continue;
+      corridors.push(Object.freeze({
+        points: Object.freeze(points),
+        width: route.knowledge === "traversed" ? 34 : 24,
+        strength: route.knowledge === "glimpsed" ? 0.48 : 1,
+      }));
+    }
   }
   return Object.freeze({
     circles: Object.freeze(circles),
@@ -80,7 +115,7 @@ export function renderObserverMap(container, mapDto, viewState = {}) {
   // not shift the projection or open the fog.
   const allItems = [
     ...(mapDto.locations || [])
-      .filter((location) => location.knowledge !== "rumored")
+      .filter((location) => location.xMetres != null && location.yMetres != null)
       .map((location) => ({ xMetres: location.xMetres, yMetres: location.yMetres })),
     ...(mapDto.landmarks || [])
       .filter((landmark) => landmark.xMetres != null)
@@ -113,22 +148,30 @@ export function renderObserverMap(container, mapDto, viewState = {}) {
   let artwork = null;
   if (presentationMap) {
     const savedView = readMapView(presentationMap.regionId);
-    const savedAsset = [presentationMap.overview, ...presentationMap.details]
-      .find((asset) => asset.id === savedView.assetId) || presentationMap.overview;
+    const availableAssets = [presentationMap.overview, ...presentationMap.details]
+      .filter((asset) => asset.id === "overview" || isPresentationDetailUnlocked(asset, mapDto));
+    const savedAsset = availableAssets.find((asset) => asset.id === savedView.assetId) || presentationMap.overview;
     artwork = drawPresentationImage(svg, presentationMap, viewport, savedAsset);
     svg.setAttribute("data-map-view", savedAsset.id);
   }
-  const currentPoint = mapDto.observer?.xMetres != null && mapDto.observer?.yMetres != null
-    ? projectPoint(mapDto.observer.xMetres, mapDto.observer.yMetres, knownArea, viewport)
+  const selectedAsset = presentationMap && artwork
+    ? [presentationMap.overview, ...presentationMap.details].find((asset) => asset.id === svg.getAttribute("data-map-view"))
     : null;
-  drawMapFoundation(svg, mapDto, knownArea, viewport);
+  const serverCoverage = selectedAsset && Array.isArray(mapDto.availableDetails)
+    ? mapDto.availableDetails.find((detail) => detail.id === selectedAsset.id)?.coverageBounds
+    : null;
+  const renderBounds = serverCoverage || selectedAsset?.coverageBounds || knownArea;
+  const currentPoint = mapDto.observer?.xMetres != null && mapDto.observer?.yMetres != null
+    ? projectPoint(mapDto.observer.xMetres, mapDto.observer.yMetres, renderBounds, viewport)
+    : null;
+  drawMapFoundation(svg, mapDto, renderBounds, viewport);
 
-  for (const route of mapDto.routes || []) drawRoute(svg, route, knownArea, viewport);
-  for (const location of mapDto.locations || []) drawLocation(svg, location, knownArea, viewport);
-  for (const landmark of mapDto.landmarks || []) drawLandmark(svg, landmark, knownArea, viewport);
+  for (const route of mapDto.routes || []) drawRoute(svg, route, renderBounds, viewport);
+  for (const location of mapDto.locations || []) drawLocation(svg, location, renderBounds, viewport);
+  for (const landmark of mapDto.landmarks || []) drawLandmark(svg, landmark, renderBounds, viewport);
 
   if (mapDto.observer?.xMetres != null && mapDto.observer?.yMetres != null) {
-    const pos = projectPoint(mapDto.observer.xMetres, mapDto.observer.yMetres, knownArea, viewport);
+    const pos = projectPoint(mapDto.observer.xMetres, mapDto.observer.yMetres, renderBounds, viewport);
     if (pos) {
       const circle = document.createElementNS(SVG_NS, "circle");
       circle.classList.add("map-observer-marker");
@@ -156,13 +199,11 @@ export function renderObserverMap(container, mapDto, viewState = {}) {
   }));
   if (presentationMap && artwork) {
     container.appendChild(buildDetailGallery(presentationMap, (asset) => {
-      artwork.setAttribute("href", asset.src);
-      artwork.setAttribute("data-map-artifact", asset.id);
-      artwork.setAttribute("aria-label", asset.alt || "\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439 \u0443\u0447\u0430\u0441\u0442\u043e\u043a \u0440\u0435\u0433\u0438\u043e\u043d\u0430");
-      svg.setAttribute("data-map-view", asset.id);
+      if (asset.id !== "overview" && !isPresentationDetailUnlocked(asset, mapDto)) return;
       rememberMapAsset(presentationMap.regionId, asset.id);
-    }));
-  }
+      renderObserverMap(container, mapDto, viewState);
+    }, mapDto));
+}
   container.appendChild(buildMapList(mapDto));
 }
 
@@ -250,6 +291,16 @@ function drawMapFoundation(svg, mapDto, knownArea, viewport) {
 
 function drawLocation(svg, location, knownArea, viewport) {
   if (location.knowledge === "rumored") return;
+  if (location.xMetres == null || location.yMetres == null) {
+    if (!location.bearing) return;
+    const text = document.createElementNS(SVG_NS, "text");
+    text.classList.add("map-bearing");
+    text.setAttribute("x", String(viewport.width / 2));
+    text.setAttribute("y", "24");
+    text.textContent = "Направление: " + location.bearing;
+    svg.appendChild(text);
+    return;
+  }
   const pos = projectPoint(location.xMetres, location.yMetres, knownArea, viewport);
   if (!pos) return;
 
@@ -356,6 +407,13 @@ function buildMapStatus(mapDto, journey) {
       ? "\u0412 \u043f\u0443\u0442\u0438 \u043a " + journey.to + " \u00b7 \u044d\u0442\u0430\u043f " + Math.min(elapsed + 1, Math.max(total, 1)) + " \u0438\u0437 " + Math.max(total, 1)
       : "\u0422\u044b \u0432 \u043f\u0443\u0442\u0438. \u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u0432\u0430\u0436\u043d\u044b\u0439 \u043c\u043e\u043c\u0435\u043d\u0442 \u043f\u0440\u0435\u0440\u0432\u0435\u0442 \u0434\u043e\u0440\u043e\u0433\u0443.";
     section.appendChild(travel);
+  } else if (journey?.status === "interrupted") {
+    const stopped = document.createElement("p");
+    stopped.className = "map-travel-status map-travel-status--interrupted";
+    stopped.textContent = journey.to
+      ? "\u041f\u0443\u0442\u044c \u043f\u0440\u0435\u0440\u0432\u0430\u043d \u043d\u0430 \u043f\u0443\u0442\u0438 \u043a " + journey.to + ". \u041e\u0442\u043a\u0440\u044b\u0442 \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u0440\u043e\u0439\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0447\u0430\u0441\u0442\u043e\u043a."
+      : "\u041f\u0443\u0442\u044c \u043f\u0440\u0435\u0440\u0432\u0430\u043d. \u041a\u0430\u0440\u0442\u0430 \u0445\u0440\u0430\u043d\u0438\u0442 \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u0440\u043e\u0439\u0434\u0435\u043d\u043d\u044b\u0439 \u0443\u0447\u0430\u0441\u0442\u043e\u043a.";
+    section.appendChild(stopped);
   } else if (journey?.status === "completed" && journey.to) {
     const arrival = document.createElement("p");
     arrival.className = "map-travel-status map-travel-status--arrived";

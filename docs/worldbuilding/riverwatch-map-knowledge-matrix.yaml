@@ -1,0 +1,184 @@
+# Observer-scoped map contract for the Riverwatch Basin.
+# This file is authoring metadata only; Runtime consumes compiled Region events.
+regionId: riverwatch-basin
+version: 1
+imageAuthority: presentation_only
+
+subjects:
+  - id: river_waystation
+    kind: location
+    initialKnowledge: traversed
+    discovery:
+      - method: bootstrap_presence
+        result: traversed
+
+  - id: blackwood_edge
+    kind: location
+    initialKnowledge: observed
+    discovery:
+      - method: bootstrap_observation
+        result: observed
+      - method: travel
+        result: traversed
+
+  - id: riverwatch_city
+    kind: location
+    initialKnowledge: unknown
+    discovery:
+      - method: road_observation
+        result: glimpsed
+      - method: travel_arrival
+        result: traversed
+
+  - id: southern_borough
+    kind: location
+    initialKnowledge: unknown
+    discovery:
+      - method: downstream_exploration
+        result: observed
+      - method: travel_arrival
+        result: traversed
+
+  - id: high_pass
+    kind: location
+    initialKnowledge: unknown
+    discovery:
+      - method: elevated_observation
+        result: glimpsed
+      - method: travel_arrival
+        result: traversed
+
+  - id: old_ruins
+    kind: landmark
+    initialKnowledge: unknown
+    discovery:
+      - method: eastern_exploration
+        result: observed
+
+  - id: suspended_monolith
+    kind: landmark
+    initialKnowledge: glimpsed
+    discovery:
+      - method: bootstrap_observation
+        result: glimpsed
+      - method: close_observation
+        result: observed
+
+  - id: glass_crater
+    kind: location
+    initialKnowledge: rumored
+    discovery:
+      - method: bootstrap_rumor
+        result: rumored
+      - method: field_confirmation
+        result: observed
+
+  - id: road_waystation_city
+    kind: relation
+    initialKnowledge: observed
+    discovery:
+      - method: bootstrap_observation
+        result: observed
+      - method: travel
+        result: traversed
+
+  - id: river_crossing
+    kind: relation
+    initialKnowledge: observed
+    discovery:
+      - method: bootstrap_observation
+        result: observed
+      - method: travel
+        result: traversed
+
+  - id: road_waystation_forest
+    kind: relation
+    initialKnowledge: rumored
+    discovery:
+      - method: blackwood_approach
+        result: observed
+      - method: travel
+        result: traversed
+
+  - id: road_city_ruins
+    kind: relation
+    initialKnowledge: unknown
+    discovery:
+      - method: eastern_exploration
+        result: observed
+      - method: travel
+        result: traversed
+
+  - id: road_city_south
+    kind: relation
+    initialKnowledge: unknown
+    discovery:
+      - method: downstream_exploration
+        result: observed
+      - method: travel
+        result: traversed
+
+  - id: river_basin
+    kind: relation
+    initialKnowledge: unknown
+    discovery:
+      - method: watercourse_observation
+        result: observed
+
+  - id: southern_water_body
+    kind: relation
+    initialKnowledge: unknown
+    discovery:
+      - method: southern_shore_observation
+        result: observed
+    classification: unresolved
+
+  - id: western_cliff_waterfalls
+    kind: landmark
+    initialKnowledge: unknown
+    runtimeStatus: proposal_until_author_approval
+    discovery: []
+
+details:
+  - id: overview
+    coverage:
+      minXMetres: 0
+      minYMetres: 0
+      maxXMetres: 20000
+      maxYMetres: 20000
+    unlock: always
+  - id: central-valley
+    coverage:
+      minXMetres: 5000
+      minYMetres: 7000
+      maxXMetres: 12000
+      maxYMetres: 14000
+    unlock: river_waystation.traversed
+  - id: blackwood-crater
+    coverage:
+      minXMetres: 0
+      minYMetres: 0
+      maxXMetres: 8000
+      maxYMetres: 17000
+    unlock: blackwood_edge.observed
+  - id: northern-pass
+    coverage:
+      minXMetres: 5000
+      minYMetres: 14000
+      maxXMetres: 15000
+      maxYMetres: 20000
+    unlock: high_pass.observed
+  - id: eastern-uplands
+    coverage:
+      minXMetres: 12000
+      minYMetres: 10000
+      maxXMetres: 20000
+      maxYMetres: 18000
+    unlock: old_ruins.observed
+  - id: southern-borough
+    coverage:
+      minXMetres: 7000
+      minYMetres: 3000
+      maxXMetres: 17000
+      maxYMetres: 10000
+    unlock: southern_borough.observed

@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "@skald/world";
-import { journeyStart } from "@skald/world";
+import { journeyStart, journeyProgress, journeyInterrupt } from "@skald/world";
 import { createJourneyValidationRule } from "@skald/world";
 import type { SpatialWorldProjection, ObserverMapDTO } from "@skald/world";
 
-function makeWorld(overrides?: { activeJourneyId?: string | null }): ReadonlyWorld {
+function makeWorld(overrides?: { activeJourneyId?: string | null; journey?: Record<string, unknown> }): ReadonlyWorld {
+  const journeys = new Map<string, Record<string, unknown>>();
+  if (overrides?.journey) journeys.set(String(overrides.journey.journeyId), overrides.journey);
   return Object.freeze({
     player: Object.freeze({ x: 0, y: 0 }),
     walls: new Set<string>(),
@@ -29,7 +31,7 @@ function makeWorld(overrides?: { activeJourneyId?: string | null }): ReadonlyWor
     currentLocationId: "river_waystation",
     pendingChecks: new Map(),
     entities: new Map(),
-    journeys: new Map(),
+    journeys,
     activeJourneyId: overrides?.activeJourneyId ?? null,
   }) as unknown as ReadonlyWorld;
 }
@@ -104,83 +106,54 @@ describe("journey.validate rule", () => {
   });
 });
 
-describe("journey.start rule", () => {
-  it("emits TickPassed × N for journey duration", () => {
+describe("progressive journey rules", () => {
+  it("schedules one step when a journey starts", () => {
     const event = evt("JourneyStarted", "js-1", {
-      journeyId: "j-1",
-      relationId: "road_waystation_city",
-      fromLocationId: "river_waystation",
-      toLocationId: "riverwatch_city",
-      startedAt: 5,
-      plannedTicks: 4,
+      journeyId: "j-1", relationId: "road_waystation_city", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 4,
     }, 5);
     const out = journeyStart.handle(event, makeWorld());
-    // 4 TickPassed + 1 PlayerLocationChanged + 1 JourneyCompleted = 6
-    expect(out).toHaveLength(6);
-    const ticks = out.filter((e) => e.type === "TickPassed");
-    expect(ticks).toHaveLength(4);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe("JourneyStepRequested");
+    expect((out[0]!.payload as { journeyId: string }).journeyId).toBe("j-1");
   });
 
-  it("emits PlayerLocationChanged with correct destination", () => {
+  it("advances one tick for a scheduled step", () => {
     const event = evt("JourneyStarted", "js-2", {
-      journeyId: "j-2",
-      relationId: "road_waystation_city",
-      fromLocationId: "river_waystation",
-      toLocationId: "riverwatch_city",
-      startedAt: 5,
-      plannedTicks: 2,
+      journeyId: "j-2", relationId: "road_waystation_city", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 2,
     }, 5);
-    const out = journeyStart.handle(event, makeWorld());
-    const locationChanged = out.find((e) => e.type === "PlayerLocationChanged");
-    expect(locationChanged).toBeDefined();
-    const payload = locationChanged!.payload as { locationId: string };
-    expect(payload.locationId).toBe("riverwatch_city");
+    const start = journeyStart.handle(event, makeWorld())[0]!;
+    const journey = { journeyId: "j-2", relationId: "road_waystation_city", fromLocationId: "river_waystation", toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 2, elapsedTicks: 0, status: "active" };
+    const out = journeyProgress.handle(start, makeWorld({ activeJourneyId: "j-2", journey }));
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe("TickPassed");
+    expect((out[0]!.payload as { delta: number }).delta).toBe(1);
   });
 
-  it("emits JourneyCompleted", () => {
+  it("completes only on the final external tick", () => {
     const event = evt("JourneyStarted", "js-3", {
-      journeyId: "j-3",
-      relationId: "road_waystation_city",
-      fromLocationId: "river_waystation",
-      toLocationId: "riverwatch_city",
-      startedAt: 5,
-      plannedTicks: 1,
+      journeyId: "j-3", relationId: "road_waystation_city", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 1,
     }, 5);
-    const out = journeyStart.handle(event, makeWorld());
+    const start = journeyStart.handle(event, makeWorld())[0]!;
+    const journey = { journeyId: "j-3", relationId: "road_waystation_city", fromLocationId: "river_waystation", toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 1, elapsedTicks: 0, status: "active" };
+    const step = journeyProgress.handle(start, makeWorld({ activeJourneyId: "j-3", journey }))[0]!;
+    const out = journeyProgress.handle(step, makeWorld({ activeJourneyId: "j-3", journey }));
     const completed = out.find((e) => e.type === "JourneyCompleted");
     expect(completed).toBeDefined();
-    const payload = completed!.payload as { journeyId: string };
-    expect(payload.journeyId).toBe("j-3");
+    expect((completed!.payload as { journeyId: string }).journeyId).toBe("j-3");
+    expect(out.filter((e) => e.type === "SpatialObservationRecorded")).toHaveLength(2);
   });
 
-  it("TickPassed events have delta: 1", () => {
-    const event = evt("JourneyStarted", "js-4", {
-      journeyId: "j-4",
-      relationId: "road_waystation_city",
-      fromLocationId: "river_waystation",
-      toLocationId: "riverwatch_city",
-      startedAt: 5,
-      plannedTicks: 3,
-    }, 5);
-    const out = journeyStart.handle(event, makeWorld());
-    const ticks = out.filter((e) => e.type === "TickPassed");
-    for (const tick of ticks) {
-      expect((tick.payload as { delta: number }).delta).toBe(1);
-    }
-  });
-
-  it("events have correct causationId chain", () => {
-    const event = evt("JourneyStarted", "js-5", {
-      journeyId: "j-5",
-      relationId: "road_waystation_city",
-      fromLocationId: "river_waystation",
-      toLocationId: "riverwatch_city",
-      startedAt: 5,
-      plannedTicks: 2,
-    }, 5);
-    const out = journeyStart.handle(event, makeWorld());
-    for (const e of out) {
-      expect(e.causationId).toBe("js-5");
-    }
+  it("partial stop records only the observed route prefix", () => {
+    const journey = { journeyId: "j-4", relationId: "road_waystation_city", fromLocationId: "river_waystation", toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 3, elapsedTicks: 1, status: "active" };
+    const validated = evt("JourneyInterruptValidated", "stop-1", { rawText: "остановиться" }, 7);
+    const out = journeyInterrupt.handle(validated, makeWorld({ activeJourneyId: "j-4", journey }));
+    expect(out.map((e) => e.type)).toEqual(["SpatialObservationRecorded", "JourneyInterrupted"]);
+    const observation = out[0]!.payload as { knowledge: string; progressFraction: number };
+    expect(observation.knowledge).toBe("observed");
+    expect(observation.progressFraction).toBeCloseTo(1 / 3);
+    expect(out.some((e) => e.type === "JourneyCompleted")).toBe(false);
   });
 });

@@ -216,6 +216,15 @@ export function runCommandCycle(
     causationId: null,
   };
 
+  const activeJourney = app.projection.getSnapshot().activeJourneyId;
+  const interrupt = parsed.type === "ActionIntentCommand" && parsed.operation === "interrupt";
+  const wait = parsed.type === "ActionIntentCommand" && parsed.operation === "wait";
+  // A journey starts with one internally scheduled travel step. A stop is
+  // immediate. While traveling, rejected commands do not consume a tick;
+  // explicit wait remains the way to advance the journey.
+  const suppressTick = parsed.type === "JourneyIntent" || interrupt || (!!activeJourney && !wait);
+  const rootEvents = suppressTick ? [firstEvent] : [firstEvent, tickEvent];
+
   const options: ProcessOptions = app.store
     ? {
         commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
@@ -230,7 +239,7 @@ export function runCommandCycle(
       };
 
   try {
-    const { committed } = app.engine.processSequence([firstEvent, tickEvent], options);
+    const { committed } = app.engine.processSequence(rootEvents, options);
     app.processedKeys.add(idempotencyKey);
 
     return {

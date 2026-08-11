@@ -587,7 +587,7 @@ export function handleObserverThreads(runtime: WorldRuntime, _worldId: string): 
 export function handleWorldMap(runtime: WorldRuntime): JsonResponse {
   if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
   const events = runtime.bus.query();
-  const map = buildObserverMap(events, buildSpatialWorldProjection(events));
+  const map = buildObserverMap(events, buildSpatialWorldProjection(events), true);
   return json({ ok: true, map });
 }
 
@@ -703,7 +703,15 @@ export async function runCommandCycleForRuntime(
     commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
   };
 
-  const { committed } = runtime.engine.processSequence([firstEvent, tickEvent], {
+  const activeJourney = runtime.projection.getSnapshot().activeJourneyId;
+  const interrupt = parsed.type === "ActionIntentCommand" && parsed.operation === "interrupt";
+  const wait = parsed.type === "ActionIntentCommand" && parsed.operation === "wait";
+  // A journey starts with one internally scheduled travel step. A stop is
+  // immediate. While traveling, rejected commands do not consume a tick;
+  // explicit wait remains the way to advance the journey.
+  const suppressTick = parsed.type === "JourneyIntent" || interrupt || (!!activeJourney && !wait);
+  const rootEvents = suppressTick ? [firstEvent] : [firstEvent, tickEvent];
+  const { committed } = runtime.engine.processSequence(rootEvents, {
     ...options,
     // Dice are derived after CriticalCheckRequested has been processed, but
     // remain in the same durable batch as the command and its TickPassed.

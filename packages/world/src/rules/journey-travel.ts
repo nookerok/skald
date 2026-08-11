@@ -13,6 +13,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
 import { ruleEventId } from "../ids.js";
+import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
 
 function blocked(event: DomainEvent, idx: number, reason: string, playerText: string): DomainEvent {
   return {
@@ -37,20 +38,26 @@ function relationLabel(kind: string): string {
 }
 
 function normalize(text: string): string {
-  return text.toLowerCase().replace(/[^a-zа-яё0-9]+/g, " ").trim();
+  return text.toLowerCase()
+    .replace(/\u0451/g, "\u0435")
+    .replace(/[^\u0061-\u007a\u0430-\u044f0-9]+/gu, " ")
+    .trim();
 }
 
-/** Tolerant name matching for parsed journey destinations: Russian case
- *  endings («речному стражу» vs «Речной Страж») and word order collapse to a
- *  shared root (first four letters of a significant token). */
+function stemToken(token: string): string {
+  let stem = token.replace(/[\u0430\u0435\u0438\u043e\u0443\u044b\u044d\u044e\u044f]/gu, "");
+  if (stem.endsWith("\u043c") || stem.endsWith("\u0439")) stem = stem.slice(0, -1);
+  return stem;
+}
+
+/** Tolerant phrase matching without treating a shared suffix as the place name. */
 function namesMatch(raw: string, name: string): boolean {
   const a = normalize(raw);
   const b = normalize(name);
-  if (a === b) return true;
-  if (a.includes(b) || b.includes(a)) return true;
-  const ta = a.split(" ").filter((t) => t.length > 0);
-  const tb = b.split(" ").filter((t) => t.length > 0);
-  return ta.some((x) => tb.some((y) => x.length >= 4 && y.length >= 4 && (x.startsWith(y.slice(0, 4)) || y.startsWith(x.slice(0, 4)))));
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const ta = a.split(" ").filter(Boolean).map(stemToken);
+  const tb = b.split(" ").filter(Boolean).map(stemToken);
+  return ta.length === tb.length && ta.every((token, index) => token.length > 0 && token === tb[index]);
 }
 
 export const journeyTravel: Rule<ReadonlyWorld> = {
@@ -66,8 +73,18 @@ export const journeyTravel: Rule<ReadonlyWorld> = {
     if (!currentId) return [blocked(event, 0, "no_route", "Ты не знаешь, где находишься.")];
     if (!destination) return [blocked(event, 0, "unknown_destination", "Ты не указал, куда идти.")];
 
-    // Resolve the destination by tolerant name matching against known locations.
-    const candidates = [...world.locations.values()].filter((location) => namesMatch(destination, location.name));
+    // Living-region worlds resolve only observer-known locations. Legacy worlds
+    // have no spatial knowledge read model and retain their compatibility path.
+    const knownLocationIds = world.spatialKnowledge
+      ? new Set([...world.spatialKnowledge.locations.entries()]
+        .filter(([, observation]) => spatialKnowledgeRank(observation.knowledge) >= spatialKnowledgeRank("observed"))
+        .map(([locationId]) => locationId))
+      : null;
+    const candidates = [...world.locations.values()].filter((location) => {
+      if (knownLocationIds && !knownLocationIds.has(location.id)) return false;
+      const aliases = world.spatial?.toponymIndex?.subjects.find((subject) => subject.id === location.id)?.aliases ?? [];
+      return namesMatch(destination, location.name) || aliases.some((alias) => namesMatch(destination, alias));
+    });
 
     if (candidates.length === 0) {
       return [blocked(event, 0, "unknown_destination", `Ты не знаешь дороги к «${destination}». Может быть, стоит осмотреться.`)];

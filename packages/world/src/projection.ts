@@ -11,6 +11,8 @@ import { HeatProjector } from "./heat/projector.js";
 import { SettlementProjector } from "./settlement/projector.js";
 import { ResourceProjector } from "./resource/projector.js";
 import type { ResourceReadView } from "./resource/types.js";
+import { createObserverSpatialKnowledge, freezeObserverSpatialKnowledge, mergeSpatialObservation } from "./region/observer-knowledge.js";
+import type { MutableObserverSpatialKnowledge, ObserverSpatialKnowledge } from "./region/observer-knowledge.js";
 
 /** Event types whose read-view projection must be refreshed after apply. */
 const SPATIAL_EVENT_TYPES = new Set([
@@ -76,7 +78,7 @@ export interface JourneyState {
   readonly startedAt: number;
   readonly plannedTicks: number;
   readonly elapsedTicks: number;
-  readonly status: "active" | "completed" | "blocked";
+  readonly status: "active" | "completed" | "interrupted" | "blocked";
 }
 
 export function relationKey(from: string, to: string, kind: string): string {
@@ -119,6 +121,7 @@ export interface ReadonlyWorld {
   readonly settlement: import("./settlement/types.js").SettlementReadView | null;
   /** Resource node definitions and event-sourced stock state. */
   readonly resources: ResourceReadView | null;
+  readonly spatialKnowledge: ObserverSpatialKnowledge | null;
 }
 
 export interface WorldState {
@@ -156,6 +159,7 @@ export interface WorldState {
   // Settlement read view for Rules (PR-7.4, first long-lived object)
   settlement: import("./settlement/types.js").SettlementReadView | null;
   resources: ResourceReadView | null;
+  spatialKnowledge: MutableObserverSpatialKnowledge | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -290,11 +294,18 @@ function freeze(state: WorldState): ReadonlyWorld {
     activeJourneyId: state.activeJourneyId,
     spatial: state.spatial
       ? {
+          region: state.spatial.region ?? null,
+          locations: state.spatial.locations ? cloneMap(state.spatial.locations) : undefined,
+          landmarks: state.spatial.landmarks ? cloneMap(state.spatial.landmarks) : undefined,
+          relations: state.spatial.relations ? cloneMap(state.spatial.relations) : undefined,
           riverProcesses: cloneMap(state.spatial.riverProcesses),
           riverStates: cloneMap(state.spatial.riverStates),
           crossingDefinitions: cloneMap(state.spatial.crossingDefinitions),
           crossingStates: cloneMap(state.spatial.crossingStates),
           travelRelations: cloneMap(state.spatial.travelRelations),
+          hydrography: state.spatial.hydrography ?? null,
+          elevation: state.spatial.elevation ?? null,
+          toponymIndex: state.spatial.toponymIndex ?? null,
         }
       : null,
     weather: state.weather
@@ -320,6 +331,7 @@ function freeze(state: WorldState): ReadonlyWorld {
           states: cloneMap(state.resources.states),
         }
       : null,
+    spatialKnowledge: state.spatialKnowledge ? freezeObserverSpatialKnowledge(state.spatialKnowledge) : null,
   }) as ReadonlyWorld;
 }
 
@@ -366,6 +378,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       // Settlement read view for Rules (PR-7.4, first long-lived object)
       settlement: null,
       resources: null,
+      spatialKnowledge: createObserverSpatialKnowledge("player"),
     };
   }
 
@@ -558,11 +571,14 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         if (s.activeJourneyId) {
           const journey = s.journeys.get(s.activeJourneyId);
           if (journey) {
-            const delta = (event.payload as { delta?: number }).delta ?? 1;
-            s.journeys.set(journey.journeyId, {
-              ...journey,
-              elapsedTicks: Math.min(journey.plannedTicks, journey.elapsedTicks + Math.max(0, delta)),
-            });
+            const tick = event.payload as { delta?: number; playerOffline?: boolean };
+            if (!tick.playerOffline) {
+              const delta = tick.delta ?? 1;
+              s.journeys.set(journey.journeyId, {
+                ...journey,
+                elapsedTicks: Math.min(journey.plannedTicks, journey.elapsedTicks + Math.max(0, delta)),
+              });
+            }
           }
         }
         break;
@@ -598,8 +614,32 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.activeJourneyId = null;
         break;
       }
+      case "JourneyInterrupted": {
+        const p = event.payload as { journeyId: string; elapsedTicks?: number };
+        const journey = s.journeys.get(p.journeyId);
+        if (journey) {
+          s.journeys.set(p.journeyId, {
+            ...journey,
+            elapsedTicks: typeof p.elapsedTicks === "number" ? Math.max(0, Math.min(journey.plannedTicks, p.elapsedTicks)) : journey.elapsedTicks,
+            status: "interrupted",
+          });
+        }
+        if (s.activeJourneyId === p.journeyId) s.activeJourneyId = null;
+        break;
+      }
       case "JourneyBlocked": {
         // JourneyBlocked is a fact; no Projection change needed.
+        break;
+      }
+      case "SpatialObservationRecorded": {
+        if (s.spatialKnowledge) {
+          mergeSpatialObservation(
+            s.spatialKnowledge,
+            event.payload as import("./region/types.js").SpatialObservationPayload,
+            event.eventId,
+            s.eventNumber,
+          );
+        }
         break;
       }
       default:
@@ -643,11 +683,35 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       entities: new Map([...this.state.entities].map(([id, entity]) => [id, deepCloneEntity(entity)])),
       journeys: new Map([...this.state.journeys].map(([id, j]) => [id, { ...j }])),
       activeJourneyId: this.state.activeJourneyId,
-      spatial: this.state.spatial,
+      spatial: this.state.spatial
+        ? {
+            region: this.state.spatial.region ?? null,
+            locations: this.state.spatial.locations ? new Map(this.state.spatial.locations) : undefined,
+            landmarks: this.state.spatial.landmarks ? new Map(this.state.spatial.landmarks) : undefined,
+            relations: this.state.spatial.relations ? new Map(this.state.spatial.relations) : undefined,
+            riverProcesses: new Map(this.state.spatial.riverProcesses),
+            riverStates: new Map(this.state.spatial.riverStates),
+            crossingDefinitions: new Map(this.state.spatial.crossingDefinitions),
+            crossingStates: new Map(this.state.spatial.crossingStates),
+            travelRelations: new Map(this.state.spatial.travelRelations),
+            hydrography: this.state.spatial.hydrography ?? null,
+            elevation: this.state.spatial.elevation ?? null,
+            toponymIndex: this.state.spatial.toponymIndex ?? null,
+          }
+        : null,
       weather: this.state.weather,
       heat: this.state.heat,
       settlement: this.state.settlement,
       resources: this.state.resources,
+      spatialKnowledge: this.state.spatialKnowledge
+        ? {
+            observerId: this.state.spatialKnowledge.observerId,
+            locations: new Map(this.state.spatialKnowledge.locations),
+            landmarks: new Map(this.state.spatialKnowledge.landmarks),
+            relations: new Map(this.state.spatialKnowledge.relations),
+            water: new Map(this.state.spatialKnowledge.water),
+          }
+        : null,
     };
     copy.seedReadViewProjectors();
     return copy;

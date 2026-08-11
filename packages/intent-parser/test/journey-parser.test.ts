@@ -79,6 +79,14 @@ describe("interpretIntent — travel (ADR-0015)", () => {
     expect(cmd.destination.raw).toBe("");
   });
 
+  it("recognizes a stop command as an interrupt action", () => {
+    const result = interpretIntent("остановиться");
+    expect(result.type).toBe("ActionIntentCommand");
+    const cmd = result as ActionIntentCommand;
+    expect(cmd.mode).toBe("travel");
+    expect(cmd.operation).toBe("interrupt");
+  });
+
   it("carries rawText from original input", () => {
     const result = interpretIntent("ИДТИ К РЕЧНОМУ СТРАЖУ");
     expect(result.type).toBe("JourneyIntent");

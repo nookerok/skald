@@ -33,7 +33,7 @@ function makeObserverMap(overrides?: { locations?: Array<{ ref: string; name: st
   const locations = (overrides?.locations ?? [
     { ref: "river_waystation", name: "Переправа у Чёрного леса", knowledge: "traversed" as const, confidence: 1, freshness: 1, xMetres: 8000, yMetres: 9500 },
     { ref: "riverwatch_city", name: "Речной Страж", knowledge: "observed" as const, confidence: 0.9, freshness: 0.8, xMetres: 13500, yMetres: 7500 },
-    { ref: "blackwood_edge", name: "Кромка Чёрного леса", knowledge: "glimpsed" as const, confidence: 0.5, freshness: 0.6, xMetres: 6000, yMetres: 12000 },
+    { ref: "blackwood_edge", name: "Кромка Чёрного леса", knowledge: "observed" as const, confidence: 0.5, freshness: 0.6, xMetres: 6000, yMetres: 12000 },
   ]).map((loc) => ({
     ...loc,
     confidence: loc.confidence ?? 0.5,

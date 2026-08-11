@@ -14,6 +14,8 @@ import { worldInteractionRules } from "./world-interaction.js";
 import { perceptionRules } from "./interactions/perception.js";
 import { listeningRules } from "./interactions/listening.js";
 import { journeyStart } from "./journey-start.js";
+import { journeyProgress } from "./journey-progress.js";
+import { journeyInterrupt } from "./journey-interrupt.js";
 import { journeyTravel } from "./journey-travel.js";
 import { createJourneyValidationRule } from "./journey-validation.js";
 import { riverLevelProcess } from "./river-level.js";
@@ -70,6 +72,8 @@ export function createRules(
 
   // Spatial Movement — journey start rule (ADR-0015)
   registry.register(journeyStart);
+  registry.register(journeyProgress);
+  registry.register(journeyInterrupt);
 
   // Journey travel rule (production): resolves destinations from the
   // ReadonlyWorld read views (world.spatial travel relations + crossing

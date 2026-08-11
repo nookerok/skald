@@ -49,6 +49,15 @@ export function handleCommand(
     return handleResourceExtractionCommand(command, correlationId, timestamp);
   }
 
+  if (command.type === "ActionIntentCommand" && command.mode === "travel" && command.operation === "interrupt") {
+    return {
+      ...base,
+      eventId: commandEventId(correlationId, "JourneyInterruptRequested"),
+      type: "JourneyInterruptRequested",
+      payload: { rawText: command.rawText },
+    };
+  }
+
   if (command.type === "JourneyIntent") {
     const destination = command.destination?.raw.trim() ?? "";
     if (destination.length === 0) {
