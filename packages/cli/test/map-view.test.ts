@@ -229,6 +229,15 @@ describe("observer map fog of war", () => {
 describe("observer map HTTP client", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("accepts the server-owned v3 map DTO", async () => {
+    const dto = { ...mapDto(), schemaVersion: 3, revealZones: [], availableDetails: [{ id: "overview", coverageBounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 100, maxYMetres: 100 } }] };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, map: dto }),
+    }));
+    await expect(loadObserverMap("riverwatch-main")).resolves.toEqual(dto);
+  });
+
   it("unwraps the ObserverMapDTO from the world map response", async () => {
     const dto = mapDto();
     const fetchMock = vi.fn().mockResolvedValue({

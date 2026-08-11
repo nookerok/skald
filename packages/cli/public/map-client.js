@@ -41,7 +41,7 @@ export async function loadObserverMap(worldId, signal) {
     }
 
     // Validate schema version
-    if (dto.schemaVersion !== 1 && dto.schemaVersion !== 2) {
+    if (dto.schemaVersion !== 1 && dto.schemaVersion !== 2 && dto.schemaVersion !== 3) {
       throw new Error(`Unsupported map schema version: ${dto.schemaVersion}`);
     }
 

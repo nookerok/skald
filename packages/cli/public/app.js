@@ -12,7 +12,7 @@ import { resolveWorldRoute, ROUTE } from "./presence-route.js";
 import { initExitFlow, requestLeave, isExitInProgress } from "./presence-exit-controller.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
-import { setControlsBusy } from "./ui-state.js";
+import { setControlsBusy, keepPendingVisible } from "./ui-state.js";
 import { showContextLocation } from "./context-rail-view.js";
 import { loadObserverMap } from "./map-client.js";
 import { renderLivingWorldMap } from "./living-world-shell.js";
@@ -165,6 +165,7 @@ function renderIntentClarification(intent, body) {
 async function handle(input, overrideKey) {
   if (!interactionReady || state.command === CMD.PENDING || isExitInProgress()) return;
   const key = overrideKey || createRequestKey();
+  const pendingStartedAt = performance.now();
   const sessionIntent = addLocalIntent(input, key);
   setRetryVisible(false);
   dispatch("COMMAND_START", { input, key });
@@ -174,12 +175,14 @@ async function handle(input, overrideKey) {
   try {
     const result = await sendCommand(input, key);
     if (result.body?.ok && result.body?.status === "clarification") {
+      await keepPendingVisible(pendingStartedAt);
       dispatch("COMMAND_REJECTED");
       renderIntentClarification(sessionIntent, result.body);
       renderShellConnection("ready", "Мастер уточняет действие");
       return;
     }
     if (result.body?.ok) {
+      await keepPendingVisible(pendingStartedAt);
       if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
       setIntentStatus(sessionIntent, "accepted");
       if (sessionIntent && Number.isFinite(result.body.state?.worldTime)) {
@@ -207,6 +210,7 @@ async function handle(input, overrideKey) {
       dispatch("COMMAND_REJECTED");
     }
   } catch (error) {
+    await keepPendingVisible(pendingStartedAt);
     dispatch(error?.name === "AbortError" ? "COMMAND_TIMEOUT" : "COMMAND_TRANSPORT_FAIL");
     setIntentStatus(sessionIntent, "offline");
     renderChatFeed(latestJournal);
