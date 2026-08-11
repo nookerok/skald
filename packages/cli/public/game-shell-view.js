@@ -1,95 +1,22 @@
 import { renderLivingWorld } from "./living-world-shell.js";
-import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, clearLocalIntents as clearLocalIntentsModel } from "./chat-feed-view.js";
+import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, setIntentStatus as setIntentStatusModel, addClarification as addClarificationModel, clearLocalIntents as clearLocalIntentsModel } from "./chat-feed-view.js";
 import { initActivityView } from "./activity-view.js";
 const overlayOpeners = new Map();
-export function renderGameShell(snapshot) { renderLivingWorld(snapshot); }
+let currentSnapshot = null;
+let currentJournal = null;
+export function renderGameShell(snapshot) { currentSnapshot = snapshot || null; renderLivingWorld(snapshot); if (currentJournal) renderChatFeedModel(currentJournal.turns, getLocalIntents(), currentSnapshot); }
 export function humanizeLatestResponse(text) {
   const value = typeof text === "string" ? text.trim() : "";
   if (!value) return "";
   const cleaned = value.replace(/^Ты находишься в точке\s*\(-?\d+\s*,\s*-?\d+\)\.\s*/u, "").replace(/^Ты пытаешься:\s*/u, "").trim();
   return cleaned || value;
 }
-export function renderChatFeed(journal) { renderChatFeedModel(journal?.turns, getLocalIntents()); }
+export function renderChatFeed(journal) { currentJournal = journal || null; renderChatFeedModel(journal?.turns, getLocalIntents(), currentSnapshot); }
 export function addLocalIntent(...args) { return addLocalIntentModel(...args); }
 export function bindIntentWorldTime(...args) { return bindIntentWorldTimeModel(...args); }
-export function clearLocalIntents(...args) { return clearLocalIntentsModel(...args); }
-export function renderLatestIntent() {
-  const node = document.getElementById("latest-intent");
-  if (!node) return;
-  const intent = getLocalIntents().at(-1);
-  node.hidden = !intent;
-  node.textContent = intent?.text || "";
-}
-
-export function renderLatestResponse(journal) {
-  renderLatestIntent();
-  const title=document.getElementById("latest-response-title");
-  const notable=document.getElementById("latest-response-notable");
-  if(!title||!notable)return;
-  const turn=Array.isArray(journal?.turns)?journal.turns[0]:null;
-  if(turn?.presentation?.primary?.text) title.textContent=humanizeLatestResponse(turn.presentation.primary.text);
-  notable.replaceChildren();
-  for(const entry of (turn?.presentation?.notable||[]).slice(0,1)){
-    const item=document.createElement("p");
-    item.className="latest-response-item";
-    item.textContent=humanizeLatestResponse(entry.text||"");
-    notable.appendChild(item);
-  }
-  renderChroniclePreview(journal);
-}
-
-export function renderChroniclePreview(journal) {
-  const container = document.getElementById("chronicle-scene-list");
-  if (!container) return;
-  container.replaceChildren();
-  const seen = new Set();
-  const turns = Array.isArray(journal?.turns) ? journal.turns : [];
-  const scenes = [];
-  for (const turn of turns) {
-    const primary = turn?.presentation?.primary;
-    const text = humanizeLatestResponse(primary?.text || "");
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    const time = Number.isFinite(turn?.worldTime)
-      ? turn.worldTime
-      : Number.isFinite(primary?.timestamp) ? primary.timestamp : null;
-    scenes.push({ label: chronicleSceneLabel(text, scenes.length), text, mark: primary.discoveryMark, time });
-    if (scenes.length >= 3) break;
-  }
-  if (!scenes.length) {
-    const empty = document.createElement("p");
-    empty.className = "chronicle-empty";
-    empty.textContent = "Путь ещё не оставил сцен.";
-    container.appendChild(empty);
-    return;
-  }
-  for (const scene of scenes) {
-    const card = document.createElement("article");
-    card.className = "chronicle-scene";
-    const time = document.createElement("span");
-    time.className = "chronicle-scene-time";
-    time.textContent = scene.time == null ? "Сцена" : "Ход " + scene.time;
-    const copy = document.createElement("p");
-    copy.textContent = scene.text;
-    card.append(time, copy);
-    if (scene.mark) {
-      const mark = document.createElement("span");
-      mark.className = "chronicle-scene-mark";
-      mark.textContent = scene.mark === "trace" ? "След" : scene.mark === "echo" ? "Эхо" : "Знамение";
-      card.appendChild(mark);
-    }
-    container.appendChild(card);
-  }
-}
-function chronicleSceneLabel(text, index) {
-  const normalized = String(text || "").toLowerCase();
-  if (normalized.includes("\u043f\u0443\u0442\u044c") || normalized.includes("\u0434\u043e\u0440\u043e\u0433") || normalized.includes("\u043f\u0435\u0440\u0435\u043f\u0440\u0430\u0432") || normalized.includes("\u0432\u043e\u0434\u043e\u043f\u0430\u0434") || normalized.includes("\u0440\u0443\u0438\u043d")) return "\u041f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432\u0438\u0435";
-  if (normalized.includes("\u043e\u0442\u043a\u0440\u044b") || normalized.includes("\u0437\u0430\u043c\u0435\u0442") || normalized.includes("\u0441\u043b\u0435\u0434") || normalized.includes("\u043d\u0430\u0431\u043b\u044e\u0434") || normalized.includes("\u0443\u0437\u043d\u0430\u0451\u0442")) return "\u041e\u0442\u043a\u0440\u044b\u0442\u0438\u0435";
-  if (normalized.includes("\u043e\u0442\u043d\u043e\u0448") || normalized.includes("\u043e\u0431\u0449\u0438\u043d") || normalized.includes("\u0434\u043e\u0432\u0435\u0440") || normalized.includes("\u0443\u0432\u0430\u0436\u0435\u043d")) return "\u041e\u0442\u043d\u043e\u0448\u0435\u043d\u0438\u0435";
-  if (normalized.includes("\u043e\u043f\u0430\u0441") || normalized.includes("\u043f\u0440\u0435\u0433\u0440\u0430\u0434") || normalized.includes("\u043e\u0433\u043e\u043d\u044c") || normalized.includes("\u0436\u0430\u0440") || normalized.includes("\u0442\u0440\u0435\u0432\u043e\u0433")) return "\u041e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u044c";
-  if (normalized.includes("\u043f\u043e\u0441\u043b\u0435\u0434\u0441\u0442\u0432") || normalized.includes("\u0438\u0437\u043c\u0435\u043d\u0438\u043b") || normalized.includes("\u043f\u0440\u043e\u044f\u0432\u0438\u043b")) return "\u041f\u043e\u0441\u043b\u0435\u0434\u0441\u0442\u0432\u0438\u0435";
-  return "\u0421\u0446\u0435\u043d\u0430 " + (index + 1);
-}
+export function setIntentStatus(...args) { return setIntentStatusModel(...args); }
+export function addClarification(...args) { return addClarificationModel(...args); }
+export function clearLocalIntents(...args) { currentJournal = null; return clearLocalIntentsModel(...args); }
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
 export function setShellBusy(busy, stage = "Мир отвечает…") {
@@ -180,10 +107,10 @@ export function initShellView(onCommand) {
     document.querySelectorAll(".context-panel").forEach((panel) => { panel.hidden = panel.id !== "context-" + tab.dataset.context; });
   }));
   initActivityView();
+  document.getElementById("open-journal-inline")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   const submitCommand = () => { const input = document.getElementById("command-input"); const value = input?.value.trim(); if (value) onCommand(value); };
   document.getElementById("command-form")?.addEventListener("submit", (event) => { event.preventDefault(); submitCommand(); });
   document.getElementById("command-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitCommand(); } });
-  document.getElementById("open-journal-inline")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   initVoiceInput();
   document.querySelectorAll("[data-close-overlay]").forEach((button) => button.addEventListener("click", () => closeShellOverlay(button.dataset.closeOverlay)));
   document.querySelectorAll("[data-mobile-target]").forEach((button) => button.addEventListener("click", () => {

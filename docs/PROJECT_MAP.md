@@ -40,9 +40,14 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 
 ## Runtime flows
 
-    Browser/REPL -> command boundary -> intent-parser -> command handler
-    -> RuleEngine -> staged Domain Events -> EventBus + Projection commit
-    -> Presentation/Narrative -> HTTP/CLI output
+    Browser/REPL -> Interpretation Gateway (deterministic fast path or
+    closed LLM IntentProposalV1) -> schema/capability validation -> command
+    handler -> RuleEngine -> staged Domain Events -> EventBus + Projection
+    commit -> Presentation/Narrative -> HTTP/CLI output
+
+    Journal DTO + session-scoped intents -> Conversation Feed (ТЫ → МАСТЕР)
+    -> transient gateway clarification or accepted world reply; Map/You/Knowledge
+    remain separate observer-scoped player spaces
 
     Event Log + ReadonlyWorld -> Observation Engine -> BeliefModelDTO
     Pattern Ontology -> Observation Contract -> Observation Engine -> Lenses

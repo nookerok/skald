@@ -1,6 +1,14 @@
 # Codex Handoff
 
+## Current work (2026-08-11)
+
+- Conversation shell restored in the working tree (ADR-0024 amendment): the main surface now uses the two-voice `#chat-feed`; gateway clarifications render as transient Master replies; top navigation is Map / You / Knowledge; Dev and the separate discoveries overlay are removed from the player shell. Full validation PASS (118 files, 1422 passed, 1 skipped). Fixed NTFS browser QA PASS for the static shell at localhost:3010 on desktop/mobile widths; actual mounted Game Shell/Map runtime remained BLOCKED because the read-only budget forbade Presence acknowledgement and the local database had no entered world. Changes remain uncommitted, unpushed and undeployed.
+
 ## Current work (2026-08-09)
+
+- AI-DM Interpretation Gateway implemented (ADR-0028): deterministic fast path plus bounded LLM IntentProposalV1 fallback. Proposals are schema/capability validated into existing transient commands; model authority fields, hidden IDs and compound intent execution are rejected. Clarifications return before the world queue with no Domain Events or TickPassed; HTTP and main shell render the clarification as a player-facing response.
+- Added proposal and gateway tests; current validation after this milestone: npm run validate PASS (118 files, 1421 passed, 1 skipped). Changes remain uncommitted, unpushed and undeployed.
+
 
 - Historical evidence layer implemented (ADR-0027): accepted physical traces for ancient culture, abandoned infrastructure, possible conflict damage, forest/climate shift and former river course; runtime discovery definitions require independent evidence and expose supported/contradicted/inconclusive read-side resolution.
 - Resource node vertical slice implemented (ADR-0026): accepted Blackwood timber definition is compiled into bootstrap, projected with integer stock, supports extraction, depletion, deterministic world-time regeneration and blocking situations; command handler and RuleRegistry are wired.

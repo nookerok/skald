@@ -27,11 +27,11 @@ export async function chatOnce(
   apiKey: string,
   model: string,
   messages: readonly ChatMessage[],
-  opts: { category?: Category; maxTokens: number | undefined; provider: ProviderId },
+  opts: { category?: Category; maxTokens: number | undefined; provider: ProviderId; timeoutMs?: number },
 ): Promise<HttpResult> {
   const start = performance.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30000);
 
   try {
     let body: object;

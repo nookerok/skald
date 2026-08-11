@@ -25,6 +25,8 @@ import {
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
+import { interpretPlayerInput } from "../runtime/intent-gateway.js";
+import type { ExecutableIntent } from "@skald/intent-parser";
 
 /** Deterministic canonical hash of the acknowledge request body. */
 function acknowledgeRequestHash(worldTime: number, eventNumber: number): string {
@@ -251,6 +253,19 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
 
   let narrationTurn: NarrationTurn | null = null;
   let advanceNarrationTicks: DomainEvent[] | null = null;
+  let resolvedIntent: ExecutableIntent | undefined;
+
+  if (input !== "wait" && !input.startsWith("advance ")) {
+    if (runtime.processedKeys.has(idempotencyKey)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+    const interpretation = await interpretPlayerInput(input, runtime.router);
+    if (interpretation.status === "clarification") {
+      return json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options });
+    }
+    if (interpretation.status === "unsupported" || interpretation.status === "unavailable") {
+      return json({ ok: true, status: "clarification", question: interpretation.message, options: [{ optionId: "rephrase", label: "Переформулировать действие" }] });
+    }
+    resolvedIntent = interpretation.intent;
+  }
 
   const response = await runtime.queue.enqueue(async () => {
     try {
@@ -282,7 +297,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
 
-      const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
+      const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
       // runCommandCycleForRuntime returns a JsonResponse with 409 for duplicates
       if ("statusCode" in r && (r as JsonResponse).statusCode === 409)
@@ -662,12 +677,13 @@ export async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
+  resolvedIntent?: ExecutableIntent,
 ): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | JsonResponse> {
   if (runtime.processedKeys.has(idempotencyKey)) {
     return error("duplicate_request", "duplicate idempotencyKey", 409);
   }
 
-  const parsed = parseIntent(input);
+  const parsed = resolvedIntent ?? parseIntent(input);
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return error("parse_error", "Could not understand input", 400);
 
   const ts = runtime.projection.getSnapshot().time + 1;

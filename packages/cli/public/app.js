@@ -1,6 +1,6 @@
-import { sendCommand, fetchState, fetchGameShell, fetchEvents, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
+import { sendCommand, fetchState, fetchGameShell, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderLatestResponse, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, bindIntentWorldTime } from "./game-shell-view.js";
+import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
 import { createNarrationPoll } from "./narration-poll.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -21,6 +21,7 @@ let state = createInitialState();
 let interactionReady = false;
 let currentWorldId = null;
 let lastKnownRevision = 0;
+let latestJournal = null;
 
 /**
  * Server-driven narration polling (ADR-0024 "МИР" voice). The journal DTO now
@@ -68,6 +69,9 @@ async function flushOfflineQueue() {
   const done = [];
   let failed = false;
   for (const envelope of pending) {
+    const sessionIntent = addLocalIntent(envelope.input, envelope.idempotencyKey);
+    setIntentStatus(sessionIntent, "offline");
+    renderChatFeed(latestJournal);
     let result;
     try {
       result = await submitOfflineEnvelope(currentWorldId, envelope);
@@ -79,6 +83,8 @@ async function flushOfflineQueue() {
     if (!resolution) { failed = true; break; }
     done.push(envelope.idempotencyKey);
     if (resolution === "accepted") {
+      setIntentStatus(sessionIntent, "accepted");
+      if (Number.isFinite(result.body.state?.worldTime)) bindIntentWorldTime(sessionIntent, result.body.state.worldTime);
       if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
       renderOfflineBanner(`«${envelope.input}» — записано с опозданием.`);
       await refreshShell();
@@ -86,8 +92,12 @@ async function flushOfflineQueue() {
       await refreshDiscoveries();
       scheduleNarrationRefresh(Boolean(result.body.state?.routerAvailable), result.body.state?.worldTime);
     } else if (resolution === "already_processed") {
+      setIntentStatus(sessionIntent, "accepted");
+      renderChatFeed(latestJournal);
       renderOfflineBanner(`«${envelope.input}» — уже было записано ранее.`);
     } else {
+      setIntentStatus(sessionIntent, "failed");
+      renderChatFeed(latestJournal);
       renderOfflineBanner(`«${envelope.input}» — ${result.body.message || "не записано."}`);
     }
   }
@@ -128,7 +138,8 @@ async function refreshJournal() {
     const data = await loadJournal();
     if (data) {
       renderJournal(data);
-      renderLatestResponse(data);
+      latestJournal = data;
+      renderChatFeed(data);
       dispatch("JOURNAL_AVAILABLE", { turns: data.turns?.length || 0 });
       return data;
     }
@@ -146,24 +157,15 @@ async function refreshDiscoveries() {
     else dispatch("DISCOVERIES_UNAVAILABLE");
   } catch { dispatch("DISCOVERIES_UNAVAILABLE"); }
 }
-async function refreshDev() {
-  const result = await fetchEvents();
-  const events = result.body?.events || result.body?.items || [];
-  const log = document.getElementById("event-log");
-  if (log) {
-    log.replaceChildren(...events.slice(-60).reverse().map((event) => {
-      const pre = document.createElement("pre");
-      pre.textContent = JSON.stringify(event, null, 2);
-      return pre;
-    }));
-  }
-  const pipeline = document.getElementById("pipeline-view");
-  if (pipeline) pipeline.textContent = "Event Log → Projection → Game Shell → Narrative → UI";
+function renderIntentClarification(intent, body) {
+  setIntentStatus(intent, "clarification");
+  addClarification(intent, body?.question, body?.options);
+  renderChatFeed(latestJournal);
 }
 async function handle(input, overrideKey) {
   if (!interactionReady || state.command === CMD.PENDING || isExitInProgress()) return;
   const key = overrideKey || createRequestKey();
-  const sessionIntent = overrideKey ? null : addLocalIntent(input);
+  const sessionIntent = addLocalIntent(input, key);
   setRetryVisible(false);
   dispatch("COMMAND_START", { input, key });
   setControlsBusy(true);
@@ -171,8 +173,15 @@ async function handle(input, overrideKey) {
   renderShellConnection("pending", "Мир отвечает…");
   try {
     const result = await sendCommand(input, key);
+    if (result.body?.ok && result.body?.status === "clarification") {
+      dispatch("COMMAND_REJECTED");
+      renderIntentClarification(sessionIntent, result.body);
+      renderShellConnection("ready", "Мастер уточняет действие");
+      return;
+    }
     if (result.body?.ok) {
       if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
+      setIntentStatus(sessionIntent, "accepted");
       if (sessionIntent && Number.isFinite(result.body.state?.worldTime)) {
         bindIntentWorldTime(sessionIntent, result.body.state.worldTime);
       }
@@ -193,10 +202,14 @@ async function handle(input, overrideKey) {
       await refreshJournal();
       await refreshDiscoveries();
     } else {
+      setIntentStatus(sessionIntent, "failed");
+      renderChatFeed(latestJournal);
       dispatch("COMMAND_REJECTED");
     }
   } catch (error) {
     dispatch(error?.name === "AbortError" ? "COMMAND_TIMEOUT" : "COMMAND_TRANSPORT_FAIL");
+    setIntentStatus(sessionIntent, "offline");
+    renderChatFeed(latestJournal);
     renderShellConnection("error", "Связь прервана");
     setRetryVisible(true);
     if (currentWorldId) {
@@ -209,6 +222,8 @@ async function handle(input, overrideKey) {
   }
 }
 async function connect() {
+  clearLocalIntents();
+  latestJournal = null;
   interactionReady = false;
   dispatch("RECONNECT");
   // Cover the static shell frame (hardcoded «Ход 0» placeholders) with the
@@ -296,10 +311,14 @@ function bindGlobal() {
     if (currentWorldId) requestLeave(currentWorldId);
   });
   document.getElementById("btn-to-menu")?.addEventListener("click", () => { interactionReady = false; window.location.hash = "#/menu"; });
-  document.getElementById("open-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
-  document.getElementById("open-context-btn")?.addEventListener("click", () => openShellOverlay("context-overlay"));
-  document.getElementById("open-discoveries-btn")?.addEventListener("click", () => openShellOverlay("discoveries-overlay"));
-  document.getElementById("open-dev-btn")?.addEventListener("click", async () => { openShellOverlay("dev-overlay"); await refreshDev(); });
+  const openPlayerSpace = (tabName, openerId) => {
+    const tab = document.querySelector('.context-tab[data-context="' + tabName + '"]');
+    tab?.click();
+    openShellOverlay("context-overlay", document.getElementById(openerId));
+  };
+  document.getElementById("open-map-btn")?.addEventListener("click", () => openPlayerSpace("map", "open-map-btn"));
+  document.getElementById("open-character-btn")?.addEventListener("click", () => openPlayerSpace("character", "open-character-btn"));
+  document.getElementById("open-knowledge-btn")?.addEventListener("click", () => openPlayerSpace("knowledge", "open-knowledge-btn"));
   document.getElementById("timeline-journal-btn")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   document.getElementById("retry-btn")?.addEventListener("click", () => { if (state.pendingInput && state.pendingKey) handle(state.pendingInput, state.pendingKey); });
   window.addEventListener("skald:retry-connect", () => connect());

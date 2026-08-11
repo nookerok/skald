@@ -120,3 +120,18 @@ Executed shape:
 - Browser-facing change: visual QA through the fixed NTFS browser task is
   required before the slice is called visually PASS (AGENTS.md testing
   rules); `npm run validate` remains the repository gate.
+
+
+## Amendment 2026-08-11: conversation shell restored
+
+The later UX-7.4 experiment that moved the chronicle into a separate overlay
+and left only a latest-response card on the Game Screen is superseded. The
+accepted UX-7 decision is restored: the main surface is a DTO-only conversation
+feed with session-scoped player messages followed by Master replies.
+
+Clarifications from the AI-DM Interpretation Gateway are rendered as a
+transient Master reply after the player's intent. They never advance world
+time, append Events or mutate Projection. Map, character and knowledge remain
+the only player spaces in the top navigation; discoveries are rendered inside
+the observer-scoped Knowledge surface. Developer diagnostics are not part of
+the player shell and must be opened through a separate trusted-LAN surface.

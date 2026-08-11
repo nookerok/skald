@@ -87,26 +87,24 @@ describe("Visual Shell — presentation purity", () => {
     expect(doc.getElementById("empty-state").hidden).toBe(false);
   });
 
-  it("UX-7.4 keeps the latest response on the main surface and chronicle in its overlay", () => {
+  it("UX-7.5 makes the conversation feed the main game surface", () => {
     const html = readFileSync(resolve(import.meta.dirname, "../public/index.html"), "utf8");
     const main = html.match(/<main id="panel-game"[\s\S]*?<\/main>/)?.[0] || "";
-    expect(main).toContain("latest-response");
-    expect(main).not.toContain("chat-feed");
+    expect(main).toContain('id="chat-feed"');
+    expect(main).toContain('role="log"');
+    expect(main).not.toContain("latest-response");
+    expect(main).not.toContain("chronicle-preview");
     expect(main).toContain('id="command-form"');
     expect(main).toContain('Что ты делаешь?');
-    expect(main).not.toContain('id="world-stage"');
     expect(html).toContain('id="journal-overlay"');
-    expect(html).toContain('id="journal-container"');
-    expect(html).not.toContain('<div id="context-world"');
-    expect(html).not.toContain('<section id="world-stage"');
-    expect(html).not.toContain('id="context-world-details"');
+    expect(html).not.toContain('id="dev-overlay"');
+    expect(html).not.toContain('id="open-dev-btn"');
+    expect(html).toContain('id="open-map-btn"');
+    expect(html).toContain('id="open-character-btn"');
+    expect(html).toContain('id="open-knowledge-btn"');
     expect(html).toContain('data-context="map"');
     expect(html).toContain('data-context="character"');
     expect(html).toContain('data-context="knowledge"');
-    expect(html).toContain('aria-controls="context-map"');
-    expect(html).toContain('id="context-map"');
-    expect(html).not.toContain('data-context="threads"');
-    expect(html).not.toContain('data-context="activity"');
     expect(html).toContain('id="player-map-canvas"');
     expect(html).not.toContain('suggestion-chip');
     expect(html).not.toContain('guidance-action');

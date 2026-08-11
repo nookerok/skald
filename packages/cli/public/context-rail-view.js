@@ -34,6 +34,9 @@ export function renderContextRail(snapshot = {}) {
     knowledgePanel.replaceChildren();
     if (beliefModel) renderBeliefModel(knowledgePanel, beliefModel);
     else knowledgePanel.appendChild(emptyState("Наблюдения и убеждения пока недоступны.", "knowledge-unavailable"));
+    const discoveries = makeNode("section", { className: "knowledge-discoveries", attrs: { id: "discovery-container", "aria-label": "Следы и открытия" } });
+    discoveries.appendChild(makeNode("h3", { text: "Следы и открытия" }));
+    knowledgePanel.appendChild(discoveries);
   }
 }
 

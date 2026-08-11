@@ -107,6 +107,21 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
 });
 
 describe("Chronicle Feed (ADR-0024) — session intent helpers", () => {
+  it("renders a Master clarification after the player intent", async () => {
+    const doc = createDocument();
+    vi.stubGlobal("document", doc);
+    const mod = await import("../public/chat-feed-view.js");
+    mod.clearLocalIntents();
+    const intent = mod.addLocalIntent("Обойти башню", "request-clarify");
+    mod.setIntentStatus(intent, "clarification");
+    mod.addClarification(intent, "Ты хочешь обойти башню или только наблюдать?", [{ label: "Обойти" }, { label: "Наблюдать" }]);
+    mod.renderChatFeed([], mod.getLocalIntents());
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed.children[0])).toContain("Обойти башню");
+    expect(allText(doc.feed.children[1])).toContain("Ты хочешь обойти башню");
+    mod.clearLocalIntents();
+  });
+
   it("records, pairs, and clears intents within the session", async () => {
     const mod = await import("../public/chat-feed-view.js");
     const intent = mod.addLocalIntent("Осмотреться");

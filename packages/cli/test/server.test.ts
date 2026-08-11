@@ -77,7 +77,7 @@ describe("HTTP Server", () => {
     expect(css.status).toBe(200);
     const premiumCss = await fetch(`${server!.url}/skald-aaa.css`);
     expect(premiumCss.status).toBe(200);
-    expect(await premiumCss.text()).toContain("#panel-game .latest-response");
+    expect(await premiumCss.text()).toContain(".conversation-surface");
   });
 
   it("serves the whole app.js module graph (no 404 kills the boot)", async () => {

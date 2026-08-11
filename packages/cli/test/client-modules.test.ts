@@ -82,7 +82,7 @@ describe("Browser ES modules — import link integrity", () => {
     expect(css).toContain("#panel-menu");
     expect(css).toContain("#panel-new-game");
     expect(css).toContain("#panel-presence-entry");
-    expect(css).toContain("#panel-game .latest-response");
+    expect(css).toContain(".conversation-surface");
     expect(css).toContain(".panel-overlay");
     expect(css).toContain("prefers-reduced-motion");
   });
@@ -264,7 +264,10 @@ describe("Browser ES modules — import link integrity", () => {
     expect(html).toContain('role="dialog" aria-modal="true"');
     expect(html).toContain('aria-controls="context-knowledge"');
     expect(html).toContain('id="context-overlay"');
-    expect(html).toContain('id="open-context-btn"');
+    expect(html).toContain('id="open-map-btn"');
+    expect(html).toContain('id="open-character-btn"');
+    expect(html).toContain('id="open-knowledge-btn"');
+    expect(html).not.toContain('id="open-dev-btn"');
     expect(css).not.toContain(".command-retry{display:none}");
   });
 

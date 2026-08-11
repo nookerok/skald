@@ -1,5 +1,5 @@
 export type ProviderId = "opencode_zen" | "ollama_cloud";
-export type Category = "narrate" | "analyze";
+export type Category = "narrate" | "analyze" | "interpret";
 export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "network_error" | "server_error" | "unknown";
 
 export interface Route {
@@ -9,6 +9,7 @@ export interface Route {
   readonly allowFreeRouter: boolean;
   readonly dataClasses: readonly string[];
   readonly thinking: boolean | null;
+  readonly timeoutMs?: number;
 }
 
 export interface RouterDecision {

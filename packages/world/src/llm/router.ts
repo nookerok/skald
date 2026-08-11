@@ -47,13 +47,13 @@ export class ModelRouter {
     return diag;
   }
 
-  async chatOnce(model: string, messages: readonly ChatMessage[], opts: { provider?: ProviderId; maxTokens?: number }): Promise<{ text: string; responseModel: string; latencyMs: number; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+  async chatOnce(model: string, messages: readonly ChatMessage[], opts: { provider?: ProviderId; maxTokens?: number; timeoutMs?: number }): Promise<{ text: string; responseModel: string; latencyMs: number; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     const provider = opts.provider ?? providerForModel(model);
     const provConf = LLM_CONFIG.providers[provider];
     const baseUrl = provConf?.baseUrl ?? this.baseUrl;
     const apiKey = provider === this.providerId ? this.apiKey : (process.env[provConf?.apiKeyEnv ?? ""] ?? "");
     const maxTokens = opts.maxTokens;
-    return chatOnce(baseUrl, apiKey, model, messages, { provider, maxTokens });
+    return chatOnce(baseUrl, apiKey, model, messages, { provider, maxTokens, ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}) });
   }
 
   private _candidateModels(category: Category): readonly string[] {
@@ -131,7 +131,7 @@ export class ModelRouter {
     for (const model of tryOrder) {
       try {
         const provider = providerForModel(model);
-        const result = await this.chatOnce(model, messages, { provider, maxTokens: route.maxTokens });
+        const result = await this.chatOnce(model, messages, { provider, maxTokens: route.maxTokens, ...(route.timeoutMs !== undefined ? { timeoutMs: route.timeoutMs } : {}) });
         return {
           model,
           configuredModel: decision.selectedModel,

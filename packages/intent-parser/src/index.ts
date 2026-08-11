@@ -57,6 +57,9 @@ export type {
 
 export { interpretIntent } from "./deterministic-interpreter.js";
 export type { InterpreterOptions } from "./deterministic-interpreter.js";
+export { INTENT_CAPABILITIES, isIntentProposal, parseIntentProposal } from "./intent-proposal.js";
+export type { ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation } from "./intent-proposal.js";
+export { validateIntentProposal } from "./intent-proposal-validator.js";
 
 // ── Legacy parser (kept for backward compatibility) ──────────────────
 

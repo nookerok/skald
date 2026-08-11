@@ -30,32 +30,20 @@
         <div class="topbar-place"><span id="time-display">Ход 0</span><span class="meta-separator">·</span><span id="place-display">Место неизвестно</span></div>
         <div class="connection-state"><span id="connection-dot" class="connection-dot"></span><span id="status-text" aria-live="polite" role="status">Загрузка...</span></div>
         <div class="topbar-actions">
+          <button id="open-map-btn" class="topbar-button">Карта</button>
+          <button id="open-character-btn" class="topbar-button">Ты</button>
+          <button id="open-knowledge-btn" class="topbar-button">Знания</button>
           <button id="exit-world-btn" class="topbar-button" aria-label="Выйти из мира">Выйти</button>
-          <button id="open-context-btn" class="topbar-button">Контекст</button>
-          <button id="open-journal-btn" class="topbar-button">Хроника</button>
-          <button id="open-discoveries-btn" class="topbar-button">Открытия</button>
-          <button id="open-dev-btn" class="topbar-button">Dev</button>
         </div>
       </header>
       <div class="skald-layout">
         <main id="panel-game" class="skald-center" aria-label="Разговор с живым миром">
-          <section id=latest-response class=latest-response aria-live=polite aria-labelledby=latest-response-title>
-            <div id="latest-intent" class="latest-intent" aria-label="Последнее намерение" hidden></div>
-            <span class=eyebrow>ОТКЛИК МИРА</span>
-            <h1 id=latest-response-title>Мир ждёт твоего действия.</h1>
-            <div id=latest-response-notable class=latest-response-notable></div>
+          <section class="conversation-header" aria-labelledby="conversation-title">
+            <div><span class="eyebrow">ЖИВОЙ МИР</span><h1 id="conversation-title">Разговор с мастером</h1></div>
+            <button id="open-journal-inline" class="text-button" type="button">Ранее</button>
           </section>
-          <section id="journey-status" class="journey-status" aria-live="polite" hidden><span class="eyebrow">ПУТЬ</span><p id="journey-status-text"></p><span id="journey-status-stage"></span></section>
-          <section class="narrative-stack" aria-label="Последствия хода">
-            <div id="critical-check-card" class="critical-check-card" hidden></div>
-            <section id="situation-card" class="situation-card" hidden></section>
-          </section>
-          <section id="chronicle-preview" class="chronicle-preview" aria-labelledby="chronicle-preview-title">
-            <header class="chronicle-preview-header">
-              <div><span class="eyebrow">ПАМЯТЬ ПУТИ</span><h2 id="chronicle-preview-title">Последние сцены</h2></div>
-              <button id="open-journal-inline" class="text-button" type="button">Вся хроника</button>
-            </header>
-            <div id="chronicle-scene-list" class="chronicle-scene-list"></div>
+          <section id="conversation-surface" class="conversation-surface" aria-label="Диалог игрока и мастера">
+            <div id="chat-feed" class="chat-feed" role="log" aria-live="polite" aria-relevant="additions text" tabindex="0"></div>
           </section>
           <section id="controls-section" class="command-dock" aria-busy="true" aria-labelledby="composer-title">
             <p id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></p>
@@ -88,7 +76,7 @@
               </section>
             </div>
             <div id="context-character" class="context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></div>
-            <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden></div>
+            <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden><section id="discovery-container" class="knowledge-discoveries" aria-label="Следы и открытия"></section></div>
           </aside>
         </div>
       </section>
@@ -96,8 +84,6 @@
       <div id="shell-error" class="shell-overlay" role="dialog" aria-modal="true" aria-labelledby="shell-error-title" tabindex="-1" aria-hidden="true" hidden><div class="overlay-card error"><strong id="shell-error-title">Мастер потерял нить...</strong><span id="shell-error-message">Мир не отвечает.</span><button id="shell-retry-connect">Попробовать снова</button></div></div>
       <section id="exit-overlay" class="panel-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Возвращение"><header><h2 id="exit-overlay-title">Возвращение</h2></header><div class="exit-overlay-body"><p id="exit-overlay-status" aria-live="polite">Сверяем последнее состояние мира…</p><p id="exit-overlay-message" class="exit-overlay-message"></p><p id="exit-overlay-error" class="exit-overlay-error" hidden>Не удалось зафиксировать точку возвращения.</p></div><footer class="exit-overlay-actions"><button id="exit-retry-btn" class="topbar-button" type="button" hidden>Попробовать снова</button><button id="exit-stay-btn" class="topbar-button" type="button" hidden>Остаться в мире</button></footer></section>
       <section id="journal-overlay" class="panel-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Хроника"><header><h2>Хроника мира</h2><button data-close-overlay="journal-overlay" aria-label="Закрыть">×</button></header><div id="journal-container"></div></section>
-      <section id="discoveries-overlay" class="panel-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Открытия"><header><h2>Следы и открытия</h2><button data-close-overlay="discoveries-overlay" aria-label="Закрыть">×</button></header><div id="discovery-container"></div></section>
-      <section id="dev-overlay" class="panel-overlay dev-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Dev Mode"><header><h2>Pipeline и Domain Events <span class="dev-badge">DEV</span></h2><button data-close-overlay="dev-overlay" aria-label="Закрыть">×</button></header><div id="pipeline-view" class="pipeline-view"></div><div id="event-log" class="event-log"></div></section>
     </div>
   </div>
 </div>

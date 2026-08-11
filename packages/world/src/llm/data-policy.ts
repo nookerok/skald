@@ -10,7 +10,7 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /-----BEGIN [A-Z]+ PRIVATE KEY-----/,
 ];
 
-export type DataClass = "public_docs" | "project_context" | "secrets";
+export type DataClass = "public_docs" | "project_context" | "player_input" | "secrets";
 
 export function classifyPayload(text: string, explicitClass?: string): { class: DataClass; confidence: "explicit" | "high" | "default" } {
   if (explicitClass) {

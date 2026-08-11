@@ -35,6 +35,15 @@ const routes: Record<Category, Route> = {
     dataClasses: ["public_docs", "project_context"],
     thinking: null,
   },
+  interpret: {
+    category: "interpret",
+    models: ["deepseek-v4-flash-free", "nemotron-3-ultra-free"],
+    maxTokens: 450,
+    allowFreeRouter: false,
+    dataClasses: ["player_input"],
+    thinking: false,
+    timeoutMs: 5_000,
+  },
 };
 
 export const LLM_CONFIG: LLMConfig = {

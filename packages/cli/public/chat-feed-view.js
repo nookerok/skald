@@ -10,10 +10,15 @@ import { byId, makeNode } from "./dom-helpers.js";
 
 const MAX_TURNS = 12;
 const localIntents = [];
+const localClarifications = [];
 
 /** Remember the player's typed intention for this session. Returns the entry. */
-export function addLocalIntent(text) {
+export function addLocalIntent(text, requestKey) {
+  const normalizedKey = typeof requestKey === "string" && requestKey ? requestKey : null;
+  const existing = normalizedKey ? localIntents.find((item) => item.requestKey === normalizedKey) : null;
+  if (existing) return existing;
   const intent = { worldTime: null, text: String(text) };
+  if (normalizedKey) intent.requestKey = normalizedKey;
   localIntents.push(intent);
   return intent;
 }
@@ -25,6 +30,20 @@ export function bindIntentWorldTime(intent, worldTime) {
   }
 }
 
+export function setIntentStatus(intent, status) {
+  if (intent && typeof status === "string") intent.status = status;
+}
+
+export function addClarification(intent, question, options = []) {
+  if (!intent) return null;
+  const existing = localClarifications.find((item) => item.intent === intent);
+  const entry = existing || { intent, question: "", options: [] };
+  entry.question = String(question || "Мастер просит уточнить действие.");
+  entry.options = Array.isArray(options) ? options.map((option) => String(option?.label || option || "")).filter(Boolean).slice(0, 3) : [];
+  if (!existing) localClarifications.push(entry);
+  return entry;
+}
+
 export function getLocalIntents() {
   return localIntents.slice();
 }
@@ -32,6 +51,7 @@ export function getLocalIntents() {
 /** Drop the session intents (world switch, reconnect). */
 export function clearLocalIntents() {
   localIntents.length = 0;
+  localClarifications.length = 0;
 }
 
 function markLabel(mark) {
@@ -39,11 +59,49 @@ function markLabel(mark) {
 }
 
 function intentNode(intent, pending) {
+  const status = intent.status === "accepted" ? "Ход принят" : intent.status === "clarification" ? "Нужно уточнение" : intent.status === "offline" ? "Ждёт связи" : intent.status === "failed" ? "Не отправлено" : pending ? "Мастер отвечает…" : "Твоё намерение";
   const node = makeNode("article", { className: "chat-intent" + (pending ? " is-pending" : "") });
   node.append(
     makeNode("span", { className: "chat-intent-label", text: "ТЫ" }),
     makeNode("p", { className: "chat-intent-text", text: intent.text }),
+    makeNode("span", { className: "chat-intent-status", text: status }),
   );
+  return node;
+}
+
+function clarificationNode(entry) {
+  const node = makeNode("article", { className: "chat-turn chat-turn--clarification" });
+  node.append(
+    makeNode("div", { className: "chat-turn-header", text: "МАСТЕР" }),
+    makeNode("p", { className: "chat-world-primary", text: entry.question }),
+  );
+  if (entry.options.length) {
+    node.appendChild(makeNode("p", { className: "chat-clarification-hint", text: "Можно уточнить так: " + entry.options.join(" · ") }));
+  }
+  return node;
+}
+
+function worldStateNode(snapshot) {
+  const journey = snapshot?.journey && snapshot.journey.status !== "idle" ? snapshot.journey : null;
+  const situation = snapshot?.currentSituation || null;
+  const critical = (snapshot?.lastTurn?.causalChain || []).filter((step) => step?.critical || /Критический момент|Бросок:|Итого /.test(step?.text || ""));
+  if (!journey && !situation && !critical.length) return null;
+  const node = makeNode("article", { className: "chat-state" });
+  if (journey) {
+    const stage = journey.status === "traveling" && Number.isFinite(journey.elapsedTicks) && Number.isFinite(journey.totalTicks)
+      ? " · этап " + Math.min(journey.elapsedTicks + 1, Math.max(journey.totalTicks, 1)) + " из " + Math.max(journey.totalTicks, 1)
+      : "";
+    node.append(makeNode("span", { className: "chat-state-label", text: "ПУТЬ" }), makeNode("p", { text: String(journey.text || "Путь продолжается.") + stage }));
+  }
+  if (situation) {
+    node.append(makeNode("span", { className: "chat-state-label", text: "СЕЙЧАС В МИРЕ" }), makeNode("strong", { text: situation.title || "Ситуация" }), makeNode("p", { text: situation.description || "Мир переживает перемену." }));
+    const effects = Array.isArray(situation.effects) ? situation.effects.slice(0, 3).map((effect) => effect?.label).filter(Boolean) : [];
+    if (effects.length) node.appendChild(makeNode("p", { className: "chat-state-signals", text: effects.join(" · ") }));
+  }
+  if (critical.length) {
+    node.append(makeNode("span", { className: "chat-state-label", text: "КРИТИЧЕСКИЙ МОМЕНТ" }));
+    for (const step of critical.slice(0, 3)) node.appendChild(makeNode("p", { text: step.text || "Ставки ещё не определились." }));
+  }
   return node;
 }
 
@@ -75,7 +133,7 @@ function turnNode(turn) {
   return node;
 }
 
-export function renderChatFeed(turns, intents = []) {
+export function renderChatFeed(turns, intents = [], snapshot = null) {
   const feed = byId("chat-feed");
   if (!feed) return;
   feed.replaceChildren();
@@ -89,10 +147,14 @@ export function renderChatFeed(turns, intents = []) {
     }
     children.push(turnNode(turn));
   }
+  const stateNode = worldStateNode(snapshot);
+  if (stateNode) children.push(stateNode);
   // Intents without a journal turn yet (pending answer, rejected command or a
   // turn outside the visible window) stay visible at the end of the feed.
   for (const intent of intentList.filter((item) => !turnList.some((turn) => turn.worldTime === item.worldTime))) {
     children.push(intentNode(intent, true));
+    const clarification = localClarifications.find((entry) => entry.intent === intent);
+    if (clarification) children.push(clarificationNode(clarification));
   }
   if (!children.length) {
     feed.appendChild(makeNode("p", { className: "chat-empty", text: "Мир ждёт твоего действия." }));
