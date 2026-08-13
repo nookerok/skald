@@ -46,7 +46,7 @@ export async function interpretPlayerInput(
       validated.status === "accepted"
       && validated.intent.type === "JourneyIntent"
       && /(^|:)\s*(?:обхожу|обхожу)/iu.test(input)
-      && /(?:^|\s)(?:я\s+)?не\b|прямо\s+к/iu.test(validated.intent.destination.raw)
+      && /(?:^|\s)(?:я\s+)?не(?:\s|$)|прямо\s+к/iu.test(validated.intent.destination.raw)
     ) {
       return {
         status: "clarification",
