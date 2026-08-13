@@ -2,6 +2,10 @@
 
 The deterministic acceptance slice proves the HTTP/SQLite path, not that a human spent 30–60 minutes enjoying the game. A release candidate needs two separate pieces of evidence.
 
+The human review is machine-checked for completeness, but the validator does not invent the tester's answers:
+`npm run acceptance:adventure:review -- docs/acceptance/full-adventure-review.json`
+Start from `docs/acceptance/full-adventure-review.template.json`. Record the real disposable world, ISO start/end timestamps, exact command budget, one Presence acknowledgement, 24–48 offline ticks, desktop/mobile screenshot paths and all ten rubric answers. A valid report is a release evidence requirement, not a deterministic simulation test.
+
 ## Deterministic gate
 
 Run:

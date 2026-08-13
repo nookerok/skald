@@ -26,6 +26,12 @@
   interval and separate network-status checks are also explicitly recorded as
   unavailable. Do not claim the ten-question interest rubric is complete until
   a tester records it.
+- Added a machine-checkable intake for the missing human record:
+  `npm run acceptance:adventure:review -- <review.json>`, with an intentionally
+  failing template at `docs/acceptance/full-adventure-review.template.json`.
+  It requires real 30–60 minute timestamps, one Presence acknowledgement,
+  24–48 offline ticks, desktop/mobile screenshots, pacing ≤3 and all ten rubric
+  answers true; it does not manufacture or infer human answers.
 
 # Codex Handoff
 

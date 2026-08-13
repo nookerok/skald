@@ -92,6 +92,12 @@ These items are not silently treated as PASS:
    timed 30–60 minute human session. The ten-question interest rubric in
    `docs/acceptance/full-adventure-playtest.md` is therefore UNRATED.
 
+The missing human record now has a machine-checkable intake:
+`npm run acceptance:adventure:review -- <review.json>`. The template at
+`docs/acceptance/full-adventure-review.template.json` is intentionally
+invalid until a tester supplies real timestamps, screenshots and ten truthful
+rubric answers.
+
 ## Release decision
 
 Deterministic simulation, HTTP/SQLite runtime and production browser

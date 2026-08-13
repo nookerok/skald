@@ -1,0 +1,28 @@
+{
+  "worldId": "world-<disposable>",
+  "startedAt": "2026-08-13T10:00:00.000Z",
+  "endedAt": "2026-08-13T10:30:00.000Z",
+  "durationSeconds": 0,
+  "gameplayCommands": 0,
+  "presenceAcknowledgements": 1,
+  "offlineTicks": 0,
+  "screenshots": [
+    "",
+    ""
+  ],
+  "maxConsecutiveLowInformationActions": 3,
+  "answers": {
+    "locationClear": false,
+    "personalReason": false,
+    "meaningfulChoice": false,
+    "travelPaced": false,
+    "conditionsAffectedDecision": false,
+    "discoveryEarned": false,
+    "mapBecameUseful": false,
+    "worldLivedDuringAbsence": false,
+    "chronicleReconstructsAdventure": false,
+    "wantToContinue": false
+  },
+  "notes": "Replace every placeholder and record observations in the review bundle."
+}
+

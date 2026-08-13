@@ -33,6 +33,7 @@
     "acceptance:adventure": "NODE_ENV=test node --import tsx packages/cli/src/acceptance/run-adventure.ts",
     "acceptance:adventure:report": "mkdir -p acceptance-out && NODE_ENV=test node --import tsx packages/cli/src/acceptance/run-adventure.ts > acceptance-out/adventure.json",
     "acceptance:adventure:live": "node --import tsx packages/cli/src/acceptance/run-live.ts",
+    "acceptance:adventure:review": "node --import tsx packages/cli/src/acceptance/run-playtest-review.ts",
     "start:repl": "node --import tsx packages/cli/src/repl.ts",
     "start:server": "node --import tsx packages/cli/src/server.ts",
     "start": "npm run start:server",
