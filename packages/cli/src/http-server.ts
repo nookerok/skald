@@ -28,9 +28,12 @@ import {
   handleObserverThreads,
   handleWorldPresence,
   handleWorldMap,
+  mapDetailIsAvailable,
   handlePresenceAcknowledge,
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
+import { getMapDetailAsset } from "./http/map-detail-catalog.js";
+import type { ModelRouter } from "@skald/world";
 
 const __dirname = resolve(fileURLToPath(import.meta.url), "..");
 const PUBLIC_DIR = resolve(__dirname, "../public");
@@ -138,10 +141,12 @@ export async function startServer(options?: {
   port?: number;
   dbPath?: string;
   corsOrigin?: string;
+  /** Optional non-network router used by deterministic acceptance harnesses. */
+  router?: ModelRouter | null;
 }): Promise<StartedServer> {
   const dbPath = options?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
   const store = createMultiWorldStore(dbPath);
-  const runtimes = new WorldRuntimeManager(store);
+  const runtimes = new WorldRuntimeManager(store, options?.router);
   const serverApp: ServerApp = { store, runtimes };
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
   let closed = false;
@@ -175,7 +180,16 @@ export async function startServer(options?: {
         if (jsFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
         const cssFiles = ["/styles.css", "/guidance.css", "/menu.css", "/new-game.css", "/game-shell.css", "/living-world.css", "/presence-entry.css", "/skald-aaa.css"];
         if (cssFiles.includes(url.pathname)) { serveStatic(url.pathname, res, corsOrigin); return; }
-        if (url.pathname.startsWith("/assets/")) { serveStatic(url.pathname, res, corsOrigin); return; }
+        if (url.pathname.startsWith("/assets/")) {
+          // Region detail artwork is observer-scoped. Do not let a guessed
+          // filename or public manifest bypass the map knowledge boundary.
+          if (url.pathname === "/assets/maps/riverwatch-basin.manifest.json" || /riverwatch-basin-(central-valley|blackwood-crater|northern-pass|eastern-uplands|southern-borough)(?:\.png|\.manifest\.json)$/.test(url.pathname)) {
+            res.writeHead(404, secHeaders(corsOrigin));
+            res.end("Not Found");
+            return;
+          }
+          serveStatic(url.pathname, res, corsOrigin); return;
+        }
       }
 
       // Catalog
@@ -252,6 +266,14 @@ export async function startServer(options?: {
           if (sub === "/observer-session") { const r = handleObserverSession(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/presence") { const r = handleWorldPresence(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/map") { const r = handleWorldMap(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          const detailMatch = sub.match(/^\/map-details\/([^/]+)$/);
+          if (detailMatch) {
+            const asset = getMapDetailAsset(detailMatch[1]!);
+            if (!asset || !mapDetailIsAvailable(runtime, asset.id)) {
+              errHandle(404, "map_detail_locked", "map detail is not available to this observer"); return;
+            }
+            serveStatic(asset.src, res, corsOrigin); return;
+          }
           if (sub === "/observer-threads") { const r = handleObserverThreads(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
         }
 

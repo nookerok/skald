@@ -452,8 +452,7 @@ describe("HTTP Server", () => {
     expect(imageResponse.status).toBe(200);
     expect(imageResponse.headers.get("content-type")).toContain("image/png");
     const detailResponse = await fetch(server!.url + "/assets/maps/riverwatch-basin-northern-pass.png");
-    expect(detailResponse.status).toBe(200);
-    expect(detailResponse.headers.get("content-type")).toContain("image/png");
+    expect(detailResponse.status).toBe(404);
   });
 
 });

@@ -17,7 +17,7 @@ import type { ObserverMapDTO } from "../region/types.js";
  */
 export function createJourneyValidationRule(
   spatial: SpatialWorldProjection,
-  observerMap: ObserverMapDTO,
+  observerMap: ObserverMapDTO | (() => ObserverMapDTO),
 ): Rule<ReadonlyWorld> {
   return {
     id: "journey.validate",
@@ -37,12 +37,17 @@ export function createJourneyValidationRule(
         causationId: event.eventId,
       };
 
+      // Resolve against the observers current knowledge. The registry is
+      // static, but observer-scoped route knowledge grows as events arrive.
+      const currentObserverMap = typeof observerMap === "function" ? observerMap() : observerMap;
+
       // Resolve the route
       const resolution = resolveJourneyRoute(
         payload.destination,
         world.currentLocationId,
         spatial,
-        observerMap,
+        currentObserverMap,
+        payload.routeHint ?? undefined,
       );
 
       if (resolution.kind === "resolved") {
@@ -58,6 +63,7 @@ export function createJourneyValidationRule(
             toLocationId: resolution.toLocationId,
             startedAt: event.timestamp,
             plannedTicks: resolution.travelTicks,
+            ...(payload.routeHint ? { routeHint: payload.routeHint } : {}),
           },
         }];
       }

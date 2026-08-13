@@ -1,4 +1,4 @@
-import type { DomainEvent } from "@skald/event-bus";
+﻿import type { DomainEvent } from "@skald/event-bus";
 import type { ProjectionStore } from "@skald/rule-engine";
 import { START_POSITION, wallKey } from "./map.js";
 import type { WorldObject, Location } from "./objects/types.js";
@@ -329,6 +329,11 @@ function freeze(state: WorldState): ReadonlyWorld {
       ? {
           definitions: cloneMap(state.resources.definitions),
           states: cloneMap(state.resources.states),
+          holdings: cloneMap(state.resources.holdings),
+          processDefinitions: cloneMap(state.resources.processDefinitions),
+          processes: cloneMap(state.resources.processes),
+          demandDefinitions: cloneMap(state.resources.demandDefinitions),
+          demandStates: cloneMap(state.resources.demandStates),
         }
       : null,
     spatialKnowledge: state.spatialKnowledge ? freezeObserverSpatialKnowledge(state.spatialKnowledge) : null,
@@ -651,7 +656,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     if (WEATHER_EVENT_TYPES.has(event.type)) s.weather = this.weatherProjector.getSnapshot();
     if (HEAT_EVENT_TYPES.has(event.type)) s.heat = this.heatProjector.getSnapshot();
     if (SETTLEMENT_EVENT_TYPES.has(event.type)) s.settlement = this.settlementProjector.getSnapshot();
-    if (event.type === "ResourceNodeDefined" || event.type === "ResourceExtracted" || event.type === "ResourceRegenerated") s.resources = this.resourceProjector.getSnapshot();
+    if (["ResourceNodeDefined", "ResourceExtracted", "ResourceRegenerated", "ResourceRegenerationBlocked", "ResourceTransferred", "ResourceConsumed", "ResourceProcessDefined", "ResourceProcessStarted", "ResourceProcessCompleted", "ResourceDemandDefined", "ResourceShortageStarted", "ResourceShortageEnded"].includes(event.type)) s.resources = this.resourceProjector.getSnapshot();
   }
 
   clone(): ProjectionStore<ReadonlyWorld> {
@@ -702,7 +707,15 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       weather: this.state.weather,
       heat: this.state.heat,
       settlement: this.state.settlement,
-      resources: this.state.resources,
+      resources: this.state.resources ? {
+          definitions: new Map(this.state.resources.definitions),
+          states: new Map(this.state.resources.states),
+          holdings: new Map(this.state.resources.holdings),
+          processDefinitions: new Map(this.state.resources.processDefinitions),
+          processes: new Map(this.state.resources.processes),
+          demandDefinitions: new Map(this.state.resources.demandDefinitions),
+          demandStates: new Map(this.state.resources.demandStates),
+        } : null,
       spatialKnowledge: this.state.spatialKnowledge
         ? {
             observerId: this.state.spatialKnowledge.observerId,

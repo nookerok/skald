@@ -1,4 +1,4 @@
-import type { DomainEvent } from "@skald/event-bus";
+﻿import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "../projection.js";
 import type {
   GameShellSnapshot, ShellDelta, WorldContextView, CausalStep,
@@ -13,6 +13,7 @@ import { buildAttentionView } from "./attention-view.js";
 import { buildKnowledgeSummary } from "./knowledge-view.js";
 import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
 import { blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
+import { buildObservedResources } from "../resource/observer.js";
 
 interface CharacterProfileRecord {
   display_name: string;
@@ -308,6 +309,7 @@ export function buildGameShellSnapshot(
     knowledge: buildKnowledgeSummary(beliefModel),
     beliefModel: serializeBeliefModel(beliefModel),
     suggestions: guidance.suggestions,
+    resources: buildObservedResources(world),
   });
 }
 
@@ -361,5 +363,6 @@ export function buildShellDelta(
     knowledge: buildKnowledgeSummary(beliefModel),
     beliefModel: serializeBeliefModel(beliefModel),
     suggestions: guidance.suggestions,
+    resources: buildObservedResources(world),
   });
 }

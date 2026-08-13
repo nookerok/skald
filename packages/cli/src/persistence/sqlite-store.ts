@@ -35,6 +35,7 @@ export interface MultiWorldStore {
   setWorldStatus(worldId: WorldId, status: WorldRecord["status"]): void;
   getCharacterProfile(characterId: string): CharacterProfileRecord | null;
   createWorld(params: CreateWorldParams): CreateWorldResult;
+  createWorldAndPromote(params: CreateWorldParams, succession: { fromWorldId: WorldId; reason: string }): CreateWorldResult;
   getObserverCheckpoint(worldId: WorldId, observerId: "player"): ObserverCheckpoint | null;
   acknowledgeObserverCheckpoint(
     params: AcknowledgeObserverCheckpointParams,
@@ -439,6 +440,41 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         promise: row["promise"]!,
         principle: row["principle"]!,
       };
+    },
+
+    createWorldAndPromote(params: CreateWorldParams, succession: { fromWorldId: WorldId; reason: string }): CreateWorldResult {
+      if (params.worldId === succession.fromWorldId) throw new Error("world succession cannot point to itself");
+      const source = getWorld.get(succession.fromWorldId) as Record<string, unknown> | undefined;
+      if (!source) throw new Error("world succession references a missing world");
+      const existing = db.prepare("SELECT world_id, request_hash FROM world_creation_requests WHERE idempotency_key = ?").get(params.idempotencyKey) as Record<string, unknown> | undefined;
+      const now = Date.now();
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        let record: Record<string, unknown> | undefined;
+        let created = false;
+        if (existing) {
+          if (existing["request_hash"] !== params.requestHash) throw Object.assign(new Error("conflicting creation request for key"), { code: "CONFLICT" });
+          record = getWorld.get(existing["world_id"]) as Record<string, unknown> | undefined;
+          if (!record) throw new Error("existing creation record references missing world");
+        } else {
+          if (getWorld.get(params.worldId)) throw Object.assign(new Error("world already exists"), { code: "DUPLICATE_WORLD" });
+          const characterId = `char-${params.worldId}`;
+          db.prepare("INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, now);
+          db.prepare("INSERT INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(params.worldId, params.saveLabel, params.worldTemplateId, characterId, params.characterName, "active", now);
+          for (const e of params.bootstrapEvents) db.prepare("INSERT INTO events (world_id, event_id, type, schema_version, payload_json, timestamp, causation_id, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(params.worldId, e.eventId, e.type, e.schemaVersion, JSON.stringify(e.payload), e.timestamp, e.causationId ?? null, e.correlationId);
+          db.prepare("INSERT INTO world_creation_requests (idempotency_key, request_hash, world_id, created_at) VALUES (?, ?, ?, ?)").run(params.idempotencyKey, params.requestHash, params.worldId, now);
+          record = getWorld.get(params.worldId) as Record<string, unknown>;
+          created = true;
+        }
+        if (!record || record["status"] !== "active") throw new Error("successor world is not active: " + params.worldId);
+        db.prepare("INSERT INTO world_successions (from_world_id, to_world_id, reason, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(from_world_id) DO UPDATE SET to_world_id = excluded.to_world_id, reason = excluded.reason, created_at = excluded.created_at").run(succession.fromWorldId, params.worldId, succession.reason, now);
+        db.prepare("INSERT INTO world_entrypoints (entrypoint, world_id, updated_at) VALUES ('primary', ?, ?) ON CONFLICT(entrypoint) DO UPDATE SET world_id = excluded.world_id, updated_at = excluded.updated_at").run(params.worldId, now);
+        db.exec("COMMIT");
+        return { created, worldRecord: { worldId: record["world_id"] as string, saveLabel: record["save_label"] as string, templateId: record["template_id"] as string, characterId: (record["character_id"] as string) ?? null, characterName: (record["character_name_snapshot"] as string) ?? null, status: record["status"] as "active", createdAt: record["created_at"] as number, lastPlayedAt: (record["last_played_at"] as number) ?? null, worldTime: 0, isPrimary: true, successorWorldId: null } };
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
     },
 
     createWorld(params: CreateWorldParams): CreateWorldResult {

@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { DomainEvent } from "@skald/event-bus";
 import type { ElevationDefinition, HydrographyDefinition, RegionToponymIndex } from "./types.js";
-import type { ResourceNodeDefinition } from "../resource/types.js";
+import type { ResourceNodeDefinition, ResourceProcessDefinition, ResourceDemandDefinition } from "../resource/types.js";
 
 export interface CompiledRegionBundle {
   readonly schemaVersion: number;
@@ -15,6 +15,8 @@ export interface CompiledRegionBundle {
   readonly discoveryDefinitions: readonly unknown[];
   readonly simulationDefinitions: readonly unknown[];
   readonly resourceDefinitions?: readonly ResourceNodeDefinition[];
+  readonly resourceProcessDefinitions?: readonly ResourceProcessDefinition[];
+  readonly resourceDemandDefinitions?: readonly ResourceDemandDefinition[];
   readonly objectProvenance: Readonly<Record<string, { readonly canonicalRefs: readonly string[] }>>;
   readonly regionId: string;
   readonly compilerVersion: string;

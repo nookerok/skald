@@ -483,12 +483,23 @@ function buildClarification(
 }
 
 const ROUTE_HINT_PATTERNS = [
+  // Keep the route prefix separate from the destination: «по лесной дороге к башне».
+  /^по\s+((?:.+?\s+)?(?:дорог(?:е|ой|а|у)|троп(?:е|ой|а|у)|маршрут(?:у|ом)|пут(?:и|ём|ем)))\s+(?=(?:к|в|на)\s+)/i,
+  /^через\s+(.+?)\s+(?=(?:к|в|на)\s+)/i,
   /^(?:по|по\s+)(.+?\s+(?:дороге|тропе|маршруту|пути))/i,
   /^(?:через|через\s+)(.+?)$/i,
   /^(.+?\s+дорог(?:ой|а|у))/i,
   /^(.+?\s+троп(?:ой|а|у))/i,
 ] as const;
 
+function stripRouteHintPrefix(text: string, routeHint: IntentReference | undefined): string {
+  if (!routeHint) return text;
+  const lowerText = text.toLowerCase();
+  const lowerHint = routeHint.raw.toLowerCase();
+  const hintIndex = lowerText.indexOf(lowerHint);
+  if (hintIndex < 0) return text;
+  return text.slice(hintIndex + routeHint.raw.length).trim();
+}
 function extractRouteHint(text: string): IntentReference | undefined {
   const trimmed = text.trim();
   for (const pattern of ROUTE_HINT_PATTERNS) {
@@ -748,8 +759,8 @@ export function interpretIntent(
         interpretation: { source: "deterministic", confidence: 0.8, ambiguities: [] },
       };
     }
-    const destination = extractTarget(afterVerb);
     const routeHint = extractRouteHint(afterVerb);
+    const destination = extractTarget(stripRouteHintPrefix(afterVerb, routeHint));
     return {
       type: "JourneyIntent",
       destination: destination ?? { raw: "" },

@@ -211,7 +211,7 @@ export function buildDetailGallery(manifest, onSelect, mapDto) {
     veil.setAttribute("aria-hidden", "true");
     figure.appendChild(veil);
     const caption = document.createElement("figcaption");
-    caption.textContent = unlocked ? detail.label : "Неизвестная область";
+    caption.textContent = unlocked ? detail.label : "\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c";
     figure.appendChild(caption);
     if (unlocked && figure.addEventListener) {
       figure.addEventListener("click", (event) => selectAsset(event, detail));
@@ -219,6 +219,27 @@ export function buildDetailGallery(manifest, onSelect, mapDto) {
         if (event.key === "Enter" || event.key === " ") selectAsset(event, detail);
       });
     }
+    grid.appendChild(figure);
+  }
+  const slotCount = Number.isInteger(manifest.detailSlotCount) ? manifest.detailSlotCount : manifest.details.length;
+  for (let index = manifest.details.length; index < slotCount; index += 1) {
+    const figure = document.createElement("figure");
+    figure.className = "map-detail-card map-detail-card--locked";
+    figure.setAttribute("role", "img");
+    figure.setAttribute("data-map-detail-state", "locked");
+    figure.setAttribute("aria-label", "\u0423\u0447\u0430\u0441\u0442\u043e\u043a \u043a\u0430\u0440\u0442\u044b \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c");
+    figure.setAttribute("aria-disabled", "true");
+    const image = document.createElement("img");
+    image.alt = "\u0423\u0447\u0430\u0441\u0442\u043e\u043a \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c";
+    image.loading = "lazy";
+    figure.appendChild(image);
+    const veil = document.createElement("span");
+    veil.className = "map-detail-fog";
+    veil.setAttribute("aria-hidden", "true");
+    figure.appendChild(veil);
+    const caption = document.createElement("figcaption");
+    caption.textContent = "\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c";
+    figure.appendChild(caption);
     grid.appendChild(figure);
   }
   section.appendChild(grid);

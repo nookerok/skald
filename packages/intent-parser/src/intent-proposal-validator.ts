@@ -20,6 +20,7 @@ export function validateIntentProposal(raw: unknown, rawText: string): IntentPro
   const ambiguities = proposal.ambiguities ?? [];
   if (additional.length > 0 || unsupported.length > 0 || ambiguities.length > 0) return clarificationFor(proposal);
 
+  if (proposal.modelConfidence !== undefined && proposal.modelConfidence < 0.7) return clarificationFor(proposal);
   const intent = mapPrimary(proposal, rawText);
   if (!intent) return { status: "invalid", reason: "proposal primary intent is incomplete or unsupported" };
   return { status: "accepted", intent };
@@ -27,7 +28,7 @@ export function validateIntentProposal(raw: unknown, rawText: string): IntentPro
 
 function mapPrimary(proposal: IntentProposalV1, rawText: string): ExecutableIntent | null {
   const primary = proposal.primary;
-  const interpretation = { source: "llm" as const, confidence: 1, ambiguities: [] as readonly string[] };
+  const interpretation = { source: "llm" as const, confidence: proposal.modelConfidence ?? 1, ambiguities: [] as readonly string[] };
   if (primary.kind === "journey") {
     if (!primary.destination?.trim()) return null;
     const result: JourneyIntent = {

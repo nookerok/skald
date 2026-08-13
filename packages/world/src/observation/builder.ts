@@ -476,7 +476,7 @@ function discoveryStage(strength: number): DiscoveryStage {
 }
 
 /** Build the player-facing discovery journal from the observer-scoped Belief Model. */
-export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel): DiscoveryJournal {
+export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel, rumors: readonly import("../discovery/types.js").RumorRecord[] = []): DiscoveryJournal {
   const cards: DiscoveryCard[] = [];
   for (const belief of model.beliefs.values()) {
     if (!belief.patternId.startsWith("discovery:")) continue;
@@ -512,7 +512,7 @@ export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel): Discov
   }
   const recentEvidence = cards.flatMap((card) => card.evidence)
     .sort((a, b) => b.worldTime - a.worldTime).slice(0, 10);
-  return deepFreeze({ cards, recentEvidence, rumors: [], biographyChains: [], worldTime: model.lastUpdated });
+  return deepFreeze({ cards, recentEvidence, rumors: deepFreeze([...rumors]), biographyChains: [], worldTime: model.lastUpdated });
 }
 
 function findSourceEvent(_model: BeliefModel, events: readonly DomainEvent[], visibleEventIds: ReadonlySet<string>, sourceByObservationId: ReadonlyMap<string, string>, rootId: string): string | null {

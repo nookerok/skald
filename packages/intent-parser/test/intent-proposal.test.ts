@@ -61,6 +61,20 @@ describe("IntentProposalV1", () => {
     })).toBeNull();
   });
 
+  it("clarifies low-confidence model proposals and preserves confidence", () => {
+    expect(validateIntentProposal({
+      schemaVersion: 1,
+      primary: { kind: "interaction", verb: "observe" },
+      modelConfidence: 0.5,
+    }, "look around").status).toBe("clarification");
+    const accepted = validateIntentProposal({
+      schemaVersion: 1,
+      primary: { kind: "interaction", verb: "observe" },
+      modelConfidence: 0.8,
+    }, "look around");
+    expect(accepted.status === "accepted" && accepted.intent.interpretation.confidence).toBe(0.8);
+  });
+
   it("keeps a finite capability manifest", () => {
     expect(INTENT_CAPABILITIES.onePrimaryIntentOnly).toBe(true);
     expect(INTENT_CAPABILITIES.interactionVerbs).toHaveLength(8);

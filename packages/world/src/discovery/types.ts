@@ -70,6 +70,9 @@ export interface RumorRecord {
   readonly confidence: number;
   readonly status: RumorStatus;
   readonly evidenceRefs: readonly string[];
+  readonly source: EvidenceSource;
+  readonly sourceEventIds: readonly string[];
+  readonly observerId: string;
   readonly observedAt: number;
 }
 

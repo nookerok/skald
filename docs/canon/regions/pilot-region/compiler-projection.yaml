@@ -1,4 +1,4 @@
-# Deterministic Canon -> bootstrap projection for the pilot region.
+﻿# Deterministic Canon -> bootstrap projection for the pilot region.
 # This is design-time input. Runtime consumes only the generated bundle.
 schemaVersion: 1
 compilerProjection:
@@ -524,6 +524,26 @@ compilerProjection:
         - regions.pilot-region.visual-interpretation.f3
         - regions.pilot-region.visual-interpretation.f5
 
+    - id: old_ruins_masonry
+      name: Каменная кладка
+      aliases:
+        - кладка
+        - камни развалин
+        - тёмный камень
+        - каменную кладку
+      description: Ровные швы каменной кладки проступают под травой; один слой заметно темнее и повреждённее остальных.
+      material: stone
+      locationId: old_ruins
+      integrity: 38
+      temperature: 8
+      initialState:
+        contentKind: discovery_node
+        structuralTrace: true
+        damageCause: unknown
+      canonicalRefs:
+        - regions.pilot-region.history.f1
+        - regions.pilot-region.history.f4
+
   discoveryDefinitions:
     - id: western_waterfalls
       version: 1
@@ -853,6 +873,7 @@ compilerProjection:
   resourceDefinitions:
     - id: resource.blackwood_timber
       resourceKind: timber
+      sourceModel: renewable
       locationId: blackwood_edge
       capacityUnits: 100
       initialStockUnits: 100
@@ -866,10 +887,76 @@ compilerProjection:
         amountUnits: 2
         maximumUnits: 100
         blockedBy:
-          - forest_fire
+          - situationType: forest_fire
+            scope: same_location
+        pauseWhileBlocked: true
       status: runtime_backed
       canonicalRefs:
         - regions.pilot-region.geography.f2
+    - id: resource.blackwood_herbs
+      resourceKind: herbs
+      sourceModel: renewable
+      locationId: blackwood_edge
+      capacityUnits: 40
+      initialStockUnits: 40
+      quality: common
+      requiresObservation: true
+      extractionMethods:
+        - id: hand_gathering
+          maximumPerAction: 3
+          difficulty: 1
+      regeneration:
+        model: interval
+        intervalWorldTime: 12
+        amountUnits: 2
+        maximumUnits: 40
+        blockedBy:
+          - situationType: forest_fire
+            scope: same_location
+        pauseWhileBlocked: true
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - id: resource.old_ruins_stone
+      resourceKind: stone
+      sourceModel: stock
+      locationId: old_ruins
+      capacityUnits: 60
+      initialStockUnits: 60
+      quality: poor
+      extractionMethods:
+        - id: salvage_stone
+          maximumPerAction: 4
+          difficulty: 1
+      regeneration: null
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+  resourceProcessDefinitions:
+    - id: process.riverwatch.firewood
+      locationId: river_waystation
+      durationWorldTime: 6
+      inputs:
+        - resourceKind: timber
+          quality: common
+          amountUnits: 2
+      outputs:
+        - resourceKind: firewood
+          quality: common
+          amountUnits: 1
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+  resourceDemandDefinitions:
+    - id: demand.riverwatch.firewood
+      ownerId: riverwatch-main
+      resourceKind: firewood
+      quality: common
+      amountPerInterval: 1
+      intervalWorldTime: 12
+      status: runtime_backed
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
   hydrography:
     waterBodies:
       - id: southern_water_body
@@ -961,7 +1048,7 @@ compilerProjection:
         status: canon
         canonicalRefs:
           - regions.pilot-region.elevation.f2
-      - id: constraint.waterfalls-drain-to-river
+      - id: constraint.waterfalls-drain-to-rive
         kind: drainsToward
         subject: western_cliff_waterfalls
         reference: river_basin

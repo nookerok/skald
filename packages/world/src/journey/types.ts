@@ -7,6 +7,7 @@ export type JourneyResolution =
       readonly fromLocationId: string;
       readonly toLocationId: string;
       readonly travelTicks: number;
+      readonly routeHint?: string;
     }
   | {
       readonly kind: "blocked";

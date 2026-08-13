@@ -161,8 +161,23 @@ export const TICK_PASSED: PresentationTemplate = {
 
 export const ACTION_ATTEMPTED: PresentationTemplate = {
   id: "action_attempted", listens: ["ActionAttempted"],
-  present: (event, _world) => {
+  present: (event, world) => {
     const p = event.payload as { operation: string; target?: { raw: string } | null };
+    if (p.operation === "wait") {
+      const journey = world.activeJourneyId ? world.journeys.get(world.activeJourneyId) : undefined;
+      if (journey?.status === "active") {
+        const destination = world.locations.get(journey.toLocationId)?.name ?? "следующей стоянке";
+        const elapsed = Math.min(journey.elapsedTicks, journey.plannedTicks);
+        const progress = journey.plannedTicks > 0
+          ? `Пройдено ${elapsed} из ${journey.plannedTicks} этапов.`
+          : "Путь почти завершён.";
+        return cand("journey_waited", "action", "primary", 106,
+          `Ты выдерживаешь ещё один этап пути к «${destination}». ${progress}`,
+          event, `journey:progress:${journey.journeyId}`);
+      }
+      return cand("action_waited", "action", "primary", 100,
+        "Ты даёшь времени пройти и внимательно следишь за тем, что меняется вокруг.", event);
+    }
     const target = p.target?.raw ? ` → ${relationTargetLabelOrRaw(p.target.raw)}` : "";
     return cand("action_attempted", "action", "primary", 100, `Ты формулируешь: ${operationLabel(p.operation)}${target}.`, event);
   },
@@ -208,6 +223,15 @@ export const ENTITY_EXAMINED: PresentationTemplate = {
   },
 };
 
+export const RUMOR_HEARD: PresentationTemplate = {
+  id: "rumor_heard", listens: ["RumorHeard"],
+  present: (event, _world) => {
+    const p = event.payload as { text?: string; sourceLabel?: string };
+    const text = typeof p.text === "string" ? p.text : "Ты услышал неподтверждённый слух.";
+    const source = typeof p.sourceLabel === "string" ? p.sourceLabel : "неизвестный источник";
+    return cand("rumor_heard", "observation", "primary", 108, `${text} Источник: ${source}.`, event, "rumor:old-course", "rumor:old-course", "Слух о старом русле", "trace");
+  },
+};
 export const SOUND_OBSERVED: PresentationTemplate = {
   id: "sound_observed", listens: ["SoundObserved"],
   present: (event, _world) => {
@@ -359,6 +383,7 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   OBJECT_OBSERVED,
   ENTITY_EXAMINED,
   SOUND_OBSERVED,
+  RUMOR_HEARD,
   ACTION_HAD_NO_OBSERVABLE_EFFECT,
   OBJECT_TEMPERATURE_CHANGED,
   SOUND_PRODUCED,

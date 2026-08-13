@@ -1,5 +1,5 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { DiscoveryCard, DiscoveryEvidence, DiscoveryJournal, BiographyDiscoveryChain, BiographyDiscoveryStep } from "./types.js";
+import type { DiscoveryCard, DiscoveryEvidence, DiscoveryJournal, BiographyDiscoveryChain, BiographyDiscoveryStep, RumorRecord } from "./types.js";
 import { DEFINITIONS } from "./definitions.js";
 
 export { DEFINITIONS } from "./definitions.js";
@@ -151,12 +151,30 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
   const sorted = [...allEvidence].sort((a, b) => b.worldTime - a.worldTime);
   const recentEvidence = deepFreeze(sorted.slice(0, 10));
 
+  const rumors: readonly RumorRecord[] = observerEvents
+    .filter((event) => event.type === "RumorHeard")
+    .map((event) => {
+      const p = event.payload as { rumorRef?: string; subjectRef?: string; text?: string; sourceLabel?: string; confidence?: number };
+      return deepFreeze({
+        ref: p.rumorRef ?? `rumor:${event.eventId}`,
+        subjectRef: p.subjectRef ?? "unknown",
+        text: p.text ?? "Ты услышал неподтверждённый слух.",
+        sourceLabel: p.sourceLabel ?? "неизвестный источник",
+        confidence: typeof p.confidence === "number" ? p.confidence : 0.2,
+        status: "unverified" as const,
+        evidenceRefs: deepFreeze([]),
+        source: "social",
+        sourceEventIds: deepFreeze([event.eventId]),
+        observerId: "player",
+        observedAt: event.timestamp,
+      });
+    });
   const biographyChains = buildBiographyChains(allEvidence);
 
   return deepFreeze({
     cards: deepFreeze(cards),
     recentEvidence,
-    rumors: deepFreeze([]),
+    rumors: deepFreeze(rumors),
     biographyChains,
     worldTime: events.length > 0 ? events[events.length - 1]!.timestamp : 0,
   });

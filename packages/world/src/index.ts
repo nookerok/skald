@@ -94,7 +94,7 @@ export {
   worldInteractionRules,
 } from "./rules/world-interaction.js";
 export { perceptionObserve, examinedCuriosity, perceptionRules } from "./rules/interactions/perception.js";
-export { listeningListen, listeningRules } from "./rules/interactions/listening.js";
+export { listeningListen, authoredWaystationRumor, listeningRules } from "./rules/interactions/listening.js";
 export { interactionRegistry, getInteractionDefinition, isKnownInteractionVerb } from "./interaction-registry.js";
 export { interactionRules } from "./rules/interaction.js";
 export { criticalCheckRules, criticalCheckOutcomeRules } from "./checks/index.js";

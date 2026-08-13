@@ -68,6 +68,41 @@ export const perceptionObserve: Rule<ReadonlyWorld> = {
         spatial as SpatialWorldProjection,
       );
       let index = 1;
+      for (const relation of spatial.travelRelations.values()) {
+        if (relation.fromId !== payload.locationId && relation.toId !== payload.locationId) continue;
+        const otherLocationId = relation.fromId === payload.locationId ? relation.toId : relation.fromId;
+        events.push({
+          ...baseFrom(event),
+          eventId: ruleEventId(event.eventId, "SpatialObservationRecorded", index),
+          type: "SpatialObservationRecorded",
+          payload: {
+            subjectKind: "relation",
+            subjectId: relation.id,
+            knowledge: "observed",
+            observedAt: event.timestamp,
+            confidence: 0.8,
+            observerId: "player",
+            fromLocationId: relation.fromId,
+            toLocationId: relation.toId,
+          },
+        });
+        index += 1;
+        if (!spatialLocations.has(otherLocationId)) continue;
+        events.push({
+          ...baseFrom(event),
+          eventId: ruleEventId(event.eventId, "SpatialObservationRecorded", index),
+          type: "SpatialObservationRecorded",
+          payload: {
+            subjectKind: "location",
+            subjectId: otherLocationId,
+            knowledge: "glimpsed",
+            observedAt: event.timestamp,
+            confidence: 0.55,
+            observerId: "player",
+          },
+        });
+        index += 1;
+      }
       for (const [subjectId, result] of visibility) {
         if (!result.visible) continue;
         const subjectKind = spatialLocations.has(subjectId)

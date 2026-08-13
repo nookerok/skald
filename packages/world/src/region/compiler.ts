@@ -1,7 +1,7 @@
-import type { DomainEvent } from "@skald/event-bus";
+﻿import type { DomainEvent } from "@skald/event-bus";
 import type { ElevationDefinition, HydrographyDefinition, RegionDefinition, RegionToponymIndex, TerrainSurface } from "./types.js";
 import type { CompiledRegionBundle } from "./bundle-loader.js";
-import type { ResourceNodeDefinition } from "../resource/types.js";
+import type { ResourceNodeDefinition, ResourceProcessDefinition, ResourceDemandDefinition } from "../resource/types.js";
 import { loadCompiledRegionBundle } from "./bundle-loader.js";
 
 interface TerrainRules {
@@ -143,3 +143,9 @@ export const PILOT_REGION_ID = DEFAULT_REGION_ID;
 export const PILOT_REGION_SIZE_METRES = buildPilotRegionDefinition().bounds.maxXMetres;
 export const PILOT_TILE_SIZE_METRES = buildPilotRegionDefinition().terrainTileSizeMetres;
 export const PILOT_CELL_SIZE_METRES = buildPilotRegionDefinition().simulationCellSizeMetres;
+
+
+export function buildRegionResourceProcessDefinitions(regionId = DEFAULT_REGION_ID): readonly ResourceProcessDefinition[] {
+  return materializeBundle(regionId).bundle.resourceProcessDefinitions ?? [];
+}
+export function buildRegionResourceDemandDefinitions(regionId = DEFAULT_REGION_ID): readonly ResourceDemandDefinition[] { return materializeBundle(regionId).bundle.resourceDemandDefinitions ?? []; }

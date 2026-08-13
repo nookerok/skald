@@ -5,6 +5,8 @@ import {
   bootstrapWorldEvents,
   ModelRouter,
   createRules,
+  buildObserverMap,
+  buildSpatialWorldProjection,
 } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import type { MultiWorldStore } from "../persistence/sqlite-store.js";
@@ -37,7 +39,10 @@ export class WorldRuntimeManager {
   private runtimes = new Map<WorldId, WorldRuntime>();
   private initializing = new Map<WorldId, Promise<WorldRuntime>>();
 
-  constructor(private readonly store: MultiWorldStore) {}
+  constructor(
+    private readonly store: MultiWorldStore,
+    private readonly configuredRouter?: ModelRouter | null,
+  ) {}
 
   async get(worldId: WorldId): Promise<WorldRuntime> {
     const record = this.store.getWorldRecord(worldId);
@@ -91,7 +96,11 @@ export class WorldRuntimeManager {
       this.store.commitBatch(worldId, bootstrap);
     }
 
-    const registry = createRules();
+    const allEvents = bus.query();
+    const spatial = buildSpatialWorldProjection(allEvents);
+    const registry = spatial.region
+      ? createRules(spatial, () => buildObserverMap(bus.query(), spatial, true))
+      : createRules();
     const committer: (events: readonly DomainEvent[], ctx: CommitContext) => void = (events, ctx) => {
       const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string };
       this.store.commitBatch(worldId, events, {
@@ -104,7 +113,9 @@ export class WorldRuntimeManager {
       console.error(`[subscriber-error] world="${worldId}" eventType="${eventType}": ${err instanceof Error ? err.message : String(err)}`);
     };
     const engine = new RuleEngine(registry, projection, bus, committer, onSubErr);
-    const router = createRouter();
+    // Tests and acceptance harnesses may inject a deterministic, non-network
+    // narration adapter. Production keeps the environment-backed router.
+    const router = this.configuredRouter === undefined ? createRouter() : this.configuredRouter;
     const queue = new WorldCommandQueue();
 
     const runtime: WorldRuntime = {

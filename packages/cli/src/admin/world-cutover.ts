@@ -100,16 +100,6 @@ export function buildCutoverPlan(options: CutoverOptions): CutoverPlan {
   };
 }
 
-function verifyPilotWorld(store: ReturnType<typeof createMultiWorldStore>, worldId: WorldId): void {
-  const events = store.loadEvents(worldId);
-  const spatial = buildSpatialWorldProjection(events);
-  const map = buildObserverMap(events, spatial);
-  if (!spatial.region || spatial.region.id !== "riverwatch-basin") throw new Error("cutover verification failed: region is missing");
-  if (!map.observer.locationRef || !map.knownArea || map.locations.length === 0) {
-    throw new Error("cutover verification failed: observer geometry is still empty");
-  }
-}
-
 export function runCutover(options: CutoverOptions): { plan: CutoverPlan; applied: boolean; primaryWorldId: WorldId | null } {
   const store = createMultiWorldStore(options.dbPath);
   try {
@@ -137,10 +127,13 @@ export function runCutover(options: CutoverOptions): { plan: CutoverPlan; applie
       characterProfileVersion: preset.profileVersion,
       bootstrapEvents: buildBootstrapEvents("living_region"),
     };
-    store.createWorld(params);
-    store.recordWorldSuccession({ fromWorldId: plan.sourceWorldId, toWorldId: plan.targetWorldId, reason: options.reason });
-    store.setPrimaryWorld(plan.targetWorldId);
-    verifyPilotWorld(store, plan.targetWorldId);
+    const preflightEvents = params.bootstrapEvents;
+    const preflightSpatial = buildSpatialWorldProjection(preflightEvents);
+    const preflightMap = buildObserverMap(preflightEvents, preflightSpatial);
+    if (!preflightSpatial.region || !preflightMap.observer.locationRef || !preflightMap.knownArea || preflightMap.locations.length === 0) {
+      throw new Error("cutover preflight failed: bootstrap does not expose observer geometry");
+    }
+    store.createWorldAndPromote(params, { fromWorldId: plan.sourceWorldId, reason: options.reason });
     return { plan, applied: true, primaryWorldId: store.getPrimaryWorldId() };
   } finally {
     store.close();

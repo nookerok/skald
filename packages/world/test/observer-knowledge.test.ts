@@ -29,6 +29,14 @@ describe("observer spatial knowledge", () => {
     expect(buildObserverSpatialKnowledge(events).locations.get("city")?.knowledge).toBe("observed");
   });
 
+  it("does not let a later shorter relation prefix erase progress", () => {
+    const events = [
+      observation("full", { subjectKind: "relation", subjectId: "road", knowledge: "observed", observedAt: 5, confidence: 1, progressFraction: 0.8 }, 5),
+      observation("short", { subjectKind: "relation", subjectId: "road", knowledge: "observed", observedAt: 9, confidence: 0.5, progressFraction: 0.2 }, 9),
+    ];
+    expect(buildObserverSpatialKnowledge(events).relations.get("road")?.progressFraction).toBe(0.8);
+  });
+
   it("keeps water observations in their own observer read-model", () => {
     const events = [
       observation("water", {

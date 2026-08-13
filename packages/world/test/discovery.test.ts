@@ -201,3 +201,21 @@ describe("deepFreeze", () => {
     expect(deepFreeze("hello")).toBe("hello");
   });
 });
+
+describe("rumor provenance", () => {
+  it("keeps authored rumors as unverified observer-scoped social records", () => {
+    const journal = buildDiscoveryJournal([ev("RumorHeard", 4, {
+      rumorRef: "rumor:old-course",
+      subjectRef: "old_ruins",
+      text: "После спада воды старое русло открывает путь.",
+      sourceLabel: "перевозчик",
+      confidence: 0.35,
+      source: "social",
+      observerId: "player",
+    }, "rumor-1")]);
+    expect(journal.rumors[0]).toMatchObject({
+      ref: "rumor:old-course", subjectRef: "old_ruins", status: "unverified",
+      source: "social", observerId: "player", sourceEventIds: ["rumor-1"],
+    });
+  });
+});

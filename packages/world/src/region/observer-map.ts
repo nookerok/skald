@@ -42,6 +42,20 @@ function buildObserverPosition(
   };
 }
 
+function buildInterruptedPosition(events: readonly DomainEvent[], spatial: SpatialWorldProjection, locationId: string | null) {
+  let latestChange = -1;
+  let candidate: { xMetres: number; yMetres: number } | null = null;
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index]!;
+    if (event.type === "PlayerLocationChanged") latestChange = index;
+    if (event.type !== "JourneyInterrupted" || index < latestChange) continue;
+    const payload = event.payload as { xMetres?: number; yMetres?: number };
+    if (Number.isFinite(payload.xMetres) && Number.isFinite(payload.yMetres)) candidate = { xMetres: payload.xMetres!, yMetres: payload.yMetres! };
+  }
+  if (candidate === null) return null;
+  return { xMetres: candidate.xMetres, yMetres: candidate.yMetres, elevationMetres: terrainElevationAt(candidate.xMetres, candidate.yMetres, spatial), locationRef: locationId };
+}
+
 /** Builds only observer evidence; canonical region geometry never crosses this boundary. */
 export function buildObserverMap(
   events: readonly DomainEvent[],
@@ -66,7 +80,7 @@ export function buildObserverMap(
   // Compute visibility from current position if enabled
   let visibilityResults: Map<string, VisibilityResult> | null = null;
   if (useVisibility) {
-    const observer = buildObserverPosition(locationId, spatial);
+    const observer = buildInterruptedPosition(events, spatial, locationId) ?? buildObserverPosition(locationId, spatial);
     if (observer) {
       visibilityResults = computeVisibility(observer, spatial);
     }
@@ -150,14 +164,17 @@ export function buildObserverMap(
     if (!relation) continue;
 
     // Build route geometry based on knowledge level
-    const geometry = buildRouteGeometry(relation.points, observation.knowledge, observation.progressFraction);
+    const points = observation.fromLocationId === relation.toId && observation.toLocationId === relation.fromId
+      ? [...relation.points].reverse()
+      : relation.points;
+    const geometry = buildRouteGeometry(points, observation.knowledge, observation.progressFraction);
 
     routes.push({
       ref: ref("route", relation.id),
       kind: relation.kind,
       label: relation.label,
-      fromLocationRef: ref("loc", relation.fromId),
-      toLocationRef: ref("loc", relation.toId),
+      fromLocationRef: ref("loc", observation.fromLocationId ?? relation.fromId),
+      toLocationRef: ref("loc", observation.toLocationId ?? relation.toId),
       knowledge: observation.knowledge,
       confidence: observation.confidence,
       freshness: freshness(observation.observedAt, worldTime),
@@ -212,11 +229,12 @@ export function buildObserverMap(
   }
 
   const current = locationId ? spatial.locations.get(locationId) : undefined;
+  const observerPosition = buildInterruptedPosition(events, spatial, locationId) ?? (current ? buildObserverPosition(locationId, spatial) : null);
   const revealZones: ObserverMapRevealZone[] = [];
-  if (current) {
+  if (observerPosition) {
     revealZones.push({
       kind: "vicinity",
-      center: { xMetres: current.anchor.xMetres, yMetres: current.anchor.yMetres },
+      center: { xMetres: observerPosition.xMetres, yMetres: observerPosition.yMetres },
       radiusMetres: 2_500,
       strength: 1,
     } as ObserverMapRevealZone);
@@ -246,7 +264,7 @@ export function buildObserverMap(
     schemaVersion: 3,
     revision: { worldTime, eventNumber: events.length },
     region,
-    observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: current?.anchor.xMetres ?? null, yMetres: current?.anchor.yMetres ?? null },
+    observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: observerPosition?.xMetres ?? null, yMetres: observerPosition?.yMetres ?? null },
     knownArea,
     revealZones: Object.freeze(revealZones),
     availableDetails: buildAvailableObserverMapDetails(spatial.region?.id ?? null, observerKnowledge),

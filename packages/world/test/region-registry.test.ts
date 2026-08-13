@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   buildRegionDefinition,
   buildRegionResourceDefinitions,
@@ -9,7 +9,7 @@ describe("compiled region registry", () => {
   it("selects the generated bundle by region id and exposes accepted resources", () => {
     expect(listCompiledRegionIds()).toContain("riverwatch-basin");
     expect(buildRegionDefinition("riverwatch-basin").id).toBe("riverwatch-basin");
-    expect(buildRegionResourceDefinitions("riverwatch-basin")).toHaveLength(1);
+    expect(buildRegionResourceDefinitions("riverwatch-basin")).toHaveLength(3);
   });
 
   it("rejects an unregistered region before bootstrap", () => {

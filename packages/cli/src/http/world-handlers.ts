@@ -5,6 +5,7 @@ import {
   buildTurnJournal,
   attachTurnNarrations,
   buildDiscoveryJournalFromBeliefModel,
+  buildDiscoveryJournal,
   buildPlayerGuidance,
   buildGameShellSnapshot,
   buildBeliefModel,
@@ -27,6 +28,8 @@ import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { interpretPlayerInput } from "../runtime/intent-gateway.js";
 import type { ExecutableIntent } from "@skald/intent-parser";
+import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
+import { getMapDetailAsset } from "./map-detail-catalog.js";
 
 /** Deterministic canonical hash of the acknowledge request body. */
 function acknowledgeRequestHash(worldTime: number, eventNumber: number): string {
@@ -463,8 +466,9 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
   const beliefModel = buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot());
-  const journal = buildDiscoveryJournalFromBeliefModel(beliefModel);
-  return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, worldTime: journal.worldTime });
+  const rumors = buildDiscoveryJournal(runtime.bus.query()).rumors;
+  const journal = buildDiscoveryJournalFromBeliefModel(beliefModel, rumors);
+  return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, rumors: journal.rumors, worldTime: journal.worldTime });
 }
 
 export function handleWorldGuidance(runtime: WorldRuntime): JsonResponse {
@@ -587,8 +591,21 @@ export function handleObserverThreads(runtime: WorldRuntime, _worldId: string): 
 export function handleWorldMap(runtime: WorldRuntime): JsonResponse {
   if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
   const events = runtime.bus.query();
-  const map = buildObserverMap(events, buildSpatialWorldProjection(events), true);
-  return json({ ok: true, map });
+  // The projection already owns the spatial read model. Rebuilding it from the
+  // complete event log on every map poll made the endpoint needlessly linear.
+  const projectedSpatial = runtime.projection.getSnapshot().spatial;
+  const spatial = (projectedSpatial as SpatialWorldProjection | null) ?? buildSpatialWorldProjection(events);
+  const map = buildObserverMap(events, spatial, true);
+  const availableDetails = (map.availableDetails ?? []).map((detail) => {
+    const asset = getMapDetailAsset(detail.id);
+    return asset ? { ...detail, label: asset.label, src: "/api/worlds/" + runtime.worldId + "/map-details/" + asset.id, alt: asset.alt } : detail;
+  });
+  return json({ ok: true, map: { ...map, availableDetails } });
+}
+
+export function mapDetailIsAvailable(runtime: WorldRuntime, detailId: string): boolean {
+  const body = JSON.parse(handleWorldMap(runtime).body) as { map?: { availableDetails?: readonly { id: string }[] } };
+  return body.map?.availableDetails?.some((detail) => detail.id === detailId) ?? false;
 }
 
 export function handleWorldPresence(runtime: WorldRuntime, worldId: string): JsonResponse {
@@ -673,6 +690,25 @@ export interface IdempotencyReject {
   idempotencyKey: string;
 }
 
+function resolveResourceExtractionIntent(runtime: WorldRuntime, intent: ExecutableIntent): ResourceExtractionCommand | null {
+  if (intent.type !== "ActionIntentCommand" || intent.operation !== "take") return null;
+  const target = intent.target?.raw?.trim().toLowerCase() ?? "";
+  const resources = runtime.projection.getSnapshot().resources;
+  const locationId = runtime.projection.getSnapshot().currentLocationId;
+  if (!resources || !target) return null;
+  for (const definition of resources.definitions.values()) {
+    if (definition.locationId !== locationId) continue;
+    const aliases: Record<string, readonly string[]> = { timber: ["\u0434\u0440\u0435\u0432\u0435\u0441", "\u0434\u0435\u0440\u0435\u0432", "wood", "timber"], herbs: ["\u0442\u0440\u0430\u0432", "herb"], ore: ["\u0440\u0443\u0434", "ore"] };
+    const haystack = `${definition.id} ${definition.resourceKind}`.toLowerCase();
+    const matchesAlias = (aliases[definition.resourceKind] ?? []).some((alias) => target.includes(alias));
+    if (!haystack.includes(target) && !target.includes(definition.resourceKind.toLowerCase()) && !matchesAlias) continue;
+    const method = definition.extractionMethods[0];
+    if (!method) continue;
+    return { type: "ResourceExtractionCommand", nodeId: definition.id, methodId: method.id, requestedUnits: 1, actorId: "player" };
+  }
+  return null;
+}
+
 export async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
@@ -685,10 +721,11 @@ export async function runCommandCycleForRuntime(
 
   const parsed = resolvedIntent ?? parseIntent(input);
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return error("parse_error", "Could not understand input", 400);
+  const commandIntent = resolveResourceExtractionIntent(runtime, parsed) ?? parsed;
 
   const ts = runtime.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;
-  const firstEvent = worldHandleCommand(parsed, correlationId, ts);
+  const firstEvent = worldHandleCommand(commandIntent, correlationId, ts);
   const tickEvent: DomainEvent = {
     eventId: commandEventId(`tick-${ts}`, "TickPassed"),
     type: "TickPassed",
@@ -704,8 +741,8 @@ export async function runCommandCycleForRuntime(
   };
 
   const activeJourney = runtime.projection.getSnapshot().activeJourneyId;
-  const interrupt = parsed.type === "ActionIntentCommand" && parsed.operation === "interrupt";
-  const wait = parsed.type === "ActionIntentCommand" && parsed.operation === "wait";
+  const interrupt = commandIntent.type === "ActionIntentCommand" && commandIntent.operation === "interrupt";
+  const wait = commandIntent.type === "ActionIntentCommand" && commandIntent.operation === "wait";
   // A journey starts with one internally scheduled travel step. A stop is
   // immediate. While traveling, rejected commands do not consume a tick;
   // explicit wait remains the way to advance the journey.

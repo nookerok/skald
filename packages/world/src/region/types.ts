@@ -165,6 +165,9 @@ export interface SpatialObservationPayload {
   readonly observerId?: string;
   /** Fraction of a relation physically traversed before an interruption. */
   readonly progressFraction?: number;
+  /** Physical direction used when the relation is bidirectional. */
+  readonly fromLocationId?: string;
+  readonly toLocationId?: string;
 }
 
 export interface TravelRelation {
@@ -263,6 +266,10 @@ export interface ObserverMapRevealZone {
 export interface ObserverMapDetail {
   readonly id: string;
   readonly coverageBounds: SpatialBounds;
+  /** Presentation metadata is added by the server-scoped map adapter. */
+  readonly label?: string;
+  readonly src?: string;
+  readonly alt?: string;
 }
 
 export interface ObserverMapDTO {

@@ -54,6 +54,7 @@ export const EventType = {
 
   // Interaction Model v1 — Slice 2 (listening law)
   SoundObserved: "SoundObserved",
+  RumorHeard: "RumorHeard",
 
   // Canon compiler provenance — design-time input committed before bootstrap
   CanonGenesisRecorded: "CanonGenesisRecorded",
@@ -100,6 +101,22 @@ export const EventType = {
   ResourceExtractionRequested: "ResourceExtractionRequested",
   ResourceExtracted: "ResourceExtracted",
   ResourceRegenerated: "ResourceRegenerated",
+  ResourceRegenerationBlocked: "ResourceRegenerationBlocked",
+  ResourceExtractionRejected: "ResourceExtractionRejected",
+  ResourceTransferRequested: "ResourceTransferRequested",
+  ResourceTransferred: "ResourceTransferred",
+  ResourceTransferRejected: "ResourceTransferRejected",
+  ResourceConsumeRequested: "ResourceConsumeRequested",
+  ResourceConsumed: "ResourceConsumed",
+  ResourceConsumeRejected: "ResourceConsumeRejected",
+  ResourceProcessDefined: "ResourceProcessDefined",
+  ResourceProcessRequested: "ResourceProcessRequested",
+  ResourceProcessStarted: "ResourceProcessStarted",
+  ResourceProcessCompleted: "ResourceProcessCompleted",
+  ResourceProcessRejected: "ResourceProcessRejected",
+  ResourceDemandDefined: "ResourceDemandDefined",
+  ResourceShortageStarted: "ResourceShortageStarted",
+  ResourceShortageEnded: "ResourceShortageEnded",
 
 } as const;
 

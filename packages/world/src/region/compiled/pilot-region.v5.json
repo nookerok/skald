@@ -4,9 +4,9 @@
   "regionVersion": 4,
   "compilerVersion": "pilot-region-compiler-v5",
   "provenance": {
-    "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
-    "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-    "bootstrapDigest": "d3a84c6c191798632a17f1b254294cef3f281f8377db01077afcd2899344807f",
+    "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+    "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+    "bootstrapDigest": "a807f2ba13772c239aa6de9d59ad8404f0217b73dcd2e0f5d5b8e68fb3e7c151",
     "canonicalRefs": [
       "regions.pilot-region.elevation.f1",
       "regions.pilot-region.elevation.f2",
@@ -524,7 +524,7 @@
           ]
         },
         {
-          "id": "constraint.waterfalls-drain-to-river",
+          "id": "constraint.waterfalls-drain-to-rive",
           "kind": "drainsToward",
           "subject": "western_cliff_waterfalls",
           "reference": "river_basin",
@@ -669,7 +669,7 @@
         }
       ]
     },
-    "contentDigest": "3625ec3f",
+    "contentDigest": "a566f9f1",
     "terrainRules": {
       "river": {
         "centerMetres": 9500,
@@ -836,7 +836,7 @@
         ]
       },
       {
-        "id": "constraint.waterfalls-drain-to-river",
+        "id": "constraint.waterfalls-drain-to-rive",
         "kind": "drainsToward",
         "subject": "western_cliff_waterfalls",
         "reference": "river_basin",
@@ -1001,6 +1001,30 @@
       },
       "canonicalRefs": [
         "regions.pilot-region.visual-interpretation.f5"
+      ]
+    },
+    {
+      "id": "old_ruins_masonry",
+      "name": "Каменная кладка",
+      "aliases": [
+        "кладка",
+        "камни развалин",
+        "тёмный камень",
+        "каменную кладку"
+      ],
+      "description": "Ровные швы каменной кладки проступают под травой; один слой заметно темнее и повреждённее остальных.",
+      "material": "stone",
+      "locationId": "old_ruins",
+      "integrity": 38,
+      "temperature": 8,
+      "initialState": {
+        "contentKind": "discovery_node",
+        "structuralTrace": true,
+        "damageCause": "unknown"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.history.f1",
+        "regions.pilot-region.history.f4"
       ]
     },
     {
@@ -1492,8 +1516,43 @@
   ],
   "resourceDefinitions": [
     {
+      "id": "resource.blackwood_herbs",
+      "resourceKind": "herbs",
+      "sourceModel": "renewable",
+      "locationId": "blackwood_edge",
+      "capacityUnits": 40,
+      "initialStockUnits": 40,
+      "quality": "common",
+      "requiresObservation": true,
+      "extractionMethods": [
+        {
+          "id": "hand_gathering",
+          "maximumPerAction": 3,
+          "difficulty": 1
+        }
+      ],
+      "regeneration": {
+        "model": "interval",
+        "intervalWorldTime": 12,
+        "amountUnits": 2,
+        "maximumUnits": 40,
+        "blockedBy": [
+          {
+            "situationType": "forest_fire",
+            "scope": "same_location"
+          }
+        ],
+        "pauseWhileBlocked": true
+      },
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    {
       "id": "resource.blackwood_timber",
       "resourceKind": "timber",
+      "sourceModel": "renewable",
       "locationId": "blackwood_edge",
       "capacityUnits": 100,
       "initialStockUnits": 100,
@@ -1510,12 +1569,76 @@
         "amountUnits": 2,
         "maximumUnits": 100,
         "blockedBy": [
-          "forest_fire"
-        ]
+          {
+            "situationType": "forest_fire",
+            "scope": "same_location"
+          }
+        ],
+        "pauseWhileBlocked": true
       },
       "status": "runtime_backed",
       "canonicalRefs": [
         "regions.pilot-region.geography.f2"
+      ]
+    },
+    {
+      "id": "resource.old_ruins_stone",
+      "resourceKind": "stone",
+      "sourceModel": "stock",
+      "locationId": "old_ruins",
+      "capacityUnits": 60,
+      "initialStockUnits": 60,
+      "quality": "poor",
+      "extractionMethods": [
+        {
+          "id": "salvage_stone",
+          "maximumPerAction": 4,
+          "difficulty": 1
+        }
+      ],
+      "regeneration": null,
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    }
+  ],
+  "resourceProcessDefinitions": [
+    {
+      "id": "process.riverwatch.firewood",
+      "locationId": "river_waystation",
+      "durationWorldTime": 6,
+      "inputs": [
+        {
+          "resourceKind": "timber",
+          "quality": "common",
+          "amountUnits": 2
+        }
+      ],
+      "outputs": [
+        {
+          "resourceKind": "firewood",
+          "quality": "common",
+          "amountUnits": 1
+        }
+      ],
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    }
+  ],
+  "resourceDemandDefinitions": [
+    {
+      "id": "demand.riverwatch.firewood",
+      "ownerId": "riverwatch-main",
+      "resourceKind": "firewood",
+      "quality": "common",
+      "amountPerInterval": 1,
+      "intervalWorldTime": 12,
+      "status": "runtime_backed",
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
       ]
     }
   ],
@@ -1614,9 +1737,35 @@
         "regions.pilot-region.visual-interpretation.f5"
       ]
     },
+    "old_ruins_masonry": {
+      "canonicalRefs": [
+        "regions.pilot-region.history.f1",
+        "regions.pilot-region.history.f4"
+      ]
+    },
+    "resource.blackwood_herbs": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
     "resource.blackwood_timber": {
       "canonicalRefs": [
         "regions.pilot-region.geography.f2"
+      ]
+    },
+    "resource.old_ruins_stone": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f2"
+      ]
+    },
+    "process.riverwatch.firewood": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    "demand.riverwatch.firewood": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
       ]
     },
     "southern_water_body": {
@@ -1654,7 +1803,7 @@
         "regions.pilot-region.elevation.f2"
       ]
     },
-    "constraint.waterfalls-drain-to-river": {
+    "constraint.waterfalls-drain-to-rive": {
       "canonicalRefs": [
         "regions.pilot-region.elevation.f2"
       ]
@@ -1693,8 +1842,8 @@
       "payload": {
         "regionId": "riverwatch-basin",
         "regionVersion": 4,
-        "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
-        "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
+        "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+        "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
         "compilerVersion": "pilot-region-compiler-v5",
         "canonicalRefs": [
           "regions.pilot-region.elevation.f1",
@@ -1768,8 +1917,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2262,7 +2411,7 @@
                 ]
               },
               {
-                "id": "constraint.waterfalls-drain-to-river",
+                "id": "constraint.waterfalls-drain-to-rive",
                 "kind": "drainsToward",
                 "subject": "western_cliff_waterfalls",
                 "reference": "river_basin",
@@ -2407,7 +2556,7 @@
               }
             ]
           },
-          "contentDigest": "3625ec3f",
+          "contentDigest": "a566f9f1",
           "terrainRules": {
             "river": {
               "centerMetres": 9500,
@@ -2478,8 +2627,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2531,8 +2680,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2555,8 +2704,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2580,8 +2729,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2604,8 +2753,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2628,8 +2777,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2652,8 +2801,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2676,8 +2825,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2700,8 +2849,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2725,8 +2874,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2760,8 +2909,46 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#old_ruins_masonry",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "old_ruins_masonry",
+        "name": "Каменная кладка",
+        "aliases": [
+          "кладка",
+          "камни развалин",
+          "тёмный камень",
+          "каменную кладку"
+        ],
+        "description": "Ровные швы каменной кладки проступают под травой; один слой заметно темнее и повреждённее остальных.",
+        "material": "stone",
+        "locationId": "old_ruins",
+        "integrity": 38,
+        "temperature": 8,
+        "state": {
+          "contentKind": "discovery_node",
+          "structuralTrace": true,
+          "damageCause": "unknown"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.history.f1",
+            "regions.pilot-region.history.f4"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2795,8 +2982,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2847,8 +3034,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2875,8 +3062,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2903,8 +3090,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2930,8 +3117,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2957,8 +3144,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -2985,8 +3172,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3012,8 +3199,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3040,8 +3227,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3068,8 +3255,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3096,8 +3283,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3121,8 +3308,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3144,8 +3331,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3172,8 +3359,8 @@
             "universal.laws.heat_dynamics"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3200,8 +3387,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3228,8 +3415,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3255,8 +3442,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3282,8 +3469,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3309,8 +3496,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3337,8 +3524,8 @@
             "regions.pilot-region.monolith.f1"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3364,8 +3551,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3391,8 +3578,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3419,8 +3606,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3446,8 +3633,59 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#ResourceNodeDefined#resource.blackwood_herbs",
+      "type": "ResourceNodeDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "resource.blackwood_herbs",
+        "resourceKind": "herbs",
+        "sourceModel": "renewable",
+        "locationId": "blackwood_edge",
+        "capacityUnits": 40,
+        "initialStockUnits": 40,
+        "quality": "common",
+        "requiresObservation": true,
+        "extractionMethods": [
+          {
+            "id": "hand_gathering",
+            "maximumPerAction": 3,
+            "difficulty": 1
+          }
+        ],
+        "regeneration": {
+          "model": "interval",
+          "intervalWorldTime": 12,
+          "amountUnits": 2,
+          "maximumUnits": 40,
+          "blockedBy": [
+            {
+              "situationType": "forest_fire",
+              "scope": "same_location"
+            }
+          ],
+          "pauseWhileBlocked": true
+        },
+        "status": "runtime_backed",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f2"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3462,6 +3700,7 @@
       "payload": {
         "id": "resource.blackwood_timber",
         "resourceKind": "timber",
+        "sourceModel": "renewable",
         "locationId": "blackwood_edge",
         "capacityUnits": 100,
         "initialStockUnits": 100,
@@ -3478,8 +3717,12 @@
           "amountUnits": 2,
           "maximumUnits": 100,
           "blockedBy": [
-            "forest_fire"
-          ]
+            {
+              "situationType": "forest_fire",
+              "scope": "same_location"
+            }
+          ],
+          "pauseWhileBlocked": true
         },
         "status": "runtime_backed",
         "canonicalRefs": [
@@ -3490,8 +3733,115 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#ResourceNodeDefined#resource.old_ruins_stone",
+      "type": "ResourceNodeDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "resource.old_ruins_stone",
+        "resourceKind": "stone",
+        "sourceModel": "stock",
+        "locationId": "old_ruins",
+        "capacityUnits": 60,
+        "initialStockUnits": 60,
+        "quality": "poor",
+        "extractionMethods": [
+          {
+            "id": "salvage_stone",
+            "maximumPerAction": 4,
+            "difficulty": 1
+          }
+        ],
+        "regeneration": null,
+        "status": "runtime_backed",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f2"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f2"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#ResourceProcessDefined#process.riverwatch.firewood",
+      "type": "ResourceProcessDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "process.riverwatch.firewood",
+        "locationId": "river_waystation",
+        "durationWorldTime": 6,
+        "inputs": [
+          {
+            "resourceKind": "timber",
+            "quality": "common",
+            "amountUnits": 2
+          }
+        ],
+        "outputs": [
+          {
+            "resourceKind": "firewood",
+            "quality": "common",
+            "amountUnits": 1
+          }
+        ],
+        "status": "runtime_backed",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#ResourceDemandDefined#demand.riverwatch.firewood",
+      "type": "ResourceDemandDefined",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "demand.riverwatch.firewood",
+        "ownerId": "riverwatch-main",
+        "resourceKind": "firewood",
+        "quality": "common",
+        "amountPerInterval": 1,
+        "intervalWorldTime": 12,
+        "status": "runtime_backed",
+        "canonicalRefs": [
+          "regions.pilot-region.geography.f5"
+        ],
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v5",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },
@@ -3515,8 +3865,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "6547a0c902facbbeb7333e6531df6384da6980e3094a6f6755ebf4e1b6a55f63",
-          "canonDigest": "751fc8bdff2ce69468b844e1dd014d509fb2ba114c5256bae03e3d73f1efe8e8",
+          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
           "regionVersion": 4
         }
       },

@@ -25,6 +25,14 @@ describe("interpretIntent — travel (ADR-0015)", () => {
     expect(cmd.destination.raw).toBe("руин");
   });
 
+  it("separates a bare road hint from the destination", () => {
+    const result = interpretIntent("идти по дороге к Развалины на уступе");
+    expect(result.type).toBe("JourneyIntent");
+    const cmd = result as JourneyIntent;
+    expect(cmd.destination.raw).toBe("развалины на уступе");
+    expect(cmd.routeHint?.raw).toBe("дороге");
+  });
+
   it("recognizes «перейти переправу»", () => {
     const result = interpretIntent("перейти переправу");
     expect(result.type).toBe("JourneyIntent");
@@ -37,7 +45,8 @@ describe("interpretIntent — travel (ADR-0015)", () => {
     expect(result.type).toBe("JourneyIntent");
     const cmd = result as JourneyIntent;
     // extractTarget strips Russian prepositions like "к"
-    expect(cmd.destination.raw).toBe("дороге к лесу");
+    expect(cmd.destination.raw).toBe("лесу");
+    expect(cmd.routeHint?.raw).toBe("дороге");
   });
 
   it("recognizes English «go to Riverwatch»", () => {

@@ -1,4 +1,4 @@
-function sorted(items, key = 'id') { return [...(items ?? [])].sort((a, b) => String(a?.[key] ?? '').localeCompare(String(b?.[key] ?? ''))); }
+﻿function sorted(items, key = 'id') { return [...(items ?? [])].sort((a, b) => String(a?.[key] ?? '').localeCompare(String(b?.[key] ?? ''))); }
 
 function normalizeSections(projection) {
   const hydrography = projection.hydrography ? {
@@ -26,13 +26,43 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     for (const ref of value.canonicalRefs ?? []) if (canonIds.size && !canonIds.has(ref)) throw new Error(label + ' references unknown Canon id: ' + ref);
     for (const [key, child] of Object.entries(value)) if (key !== 'canonicalRefs' && child && typeof child === 'object') checkRefs(child, label + '.' + key);
   };
-  for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','hydrography','elevation','toponymIndex']) checkRefs(projection[section], section);
+  for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','resourceProcessDefinitions','resourceDemandDefinitions','hydrography','elevation','toponymIndex']) checkRefs(projection[section], section);
   if (projection.bootstrap?.startLocationId && !(projection.locations ?? []).some((entry) => entry.id === projection.bootstrap.startLocationId)) throw new Error('bootstrap startLocationId is not a declared location: ' + projection.bootstrap.startLocationId);
+  const resourceIds = new Set();
   for (const resource of projection.resourceDefinitions ?? []) {
     if (!resource.id || !resource.resourceKind || !resource.locationId) throw new Error('resource definition requires id, resourceKind and locationId');
+    if (resourceIds.has(resource.id)) throw new Error('duplicate resource definition: ' + resource.id);
+    resourceIds.add(resource.id);
+    if (resource.sourceModel && !['stock', 'renewable', 'produced'].includes(resource.sourceModel)) throw new Error('resource definition has invalid sourceModel: ' + resource.id);
     if (!Number.isInteger(resource.capacityUnits) || resource.capacityUnits <= 0 || !Number.isInteger(resource.initialStockUnits) || resource.initialStockUnits < 0 || resource.initialStockUnits > resource.capacityUnits) throw new Error('resource definition has invalid integer stock bounds: ' + resource.id);
-    for (const method of resource.extractionMethods ?? []) if (!method.id || !Number.isInteger(method.maximumPerAction) || method.maximumPerAction <= 0) throw new Error('resource extraction method has invalid maximum: ' + resource.id);
-    if (resource.regeneration && (!Number.isInteger(resource.regeneration.intervalWorldTime) || resource.regeneration.intervalWorldTime <= 0 || !Number.isInteger(resource.regeneration.amountUnits) || resource.regeneration.amountUnits <= 0 || !Number.isInteger(resource.regeneration.maximumUnits) || resource.regeneration.maximumUnits > resource.capacityUnits)) throw new Error('resource regeneration is invalid: ' + resource.id);
+    for (const method of resource.extractionMethods ?? []) {
+      if (!method.id || !Number.isInteger(method.maximumPerAction) || method.maximumPerAction <= 0) throw new Error('resource extraction method has invalid maximum: ' + resource.id);
+      if (method.actionCostWorldTime !== undefined && (!Number.isInteger(method.actionCostWorldTime) || method.actionCostWorldTime <= 0)) throw new Error('resource extraction method has invalid action cost: ' + resource.id);
+      if (method.requiredInstruments !== undefined && (!Array.isArray(method.requiredInstruments) || method.requiredInstruments.some((entry) => typeof entry !== 'string' || !entry))) throw new Error('resource extraction method has invalid instruments: ' + resource.id);
+    }
+    if (resource.regeneration) {
+      if (resource.regeneration.model !== undefined && resource.regeneration.model !== 'interval') throw new Error('resource regeneration model is invalid: ' + resource.id);
+      if (!Number.isInteger(resource.regeneration.intervalWorldTime) || resource.regeneration.intervalWorldTime <= 0 || !Number.isInteger(resource.regeneration.amountUnits) || resource.regeneration.amountUnits <= 0 || !Number.isInteger(resource.regeneration.maximumUnits) || resource.regeneration.maximumUnits > resource.capacityUnits) throw new Error('resource regeneration is invalid: ' + resource.id);
+      for (const blocker of resource.regeneration.blockedBy ?? []) {
+        if (typeof blocker === 'string') continue;
+        if (!blocker || typeof blocker.situationType !== 'string' || !['same_location', 'region'].includes(blocker.scope)) throw new Error('resource regeneration blocker is invalid: ' + resource.id);
+      }
+    }
+  }
+  const processIds = new Set();
+  for (const process of projection.resourceProcessDefinitions ?? []) {
+    if (!process.id || !process.locationId || !Number.isInteger(process.durationWorldTime) || process.durationWorldTime <= 0) throw new Error(String(process.id));
+    if (processIds.has(process.id)) throw new Error(String(process.id));
+    processIds.add(process.id);
+    for (const side of Object.keys({ inputs: 1, outputs: 1 })) {
+      if (!Array.isArray(process[side]) || process[side].some((entry) => !entry.resourceKind || !Number.isInteger(entry.amountUnits) || entry.amountUnits <= 0)) throw new Error(String(process.id));
+    }
+  }
+  const demandIds = new Set();
+  for (const demand of projection.resourceDemandDefinitions ?? []) {
+    if (!demand.id || !demand.ownerId || !demand.resourceKind || !Number.isInteger(demand.amountPerInterval) || demand.amountPerInterval <= 0 || !Number.isInteger(demand.intervalWorldTime) || demand.intervalWorldTime <= 0) throw new Error(String(demand.id));
+    if (demandIds.has(demand.id)) throw new Error(String(demand.id));
+    demandIds.add(demand.id);
   }
   const sections = normalizeSections(projection);
   if (sections.hydrography) {
@@ -44,5 +74,5 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     }
     for (const body of sections.hydrography.waterBodies) for (const ref of body.inflows ?? []) if (!watercourseIds.has(ref)) throw new Error('hydrography water body has dangling inflow: ' + ref);
   }
-  return { ...projection, ...sections, canonicalRefs: [...(projection.canonicalRefs ?? [])].sort(), locations: sorted(projection.locations), landmarks: sorted(projection.landmarks), relations: sorted(projection.relations), travel: sorted(projection.travel, 'relationId'), settlements: sorted(projection.settlements, 'settlementId'), observations: [...(projection.observations ?? [])], content: sorted(projection.content), discoveryDefinitions: sorted(projection.discoveryDefinitions), simulationMetadata: sorted(projection.simulationMetadata, 'locationId'), resourceDefinitions: sorted(projection.resourceDefinitions) };
+  return { ...projection, ...sections, canonicalRefs: [...(projection.canonicalRefs ?? [])].sort(), locations: sorted(projection.locations), landmarks: sorted(projection.landmarks), relations: sorted(projection.relations), travel: sorted(projection.travel, 'relationId'), settlements: sorted(projection.settlements, 'settlementId'), observations: [...(projection.observations ?? [])], content: sorted(projection.content), discoveryDefinitions: sorted(projection.discoveryDefinitions), simulationMetadata: sorted(projection.simulationMetadata, 'locationId'), resourceDefinitions: sorted(projection.resourceDefinitions), resourceProcessDefinitions: sorted(projection.resourceProcessDefinitions), resourceDemandDefinitions: sorted(projection.resourceDemandDefinitions) };
 }

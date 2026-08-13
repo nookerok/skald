@@ -93,7 +93,7 @@ export function parseIntentProposal(raw: unknown): IntentProposalV1 | null {
   if (!hasOnlyKeys(candidate, ["schemaVersion", "primary", "additionalClauses", "ambiguities", "unsupportedFragments", "modelConfidence"])) return null;
   if (!validateInputStrings(candidate.primary as IntentProposalInput)) return null;
   if (!hasOnlyKeys(candidate.primary as Record<string, unknown>, ["kind", "verb", "operation", "destination", "target", "secondaryTarget", "instrument", "routeHint", "manner", "goal", "utterance"])) return null;
-  if (candidate.modelConfidence !== undefined && (typeof candidate.modelConfidence !== "number" || !Number.isFinite(candidate.modelConfidence))) return null;
+  if (candidate.modelConfidence !== undefined && (typeof candidate.modelConfidence !== "number" || !Number.isFinite(candidate.modelConfidence) || candidate.modelConfidence < 0 || candidate.modelConfidence > 1)) return null;
   if (candidate.additionalClauses !== undefined && !isClauses(candidate.additionalClauses)) return null;
   if (candidate.ambiguities !== undefined && !isAmbiguities(candidate.ambiguities)) return null;
   if (candidate.unsupportedFragments !== undefined && !isStringList(candidate.unsupportedFragments, 4)) return null;

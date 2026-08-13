@@ -23,7 +23,7 @@ import { crossingCondition } from "./crossing-condition.js";
 import { weatherProcess } from "./weather.js";
 import { heatTransferProcess } from "./heat-transfer.js";
 import { settlementPattern } from "./settlement-pattern.js";
-import { resourceExtraction, resourceRegeneration } from "../resource/rules.js";
+import { resourceExtraction, resourceRegeneration, resourceTransfer, resourceConsume, resourceProcessStart, resourceProcessCompletion, resourceDemandProcess } from "../resource/rules.js";
 import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js";
 
 /**
@@ -35,14 +35,16 @@ import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js"
  */
 export function createRules(
   spatial?: SpatialWorldProjection,
-  observerMap?: ObserverMapDTO,
+  observerMap?: ObserverMapDTO | (() => ObserverMapDTO),
 ): RuleRegistry<ReadonlyWorld> {
   const registry = new RuleRegistry<ReadonlyWorld>();
 
   // Phase: validation
   registry.register(durationCheck);
 
-  // Spatial Movement — journey validation rule (ADR-0015)
+  // Spatial Movement — journey validation rule (ADR-0015). It is the sole
+  // JourneyValidated owner when observer-scoped region data is available;
+  // the legacy resolver is registered only for worlds without that model.
   if (spatial && observerMap) {
     registry.register(createJourneyValidationRule(spatial, observerMap));
   }
@@ -75,12 +77,10 @@ export function createRules(
   registry.register(journeyProgress);
   registry.register(journeyInterrupt);
 
-  // Journey travel rule (production): resolves destinations from the
-  // ReadonlyWorld read views (world.spatial travel relations + crossing
-  // states), so journeys work in every composition root without an injected
-  // observer map. The offline/test journey validation rule below remains for
-  // observer-scoped resolution where an ObserverMapDTO is available.
-  registry.register(journeyTravel);
+  // Journey travel rule (production) remains the compatibility path for
+  // legacy worlds. Living-region runtimes use the observer-scoped rule above
+  // so two JourneyStarted owners can never race on one JourneyValidated.
+  if (!spatial || !observerMap) registry.register(journeyTravel);
 
   // River Hydrology (ADR-0017)
   registry.register(riverLevelProcess);
@@ -98,6 +98,11 @@ export function createRules(
   // Resource nodes and deterministic extraction/recovery
   registry.register(resourceExtraction);
   registry.register(resourceRegeneration);
+  registry.register(resourceTransfer);
+  registry.register(resourceConsume);
+  registry.register(resourceProcessStart);
+  registry.register(resourceProcessCompletion);
+  registry.register(resourceDemandProcess);
 
   // Critical check rules (Iteration 15)
   for (const rule of criticalCheckRules) registry.register(rule);

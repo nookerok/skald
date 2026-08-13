@@ -151,6 +151,36 @@ export const listeningListen: Rule<ReadonlyWorld> = {
   },
 };
 
+/**
+ * Authored social evidence at the waystation. It is deliberately a rumor,
+ * not a location reveal or a Canon assertion; later observations may support
+ * or contradict it through the discovery read model.
+ */
+export const authoredWaystationRumor: Rule<ReadonlyWorld> = {
+  id: "listening.authored_waystation_rumor",
+  phase: "consequence",
+  listens: ["InteractionValidated"],
+  produces: ["RumorHeard"],
+  handle: (event) => {
+    const payload = event.payload as { law?: string; verb?: string; locationId?: string };
+    if (payload.law !== "listening" || payload.verb !== "listen" || payload.locationId !== "river_waystation") return [];
+    return [{
+      ...baseFrom(event),
+      eventId: ruleEventId(event.eventId, "RumorHeard", 0),
+      type: "RumorHeard",
+      payload: {
+        rumorRef: "rumor:old-course",
+        subjectRef: "old_ruins",
+        text: "У переправы говорят: после спада воды старое русло открывает путь к развалинам на уступе.",
+        sourceLabel: "перевозчик у переправы",
+        confidence: 0.35,
+        source: "social",
+        observerId: "player",
+      },
+    }];
+  },
+};
 export const listeningRules: readonly Rule<ReadonlyWorld>[] = [
   listeningListen,
+  authoredWaystationRumor,
 ];

@@ -7,6 +7,7 @@ import {
   interactionResolveTarget,
   interactionResolveLaw,
   listeningListen,
+  authoredWaystationRumor,
   type ReadonlyWorld,
 } from "@skald/world";
 
@@ -192,5 +193,19 @@ describe("Slice 2 — Command Handler and full chain", () => {
     const law = interactionResolveLaw.handle(gate[0]!, world);
     const facts = listeningListen.handle(law[0]!, world);
     expect(facts[0]).toMatchObject({ type: "SoundObserved", payload: { sourceId: "ambient", source: "окружение", distanceBand: "same_location" } });
+  });
+});
+
+describe("authored waystation rumor", () => {
+  it("emits scoped social evidence without coordinates", () => {
+    const out = authoredWaystationRumor.handle(
+      event("InteractionValidated", "law-rumor", { law: "listening", verb: "listen", locationId: "river_waystation" }),
+      towerWorld(),
+    );
+    expect(out).toMatchObject([{
+      type: "RumorHeard",
+      payload: { rumorRef: "rumor:old-course", subjectRef: "old_ruins", source: "social", observerId: "player" },
+    }]);
+    expect((out[0]?.payload as Record<string, unknown> | undefined)?.text).not.toMatch(/coordinates|xMetres|yMetres/i);
   });
 });

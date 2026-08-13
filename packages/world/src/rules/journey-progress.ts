@@ -36,6 +36,8 @@ function completionEvents(event: DomainEvent, journey: JourneyState, world: Read
         confidence: 1,
         observerId: "player",
         progressFraction: 1,
+        fromLocationId: journey.fromLocationId,
+        toLocationId: journey.toLocationId,
       },
     },
     {

@@ -63,6 +63,13 @@ function shouldReplace(previous: KnownSpatialObservation, incoming: KnownSpatial
   const previousRank = spatialKnowledgeRank(previous.knowledge);
   const incomingRank = spatialKnowledgeRank(incoming.knowledge);
   if (incomingRank !== previousRank) return incomingRank > previousRank;
+  // A later partial report cannot erase a completed route. Keep the strongest
+  // physically traversed prefix even when polling/replay order differs.
+  if (previous.subjectKind === "relation" && incoming.subjectKind === "relation") {
+    const previousProgress = previous.progressFraction ?? (previousRank >= spatialKnowledgeRank("traversed") ? 1 : 0);
+    const incomingProgress = incoming.progressFraction ?? (incomingRank >= spatialKnowledgeRank("traversed") ? 1 : 0);
+    if (incomingProgress !== previousProgress) return incomingProgress > previousProgress;
+  }
   if (incoming.observedAt !== previous.observedAt) return incoming.observedAt > previous.observedAt;
   return incoming.eventSequence > previous.eventSequence;
 }

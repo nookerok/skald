@@ -31,6 +31,23 @@ describe("journey presentation", () => {
     expect(presentation.primary?.text).not.toMatch(/пытаешься|клетк|координат|east/i);
   });
 
+  it("describes waiting as progress while travelling", () => {
+    const travellingWorld = {
+      ...world(),
+      activeJourneyId: "journey-1",
+      journeys: new Map([
+        ["journey-1", { journeyId: "journey-1", relationId: "road-1", fromLocationId: "home", toLocationId: "pass", startedAt: 4, plannedTicks: 3, elapsedTicks: 1, status: "active" }],
+      ]),
+    } as unknown as ReadonlyWorld;
+    const presentation = selectTurnPresentation([
+      event("ActionAttempted", "wait", { operation: "wait", target: null }),
+      event("TickPassed", "tick", { delta: 1, journeyId: "journey-1" }),
+    ], travellingWorld);
+    expect(presentation.primary?.text).toContain("этап пути");
+    expect(presentation.primary?.text).toContain("Пройдено");
+    expect(presentation.primary?.text).not.toContain("формулируешь");
+  });
+
   it("surfaces a route block as a useful player-facing answer", () => {
     const presentation = selectTurnPresentation([
       event("JourneyBlocked", "blocked", { reason: "unknown_destination", playerText: "Нет известной дороги к северному проходу." }),

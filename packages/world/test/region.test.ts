@@ -89,7 +89,8 @@ describe("first living region", () => {
     const simulation = buildPilotRegionSimulationDefinitions();
     const content = buildPilotRegionContentDefinitions();
     expect(simulation).toHaveLength(8);
-    expect(content).toHaveLength(2);
+    expect(content).toHaveLength(3);
+    expect(content).toEqual(expect.arrayContaining([expect.objectContaining({ id: "old_ruins_masonry", locationId: "old_ruins", aliases: expect.arrayContaining(["каменную кладку"]) })]));
     expect(JSON.stringify(simulation)).not.toContain("candidate.blackwood-timber");
     expect(JSON.stringify(simulation)).not.toContain("hypotheses.");
   });

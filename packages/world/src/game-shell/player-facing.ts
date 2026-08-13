@@ -13,7 +13,7 @@ const OPERATION_LABELS: Record<string, string> = {
   examine: "осмотреть", inspect: "изучить", observe: "осмотреться", listen: "прислушаться",
   touch: "коснуться", take: "взять", open: "открыть", apply_force: "воздействовать силой",
   heat: "применить тепло", move: "двигаться", approach: "двигаться", give: "изменить отношения",
-  speak: "обратиться",
+  speak: "обратиться", wait: "ждать",
 };
 
 function safeLookup(table: Record<string, string>, value: unknown, fallback: string): string {

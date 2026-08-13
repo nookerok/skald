@@ -1,8 +1,6 @@
 /**
  * Presentation-only map artwork manifest.
- *
- * The copied assets are visible player artwork, never simulation authority.
- * Facts, labels, routes, visibility and current location remain DTO-driven.
+ * The server owns observer-scoped detail descriptors; the browser renders DTO data.
  */
 export const PRESENTATION_MAP_MANIFEST = Object.freeze({
   regionId: "riverwatch-basin",
@@ -13,85 +11,32 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
   runtimeFacts: false,
   overview: Object.freeze({
     id: "overview",
-    label: "Общий вид бассейна",
+    label: "\u041e\u0431\u0449\u0438\u0439 \u0432\u0438\u0434 \u0431\u0430\u0441\u0441\u0435\u0439\u043d\u0430",
     src: "/assets/maps/riverwatch-basin-overview.png",
-    alt: "Общий вид бассейна Речного Стража с горами, лесами и южной водой",
+    alt: "\u041e\u0431\u0449\u0438\u0439 \u0432\u0438\u0434 \u0431\u0430\u0441\u0441\u0435\u0439\u043d\u0430 \u0420\u0435\u0447\u043d\u043e\u0433\u043e \u0421\u0442\u0440\u0430\u0436\u0430",
     widthPx: 1448,
     heightPx: 1086,
     sha256: "7feb764999fb39cede4531265bc0da7447dd4e6f9dfe2c406fa8d26883c6a1fb",
     coverageBounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 20000, maxYMetres: 20000 },
   }),
-  details: Object.freeze([
-    Object.freeze({
-      id: "central-valley",
-      label: "Центральная долина",
-      src: "/assets/maps/riverwatch-basin-central-valley.png",
-      alt: "Укрупнённый вид центральной долины, переправы и русла",
-      widthPx: 2048,
-      heightPx: 1536,
-      sha256: "ee169c30dce2f43988aadc9acd3d9c13c6264be3c2c0871f93b982cf30ea460d",
-      coverageBounds: { minXMetres: 5000, minYMetres: 7000, maxXMetres: 12000, maxYMetres: 14000 },
-      unlock: { point: { xMetres: 8000, yMetres: 9500 }, minimumKnowledge: "traversed" },
-    }),
-    Object.freeze({
-      id: "blackwood-crater",
-      label: "Западный край",
-      src: "/assets/maps/riverwatch-basin-blackwood-crater.png",
-      alt: "Укрупнённый вид Чёрного леса, Стеклянной впадины и западных утёсов",
-      widthPx: 2048,
-      heightPx: 1536,
-      sha256: "3dd55b31098c328299dc8f7a33f566faef9b65876e5496197d8517af94a2eadb",
-      coverageBounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 8000, maxYMetres: 17000 },
-      unlock: { point: { xMetres: 6000, yMetres: 12000 }, minimumKnowledge: "observed" },
-    }),
-    Object.freeze({
-      id: "northern-pass",
-      label: "Северный край",
-      src: "/assets/maps/riverwatch-basin-northern-pass.png",
-      alt: "Укрупнённый вид снежного хребта, Северного перевала и водопадов",
-      widthPx: 2048,
-      heightPx: 1536,
-      sha256: "65e4bea97fadb91b49c125165c68e1f5d924f5fbac87851b4d70d9672b95ea13",
-      coverageBounds: { minXMetres: 5000, minYMetres: 14000, maxXMetres: 15000, maxYMetres: 20000 },
-      unlock: { point: { xMetres: 12000, yMetres: 18000 }, minimumKnowledge: "observed" },
-    }),
-    Object.freeze({
-      id: "eastern-uplands",
-      label: "Восточные возвышенности",
-      src: "/assets/maps/riverwatch-basin-eastern-uplands.png",
-      alt: "Укрупнённый вид восточных возвышенностей, руин и старой дороги",
-      widthPx: 2048,
-      heightPx: 1536,
-      sha256: "e30ffa9899780a4233c05311a261d81d5867867d488fc5bd2e78f460f27d6000",
-      coverageBounds: { minXMetres: 12000, minYMetres: 10000, maxXMetres: 20000, maxYMetres: 18000 },
-      unlock: { point: { xMetres: 16000, yMetres: 9000 }, minimumKnowledge: "observed" },
-    }),
-    Object.freeze({
-      id: "southern-borough",
-      label: "Южный край",
-      src: "/assets/maps/riverwatch-basin-southern-borough.png",
-      alt: "Укрупнённый вид Южного посада, нижнего русла и неуточнённой южной воды",
-      widthPx: 2048,
-      heightPx: 1536,
-      sha256: "ba1e67de75c6a7926721e3cb9b60f8c4afc76886c3d3ccb32dfddfd77753f317",
-      coverageBounds: { minXMetres: 7000, minYMetres: 3000, maxXMetres: 17000, maxYMetres: 10000 },
-      unlock: { point: { xMetres: 9500, yMetres: 5000 }, minimumKnowledge: "observed" },
-    }),
-  ]),
+  detailSlotCount: 5,
+  details: Object.freeze([]),
 });
 
 const KNOWLEDGE_RANK = Object.freeze({ rumored: 1, glimpsed: 2, observed: 3, traversed: 4 });
+const LEGACY_DETAIL_POLICIES = Object.freeze([
+  { id: "central-valley", point: { xMetres: 8000, yMetres: 9500 }, minimumKnowledge: "traversed" },
+  { id: "blackwood-crater", point: { xMetres: 6000, yMetres: 12000 }, minimumKnowledge: "observed" },
+  { id: "northern-pass", point: { xMetres: 12000, yMetres: 18000 }, minimumKnowledge: "observed" },
+  { id: "eastern-uplands", point: { xMetres: 16000, yMetres: 9000 }, minimumKnowledge: "observed" },
+  { id: "southern-borough", point: { xMetres: 9500, yMetres: 5000 }, minimumKnowledge: "observed" },
+]);
 
 export function isPresentationDetailUnlocked(detail, mapDto) {
   if (!detail?.unlock) return true;
-  // DTO v3 is authoritative: only IDs explicitly returned by the server are
-  // available to the observer. No URL, title or coverage is exposed for the
-  // remaining cards.
   if (Array.isArray(mapDto?.availableDetails)) {
     return mapDto.availableDetails.some((entry) => entry?.id === detail.id);
   }
-  // Compatibility for v1/v2 fixtures and older worlds that have no
-  // server-owned detail list yet.
   const point = detail.unlock.point;
   const minimum = KNOWLEDGE_RANK[detail.unlock.minimumKnowledge] || 3;
   return (mapDto?.locations || []).some((location) => {
@@ -103,11 +48,31 @@ export function isPresentationDetailUnlocked(detail, mapDto) {
 
 export function getPresentationMap(mapDto) {
   const regionId = mapDto?.region?.ref || mapDto?.region?.id;
-  // Legacy worlds predate the compiled RegionDefined event.
-  if (!mapDto?.region) return PRESENTATION_MAP_MANIFEST;
-  // Only the pilot presentation bundle is registered. Unknown regions keep
-  // their DTO-driven map without borrowing another region's artwork.
+  if (!mapDto?.region) return Object.freeze({ ...PRESENTATION_MAP_MANIFEST, details: Object.freeze(LEGACY_DETAIL_POLICIES.map((detail) => Object.freeze({ id: detail.id, label: "Region section", src: "/api/map-details/" + detail.id, alt: "Region section", unlock: { point: detail.point, minimumKnowledge: detail.minimumKnowledge } }))) });
   const isPilotRegion = regionId === PRESENTATION_MAP_MANIFEST.regionId
     || mapDto?.region?.name === "\u0411\u0430\u0441\u0441\u0435\u0439\u043d \u0420\u0435\u0447\u043d\u043e\u0433\u043e \u0421\u0442\u0440\u0430\u0436\u0430";
-  return isPilotRegion ? PRESENTATION_MAP_MANIFEST : null;
+  if (!isPilotRegion) return null;
+
+  // v3 is authoritative: only descriptors returned by the server are used.
+  // v1/v2 compatibility keeps old fixtures renderable without a public asset catalog.
+  const details = Array.isArray(mapDto?.availableDetails)
+    ? mapDto.availableDetails
+      .filter((detail) => detail?.id && detail.id !== "overview")
+      .map((detail) => Object.freeze({
+        id: detail.id,
+        label: detail.label || "\u041e\u0442\u043a\u0440\u044b\u0442\u044b\u0439 \u0443\u0447\u0430\u0441\u0442\u043e\u043a",
+        src: detail.src || "/api/map-details/" + detail.id,
+        alt: detail.alt || "Region section",
+        coverageBounds: detail.coverageBounds,
+      }))
+    : mapDto?.schemaVersion === 3
+      ? []
+      : LEGACY_DETAIL_POLICIES.map((detail) => Object.freeze({
+        id: detail.id,
+        label: "Region section",
+        src: "/api/map-details/" + detail.id,
+        alt: "Region section",
+        unlock: { point: detail.point, minimumKnowledge: detail.minimumKnowledge },
+      }));
+  return Object.freeze({ ...PRESENTATION_MAP_MANIFEST, details: Object.freeze(details) });
 }
