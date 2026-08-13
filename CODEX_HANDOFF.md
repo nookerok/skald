@@ -1,3 +1,32 @@
+# Current work (2026-08-13 — ADR-0031 release evidence)
+
+- Final runtime commit is `4c2b13777ad70b2bff507e37e36b7c5f2fe7c8cc`;
+  `main` is clean and equal to `origin/main`.
+- Deterministic Adventure acceptance is PASS: 100% required beats, 4
+  meaningful choices, 4 journey legs, 4 world changes, 4 discovery advances,
+  3 map-growth steps, 90 offline meaningful events, zero truth leaks/orphans/
+  duplicates, replay/idempotency/restart persistence PASS.
+- Full validation is PASS: 122 test files, 1457 passed, 1 skipped; Canon,
+  Simulation, 10 eval scenarios and diff checks PASS.
+- Orange Pi production is on the same commit after an explicit service
+  restart; `skald.service`, healthcheck timer and backup timer are active;
+  `/api/health` reports SQLite/multiWorld healthy. Ten post-restart API smoke
+  commands returned 200 and the duplicate key returned 409.
+- Fixed NTFS browser task completed a fresh living-region acceptance on
+  `world-msr2hlyd-1-rcbao7c4j09`: selected template and entry were verified
+  in DOM, Presence=1, 27 commands including `advance 24`, T0→T53, rumour,
+  four travel legs, masonry discovery, map fog/reveal growth, autonomous
+  consequences, Knowledge/Chronicle, reload and mobile no-overflow PASS.
+- The compound negative intent now returns clarification and never creates
+  the forbidden destination `я не прямо к башне`; this is covered by gateway
+  regression tests and production browser evidence.
+- Evidence bundle: `docs/acceptance/full-adventure-evidence-2026-08-13.md`.
+  Human experiential release gate remains OPEN: the bounded browser run is not
+  an independently timed 30–60 minute human playthrough; screenshot, pending
+  interval and separate network-status checks are also explicitly recorded as
+  unavailable. Do not claim the ten-question interest rubric is complete until
+  a tester records it.
+
 # Codex Handoff
 
 ## Current work (2026-08-13)
