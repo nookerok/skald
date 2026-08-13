@@ -47,6 +47,19 @@ describe("intent gateway", () => {
     expect(timedOut.status).toBe("clarification");
   });
 
+  it("rejects an LLM destination copied from a negated lead clause", async () => {
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 1,
+      primary: { kind: "journey", destination: "я не прямо к башне" },
+    }));
+    const result = await interpretPlayerInput(
+      "Я не иду прямо к башне: обхожу её с запада и наблюдаю за огнями",
+      router,
+    );
+
+    expect(result.status).toBe("clarification");
+  });
+
   it("does not execute a compound colon intent as a truncated destination when the model times out", async () => {
     const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
     const result = await interpretPlayerInput(

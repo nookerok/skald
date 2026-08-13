@@ -42,6 +42,18 @@ export async function interpretPlayerInput(
   try {
     const raw = await withTimeout(proposeIntent(router, input), options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     const validated = validateIntentProposal(raw, input);
+    if (
+      validated.status === "accepted"
+      && validated.intent.type === "JourneyIntent"
+      && /(^|:)\s*(?:обхожу|обхожу)/iu.test(input)
+      && /(?:^|\s)(?:я\s+)?не\b|прямо\s+к/iu.test(validated.intent.destination.raw)
+    ) {
+      return {
+        status: "clarification",
+        question: "Я услышал несколько частей намерения. Назови одну цель и одно действие.",
+        options: [{ optionId: "primary-action", label: "Сначала назвать основное действие" }],
+      };
+    }
     return mapValidation(validated);
   } catch {
     // A model timeout or transient provider failure must not strand a
