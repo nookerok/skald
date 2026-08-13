@@ -47,6 +47,17 @@ describe("intent gateway", () => {
     expect(timedOut.status).toBe("clarification");
   });
 
+  it("does not execute a compound colon intent as a truncated destination when the model times out", async () => {
+    const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
+    const result = await interpretPlayerInput(
+      "Я не иду прямо к башне: обхожу её с запада, стараясь держаться ниже гребня и наблюдать за огнями",
+      slow,
+      { timeoutMs: 5 },
+    );
+
+    expect(result.status).toBe("clarification");
+  });
+
   it("keeps a safe natural approach playable when the model times out", async () => {
     const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
     const result = await interpretPlayerInput("обойти башню с запада", slow, { timeoutMs: 5 });

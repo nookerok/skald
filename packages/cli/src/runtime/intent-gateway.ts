@@ -67,13 +67,23 @@ function isSafeDeterministic(result: IntentResult): result is ExecutableIntent {
   if (result.type === "JourneyIntent") {
     return result.interpretation.source === "deterministic"
       && result.interpretation.ambiguities.length === 0
+      // A colon, conjunction or trailing manner clause usually means the
+      // player supplied a compound intention. Do not execute the first
+      // parser fragment when the LLM proposal is unavailable: ask for one
+      // primary action instead of silently turning context into a destination.
+      && !isCompoundNaturalInput(result.rawText)
       && result.interpretation.confidence >= 0.7;
   }
   if (result.type !== "ActionIntentCommand") return false;
   return result.interpretation.source === "deterministic"
     && result.operation !== "unknown"
     && result.interpretation.ambiguities.length === 0
+    && !(result.operation === "approach" && isCompoundNaturalInput(result.rawText))
     && result.interpretation.confidence >= 0.7;
+}
+
+function isCompoundNaturalInput(input: string): boolean {
+  return /[:;]|\s+и\s+|,\s*(?:стараясь|пытаясь|чтобы|и\s+наблюдать)\b/iu.test(input);
 }
 
 function needsLLMForNaturalPhrase(input: string, result: ExecutableIntent): boolean {
