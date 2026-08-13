@@ -6,7 +6,8 @@ gate required by ADR-0031. It is evidence, not a replacement for a human
 
 ## Release candidate
 
-- Repository commit: `4c2b13777ad70b2bff507e37e36b7c5f2fe7c8cc`
+- Runtime commit: `4c2b13777ad70b2bff507e37e36b7c5f2fe7c8cc`
+- Evidence-document commit: `03bf74a`
 - Branch: `main`, clean and equal to `origin/main`
 - Production: `http://192.168.0.5:3000`
 - Production service: `skald.service`, active after an explicit restart
