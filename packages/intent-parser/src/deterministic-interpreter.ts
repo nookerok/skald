@@ -469,6 +469,17 @@ function extractDirectionFromText(text: string): string | undefined {
   return undefined;
 }
 
+function extractApproachTarget(text: string): string | undefined {
+  const cleaned = text.trim().replace(/[?!.,;:]+$/u, "");
+  const match = /^(.*?)(?:\s+(?:с|из)\s+(?:север|юг|восток|запад)(?:а|у|ом|е)?|\s+(?:севернее|южнее|восточнее|западнее))$/iu.exec(cleaned);
+  if (!match?.[1]) return undefined;
+  const target = match[1]
+    .trim()
+    .replace(/^(?:к|в|на|у|из|от|до|по|через)\s+/iu, "")
+    .trim();
+  return target.length > 0 ? target : undefined;
+}
+
 function buildClarification(
   _text: string,
   candidates: Array<{ mode: IntentMode; operation: IntentOperation; label: string }>,
@@ -710,6 +721,21 @@ export function interpretIntent(
   const afterVerb = removeVerb(text, verb.verb);
 
   if (verb.operation === "approach" || verb.operation === "enter") {
+    // «обойти башню с запада» names a target plus an approach direction;
+    // do not mistake the directional modifier for the target itself.
+    const approachTarget = extractApproachTarget(afterVerb);
+    if (approachTarget) {
+      return {
+        type: "ActionIntentCommand",
+        mode: verb.mode,
+        operation: verb.operation,
+        target: { raw: approachTarget, normalized: normalizeForMatch(approachTarget) },
+        instrument,
+        goal,
+        rawText,
+        interpretation: { source: "deterministic", confidence: 0.8, ambiguities: [] },
+      };
+    }
     const dir = extractDirectionFromText(afterVerb);
     if (dir) {
       return {

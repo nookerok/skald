@@ -59,7 +59,7 @@ export function resolveJourneyRoute(
     if (!visible) continue;
     const names = [location.name, ...aliases, visible.name, ...(visible.aliases ?? [])]
       .map(normalizeLocationText);
-    if (names.some((name) => name === normalizedDest || name.includes(normalizedDest) || normalizedDest.includes(name))) {
+    if (names.some((name) => locationTextMatches(name, normalizedDest))) {
       candidateLocations.push({ id: location.id, name: location.name });
     }
   }
@@ -146,6 +146,49 @@ export function resolveJourneyRoute(
 
 function normalizeLocationText(value: string): string {
   return value.toLowerCase().replace(/ё/gu, "е").replace(/[^a-zа-я0-9]+/giu, " ").trim();
+}
+
+/**
+ * Player-facing destinations are naturally inflected («к Речному Стражу»),
+ * while Canon stores the reviewed nominative toponym («Речной Страж»).
+ * Match whole token sequences by a deliberately small Russian case-folding
+ * stemmer; this never creates a location or exposes hidden geometry.
+ */
+function locationTextMatches(candidate: string, query: string): boolean {
+  if (candidate === query || candidate.includes(query) || query.includes(candidate)) return true;
+  const candidateTokens = locationTextTokens(candidate);
+  const queryTokens = locationTextTokens(query);
+  if (queryTokens.length === 0 || queryTokens.length > candidateTokens.length) return false;
+  return queryTokens.every((queryToken) =>
+    candidateTokens.some((candidateToken) =>
+      candidateToken === queryToken
+      || candidateToken.startsWith(queryToken)
+      || queryToken.startsWith(candidateToken),
+    ),
+  );
+}
+
+function locationTextTokens(value: string): string[] {
+  return value
+    .split(/\s+/u)
+    .map((token) => russianCaseStem(token))
+    .filter((token) => token.length > 0);
+}
+
+function russianCaseStem(token: string): string {
+  const endings = [
+    "иями", "ами", "ями", "ового", "евому", "ому", "ему", "ого", "его",
+    "ыми", "ими", "ами", "ями", "ах", "ях", "ов", "ев", "ей",
+    "ого", "ему", "ому", "ая", "яя", "ое", "ее", "ые", "ие",
+    "ую", "юю", "ой", "ый", "ий", "ью", "ию", "ия", "ие",
+    "ам", "ям", "ом", "ем", "ы", "и", "а", "я", "у", "ю", "е", "о", "ь", "м",
+  ];
+  for (const ending of endings) {
+    if (token.length - ending.length >= 3 && token.endsWith(ending)) {
+      return token.slice(0, -ending.length);
+    }
+  }
+  return token;
 }
 
 function routeKindMatchesHint(kind: SpatialRelationKind, routeHint: string | undefined): boolean {

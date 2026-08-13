@@ -38,13 +38,21 @@ describe("intent gateway", () => {
     expect(result.status).toBe("clarification");
   });
 
-  it("turns invalid or timed-out model output into clarification", async () => {
+  it("turns invalid or timed-out model output into clarification when no safe parse exists", async () => {
     const invalid = await interpretPlayerInput("сделать нечто странное", routerReturning("not json"), { timeoutMs: 100 });
     expect(invalid.status).toBe("clarification");
 
     const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
     const timedOut = await interpretPlayerInput("сделать нечто странное", slow, { timeoutMs: 5 });
     expect(timedOut.status).toBe("clarification");
+  });
+
+  it("keeps a safe natural approach playable when the model times out", async () => {
+    const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
+    const result = await interpretPlayerInput("обойти башню с запада", slow, { timeoutMs: 5 });
+    expect(result).toMatchObject({ status: "accepted", source: "deterministic" });
+    expect((result as any).intent.operation).toBe("approach");
+    expect((result as any).intent.target.raw).toContain("башню");
   });
 
   it("can be disabled without changing deterministic commands", async () => {

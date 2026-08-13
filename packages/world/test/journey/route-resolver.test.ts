@@ -63,6 +63,12 @@ describe("resolveJourneyRoute", () => {
     }
   });
 
+  it("resolves a common inflected destination form", () => {
+    const result = resolveJourneyRoute("Речному Стражу", "river_waystation", makeSpatial(), makeObserverMap());
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") expect(result.toLocationId).toBe("riverwatch_city");
+  });
+
   it("resolves a reviewed location alias", () => {
     const map = makeObserverMap({ locations: [
       { ref: "river_waystation", name: "Переправа у Чёрного леса", knowledge: "traversed" },

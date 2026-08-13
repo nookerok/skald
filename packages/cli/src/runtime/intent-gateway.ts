@@ -44,6 +44,12 @@ export async function interpretPlayerInput(
     const validated = validateIntentProposal(raw, input);
     return mapValidation(validated);
   } catch {
+    // A model timeout or transient provider failure must not strand a
+    // deterministic, single-intent reading in clarification. The validator
+    // remains authoritative for model output; this fallback only reuses the
+    // parser's already-safe command and still lets the world validate it.
+    const safeFallback = isSafeDeterministic(deterministic) ? deterministic : null;
+    if (safeFallback) return { status: "accepted", intent: safeFallback, source: "deterministic" };
     return { status: "clarification", question: "Не удалось безопасно разобрать это действие. Попробуй назвать одну цель и одно действие.", options: [{ optionId: "rephrase", label: "Переформулировать действие" }] };
   }
 }
