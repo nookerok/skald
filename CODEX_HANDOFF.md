@@ -6,7 +6,7 @@
   meaningful choices, 4 journey legs, 4 world changes, 4 discovery advances,
   3 map-growth steps, 90 offline meaningful events, zero truth leaks/orphans/
   duplicates, replay/idempotency/restart persistence PASS.
-- Full validation is PASS: 122 test files, 1457 passed, 1 skipped; Canon,
+- Full validation is PASS: 124 test files, 1469 passed, 1 skipped; Canon,
   Simulation, 10 eval scenarios and diff checks PASS.
 - Orange Pi production is on the same commit after an explicit service
   restart; `skald.service`, healthcheck timer and backup timer are active;
@@ -32,6 +32,11 @@
   It requires real 30–60 minute timestamps, one Presence acknowledgement,
   24–48 offline ticks, desktop/mobile screenshots, pacing ≤3 and all ten rubric
   answers true; it does not manufacture or infer human answers.
+- Adventure scenario shape is now validated before execution (20–35 commands,
+  three choices, route/discovery loop, one 24–48 tick absence and restart).
+  The report scans every player-facing snapshot for truth leaks and counts
+  clarification replies in chat alternation.
+- Human review evidence now requires provenance metadata and an explicit blocked-checks list.
 
 # Codex Handoff
 

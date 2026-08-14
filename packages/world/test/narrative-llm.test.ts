@@ -87,9 +87,9 @@ describe("narrateLLM", () => {
         { kind: "world", timestamp: 5, text: "background entry", sourceEventIds: [], importance: "background", discoveryMark: null },
       ],
       presentation: {
-        primary: { kind: "action", importance: "primary", discoveryMark: null, text: "primary text", timestamp: 5, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
-        notable: [{ kind: "observation", importance: "notable", discoveryMark: null, text: "notable text", timestamp: 5, sourceEventIds: ["e-2"], threadKey: null, threadLabel: null }],
-        background: [{ kind: "world", importance: "background", discoveryMark: null, text: "bg", timestamp: 5, sourceEventIds: [], threadKey: null, threadLabel: null }],
+        primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: "primary text", timestamp: 5, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
+        notable: [{ kind: "observation", importance: "notable", discoveryMark: null, epistemicClass: "observed_fact", text: "notable text", timestamp: 5, sourceEventIds: ["e-2"], threadKey: null, threadLabel: null }],
+        background: [{ kind: "world", importance: "background", discoveryMark: null, epistemicClass: "observed_fact", text: "bg", timestamp: 5, sourceEventIds: [], threadKey: null, threadLabel: null }],
         suppressedEventCount: 2,
         worldTime: 5,
         playerPosition: { x: 0, y: 0 },

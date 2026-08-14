@@ -17,6 +17,10 @@ export interface ObjectDefinition {
   readonly locationId: string;
   readonly integrity: number;
   readonly temperature: number;
+  readonly mass?: number;
+  readonly portable?: boolean;
+  readonly affordances?: readonly string[];
+  readonly containerCapacity?: number | null;
 }
 
 export interface LocationDefinition {

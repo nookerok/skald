@@ -32,6 +32,7 @@ export type IntentOperation =
   | "call"
   | "wait"
   | "open"
+  | "close"
   | "give"
   | "travel"
   | "interrupt"
@@ -74,6 +75,7 @@ export type InteractionVerb =
   | "touch"
   | "take"
   | "open"
+  | "close"
   | "apply_force"
   | "give";
 

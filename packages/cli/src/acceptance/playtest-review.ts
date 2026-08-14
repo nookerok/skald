@@ -11,6 +11,17 @@ export interface AdventurePlaytestAnswers {
   readonly wantToContinue: boolean;
 }
 
+export interface AdventurePlaytestEvidence {
+  readonly scenarioCommitSha: string;
+  readonly deterministicReportPath: string;
+  readonly browserTaskId: string;
+  readonly model: string;
+  readonly provider: string;
+  readonly timeoutSeconds: number;
+  readonly domNotesPath: string;
+  readonly blockedChecks: readonly string[];
+}
+
 export interface AdventurePlaytestReview {
   readonly worldId: string;
   readonly startedAt: string;
@@ -21,6 +32,7 @@ export interface AdventurePlaytestReview {
   readonly offlineTicks: number;
   readonly screenshots: readonly string[];
   readonly maxConsecutiveLowInformationActions: number;
+  readonly evidence: AdventurePlaytestEvidence;
   readonly answers: AdventurePlaytestAnswers;
   readonly notes?: string | undefined;
 }
@@ -49,6 +61,7 @@ const MAX_GAMEPLAY_COMMANDS = 35;
 const MIN_OFFLINE_TICKS = 24;
 const MAX_OFFLINE_TICKS = 48;
 const REQUIRED_SCREENSHOT_KINDS = 2;
+const COMMIT_SHA_PATTERN = /^[0-9a-f]{7,64}$/iu;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -69,6 +82,19 @@ export function validateAdventurePlaytestReview(
   review: AdventurePlaytestReview,
 ): AdventurePlaytestReviewResult {
   const errors: string[] = [];
+  const evidence = review.evidence;
+  if (!evidence || typeof evidence !== "object") {
+    errors.push("evidence metadata is required");
+  } else {
+    if (!COMMIT_SHA_PATTERN.test(evidence.scenarioCommitSha)) errors.push("evidence.scenarioCommitSha must be a git SHA");
+    if (!isNonEmptyString(evidence.deterministicReportPath)) errors.push("evidence.deterministicReportPath is required");
+    if (!isNonEmptyString(evidence.browserTaskId)) errors.push("evidence.browserTaskId is required");
+    if (!isNonEmptyString(evidence.model)) errors.push("evidence.model is required");
+    if (!isNonEmptyString(evidence.provider)) errors.push("evidence.provider is required");
+    if (!isFiniteNonNegativeInteger(evidence.timeoutSeconds) || evidence.timeoutSeconds <= 0) errors.push("evidence.timeoutSeconds must be positive");
+    if (!isNonEmptyString(evidence.domNotesPath)) errors.push("evidence.domNotesPath is required");
+    if (!Array.isArray(evidence.blockedChecks)) errors.push("evidence.blockedChecks must be an array");
+  }
 
   if (!isNonEmptyString(review.worldId)) errors.push("worldId is required");
   if (!isNonEmptyString(review.startedAt) || !Number.isFinite(Date.parse(review.startedAt))) errors.push("startedAt must be an ISO timestamp");

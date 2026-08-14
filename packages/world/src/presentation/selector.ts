@@ -56,7 +56,7 @@ export function selectTurnPresentation(
   const merged: PresentationCandidate[] = [];
   for (const [, list] of groupMap) {
     // Use the highest rank candidate's text; merge sourceEventIds
-    list.sort((a, b) => b.rank - a.rank || 0);
+    list.sort((a, b) => epistemicRank(a) - epistemicRank(b) || b.rank - a.rank || a.timestamp - b.timestamp);
     const best = list[0]!;
     const ids = [...new Set(list.flatMap((c) => c.sourceEventIds))];
     merged.push({ ...best, sourceEventIds: ids });
@@ -81,6 +81,7 @@ export function selectTurnPresentation(
       kind: top.kind,
       importance: "primary",
       discoveryMark: top.discoveryMark,
+      epistemicClass: top.epistemicClass,
       text: top.text,
       timestamp: top.timestamp,
       sourceEventIds: top.sourceEventIds,
@@ -104,6 +105,7 @@ export function selectTurnPresentation(
       kind: "world",
       importance: "primary",
       discoveryMark: null,
+      epistemicClass: "observed_fact",
       text,
       timestamp: world.time,
       sourceEventIds: [],
@@ -121,6 +123,7 @@ export function selectTurnPresentation(
     const entry: PresentationEntry = {
       kind: c.kind,
       importance: imp,
+      epistemicClass: c.epistemicClass,
       discoveryMark: c.discoveryMark,
       text: c.text,
       timestamp: c.timestamp,
@@ -149,4 +152,15 @@ export function selectTurnPresentation(
     worldTime: world.time,
     playerPosition: { x: world.player.x, y: world.player.y },
   };
+}
+const EPISTEMIC_ORDER: Readonly<Record<PresentationCandidate["epistemicClass"], number>> = {
+  interpretation: 0,
+  testimony: 1,
+  inference: 2,
+  observed_fact: 3,
+  established_fact: 4,
+};
+
+function epistemicRank(candidate: PresentationCandidate): number {
+  return EPISTEMIC_ORDER[candidate.epistemicClass];
 }

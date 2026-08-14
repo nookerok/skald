@@ -4,6 +4,10 @@ The deterministic acceptance slice proves the HTTP/SQLite path, not that a human
 
 The human review is machine-checked for completeness, but the validator does not invent the tester's answers:
 `npm run acceptance:adventure:review -- docs/acceptance/full-adventure-review.json`
+The `evidence` object must also identify the scenario commit SHA, deterministic
+JSON report, fixed browser task, model/provider and timeout, DOM notes and an
+explicit `blockedChecks` array. These fields describe provenance; they do not
+turn an automated run into a human review.
 Start from `docs/acceptance/full-adventure-review.template.json`. Record the real disposable world, ISO start/end timestamps, exact command budget, one Presence acknowledgement, 24–48 offline ticks, desktop/mobile screenshot paths and all ten rubric answers. A valid report is a release evidence requirement, not a deterministic simulation test.
 
 ## Deterministic gate

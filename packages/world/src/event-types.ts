@@ -118,6 +118,21 @@ export const EventType = {
   ResourceShortageStarted: "ResourceShortageStarted",
   ResourceShortageEnded: "ResourceShortageEnded",
 
+  // Action capability and epistemic evidence model
+  ItemMoved: "ItemMoved",
+  ItemPossessionChanged: "ItemPossessionChanged",
+  ContainerOpened: "ContainerOpened",
+  ContainerClosed: "ContainerClosed",
+  ItemUsed: "ItemUsed",
+  ConditionApplied: "ConditionApplied",
+  ConditionRemoved: "ConditionRemoved",
+  KnowledgeAcquired: "KnowledgeAcquired",
+  ProficiencyEvidenceRecorded: "ProficiencyEvidenceRecorded",
+  TestimonyReceived: "TestimonyReceived",
+  EpistemicEvidenceRecorded: "EpistemicEvidenceRecorded",
+  PhenomenonObserved: "PhenomenonObserved",
+  PhenomenonInteracted: "PhenomenonInteracted",
+
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

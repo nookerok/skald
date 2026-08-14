@@ -187,4 +187,6 @@ export { SettlementProjector } from "./settlement/projector.js";
 export type { SettlementDefinition, SettlementState, SettlementReadView } from "./settlement/types.js";
 
 // First living region — deterministic spatial bootstrap and observer map
+export * from './action-capability/index.js';
+export { actionCapabilityRules, itemPossession, containerAccess, affordanceUse, phenomenonObservation } from './rules/interactions/action-capability.js';
 export * from "./region/index.js";

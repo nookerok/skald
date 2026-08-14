@@ -18,6 +18,14 @@ export interface WorldObject {
   readonly locationId: string;
   readonly integrity: number;
   readonly temperature: number;
+  /** Event-derived physical mass used by container capacity checks. */
+  readonly mass?: number;
+  /** Whether the object may be moved by an actor. */
+  readonly portable?: boolean;
+  /** Physical operations exposed by this object. */
+  readonly affordances?: readonly string[];
+  /** Maximum contained mass; null/undefined means not a container. */
+  readonly containerCapacity?: number | null;
   readonly state: Readonly<Record<string, unknown>>;
 }
 

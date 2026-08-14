@@ -24,6 +24,7 @@ import { weatherProcess } from "./weather.js";
 import { heatTransferProcess } from "./heat-transfer.js";
 import { settlementPattern } from "./settlement-pattern.js";
 import { resourceExtraction, resourceRegeneration, resourceTransfer, resourceConsume, resourceProcessStart, resourceProcessCompletion, resourceDemandProcess } from "../resource/rules.js";
+import { actionCapabilityRules } from './interactions/action-capability.js';
 import type { SpatialWorldProjection, ObserverMapDTO } from "../region/types.js";
 
 /**
@@ -55,6 +56,7 @@ export function createRules(
 
   // Interaction rules (Iteration 15)
   for (const rule of interactionRules) registry.register(rule);
+  for (const rule of actionCapabilityRules) registry.register(rule);
 
   // World Interaction Model — canonical gates + perception law (ADR-0013)
   for (const rule of worldInteractionRules) registry.register(rule);

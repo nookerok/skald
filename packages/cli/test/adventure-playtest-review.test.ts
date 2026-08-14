@@ -28,6 +28,16 @@ function review(overrides: Partial<AdventurePlaytestReview> = {}): AdventurePlay
     offlineTicks: 24,
     screenshots: ["desktop.png", "mobile.png"],
     maxConsecutiveLowInformationActions: 3,
+    evidence: {
+      scenarioCommitSha: "7575189",
+      deterministicReportPath: "acceptance-out/adventure.json",
+      browserTaskId: "019fa52b-1610-7b23-9567-37891d24c782",
+      model: "configured-live-model",
+      provider: "configured-provider",
+      timeoutSeconds: 120,
+      domNotesPath: "docs/acceptance/browser-dom.md",
+      blockedChecks: [],
+    },
     answers,
     ...overrides,
   };
@@ -93,6 +103,14 @@ describe("adventure playtest review", () => {
       "rubric answer wantToContinue must be true",
       "maxConsecutiveLowInformationActions must be at most 3",
     ]));
+  });
+
+  it("requires reproducible evidence metadata", () => {
+    const result = validateAdventurePlaytestReview(review({
+      evidence: { ...review().evidence, scenarioCommitSha: "not-a-sha" },
+    }));
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("evidence.scenarioCommitSha must be a git SHA");
   });
 });
 

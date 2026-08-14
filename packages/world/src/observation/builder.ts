@@ -143,6 +143,8 @@ function eventVisibleToObserver(
   historicalPosition: HistoricalPosition | null,
 ): boolean {
   const p = payload(event);
+  const scopedObserver = p.observerId;
+  if (typeof scopedObserver === "string" && scopedObserver !== observerId) return false;
   const locationId = p.locationId ?? p.fromLocationId ?? p.sourceLocationId;
   const isMovement = event.type === "MovementSucceeded" || event.type === "PlayerLocationChanged";
   if (typeof locationId === "string" && historicalLocation && locationId !== historicalLocation && !isMovement) return false;
@@ -250,6 +252,33 @@ function collectGroups(events: readonly DomainEvent[], observerId: string, world
         const kind = text(p.type ?? p.consequenceType, "unknown consequence");
         addGroup(groups, event, `consequence:${kind}`, "emergence", "anomaly", "inferred",
           "Последствие проявилось, но его закон ещё не ясен.", 0.55);
+        break;
+      }
+      case "TestimonyReceived": {
+        const claimId = text(p.claimId, event.eventId);
+        addGroup(groups, event, "claim:" + claimId, "emergence", "testimony", "reported",
+          "\u041a\u0442\u043e-\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0438\u043b \u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u043e\u0435 \u0443\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0438\u0435.", 0.34, "positive");
+        break;
+      }
+      case "EpistemicEvidenceRecorded": {
+        const claimId = text(p.claimId, event.eventId);
+        const relation = p.relation === "contradicts" ? "negative" : p.relation === "supports" ? "positive" : undefined;
+        const evidenceType = p.relation === "contradicts" ? "anomaly" : "inference";
+        addGroup(groups, event, "claim:" + claimId, "emergence", evidenceType, "direct",
+          p.relation === "contradicts" ? "\u041d\u0430\u0431\u043b\u044e\u0434\u0435\u043d\u0438\u0435 \u043f\u0440\u043e\u0442\u0438\u0432\u043e\u0440\u0435\u0447\u0438\u0442 \u0443\u0441\u043b\u044b\u0448\u0430\u043d\u043d\u043e\u043c\u0443." : "\u041d\u0430\u0431\u043b\u044e\u0434\u0435\u043d\u0438\u0435 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u0442 \u0443\u0441\u043b\u044b\u0448\u0430\u043d\u043d\u043e\u0435.", 0.76, relation);
+        break;
+      }
+      case "PhenomenonObserved": {
+        const phenomenonId = text(p.phenomenonId, event.eventId);
+        addGroup(groups, event, "phenomenon:" + phenomenonId, "emergence", "sensory", "direct",
+          "\u0422\u044b \u0437\u0430\u043c\u0435\u0442\u0438\u043b \u044f\u0432\u043b\u0435\u043d\u0438\u0435, \u043f\u0440\u0438\u0440\u043e\u0434\u0430 \u043a\u043e\u0442\u043e\u0440\u043e\u0433\u043e \u043f\u043e\u043a\u0430 \u043d\u0435 \u044f\u0441\u043d\u0430.", 0.82);
+        break;
+      }
+      case "PhenomenonInteracted": {
+        const phenomenonId = text(p.phenomenonId, event.eventId);
+        const outcome = text(p.outcome, "\u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u0440\u0435\u0437\u0443\u043b\u044c\u0442");
+        addGroup(groups, event, "phenomenon:" + phenomenonId, "emergence", "inference", "inferred",
+          "\u041e\u043f\u044b\u0442 \u0441 \u044f\u0432\u043b\u0435\u043d\u0438\u0435\u043c \u0434\u0430\u043b " + outcome + " \u0440\u0435\u0437\u0443\u043b\u0442\u0430\u0442.", 0.64);
         break;
       }
       default:

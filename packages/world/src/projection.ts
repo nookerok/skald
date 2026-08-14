@@ -11,6 +11,8 @@ import { HeatProjector } from "./heat/projector.js";
 import { SettlementProjector } from "./settlement/projector.js";
 import { ResourceProjector } from "./resource/projector.js";
 import type { ResourceReadView } from "./resource/types.js";
+import { ActionCapabilityProjector } from './action-capability/projector.js';
+import type { ActionCapabilityReadView } from './action-capability/types.js';
 import { createObserverSpatialKnowledge, freezeObserverSpatialKnowledge, mergeSpatialObservation } from "./region/observer-knowledge.js";
 import type { MutableObserverSpatialKnowledge, ObserverSpatialKnowledge } from "./region/observer-knowledge.js";
 
@@ -122,6 +124,7 @@ export interface ReadonlyWorld {
   /** Resource node definitions and event-sourced stock state. */
   readonly resources: ResourceReadView | null;
   readonly spatialKnowledge: ObserverSpatialKnowledge | null;
+  readonly actionCapabilities: ActionCapabilityReadView | null;
 }
 
 export interface WorldState {
@@ -160,6 +163,7 @@ export interface WorldState {
   settlement: import("./settlement/types.js").SettlementReadView | null;
   resources: ResourceReadView | null;
   spatialKnowledge: MutableObserverSpatialKnowledge | null;
+  actionCapabilities: ActionCapabilityReadView | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -337,6 +341,7 @@ function freeze(state: WorldState): ReadonlyWorld {
         }
       : null,
     spatialKnowledge: state.spatialKnowledge ? freezeObserverSpatialKnowledge(state.spatialKnowledge) : null,
+    actionCapabilities: state.actionCapabilities,
   }) as ReadonlyWorld;
 }
 
@@ -347,6 +352,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
   private readonly heatProjector = new HeatProjector();
   private readonly settlementProjector = new SettlementProjector();
   private readonly resourceProjector = new ResourceProjector();
+  private readonly actionCapabilityProjector = new ActionCapabilityProjector();
 
   constructor() {
     this.state = {
@@ -384,6 +390,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       settlement: null,
       resources: null,
       spatialKnowledge: createObserverSpatialKnowledge("player"),
+      actionCapabilities: null,
     };
   }
 
@@ -402,6 +409,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     this.heatProjector.apply(event);
     this.settlementProjector.apply(event);
     this.resourceProjector.apply(event);
+    this.actionCapabilityProjector.apply(event);
 
     switch (event.type) {
       case "PlayerSpawned": {
@@ -525,7 +533,10 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       case "PlayerLocationChanged":
       case "ObjectTemperatureChanged":
       case "ObjectIntegrityChanged":
-      case "PassageOpened": {
+      case "PassageOpened":
+      case "ItemMoved":
+      case "ContainerOpened":
+      case "ContainerClosed": {
         applyObjectEvent(s as unknown as { objects: Map<string, WorldObject>; locations: Map<string, Location>; currentLocationId: string }, event);
         break;
       }
@@ -657,6 +668,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     if (HEAT_EVENT_TYPES.has(event.type)) s.heat = this.heatProjector.getSnapshot();
     if (SETTLEMENT_EVENT_TYPES.has(event.type)) s.settlement = this.settlementProjector.getSnapshot();
     if (["ResourceNodeDefined", "ResourceExtracted", "ResourceRegenerated", "ResourceRegenerationBlocked", "ResourceTransferred", "ResourceConsumed", "ResourceProcessDefined", "ResourceProcessStarted", "ResourceProcessCompleted", "ResourceDemandDefined", "ResourceShortageStarted", "ResourceShortageEnded"].includes(event.type)) s.resources = this.resourceProjector.getSnapshot();
+    if (['WorldObjectPlaced', 'ItemMoved', 'ItemPossessionChanged', 'ContainerOpened', 'ContainerClosed', 'ConditionApplied', 'ConditionRemoved', 'KnowledgeAcquired', 'ProficiencyEvidenceRecorded', 'TestimonyReceived', 'EpistemicEvidenceRecorded'].includes(event.type)) s.actionCapabilities = this.actionCapabilityProjector.getSnapshot();
   }
 
   clone(): ProjectionStore<ReadonlyWorld> {
@@ -725,6 +737,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
             water: new Map(this.state.spatialKnowledge.water),
           }
         : null,
+      actionCapabilities: this.state.actionCapabilities,
     };
     copy.seedReadViewProjectors();
     return copy;
@@ -738,6 +751,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     this.heatProjector.seed(this.state.heat);
     this.settlementProjector.seed(this.state.settlement);
     this.resourceProjector.seed(this.state.resources);
+    this.actionCapabilityProjector.seed(this.state.actionCapabilities);
   }
 }
 

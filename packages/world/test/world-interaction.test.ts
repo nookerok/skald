@@ -118,7 +118,7 @@ describe("World Interaction Model — inspect/perception", () => {
     };
     const unknown: InteractionCommand = {
       type: "InteractionCommand",
-      verb: "take" as InteractionCommand["verb"],
+      verb: "close",
       target: { raw: "cart" },
       rawText: "взять телегу",
       interpretation: { source: "deterministic", confidence: 0.8, ambiguities: [] },
@@ -128,7 +128,7 @@ describe("World Interaction Model — inspect/perception", () => {
       type: "InteractionRequested", payload: { verb: "inspect", object: "cart" },
     });
     expect(handleCommand(unknown, "cmd-2", 2)).toMatchObject({
-      type: "CommandRejected", payload: { reason: "unknown interaction verb: take" },
+      type: "InteractionRequested", payload: { verb: "close", object: "cart" },
     });
   });
 

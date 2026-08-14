@@ -1,5 +1,5 @@
 import type { NarrativeSnapshot, NarrativeEntry } from "./narrative.js";
-import type { TurnPresentation } from "./presentation/types.js";
+import type { EpistemicNarrativeFact, TurnPresentation } from "./presentation/types.js";
 import { ModelRouter } from "./llm/router.js";
 import type { ChatMessage, ChatResult } from "./llm/types.js";
 
@@ -49,13 +49,13 @@ export async function narrateLLM(
     };
   }
 
-  const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Переформулируй строго по переданным фактам — не добавляй новые события, не изменяй мир, не принимай решений, не описывай мысли или намерения игрока.";
+  const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Переформулируй строго по переданным фактам — не добавляй новые события, не изменяй мир, не принимай решений, не описывай мысли или намерения игрока." + EPISTEMIC_PROMPT;
 
   // Only primary and notable — no background, no world-state projection entries
   const llmEntries = snapshot.presentation?.primary
     ? [snapshot.presentation.primary, ...snapshot.presentation.notable]
     : [];
-  const userContent = JSON.stringify({ entries: llmEntries, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  const userContent = JSON.stringify({ entries: llmEntries.map((entry): EpistemicNarrativeFact => ({ text: entry.text, epistemicClass: entry.epistemicClass, sourceEventIds: entry.sourceEventIds })), worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -99,9 +99,10 @@ export interface TurnNarration {
   readonly latencyMs: number;
 }
 
+const EPISTEMIC_PROMPT = "Сохраняй классы epistemic: established_fact утверждай прямо; observed_fact подавай как увиденное; testimony привязывай к источнику; inference и interpretation оформляй как предположение. Никогда не повышай класс и не превращай testimony, belief или interpretation в установленный факт.";
 const DND_SYSTEM_PROMPT =
   "Ты — рассказчик тёмного мира в духе D&D. Опиши этот ход художественно, по-русски, 2-4 предложения, в прошедшем времени, с атмосферой. " +
-  "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции.";
+  "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции." + EPISTEMIC_PROMPT;
 
 function fallbackNarration(presentation: TurnPresentation, reason: string): TurnNarration {
   return {
@@ -123,13 +124,13 @@ export async function narrateTurnLLM(
   }
 
   const facts = [
-    { role: "primary", text: presentation.primary?.text ?? null },
-    ...presentation.notable.slice(0, 3).map((e) => ({ role: "notable", text: e.text })),
+    { role: "primary", text: presentation.primary?.text ?? null, epistemicClass: presentation.primary?.epistemicClass ?? "observed_fact", sourceEventIds: presentation.primary?.sourceEventIds ?? [] },
+    ...presentation.notable.slice(0, 3).map((e) => ({ role: "notable", text: e.text, epistemicClass: e.epistemicClass, sourceEventIds: e.sourceEventIds })),
   ].filter((f) => f.text !== null);
 
   const userContent = JSON.stringify({
     playerAction,
-    turnFacts: facts.map((f) => ({ role: f.role, text: f.text })),
+    turnFacts: facts.map((f) => ({ role: f.role, text: f.text, epistemicClass: f.epistemicClass, sourceEventIds: f.sourceEventIds })),
     worldTime: presentation.worldTime,
     playerPosition: presentation.playerPosition,
   });

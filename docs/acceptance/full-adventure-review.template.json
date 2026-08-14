@@ -1,5 +1,15 @@
 {
   "worldId": "world-<disposable>",
+  "evidence": {
+    "scenarioCommitSha": "<commit-sha>",
+    "deterministicReportPath": "<path-to-adventure-report.json>",
+    "browserTaskId": "<fixed-ntfs-task-id>",
+    "model": "<model-name>",
+    "provider": "<provider-name>",
+    "timeoutSeconds": 120,
+    "domNotesPath": "<path-to-dom-notes.md>",
+    "blockedChecks": ["<explicitly-list-any-blocked-check>"]
+  },
   "startedAt": "2026-08-13T10:00:00.000Z",
   "endedAt": "2026-08-13T10:30:00.000Z",
   "durationSeconds": 0,

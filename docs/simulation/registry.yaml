@@ -11,6 +11,18 @@ registryVersion: 1.0.0
 lastUpdated: "2026-08-05"
 
 systems:
+  - systemId: action-capability
+    lifecycleStatus: Experimental
+    definitionPath: docs/simulation/definitions/action-capability.yaml
+    bindingPath: null
+    dependencyRank: 1
+    notes: "Event-derived placement, affordances, contextual capability and epistemic evidence. Runtime uses compiled events and statically registered Rules; it does not read Simulation Bible."
+    maturityEvidence:
+      - definition
+      - implementation
+      - tests
+      - review
+
   - systemId: river-hydrology
     lifecycleStatus: Experimental
     definitionPath: docs/simulation/definitions/river-hydrology.yaml

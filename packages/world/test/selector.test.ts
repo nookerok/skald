@@ -90,4 +90,38 @@ describe("selectTurnPresentation", () => {
     expect(treeEntries[0]!.sourceEventIds).toContain("tb-1");
     expect(treeEntries[0]!.sourceEventIds).toContain("tb-2");
   });
+  it("keeps testimony distinct from direct observation", () => {
+    const rumor = selectTurnPresentation([
+      evt("RumorHeard", "rumor-1", {
+        rumorRef: "claim-bridge",
+        text: "Мост ещё цел.",
+        sourceLabel: "проводник",
+      }, 5),
+    ], emptyWorld());
+    expect(rumor.primary?.epistemicClass).toBe("testimony");
+
+    const observation = selectTurnPresentation([
+      evt("ObjectObserved", "observation-1", {
+        name: "мост",
+        description: "Перед тобой разрушенный мост.",
+        temperature: 20,
+        integrity: 10,
+      }, 6),
+    ], emptyWorld());
+    expect(observation.primary?.epistemicClass).toBe("observed_fact");
+  });
+
+  it("marks projection fallback as observer-scoped fact", () => {
+    const pres = selectTurnPresentation([], emptyWorld());
+    expect(pres.primary?.epistemicClass).toBe("observed_fact");
+  });
+
+  it("does not let a grouped candidate lose its epistemic class", () => {
+    const pres = selectTurnPresentation([
+      evt("TreeBurned", "tree-1", { burnedAt: 5, treeIndex: 1 }, 5),
+      evt("TreeBurned", "tree-2", { burnedAt: 6, treeIndex: 2 }, 6),
+    ], emptyWorld());
+    expect(pres.notable[0]!.epistemicClass).toBe("established_fact");
+    expect(pres.notable[0]!.sourceEventIds).toEqual(["tree-1", "tree-2"]);
+  });
 });

@@ -42,7 +42,7 @@ export const interactionResolveTarget: Rule<ReadonlyWorld> = {
   listens: ["InteractionTimeValidated"],
   produces: ["TargetResolved", "ActionRejected"],
   handle: (event, world) => {
-    const payload = event.payload as { verb?: string; object?: string };
+    const payload = event.payload as { verb?: string; object?: string; secondaryTarget?: string | null; instrument?: string | null };
     if (!payload.verb) return [reject(event, "no_such_target")];
 
     const resolution = resolveInteractionTarget(world, payload.verb, payload.object ?? "");
@@ -52,7 +52,12 @@ export const interactionResolveTarget: Rule<ReadonlyWorld> = {
         ...baseFrom(event),
         eventId: ruleEventId(event.eventId, "TargetResolved", 0),
         type: "TargetResolved",
-        payload: { entityId: resolution.target.id, verb: payload.verb },
+        payload: {
+          entityId: resolution.target.id,
+          verb: payload.verb,
+          secondaryTarget: payload.secondaryTarget ?? null,
+          instrument: payload.instrument ?? null,
+        },
       }];
     }
     if (resolution.kind === "environment") {
@@ -80,7 +85,14 @@ export function resolveInteractionLaw(
   world: ReadonlyWorld,
   lookup: DefinitionLookup = getInteractionDefinition,
 ): DomainEvent[] {
-  const payload = event.payload as { entityId?: string; environment?: boolean; locationId?: string; verb?: string };
+  const payload = event.payload as {
+    entityId?: string;
+    environment?: boolean;
+    locationId?: string;
+    verb?: string;
+    secondaryTarget?: string | null;
+    instrument?: string | null;
+  };
   const definition = payload.verb ? lookup(payload.verb) : undefined;
   if (!definition) return [reject(event, "not_applicable")];
 
@@ -89,7 +101,13 @@ export function resolveInteractionLaw(
       ...baseFrom(event),
       eventId: ruleEventId(event.eventId, "InteractionValidated", 0),
       type: "InteractionValidated",
-      payload: { law: definition.law, locationId: payload.locationId, verb: definition.verb },
+      payload: {
+        law: definition.law,
+        locationId: payload.locationId,
+        verb: definition.verb,
+        secondaryTarget: payload.secondaryTarget ?? null,
+        instrument: payload.instrument ?? null,
+      },
     }];
   }
 
@@ -107,7 +125,13 @@ export function resolveInteractionLaw(
     ...baseFrom(event),
     eventId: ruleEventId(event.eventId, "InteractionValidated", 0),
     type: "InteractionValidated",
-    payload: { law: definition.law, entityId: entity ? entity.id : object!.id, verb: definition.verb },
+    payload: {
+      law: definition.law,
+      entityId: entity ? entity.id : object!.id,
+      verb: definition.verb,
+      secondaryTarget: payload.secondaryTarget ?? null,
+      instrument: payload.instrument ?? null,
+    },
   }];
 }
 

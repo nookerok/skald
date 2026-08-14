@@ -34,6 +34,10 @@ export function applyObjectEvent(
         integrity: number;
         temperature: number;
         state: Record<string, unknown>;
+        mass?: number;
+        portable?: boolean;
+        affordances?: unknown[];
+        containerCapacity?: number | null;
       };
       state.objects.set(p.id, {
         id: p.id,
@@ -44,6 +48,12 @@ export function applyObjectEvent(
         locationId: p.locationId,
         integrity: p.integrity,
         temperature: p.temperature,
+        mass: typeof p.mass === "number" ? p.mass : 0,
+        portable: p.portable === true,
+        affordances: Object.freeze(Array.isArray(p.affordances)
+          ? p.affordances.filter((value): value is string => typeof value === "string")
+          : []),
+        containerCapacity: typeof p.containerCapacity === "number" ? p.containerCapacity : null,
         state: Object.freeze({ ...p.state }),
       });
       // Also add object to its location's objectIds
@@ -100,6 +110,31 @@ export function applyObjectEvent(
         const newConnections = { ...loc.connections, [p.via]: p.toLocationId };
         state.locations.set(p.fromLocationId, { ...loc, connections: Object.freeze(newConnections) });
       }
+      break;
+    }
+    case 'ItemMoved': {
+      const p = event.payload as { itemId: string; to: { kind: string; locationId?: string } };
+      const object = state.objects.get(p.itemId);
+      if (!object) break;
+      for (const [locationId, location] of state.locations) {
+        if (location.objectIds.includes(p.itemId)) {
+          state.locations.set(locationId, { ...location, objectIds: location.objectIds.filter((id) => id !== p.itemId) });
+        }
+      }
+      if (p.to.kind === 'location' && p.to.locationId) {
+        state.objects.set(p.itemId, { ...object, locationId: p.to.locationId });
+        const location = state.locations.get(p.to.locationId);
+        if (location && !location.objectIds.includes(p.itemId)) {
+          state.locations.set(p.to.locationId, { ...location, objectIds: [...location.objectIds, p.itemId] });
+        }
+      }
+      break;
+    }
+    case 'ContainerOpened':
+    case 'ContainerClosed': {
+      const p = event.payload as { containerId: string };
+      const object = state.objects.get(p.containerId);
+      if (object) state.objects.set(p.containerId, { ...object, state: Object.freeze({ ...object.state, open: event.type === 'ContainerOpened' }) });
       break;
     }
     default:

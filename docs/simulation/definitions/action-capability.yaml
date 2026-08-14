@@ -1,0 +1,112 @@
+# System Definition: Action Capability and Epistemic Evidence
+
+identity:
+  systemId: action-capability
+  lifecycleStatus: Experimental
+  version: 1.0.0
+  provenance:
+    type: Designed
+    sources:
+      - docs/adr/0032-action-capability-epistemic-model.md
+      - docs/OBSERVATION_BELIEF_MODEL.md
+
+publicContract:
+  dependencies:
+    ownedAspects:
+      - aspect: ItemPlacement
+        domain: "location | carried(subject) | container(container)"
+      - aspect: ItemPossession
+        domain: "item ownership derived from ItemPossessionChanged"
+      - aspect: ActionConditions
+        domain: "event-derived requirements and blocked affordances"
+      - aspect: ProficiencyEvidence
+        domain: "contextual evidence records; no scalar progression"
+      - aspect: KnowledgeClaims
+        domain: "observer-scoped instructions and procedures"
+      - aspect: EpistemicClaims
+        domain: "testimony and evidence status; never World Truth"
+    dependsOn: []
+    influences: []
+  observableSurface:
+    emits:
+      - event: ItemMoved
+        role: state-transition
+      - event: ItemPossessionChanged
+        role: state-transition
+      - event: ContainerOpened
+        role: state-transition
+      - event: ContainerClosed
+        role: state-transition
+      - event: ItemUsed
+        role: genesis
+      - event: ProficiencyEvidenceRecorded
+        role: state-transition
+      - event: ConditionApplied
+        role: state-transition
+      - event: ConditionRemoved
+        role: state-transition
+      - event: KnowledgeAcquired
+        role: state-transition
+      - event: TestimonyReceived
+        role: genesis
+      - event: EpistemicEvidenceRecorded
+        role: state-transition
+      - event: PhenomenonObserved
+        role: genesis
+      - event: PhenomenonInteracted
+        role: state-transition
+    consumes:
+      - event: InteractionValidated
+      - event: ActionValidated
+      - event: WorldObjectPlaced
+      - event: ObjectObserved
+      - event: EntityExamined
+      - event: SpatialObservationRecorded
+      - event: RumorHeard
+      - event: TestimonyReceived
+    guarantees:
+      - id: action-capability-replay
+        statement: "Placement, possession, conditions and evidence are derived from the append-only Event Log."
+        kind: invariant
+        scope: system
+        implementationEvidence:
+          - kind: Rule
+            ref: action_capability.item_possession
+          - kind: Test
+            ref: packages/world/test/action-capability.test.ts
+      - id: no-proficiency-scalar
+        statement: "Proficiency is represented only by contextual evidence records and never by a progression scalar."
+        kind: impossibility
+        scope: aspect
+        implementationEvidence:
+          - kind: Review
+            ref: docs/adr/0032-action-capability-epistemic-model.md
+          - kind: Test
+            ref: packages/world/test/action-capability.test.ts
+      - id: testimony-is-not-truth
+        statement: "Testimony creates an observer claim and cannot mutate World Truth."
+        kind: invariant
+        scope: interaction
+        implementationEvidence:
+          - kind: Test
+            ref: packages/world/test/action-capability.test.ts
+
+operationalProfile:
+  updateModel: EventDriven
+  budget:
+    supports: [Full]
+  persistenceReplay:
+    replayAssumptions:
+      - "Events are totally ordered and append-only."
+      - "Projection state is rebuilt from the complete event stream."
+
+privateDesign:
+  stateSemantics:
+    placement: "Exactly one physical placement is current for each item."
+    accessibility: "Accessibility is derived from subject, location, ownership and open containment."
+    affordances: "Items expose physical operations; they never expose numeric bonuses."
+    epistemic: "Claims and evidence are observer-scoped and do not own world facts."
+  parameterSlots:
+    - name: defaultSubjectId
+      range: "non-empty observer/actor identifier"
+      default: player

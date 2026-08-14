@@ -34,7 +34,7 @@ export function targetFromObject(object: WorldObject): InteractionTarget {
     thermal: { temperature: object.temperature },
     // TODO(slice-4): weight source is not defined for WorldObjectPlaced yet;
     // take/inventory gates will introduce it with its own ADR event mapping.
-    physical: { intact: object.integrity > 0, weight: 0 },
+    physical: { intact: object.integrity > 0, weight: object.mass ?? 0 },
   };
   return {
     id: object.id,

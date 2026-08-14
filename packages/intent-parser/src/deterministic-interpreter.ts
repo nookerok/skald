@@ -166,6 +166,11 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "распахива", mode: "interact", operation: "open", canonical: "open" },
   { verb: "раскрыть", mode: "interact", operation: "open", canonical: "open" },
   { verb: "раскрыва", mode: "interact", operation: "open", canonical: "open" },
+  // close (canonical v1)
+  { verb: "закрыть", mode: "interact", operation: "close", canonical: "close" },
+  { verb: "закрыва", mode: "interact", operation: "close", canonical: "close" },
+  { verb: "закрой", mode: "interact", operation: "close", canonical: "close" },
+  { verb: "закрыл", mode: "interact", operation: "close", canonical: "close" },
   // give (canonical v1)
   { verb: "отдать", mode: "interact", operation: "give", canonical: "give" },
   { verb: "отдам", mode: "interact", operation: "give", canonical: "give" },

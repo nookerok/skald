@@ -1,3 +1,11 @@
+export type EpistemicClass = "established_fact" | "observed_fact" | "testimony" | "inference" | "interpretation";
+
+export interface EpistemicNarrativeFact {
+  readonly text: string;
+  readonly epistemicClass: EpistemicClass;
+  readonly sourceEventIds: readonly string[];
+}
+
 import type { DomainEvent } from "@skald/event-bus";
 
 export type PresentationImportance = "primary" | "notable" | "background";
@@ -15,6 +23,7 @@ export interface PresentationCandidate {
   readonly defaultImportance: PresentationImportance;
   readonly rank: number;
   readonly discoveryMark: DiscoveryMark;
+  readonly epistemicClass: EpistemicClass;
   readonly text: string;
   readonly timestamp: number;
   readonly sourceEventIds: readonly string[];
@@ -27,6 +36,7 @@ export interface PresentationEntry {
   readonly kind: PresentationCandidate["kind"];
   readonly importance: PresentationImportance;
   readonly discoveryMark: DiscoveryMark;
+  readonly epistemicClass: EpistemicClass;
   readonly text: string;
   readonly timestamp: number;
   readonly sourceEventIds: readonly string[];

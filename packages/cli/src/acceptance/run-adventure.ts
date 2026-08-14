@@ -2,11 +2,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runAdventureScenario } from "./adventure-harness.js";
 import { buildAdventureTranscript } from "./adventure-transcript.js";
+import { validateAdventureScenario } from "./adventure-contract.js";
 import type { AdventureScenario } from "./adventure-types.js";
 
 function loadScenario(): AdventureScenario {
   const path = resolve(process.cwd(), "packages/cli/acceptance-scenarios/riverwatch-old-course.json");
-  return JSON.parse(readFileSync(path, "utf8")) as AdventureScenario;
+  const scenario = JSON.parse(readFileSync(path, "utf8")) as AdventureScenario;
+  const errors = validateAdventureScenario(scenario);
+  if (errors.length > 0) throw new Error(`Invalid adventure scenario:\n- ${errors.join("\n- ")}`);
+  return scenario;
 }
 
 const result = await runAdventureScenario(loadScenario());

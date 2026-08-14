@@ -38,6 +38,10 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-030 | Conversation shell: the main player surface is a two-voice DTO-only feed; gateway clarifications are transient Master replies; Map/You/Knowledge are the only top-level player spaces and diagnostics stay outside the shell | accepted | docs/adr/0024-chat-chronicle-interface.md |
 | D-031 | Production selects an explicit primary world entrypoint; Pilot Region cutover creates an isolated compiled world, records succession, and leaves legacy Event Logs immutable | accepted | docs/adr/0029-production-world-entrypoint.md |
 
+| D-032 | Action Capability and Epistemic Evidence use the existing Interaction pipeline; placement/possession, affordances, conditions, contextual evidence and testimony claims are event-derived; no RPG scalar or magic-specific runtime | accepted | docs/adr/0032-action-capability-epistemic-model.md |
+
+| D-033 | Social Emergence is designed but deferred; Relation remains a low-level primitive; server-side EpistemicClass preserves the boundary between World Truth, Knowledge and Interpretation for Narrative | accepted | docs/adr/0033-epistemic-presentation-boundary.md |
+
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;
 it does not replace executable tests.

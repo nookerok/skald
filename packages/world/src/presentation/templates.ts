@@ -1,5 +1,6 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { PresentationTemplate, PresentationCandidate } from "./types.js";
+import type { EpistemicClass } from "./types.js";
 import { WORLD_WIDTH, WORLD_HEIGHT } from "../map.js";
 import { relationTargetLabel, relationKindLabel, situationLabel, operationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
 
@@ -15,10 +16,11 @@ function cand(
   id: string, kind: PresentationCandidate["kind"], importance: PresentationCandidate["defaultImportance"],
   rank: number, text: string, event: DomainEvent, groupKey?: string, threadKey?: string, threadLabel?: string,
   discoveryMark: PresentationCandidate["discoveryMark"] = null,
+  epistemicClass: EpistemicClass = epistemicClassForEvent(event.type, kind),
 ): PresentationCandidate {
   return {
     templateId: id, kind, defaultImportance: importance, rank,
-    discoveryMark, text, timestamp: event.timestamp,
+    discoveryMark, epistemicClass, text, timestamp: event.timestamp,
     sourceEventIds: [event.eventId], groupKey: groupKey ?? null,
     threadKey: threadKey ?? null, threadLabel: threadLabel ?? null,
   };
@@ -391,3 +393,20 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   CRITICAL_CHECK_RESOLVED,
   PLAYER_LOCATION_CHANGED,
 ];
+
+const EPISTEMIC_CLASS_BY_EVENT: Readonly<Record<string, EpistemicClass>> = {
+  RumorHeard: "testimony",
+  TestimonyReceived: "testimony",
+  ObservationUpdated: "observed_fact",
+  ObjectObserved: "observed_fact",
+  EntityExamined: "observed_fact",
+  SoundObserved: "observed_fact",
+  PhenomenonObserved: "observed_fact",
+};
+
+function epistemicClassForEvent(eventType: string, kind: PresentationCandidate["kind"]): EpistemicClass {
+  const explicit = EPISTEMIC_CLASS_BY_EVENT[eventType];
+  if (explicit) return explicit;
+  if (kind === "observation") return "observed_fact";
+  return "established_fact";
+}

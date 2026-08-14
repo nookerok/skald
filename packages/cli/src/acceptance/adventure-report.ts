@@ -67,7 +67,7 @@ export function buildAdventureReport(ctx: AdventureContext, idempotency = true):
   const offlineStartTime = Number(state(ctx.offlineStart ?? ctx.initial).worldTime ?? 0);
   const offlineStartEventCount = (ctx.offlineStart?.events ?? []).length;
   const offlineMeaningfulEvents = ctx.events.slice(offlineStartEventCount).filter((event) => Number(event.timestamp) > offlineStartTime && !["TickPassed", "HeatRadiated"].includes(String(event.type))).length;
-  const commandSteps = ctx.steps.filter((step) => "say" in step.step || "choose" in step.step);
+  const commandSteps = ctx.steps.filter((step) => "say" in step.step || "choose" in step.step || "answerClarification" in step.step);
   const chatAlternationIntegrity = commandSteps.every((step) => {
     if (step.body.status === "clarification") return true;
     const presentation = step.body.presentation as Json | undefined;
@@ -77,14 +77,23 @@ export function buildAdventureReport(ctx: AdventureContext, idempotency = true):
   const chronicleCoverage = Array.isArray(journal) && journal.length >= 10 ? 1 : 0;
   const worldTimes = Array.isArray(journal) ? journal.map((turn) => Number((turn as Json).worldTime)) : [];
   const narrationDuplicateRate = worldTimes.length === 0 ? 0 : 1 - new Set(worldTimes).size / worldTimes.length;
-  const truthLeakCount = /(?:JourneyStarted|PlayerLocationChanged|old_ruins|river_waystation|correlationId|eventId|undefined)/u.test(playerFacing(ctx.current)) ? 1 : 0;
+  const playerFacingTurns = [ctx.current, ...ctx.steps.map((step) => step.snapshot)].map(playerFacing).join(" ");
+  const truthLeakCount = /(?:JourneyStarted|PlayerLocationChanged|old_ruins|river_waystation|correlationId|eventId|undefined)/u.test(playerFacingTurns) ? 1 : 0;
   const orphanResponseCount = commandSteps.filter((step) => step.body.status !== "clarification" && !step.body.presentation).length;
+  const meaningfulChoices = ctx.steps.filter((step) => "choose" in step.step || "answerClarification" in step.step).length;
   const persistenceRestart = Boolean(ctx.restartBefore)
     && evaluateAdventureCheck("restart_preserved_journal", ctx) === ""
     && evaluateAdventureCheck("restart_preserved_map", ctx) === "";
   const offlineObservationLeak = ctx.events.slice(offlineStartEventCount).filter((event) => Number(event.timestamp) > offlineStartTime && event.type === "SpatialObservationRecorded" && payload(event).observerId === "player").length;
   const replayPurity = persistenceRestart;
   const pass = requiredBeatsCovered === 1
+    && chatAlternationIntegrity
+    && meaningfulChoices >= 3
+    && journeyLegsCompleted >= 4
+    && worldChangesEncountered > 0
+    && discoveriesAdvanced >= 2
+    && mapKnowledgeGrowth > 0
+    && offlineMeaningfulEvents > 0
     && truthLeakCount === 0
     && orphanResponseCount === 0
     && chronicleCoverage === 1
