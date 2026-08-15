@@ -145,9 +145,6 @@ export function collectRiskDrawsAttention(event: DomainEvent, index: number): Di
   if (type === "AudacityTriggered") {
     return makeEvidence("risk_draws_attention", index, "omen", event.timestamp, "Твоя дерзость не осталась без ответа — мир настороже.", event);
   }
-  if (type === "ConsequenceCreated" && payload["type"] === "audacity") {
-    return makeEvidence("risk_draws_attention", index, "omen", event.timestamp, "Твои действия породили тревожное предвестие.", event);
-  }
   if (type === "ConsequenceFired" && payload["consequenceType"] === "audacity") {
     return makeEvidence("risk_draws_attention", index, "echo", event.timestamp, "Последствие проявило себя — мир ответил на риск.", event);
   }
@@ -175,9 +172,6 @@ export function collectSoundDrawsAttention(event: DomainEvent, index: number): D
   const payload = event.payload as Record<string, unknown>;
   if (type === "SoundProduced" && payload["intensity"] === "loud") {
     return makeEvidence("sound_draws_attention", index, "trace", event.timestamp, "Громкий звук разнёсся по пространству.", event);
-  }
-  if (type === "ConsequenceCreated" && payload["type"] === "noise_attention") {
-    return makeEvidence("sound_draws_attention", index, "omen", event.timestamp, "Мир реагирует на шум.", event);
   }
   return null;
 }

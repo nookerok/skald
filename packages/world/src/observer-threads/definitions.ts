@@ -95,7 +95,10 @@ const GENERIC_SITUATION: ObserverThreadDefinition = {
 
 const CONSEQUENCE: ObserverThreadDefinition = {
   match: (threadKey) => threadKey.startsWith("consequence:"),
-  startEventTypes: ["ConsequenceCreated", "AudacityTriggered"],
+  // ConsequenceCreated is an internal scheduling event (see observation/builder.ts)
+  // and never surfaces a thread entry; the player notices a consequence only when
+  // it manifests (AudacityTriggered / ConsequenceFired).
+  startEventTypes: ["AudacityTriggered"],
   developEventTypes: ["ConsequenceFired"],
   // TODO: ConsequenceExpired has no player-facing presentation entry today,
   // so the journal never sees a completion signal for consequences. Until a

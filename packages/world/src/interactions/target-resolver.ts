@@ -53,6 +53,18 @@ function collectCandidates(world: ReadonlyWorld, query: string, verb: string): I
     }
   }
 
+  // For `place` the object to place is carried; for `use` the instrument is
+  // carried. Both must be visible to the resolver or the canonical chain
+  // rejects a carried target as missing.
+  if (verb === "place" || verb === "use") {
+    for (const [id, placement] of world.actionCapabilities?.placements ?? []) {
+      if (placement.kind !== "carried") continue;
+      if (!isItemAccessible(world, "player", id)) continue;
+      const object = world.objects.get(id);
+      if (object && matchLevel([object.name, ...object.aliases], query) !== null) byId.set(id, targetFromObject(object));
+    }
+  }
+
   for (const entity of world.entities.values()) {
     if (world.objects.has(entity.id) || !isNearby(entity, world)) continue;
     if (matchLevel([entity.name, ...entity.aliases], query) !== null) byId.set(entity.id, targetFromEntity(entity));
@@ -62,14 +74,10 @@ function collectCandidates(world: ReadonlyWorld, query: string, verb: string): I
 }
 
 function toCandidates(targets: readonly InteractionTarget[]): readonly PlayerFacingCandidate[] {
-  const seen = new Set<string>();
-  const candidates: PlayerFacingCandidate[] = [];
-  for (const target of targets) {
-    if (seen.has(target.name)) continue;
-    seen.add(target.name);
-    candidates.push({ name: target.name, description: target.description });
-  }
-  return candidates;
+  // Do not deduplicate by display name: two physical targets may share a
+  // name, and collapsing them would make the clarification impossible. The
+  // player-facing adapter omits internal ids but preserves each description.
+  return targets.map((target) => ({ name: target.name, description: target.description }));
 }
 
 /** Resolves one target from the observer-scoped world snapshot. */

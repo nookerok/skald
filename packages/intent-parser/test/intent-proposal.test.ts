@@ -77,6 +77,6 @@ describe("IntentProposalV1", () => {
 
   it("keeps a finite capability manifest", () => {
     expect(INTENT_CAPABILITIES.onePrimaryIntentOnly).toBe(true);
-    expect(INTENT_CAPABILITIES.interactionVerbs).toHaveLength(8);
+    expect(INTENT_CAPABILITIES.interactionVerbs).toHaveLength(10);
   });
 });

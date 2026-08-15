@@ -2,12 +2,15 @@
 
 The deterministic acceptance slice proves the HTTP/SQLite path, not that a human spent 30–60 minutes enjoying the game. A release candidate needs two separate pieces of evidence.
 
-The human review is machine-checked for completeness, but the validator does not invent the tester's answers:
+The human review is machine-checked for completeness against the runtime:
 `npm run acceptance:adventure:review -- docs/acceptance/full-adventure-review.json`
-The `evidence` object must also identify the scenario commit SHA, deterministic
-JSON report, fixed browser task, model/provider and timeout, DOM notes and an
-explicit `blockedChecks` array. These fields describe provenance; they do not
-turn an automated run into a human review.
+The validator pins the `scenarioCommitSha` to the current git HEAD, requires the
+deterministic JSON report, DOM notes and every desktop/mobile screenshot to
+exist on disk, demands at least one real gameplay command (1–35) with 24–48
+offline ticks, requires exactly one Presence acknowledgement, and rejects any
+`blockedChecks`. Two arbitrary `.png` strings are not desktop/mobile evidence.
+These fields describe provenance; they do not turn an automated run into a
+human review.
 Start from `docs/acceptance/full-adventure-review.template.json`. Record the real disposable world, ISO start/end timestamps, exact command budget, one Presence acknowledgement, 24–48 offline ticks, desktop/mobile screenshot paths and all ten rubric answers. A valid report is a release evidence requirement, not a deterministic simulation test.
 
 ## Deterministic gate

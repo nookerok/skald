@@ -174,6 +174,65 @@ describe("resolveInteractionTarget — ambiguity", () => {
   });
 });
 
+describe("resolveInteractionTarget — carried items for place/use (P2)", () => {
+  function campWithCarried(extra: readonly import("@skald/event-bus").DomainEvent[] = []): ReadonlyWorld {
+    const events: import("@skald/event-bus").DomainEvent[] = [
+      { eventId: "spawn", type: "PlayerSpawned", schemaVersion: 1, payload: { x: 0, y: 0 }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "loc", type: "LocationDefined", schemaVersion: 1, payload: { id: "camp", name: "Camp", description: "A camp.", objectIds: ["pouch"], connections: {} }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "plc", type: "PlayerLocationChanged", schemaVersion: 1, payload: { locationId: "camp" }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "pouch", type: "WorldObjectPlaced", schemaVersion: 1, payload: { id: "pouch", name: "pouch", aliases: ["pouch"], description: "A pouch.", locationId: "camp", integrity: 100, temperature: 20, state: { open: true, portable: true, containerCapacityMass: 5 }, mass: 1, portable: true, containerCapacity: 5 }, timestamp: 0, correlationId: "boot", causationId: null },
+      ...extra,
+    ];
+    return rebuildProjection(events).getSnapshot();
+  }
+
+  it("place resolves the carried item to place", () => {
+    const world = campWithCarried([
+      { eventId: "stone", type: "WorldObjectPlaced", schemaVersion: 1, payload: { id: "stone", name: "stone", aliases: ["stone"], description: "A stone.", locationId: "camp", integrity: 100, temperature: 20, state: { portable: true }, mass: 2, portable: true }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "carry", type: "ItemMoved", schemaVersion: 1, payload: { itemId: "stone", from: { kind: "location", locationId: "camp" }, to: { kind: "carried", holderId: "player" }, subjectId: "player" }, timestamp: 0, correlationId: "boot", causationId: null },
+    ]);
+    const r = resolveInteractionTarget(world, "place", "stone");
+    expect(r.kind).toBe("resolved");
+    if (r.kind !== "resolved") throw new Error("unreachable");
+    expect(r.target.id).toBe("stone");
+  });
+
+  it("use resolves the carried instrument", () => {
+    const world = campWithCarried([
+      { eventId: "torch", type: "WorldObjectPlaced", schemaVersion: 1, payload: { id: "torch", name: "torch", aliases: ["torch"], description: "A torch.", locationId: "camp", integrity: 100, temperature: 20, state: { portable: true, affordances: ["ignite"] }, mass: 1, portable: true, affordances: ["ignite"] }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "carry", type: "ItemMoved", schemaVersion: 1, payload: { itemId: "torch", from: { kind: "location", locationId: "camp" }, to: { kind: "carried", holderId: "player" }, subjectId: "player" }, timestamp: 0, correlationId: "boot", causationId: null },
+    ]);
+    const r = resolveInteractionTarget(world, "use", "torch");
+    expect(r.kind).toBe("resolved");
+    if (r.kind !== "resolved") throw new Error("unreachable");
+    expect(r.target.id).toBe("torch");
+  });
+
+  it("place is ambiguous when a carried and a location item share the name", () => {
+    const world = campWithCarried([
+      { eventId: "stone-a", type: "WorldObjectPlaced", schemaVersion: 1, payload: { id: "stone-a", name: "stone", aliases: ["stone"], description: "A stone on the ground.", locationId: "camp", integrity: 100, temperature: 20, state: { portable: true }, mass: 2, portable: true }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "stone-b", type: "WorldObjectPlaced", schemaVersion: 1, payload: { id: "stone-b", name: "stone", aliases: ["stone"], description: "A carried stone.", locationId: "camp", integrity: 100, temperature: 20, state: { portable: true }, mass: 2, portable: true }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "carry", type: "ItemMoved", schemaVersion: 1, payload: { itemId: "stone-b", from: { kind: "location", locationId: "camp" }, to: { kind: "carried", holderId: "player" }, subjectId: "player" }, timestamp: 0, correlationId: "boot", causationId: null },
+    ]);
+    const r = resolveInteractionTarget(world, "place", "stone");
+    expect(r.kind).toBe("ambiguous");
+    if (r.kind !== "ambiguous") throw new Error("unreachable");
+    expect(r.candidates).toEqual([
+      { name: "stone", description: "A stone on the ground." },
+      { name: "stone", description: "A carried stone." },
+    ]);
+  });
+
+  it("an item inside a closed container is not a use candidate", () => {
+    const world = campWithCarried([
+      { eventId: "tinder", type: "WorldObjectPlaced", schemaVersion: 1, payload: { id: "tinder", name: "tinder", aliases: ["tinder"], description: "Tinder.", locationId: "camp", integrity: 100, temperature: 20, state: { portable: true, flammable: true }, mass: 1, portable: true }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "store", type: "ItemMoved", schemaVersion: 1, payload: { itemId: "tinder", from: { kind: "carried", holderId: "player" }, to: { kind: "container", containerId: "pouch" }, subjectId: "player", containerId: "pouch" }, timestamp: 0, correlationId: "boot", causationId: null },
+      { eventId: "close", type: "ContainerClosed", schemaVersion: 1, payload: { containerId: "pouch", subjectId: "player" }, timestamp: 0, correlationId: "boot", causationId: null },
+    ]);
+    expect(resolveInteractionTarget(world, "use", "tinder").kind).toBe("missing");
+  });
+});
+
 describe("targetFromObject — adapter over the physical model", () => {
   it("derives generic components from WorldObjectPlaced data", () => {
     const world = towerWorld();

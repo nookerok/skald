@@ -41,7 +41,7 @@ export function handleCommand(
     const object = command.target?.raw.trim() ?? "";
     const allowsNoTarget = command.verb === "observe" || command.verb === "listen";
     if (object.length === 0 && !allowsNoTarget) return { ...base, eventId: commandEventId(correlationId, "CommandRejected"), type: "CommandRejected", payload: { reason: "missing interaction object" } };
-    return { ...base, eventId: commandEventId(correlationId, 'InteractionRequested'), type: 'InteractionRequested', payload: { verb: command.verb, object, secondaryTarget: command.secondaryTarget?.raw ?? null, instrument: command.instrument?.raw ?? null, location: null, modifiers: [] } };
+    return { ...base, eventId: commandEventId(correlationId, 'InteractionRequested'), type: 'InteractionRequested', payload: { verb: command.verb, object, secondaryTarget: command.secondaryTarget?.raw ?? null, instrument: command.instrument?.raw ?? null, goal: command.goal ?? null, manner: command.manner ?? null, location: null, modifiers: [] } };
   }
 
   if (!command.mode || !command.operation) return { ...base, eventId: commandEventId(correlationId, "CommandRejected"), type: "CommandRejected", payload: { reason: "missing mode or operation" } };

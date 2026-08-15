@@ -16,6 +16,8 @@ export interface IntentCapabilitiesManifest {
     "open",
     "apply_force",
     "give",
+    "place",
+    "use",
   ];
   readonly journeySupported: true;
   readonly onePrimaryIntentOnly: true;
@@ -23,7 +25,7 @@ export interface IntentCapabilitiesManifest {
 
 export const INTENT_CAPABILITIES: IntentCapabilitiesManifest = Object.freeze({
   schemaVersion: 1,
-  interactionVerbs: ["observe", "inspect", "listen", "touch", "take", "open", "apply_force", "give"] as const,
+  interactionVerbs: ["observe", "inspect", "listen", "touch", "take", "open", "apply_force", "give", "place", "use"] as const,
   journeySupported: true,
   onePrimaryIntentOnly: true,
 });

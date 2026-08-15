@@ -64,8 +64,8 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
       return { ...base, kind: "observation", text: `Мир заметил: ${observationLabel(key)} (${change}).` };
     }
     case "ConsequenceCreated": {
-      const p = event.payload as { type: string; expiresAt: number };
-      return { ...base, kind: "consequence", text: `Твоё поведение породило последствие: ${p.type} (живёт до тика ${p.expiresAt}).` };
+      // Internal scheduling event (see observation/builder.ts); never narrate it.
+      return null;
     }
     case "ConsequenceExpired": {
       return null;

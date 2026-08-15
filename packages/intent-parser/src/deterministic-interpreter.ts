@@ -187,20 +187,20 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "передает", mode: "interact", operation: "give", canonical: "give" },
   { verb: "вручить", mode: "interact", operation: "give", canonical: "give" },
   { verb: "вруча", mode: "interact", operation: "give", canonical: "give" },
-  // place
-  { verb: "положить", mode: "interact", operation: "place" },
-  { verb: "поставить", mode: "interact", operation: "place" },
-  { verb: "разместить", mode: "interact", operation: "place" },
-  { verb: "оставить", mode: "interact", operation: "place" },
-  { verb: "класть", mode: "interact", operation: "place" },
-  { verb: "положу", mode: "interact", operation: "place" },
-  { verb: "ставлю", mode: "interact", operation: "place" },
-  // use
-  { verb: "использовать", mode: "interact", operation: "use" },
-  { verb: "применить", mode: "interact", operation: "use" },
-  { verb: "воспользоваться", mode: "interact", operation: "use" },
-  { verb: "использу", mode: "interact", operation: "use" },
-  { verb: "применя", mode: "interact", operation: "use" },
+  // place (canonical v1)
+  { verb: "положить", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "поставить", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "разместить", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "оставить", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "класть", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "положу", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "ставлю", mode: "interact", operation: "place", canonical: "place" },
+  // use (canonical v1)
+  { verb: "использовать", mode: "interact", operation: "use", canonical: "use" },
+  { verb: "применить", mode: "interact", operation: "use", canonical: "use" },
+  { verb: "воспользоваться", mode: "interact", operation: "use", canonical: "use" },
+  { verb: "использу", mode: "interact", operation: "use", canonical: "use" },
+  { verb: "применя", mode: "interact", operation: "use", canonical: "use" },
   // create_mark
   { verb: "нарисовать", mode: "interact", operation: "create_mark" },
   { verb: "наметить", mode: "interact", operation: "create_mark" },
@@ -322,6 +322,86 @@ const GOAL_MARKERS = [
   "с целью",
   "затем чтобы",
 ] as const;
+
+/**
+ * Canonical affordance vocabulary for the `use` operation (ADR-0032). A goal
+ * clause names a physical operation an item exposes; the deterministic
+ * interpreter maps the leading Russian goal verb to the canonical Affordance
+ * string the action-capability rule consumes. Stems are matched left-to-right
+ * so «чтобы зажечь траву» yields `ignite` with target «траву». Unmapped goal
+ * verbs keep the raw goal and let the world reject honestly.
+ */
+const AFFORDANCE_GOAL_VERBS: readonly { readonly verb: string; readonly affordance: string }[] = [
+  { verb: "зажечь", affordance: "ignite" },
+  { verb: "зажига", affordance: "ignite" },
+  { verb: "поджечь", affordance: "ignite" },
+  { verb: "подпали", affordance: "ignite" },
+  { verb: "разжечь", affordance: "ignite" },
+  { verb: "осветить", affordance: "illuminate" },
+  { verb: "освеща", affordance: "illuminate" },
+  { verb: "светить", affordance: "illuminate" },
+  { verb: "подсветить", affordance: "illuminate" },
+  { verb: "привязать", affordance: "tie" },
+  { verb: "привязыва", affordance: "tie" },
+  { verb: "связать", affordance: "tie" },
+  { verb: "завязать", affordance: "tie" },
+  { verb: "закрепить", affordance: "secure" },
+  { verb: "закрепля", affordance: "secure" },
+  { verb: "прикрепить", affordance: "secure" },
+  { verb: "заякорить", affordance: "anchor" },
+  { verb: "спустить", affordance: "descend" },
+  { verb: "опустить", affordance: "descend" },
+  { verb: "подсадить", affordance: "assist_climbing" },
+  { verb: "ударить", affordance: "strike" },
+  { verb: "бить", affordance: "strike" },
+  { verb: "стукнуть", affordance: "strike" },
+  { verb: "вбить", affordance: "drive_nail" },
+  { verb: "забить", affordance: "drive_nail" },
+  { verb: "сломать", affordance: "break" },
+  { verb: "ломать", affordance: "break" },
+  { verb: "разбить", affordance: "break" },
+  { verb: "придать форму", affordance: "shape" },
+  { verb: "формовать", affordance: "shape" },
+  { verb: "починить", affordance: "repair" },
+  { verb: "чинить", affordance: "repair" },
+  { verb: "отремонтировать", affordance: "repair" },
+  { verb: "подать сигнал", affordance: "signal" },
+  { verb: "сигналить", affordance: "signal" },
+  { verb: "удержать", affordance: "contain" },
+  { verb: "вместить", affordance: "contain" },
+  { verb: "экспериментировать", affordance: "experiment" },
+  { verb: "проверить", affordance: "experiment" },
+] as const;
+
+/** Prepositions separating a placed item from its container («положить камень в сумку»). */
+const PLACE_CONTAINER_PREPOSITIONS = ["внутрь", "во", "в"] as const;
+
+function splitPlaceTargets(afterVerb: string): { target?: IntentReference; secondaryTarget?: IntentReference } {
+  const trimmed = afterVerb.trim();
+  if (trimmed.length === 0) return {};
+  for (const preposition of PLACE_CONTAINER_PREPOSITIONS) {
+    const match = new RegExp(`(?:^|\\s)${preposition}\\s+`, "iu").exec(trimmed);
+    if (!match) continue;
+    const item = trimmed.slice(0, match.index).trim();
+    const container = trimmed.slice(match.index + match[0].length).trim();
+    if (item.length > 0 && container.length > 0) {
+      return { target: { raw: item }, secondaryTarget: { raw: container } };
+    }
+  }
+  return {};
+}
+
+function parseUseGoal(goal: string | undefined): { affordance: string | undefined; target: IntentReference | undefined } {
+  if (!goal) return { affordance: undefined, target: undefined };
+  const lower = normalizeForMatch(goal);
+  for (const entry of AFFORDANCE_GOAL_VERBS) {
+    if (lower.startsWith(entry.verb)) {
+      const remainder = goal.slice(entry.verb.length).trim().replace(/^(?:на|в|по|с|об|над|под)\s+/i, "").trim();
+      return { affordance: entry.affordance, target: remainder.length > 0 ? { raw: remainder } : undefined };
+    }
+  }
+  return { affordance: undefined, target: undefined };
+}
 
 function isQuoteLike(text: string): boolean {
   const t = text.trim();
@@ -603,6 +683,7 @@ function buildInteractionCommand(
   goal: string | undefined,
   rawText: string,
   ambiguities: readonly string[],
+  manner?: string | undefined,
 ): InteractionCommand {
   let confidence = 0.7;
   if (parts.target) confidence += 0.1;
@@ -616,6 +697,8 @@ function buildInteractionCommand(
     target: parts.target,
     secondaryTarget: parts.secondaryTarget,
     instrument,
+    goal,
+    manner,
     rawText,
     interpretation: { source: "deterministic", confidence, ambiguities },
   };
@@ -635,13 +718,30 @@ function buildCanonical(
   const compound = findCanonicalStem(afterVerb);
   const remainder = stripConjugationRemnant(afterVerb);
 
-  const parts: CanonicalParts =
-    verb === "give"
-      ? splitGiveTargets(remainder)
-      : (() => {
-          const target = canonicalTarget(remainder);
-          return verb === "listen" && isAmbientListenTarget(target) ? {} : target ? { target } : {};
-        })();
+  let parts: CanonicalParts;
+  let instrument = context.instrument;
+  let goal = context.goal;
+
+  if (verb === "give") {
+    parts = splitGiveTargets(remainder);
+  } else if (verb === "place") {
+    parts = splitPlaceTargets(remainder);
+    if (!parts.target && remainder.trim().length > 0) parts = { target: { raw: remainder.trim() } };
+  } else if (verb === "use") {
+    const useGoal = parseUseGoal(context.goal);
+    const tool = remainder.trim().length > 0 ? { raw: remainder.trim() } : undefined;
+    instrument = instrument ?? tool;
+    if (useGoal.affordance) {
+      goal = useGoal.affordance;
+      parts = useGoal.target ? { target: useGoal.target } : {};
+    } else {
+      const target = canonicalTarget(remainder);
+      parts = target ? { target } : {};
+    }
+  } else {
+    const target = canonicalTarget(remainder);
+    parts = verb === "listen" && isAmbientListenTarget(target) ? {} : target ? { target } : {};
+  }
 
   const ambiguities: string[] = [];
   if (!parts.target) {
@@ -651,7 +751,7 @@ function buildCanonical(
     ambiguities.push("give without a recipient");
   }
 
-  const command = buildInteractionCommand(verb, parts, context.instrument, context.goal, context.rawText, ambiguities);
+  const command = buildInteractionCommand(verb, parts, instrument, goal, context.rawText, ambiguities);
 
   if (compound) {
     return {
@@ -805,7 +905,30 @@ export function interpretIntent(
     return buildCanonical(verb.canonical, afterVerb, { instrument, goal, rawText });
   }
 
-  const target = extractTarget(afterVerb);
+  // place/use carry a tool + acted-on + canonical goal. The catch-all target
+  // split below must not swallow the whole remainder («положить камень в
+  // сумку» → камень / сумку; «использовать факел чтобы зажечь траву» →
+  // instrument факел, target траву, goal ignite).
+  let finalSecondaryTarget = undefined as IntentReference | undefined;
+  let finalInstrument = instrument;
+  let finalGoal = goal;
+  let preTarget: IntentReference | undefined;
+
+  if (verb.operation === "place") {
+    const parts = splitPlaceTargets(afterVerb);
+    preTarget = parts.target;
+    finalSecondaryTarget = parts.secondaryTarget;
+  } else if (verb.operation === "use") {
+    const useGoal = parseUseGoal(goal);
+    const tool = afterVerb.trim().length > 0 ? { raw: afterVerb.trim() } : undefined;
+    finalInstrument = instrument ?? tool;
+    if (useGoal.affordance) {
+      finalGoal = useGoal.affordance;
+      preTarget = useGoal.target;
+    }
+  }
+
+  const target = preTarget ?? extractTarget(afterVerb);
 
   let finalUtterance = utterance;
   let finalTarget = target;
@@ -818,8 +941,9 @@ export function interpretIntent(
 
   let confidence = 0.7;
   if (finalTarget) confidence += 0.1;
-  if (instrument) confidence += 0.05;
-  if (goal) confidence += 0.05;
+  if (finalSecondaryTarget) confidence += 0.1;
+  if (finalInstrument) confidence += 0.05;
+  if (finalGoal) confidence += 0.05;
   confidence = Math.min(confidence, 1.0);
 
   const ambiguities: string[] = [];
@@ -839,8 +963,9 @@ export function interpretIntent(
     mode: verb.mode,
     operation: verb.operation,
     target: finalTarget,
-    instrument,
-    goal,
+    secondaryTarget: finalSecondaryTarget,
+    instrument: finalInstrument,
+    goal: finalGoal,
     manner: undefined,
     utterance: finalUtterance,
     rawText,

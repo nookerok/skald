@@ -24,13 +24,11 @@ interface CharacterProfileRecord {
 
 const ACTIVITY_ORIGIN: Record<string, ActivityOrigin> = {
   TickPassed: "world_tick",
-  ConsequenceCreated: "consequence",
   ConsequenceFired: "consequence",
 };
 
 const ACTIVITY_SCOPE: Record<string, PlayerFacingScope> = {
   TickPassed: "known",
-  ConsequenceCreated: "visible",
   ConsequenceFired: "visible",
 };
 

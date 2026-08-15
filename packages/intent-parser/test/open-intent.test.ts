@@ -661,3 +661,61 @@ describe("interpretIntent — Interaction Model v1 (ADR-0013)", () => {
     expect(cmd.target?.raw).toBe("несуществующийпредмет");
   });
 });
+
+describe("interpretIntent — place/use structural parsing (ADR-0032)", () => {
+  it("splits «положить камень в сумку» into item and container", () => {
+    const result = interpretIntent("положить камень в сумку");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("place");
+    expect(cmd.target?.raw).toBe("камень");
+    expect(cmd.secondaryTarget?.raw).toBe("сумку");
+  });
+
+  it("splits «положить камень внутрь сумки» into item and container", () => {
+    const result = interpretIntent("положить камень внутрь сумки");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("place");
+    expect(cmd.target?.raw).toBe("камень");
+    expect(cmd.secondaryTarget?.raw).toBe("сумки");
+  });
+
+  it("keeps place without a container on a plain target", () => {
+    const result = interpretIntent("положить камень");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("place");
+    expect(cmd.target?.raw).toBe("камень");
+    expect(cmd.secondaryTarget).toBeUndefined();
+  });
+
+  it("maps «использовать факел чтобы зажечь траву» to instrument + target + canonical goal", () => {
+    const result = interpretIntent("использовать факел чтобы зажечь траву");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("use");
+    expect(cmd.instrument?.raw).toBe("факел");
+    expect(cmd.target?.raw).toBe("траву");
+    expect(cmd.goal).toBe("ignite");
+  });
+
+  it("maps «применить факел чтобы осветить пещеру» to illuminate", () => {
+    const result = interpretIntent("применить факел чтобы осветить пещеру");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("use");
+    expect(cmd.instrument?.raw).toBe("факел");
+    expect(cmd.target?.raw).toBe("пещеру");
+    expect(cmd.goal).toBe("illuminate");
+  });
+
+  it("keeps an unmapped use goal raw and lets the world reject honestly", () => {
+    const result = interpretIntent("использовать нож чтобы разрезать веревку");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("use");
+    expect(cmd.instrument?.raw).toBe("нож");
+    expect(cmd.goal).toBe("разрезать веревку");
+  });
+});

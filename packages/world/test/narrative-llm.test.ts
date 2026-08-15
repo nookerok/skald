@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import type { NarrativeSnapshot } from "../src/narrative.js";
 
-async function mockRouter(text = "Художественное описание.") {
+function narrationJson(narration: string, claims: unknown[] = []): string {
+  return JSON.stringify({ narration, claims });
+}
+
+async function mockRouter(text: string = narrationJson("Художественное описание.")) {
   const { ModelRouter } = await import("../src/llm/router.js");
   const router = new ModelRouter({ apiKey: "test-key" });
   vi.spyOn(router, "chat").mockResolvedValue({
@@ -42,12 +46,32 @@ describe("narrateLLM", () => {
   });
 
   it("returns LLM text on success", async () => {
-    const router = await mockRouter("Красивый текст.");
+    const router = await mockRouter(narrationJson("Красивый текст."));
     const { narrateLLM } = await import("../src/narrative-llm.js");
     const result = await narrateLLM(emptySnapshot(), router);
     expect(result.usedFallback).toBe(false);
     expect(result.text).toBe("Красивый текст.");
     expect(result.model).toBe("deepseek-v4-flash-free");
+  });
+
+  it("falls back when the response upgrades an epistemic class", async () => {
+    const claim = { text: "это точно факт", sourceFactId: "notable-0", epistemicClass: "established_fact" };
+    const router = await mockRouter(narrationJson("Это точно факт.", [claim]));
+    const { narrateLLM } = await import("../src/narrative-llm.js");
+    const snapshot: NarrativeSnapshot = {
+      entries: [{ kind: "world", timestamp: 5, text: "Ты на позиции.", sourceEventIds: [], importance: "background", discoveryMark: null }],
+      presentation: {
+        primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: "ты шагнул", timestamp: 5, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
+        notable: [{ kind: "observation", importance: "notable", discoveryMark: null, epistemicClass: "testimony", text: "старец говорил", timestamp: 5, sourceEventIds: ["e-9"], threadKey: null, threadLabel: null }],
+        background: [], suppressedEventCount: 0, worldTime: 5, playerPosition: { x: 0, y: 0 },
+      },
+      worldTime: 5,
+      playerPosition: { x: 0, y: 0 },
+    };
+    const result = await narrateLLM(snapshot, router);
+    expect(result.usedFallback).toBe(true);
+    expect(result.fallbackReason).toBe("epistemic_violation:class_upgrade");
+    expect(result.text).toContain("Ты на позиции.");
   });
 
   it("falls back to template on LLM error", async () => {

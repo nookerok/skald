@@ -77,7 +77,9 @@ export type InteractionVerb =
   | "open"
   | "close"
   | "apply_force"
-  | "give";
+  | "give"
+  | "place"
+  | "use";
 
 /**
  * Canonical transient Interaction Model v1 command (ADR-0013 §1).
@@ -93,9 +95,12 @@ export interface InteractionCommand {
   readonly verb: InteractionVerb;
   /** The target as the player named it (raw text, not an entity id). */
   readonly target?: IntentReference | undefined;
-  /** give: the recipient as the player named it. */
+  /** give: the recipient as the player named it; place: the container. */
   readonly secondaryTarget?: IntentReference | undefined;
   readonly instrument?: IntentReference | undefined;
+  /** use: canonical affordance the player intends («чтобы зажечь» → ignite). */
+  readonly goal?: string | undefined;
+  readonly manner?: string | undefined;
   readonly utterance?: string | undefined;
   readonly rawText: string;
   readonly interpretation: InterpretationMeta;

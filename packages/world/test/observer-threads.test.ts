@@ -250,7 +250,7 @@ describe("buildObserverThreadJournal", () => {
 
   it("a consequence thread becomes contradicted via belief contradiction", () => {
     const events = [
-      ...turn([], e("cc-1", "ConsequenceCreated", 1, { type: "audacity", expiresAt: 5 })),
+      ...turn([], e("at-1", "AudacityTriggered", 1, { target: "player", severity: 1 })),
     ];
     const belief: BeliefModelDTO["beliefs"][number] = {
       patternId: "consequence:audacity",

@@ -55,6 +55,34 @@ function playerFacing(snapshot: AdventureSnapshot): string {
   };
   return collect([snapshot.journal, snapshot.shell, snapshot.map, snapshot.discoveries, snapshot.presence]).join(" ");
 }
+export type AdventureReportEvidence = Omit<AdventureReport, "pass">;
+
+export function adventureReportFailures(report: AdventureReportEvidence): readonly string[] {
+  const failures: string[] = [];
+  if (report.requiredBeatsCovered !== 1) failures.push("requiredBeatsCovered must equal 1");
+  if (report.meaningfulPlayerChoices < 3) failures.push("meaningfulPlayerChoices must be at least 3");
+  if (report.journeyLegsCompleted < 4) failures.push("journeyLegsCompleted must be at least 4");
+  if (report.worldChangesEncountered < 1) failures.push("worldChangesEncountered must be at least 1");
+  if (report.discoveriesAdvanced < 2) failures.push("discoveriesAdvanced must be at least 2");
+  if (report.mapKnowledgeGrowth < 1) failures.push("mapKnowledgeGrowth must be at least 1");
+  if (report.offlineMeaningfulEvents < 1) failures.push("offlineMeaningfulEvents must be at least 1");
+  if (!report.chatAlternationIntegrity) failures.push("chatAlternationIntegrity must be true");
+  if (report.chronicleCoverage !== 1) failures.push("chronicleCoverage must equal 1");
+  if (report.narrationDuplicateRate !== 0) failures.push("narrationDuplicateRate must equal 0");
+  if (report.truthLeakCount !== 0) failures.push("truthLeakCount must equal 0");
+  if (report.orphanResponseCount !== 0) failures.push("orphanResponseCount must equal 0");
+  if (!report.replayPurity) failures.push("replayPurity must be true");
+  if (!report.idempotency) failures.push("idempotency must be true");
+  if (!report.persistenceRestart) failures.push("persistenceRestart must be true");
+  if (report.offlineObservationLeak !== 0) failures.push("offlineObservationLeak must equal 0");
+  if (!Array.isArray(report.missingRequiredBeats) || report.missingRequiredBeats.length > 0) failures.push("missingRequiredBeats must be empty");
+  return failures;
+}
+
+export function adventureReportPasses(report: AdventureReportEvidence): boolean {
+  return adventureReportFailures(report).length === 0;
+}
+
 export function buildAdventureReport(ctx: AdventureContext, idempotency = true): AdventureReport {
   const beatResults = REQUIRED_BEATS.map((check) => evaluateAdventureCheck(check, ctx));
   const requiredBeatsCovered = beatResults.filter((result) => result === "").length / REQUIRED_BEATS.length;
@@ -86,25 +114,9 @@ export function buildAdventureReport(ctx: AdventureContext, idempotency = true):
     && evaluateAdventureCheck("restart_preserved_map", ctx) === "";
   const offlineObservationLeak = ctx.events.slice(offlineStartEventCount).filter((event) => Number(event.timestamp) > offlineStartTime && event.type === "SpatialObservationRecorded" && payload(event).observerId === "player").length;
   const replayPurity = persistenceRestart;
-  const pass = requiredBeatsCovered === 1
-    && chatAlternationIntegrity
-    && meaningfulChoices >= 3
-    && journeyLegsCompleted >= 4
-    && worldChangesEncountered > 0
-    && discoveriesAdvanced >= 2
-    && mapKnowledgeGrowth > 0
-    && offlineMeaningfulEvents > 0
-    && truthLeakCount === 0
-    && orphanResponseCount === 0
-    && chronicleCoverage === 1
-    && narrationDuplicateRate === 0
-    && replayPurity
-    && idempotency
-    && persistenceRestart
-    && offlineObservationLeak === 0;
-  return {
+  const report: AdventureReportEvidence = {
     requiredBeatsCovered,
-    meaningfulPlayerChoices: ctx.steps.filter((step) => "choose" in step.step || "answerClarification" in step.step).length,
+    meaningfulPlayerChoices: meaningfulChoices,
     journeyLegsCompleted,
     worldChangesEncountered,
     discoveriesAdvanced,
@@ -120,8 +132,60 @@ export function buildAdventureReport(ctx: AdventureContext, idempotency = true):
     persistenceRestart,
     offlineObservationLeak,
     missingRequiredBeats: REQUIRED_BEATS.filter((check) => evaluateAdventureCheck(check, ctx) !== ""),
-    pass,
   };
+  return { ...report, pass: adventureReportPasses(report) };
+}
+
+const REPORT_NUMERIC_FIELDS = [
+  "requiredBeatsCovered",
+  "meaningfulPlayerChoices",
+  "journeyLegsCompleted",
+  "worldChangesEncountered",
+  "discoveriesAdvanced",
+  "mapKnowledgeGrowth",
+  "offlineMeaningfulEvents",
+  "chronicleCoverage",
+  "narrationDuplicateRate",
+  "truthLeakCount",
+  "orphanResponseCount",
+  "offlineObservationLeak",
+] as const;
+
+const REPORT_BOOLEAN_FIELDS = [
+  "chatAlternationIntegrity",
+  "replayPurity",
+  "idempotency",
+  "persistenceRestart",
+] as const;
+
+/**
+ * Verifies both the shape and the acceptance semantics of a serialized
+ * AdventureReport. Release evidence must not replace the report produced by
+ * buildAdventureReport with a hand-written pass:true.
+ */
+export function validateAdventureReport(value: unknown): readonly string[] {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return ["must be a JSON object"];
+  const errors: string[] = [];
+  const record = value as Record<string, unknown>;
+  if (record.pass !== true) errors.push("pass must be true");
+  for (const field of REPORT_NUMERIC_FIELDS) {
+    if (typeof record[field] !== "number" || !Number.isFinite(record[field])) {
+      errors.push(field + " must be a finite number");
+    } else if ((record[field] as number) < 0) {
+      errors.push(field + " must be non-negative");
+    }
+  }
+  for (const field of REPORT_BOOLEAN_FIELDS) {
+    if (record[field] !== true) errors.push(field + " must be true");
+  }
+  if (!Array.isArray(record.missingRequiredBeats)) {
+    errors.push("missingRequiredBeats must be an array");
+  } else if (record.missingRequiredBeats.length > 0) {
+    errors.push("missingRequiredBeats must be empty");
+  }
+
+  errors.push(...adventureReportFailures(record as unknown as AdventureReportEvidence));
+  return errors;
 }
 
 export { REQUIRED_BEATS };

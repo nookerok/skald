@@ -5,6 +5,7 @@ export {
   getContainerContents,
   getPlacement,
   getPossessor,
+  getTotalMass,
   isItemAccessible,
 } from "./capability.js";
 export type * from "./types.js";

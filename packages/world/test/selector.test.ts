@@ -66,15 +66,16 @@ describe("selectTurnPresentation", () => {
     expect(ended.length).toBe(1);
   });
 
-  it("ConsequenceCreated and ConsequenceFired do not merge", () => {
+  it("ConsequenceCreated is hidden; ConsequenceFired surfaces", () => {
     const events = [
       evt("ConsequenceCreated", "cc-1", { id: "aud@1", type: "audacity", severity: 1, createdAt: 5, expiresAt: 10 }, 5),
       evt("ConsequenceFired", "cf-1", { consequenceId: "aud@1", consequenceType: "audacity", firedAt: 10 }, 10),
     ];
     const pres = selectTurnPresentation(events, emptyWorld());
+    // ConsequenceCreated is an internal scheduling event and never surfaces.
     const created = pres.notable.filter((e) => e.text.includes("породили"));
+    expect(created.length).toBe(0);
     const fired = pres.notable.filter((e) => e.text.includes("проявило"));
-    expect(created.length).toBe(1);
     expect(fired.length).toBe(1);
   });
 

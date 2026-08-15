@@ -1,12 +1,13 @@
 # Current work (2026-08-13 — ADR-0031 release evidence)
 
-- Final runtime commit is `4c2b13777ad70b2bff507e37e36b7c5f2fe7c8cc`;
-  `main` is clean and equal to `origin/main`.
+- Runtime commit is `4c2600e70dcb931024cbf3077f985ff90949e6ba`;
+  `HEAD` equals `origin/main`. The working tree carries the uncommitted
+  P1/P2 fixes and P3 doc sync below.
 - Deterministic Adventure acceptance is PASS: 100% required beats, 4
   meaningful choices, 4 journey legs, 4 world changes, 4 discovery advances,
   3 map-growth steps, 90 offline meaningful events, zero truth leaks/orphans/
   duplicates, replay/idempotency/restart persistence PASS.
-- Full validation is PASS: 124 test files, 1469 passed, 1 skipped; Canon,
+- Full validation is PASS: 125 test files, 1544 passed, 1 skipped; Canon,
   Simulation, 10 eval scenarios and diff checks PASS.
 - Orange Pi production is on the same commit after an explicit service
   restart; `skald.service`, healthcheck timer and backup timer are active;
@@ -31,7 +32,11 @@
   failing template at `docs/acceptance/full-adventure-review.template.json`.
   It requires real 30–60 minute timestamps, one Presence acknowledgement,
   24–48 offline ticks, desktop/mobile screenshots, pacing ≤3 and all ten rubric
-  answers true; it does not manufacture or infer human answers.
+  answers true, and it now verifies artifact content, not just existence: the
+  report JSON must conform to the AdventureReport schema, DOM notes must be
+  non-empty, screenshots must be real image files (magic bytes) and the model/
+  provider/task id must be real configured values. It does not manufacture or
+  infer human answers.
 - Adventure scenario shape is now validated before execution (20–35 commands,
   three choices, route/discovery loop, one 24–48 tick absence and restart).
   The report scans every player-facing snapshot for truth leaks and counts
@@ -39,6 +44,132 @@
 - Human review evidence now requires provenance metadata and an explicit blocked-checks list.
 
 # Codex Handoff
+
+## Current work (2026-08-14)
+- P2 fix: `place`/`use` intents are now fully canonical. They parse to
+  `InteractionCommand` (verb `place`/`use`, `secondaryTarget` for the
+  container, `instrument`/`goal` for the affordance) and run through the whole
+  Interaction Model v1 chain — `InteractionRequested` → `InteractionTimeValidated`
+  → `interactionResolveTarget` → `interactionResolveLaw` → `InteractionValidated`
+  → law rules — instead of the legacy `ActionValidated`/`originalPayload` path.
+  `itemContainment` and `affordanceUse` now listen on `InteractionValidated`
+  and resolve their container / instrument through the unified
+  `resolveInteractionTarget`; an ambiguous container or instrument returns
+  `ActionRejected { reason: "ambiguous_target", candidateNames, candidates }` instead of
+  the legacy `.find()` self-selection. The unified resolver now also exposes
+  carried items to the player for `place`/`use`, so a carried object to place
+  (or a carried instrument) is resolvable and two same-named candidates are
+  honestly ambiguous. Files: `types.ts` (InteractionVerb + goal/manner on
+  InteractionCommand), `deterministic-interpreter.ts` (canonical place/use +
+  buildCanonical/buildInteractionCommand carry goal), `intent-proposal*.ts`
+  (place/use in interactionVerbs, out of LEGACY_OPERATIONS, goal/manner
+  carried), `command-handler.ts` + `world-interaction.ts` (goal/manner
+  threaded through the chain), `target-resolver.ts` (carried candidates),
+  `action-capability.ts` (both rules migrated). Tests migrated/added in
+  open-intent.test.ts, action-capability.test.ts (P2 ambiguity tests),
+  target-resolver.test.ts (carried place/use + closed-container non-candidate).
+  `interaction-force.test.ts` (apply_force/observe) is unaffected because
+  those verbs stay legacy. Full `npm run validate` PASS. Changes remain
+  uncommitted, unpushed and undeployed.
+
+- P1 fix: natural-language `place`/`use` commands now reach the action-capability
+  rules with correct structure. The deterministic interpreter previously put the
+  whole phrase remainder into a single `target`, so «положить камень в сумку»
+  produced no `secondaryTarget` and «использовать факел чтобы зажечь траву»
+  produced no `instrument`/canonical `goal`. The fallback tail now splits `place`
+  into target + secondaryTarget (container prepositions «в/во/внутрь») and maps
+  `use` goal clauses to canonical Affordances via a new Russian verb vocabulary
+  (ignite/illuminate/tie/secure/strike/repair/...); unmapped goals stay raw and
+  the world rejects honestly. Verified end-to-end:
+  interpretIntent → handleCommand → InteractionRequested →
+  InteractionTimeValidated → TargetResolved → InteractionValidated →
+  itemContainment/affordanceUse emit ItemMoved / ItemUsed. Validation PASS
+  (intent-parser 192 tests, world 745 tests, full `npm run validate`).
+  Changes remain uncommitted, unpushed and undeployed.
+- P1 fix: hidden `ConsequenceCreated` no longer leaks to the player. The Belief
+  boundary already treats it as an internal scheduling event
+  (packages/world/src/observation/builder.ts:405), but Presentation surfaced a
+  notable card with the consequence type and its expiry tick, which reached the
+  chat-feed. Now the `consequence_created` PresentationTemplate returns null,
+  `formatEvent` no longer narrates it, the game-shell activity classification
+  and the observer-thread definition start only from the visible manifestation
+  (`AudacityTriggered` / `ConsequenceFired`), and the discovery collectors no
+  longer treat ConsequenceCreated as observable "omen" evidence. Regression
+  tests updated in selector/narrative/observer-threads/game-shell. Validation
+  PASS (125 files, 1544 passed, 1 skipped).
+- P2 fix: narrative LLM responses now pass a deterministic structural guard, not
+  just a prompt instruction. `narrateTurnLLM` and `narrateLLM` require a
+  structured JSON contract ({narration, claims[]}), where every narration
+  sentence must reference the input fact id it derives from and declare an
+  epistemic class no stronger than that fact's class
+  (packages/world/src/narrative-llm.ts: `verifyEpistemicNarration`). A
+  testimony or interpretation can no longer be presented as an established
+  fact; violations (class_upgrade, unknown_source, invalid_json, missing/
+  unexpected_claims) fall back to the deterministic template with a
+  `epistemic_violation:<reason>` fallbackReason. Export guards
+  `parseStructuredNarration`, `verifyEpistemicNarration`, `isEpistemicClass`,
+  `epistemicStrength`. New pure tests for the guard plus integration tests for
+  both adapters. Validation PASS (125 files, 1544 passed, 1 skipped).
+- P2 fix: `canContain` now counts the total mass of nested container contents.
+  Previously it summed only the direct `mass` of immediate contents
+  (packages/world/src/action-capability/capability.ts), so a container of mass
+  1 with a stone of mass 4 inside could fit into a container of capacity 2.
+  New pure helper `getTotalMass` recursively sums an item's own mass plus all
+  its container contents (cycle-guarded); `canContain` uses it both for the
+  used mass and for the placed item. `itemContainment` now rejects placing a
+  loaded container into an overloaded container. Two regression tests added
+  (pure `canContain` + full rule path). Validation PASS (125 files, 1540
+  passed, 1 skipped).
+- P2 fix: the human playtest gate no longer accepts formally empty evidence.
+  `validateAdventurePlaytestReview` (packages/cli/src/acceptance/
+  playtest-review.ts) now takes an injectable `PlaytestReviewRuntime`
+  (`currentCommitSha`, `fileExists`, `readFileText`, `readFileSignature`,
+  `validModels`, `validProviders`; default pins to git HEAD, the working
+  directory and the live LLM config). It requires `gameplayCommands` 1–35
+  (rejects 0), matches `scenarioCommitSha` against the runtime commit,
+  requires at least one `desktop` and one `mobile` screenshot path, and
+  rejects any `blockedChecks`. Evidence content is now verified, not just
+  existence: the deterministic report must parse as JSON and conform to the
+  AdventureReport schema (pass=true, all numeric/boolean/array fields),
+  DOM notes must be a non-empty text file with ≥40 characters, every
+  screenshot must carry an image extension AND real image magic bytes
+  (PNG/JPEG/GIF/WebP, so `desktop.txt` stubs fail), `browserTaskId` must be
+  a task id, and `model`/`provider` must be configured values (placeholder
+  tokens and dummy labels fail). Default runtime exported as
+  `defaultPlaytestRuntime`. Test suite expanded from 15 to 22 cases covering
+  empty evidence, SHA mismatch, missing artifacts, blocked checks, fake
+  screenshot paths, text-file screenshot stubs, empty/invalid/non-conforming
+  report JSON, stub DOM notes, placeholder task id and placeholder model/
+  provider. Validation PASS.
+- P3 doc sync: operational docs now match Git. CODEX_HANDOFF header no longer
+  claims the final runtime commit is `4c2b137` with a clean main; it states the
+  runtime commit is `4c2600e70dcb931024cbf3077f985ff90949e6ba`, `HEAD` equals
+  `origin/main` (both verified), and the working tree carries uncommitted
+  P1/P2/P3 changes. `docs/simulation/registry.yaml` `lastUpdated` advanced to
+  `2026-08-14` (was 2026-08-05). Canon/simulation validation unaffected.
+  `docs/acceptance/full-adventure-evidence-2026-08-13.md` keeps its pinned
+  `4c2b137` snapshot because it is a dated evidence record, not current-state
+  documentation.
+- P1 fix: the epistemic guard now enforces a structured, non-authoritative
+  narration boundary. Every claim must reference a known source fact and may
+  not strengthen its epistemic class; once source facts exist, the returned
+  narration is assembled only from validated claims, never trusted from the
+  model's free-form narration field. Weak classes receive deterministic source
+  framing (testimony, inference, interpretation), while the certainty marker
+  check remains a conservative supplemental rejection for overclaiming wording.
+  Regression coverage includes the Russian «Достоверно установлено» bypass and
+  an unclaimed extra proposition. Validation PASS (33 narrative tests).
+
+- Follow-up hardening after review: weak epistemic claims are rendered with
+  deterministic source framing (testimony, inference, interpretation), so
+  unlisted certainty wording cannot become an unqualified world fact. The
+  guard also covers the Russian formulation «Достоверно установлено».
+  The playtest report verifier now reuses the AdventureReport acceptance
+  thresholds and rejects pass=true reports with missing beats, failed replay
+  invariants or empty metrics. Ambiguous same-named targets preserve every
+  player-facing candidate description in the ActionRejected payload without
+  exposing internal ids. Focused and full validation pass; changes remain
+  uncommitted, unpushed and undeployed.
 
 ## Current work (2026-08-13)
 - Observer-map and world-cutover hardening from the review: detail artwork is no longer reachable through guessed public asset URLs; unlocked descriptors and scoped detail route are server-owned; map requests reuse the projected spatial read view. Bidirectional journey observations preserve direction and interruption coordinates; relation knowledge keeps the strongest partial/full progress. Route hints reach deterministic route selection and LLM confidence is range-checked with low-confidence clarification. Resource extraction now requires the authored location and natural "take" aliases map to the existing extraction command. World cutover now preflights the bundle and atomically creates/promotes/succeeds the new world in one SQLite transaction.

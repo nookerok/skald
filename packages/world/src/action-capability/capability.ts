@@ -38,6 +38,21 @@ export function isItemAccessible(world: ReadonlyWorld, subjectId: string, itemId
   return placement !== undefined && isPlacementAccessible(world, subjectId, placement, new Set([itemId]));
 }
 
+/** Total mass of an item including all recursively nested container contents. */
+export function getTotalMass(model: ActionCapabilityReadView | null, itemId: string, visited: ReadonlySet<string> = new Set()): number {
+  if (!model) return 0;
+  if (visited.has(itemId)) return 0;
+  const definition = model.itemDefinitions.get(itemId);
+  if (!definition) return 0;
+  const nextVisited = new Set(visited);
+  nextVisited.add(itemId);
+  const nested = getContainerContents(model, itemId).reduce(
+    (sum, contentId) => sum + getTotalMass(model, contentId, nextVisited),
+    0,
+  );
+  return definition.mass + nested;
+}
+
 export function canContain(world: ReadonlyWorld, containerId: string, itemId: string, subjectId = "player"): boolean {
   const model = world.actionCapabilities;
   const container = world.objects.get(containerId);
@@ -56,8 +71,8 @@ export function canContain(world: ReadonlyWorld, containerId: string, itemId: st
   }
   const contents = getContainerContents(model, containerId);
   if (contents.includes(itemId)) return true;
-  const usedMass = contents.reduce((sum, contentId) => sum + (model?.itemDefinitions.get(contentId)?.mass ?? 0), 0);
-  return usedMass + itemDefinition.mass <= definition.containerCapacityMass;
+  const usedMass = contents.reduce((sum, contentId) => sum + getTotalMass(model, contentId), 0);
+  return usedMass + getTotalMass(model, itemId) <= definition.containerCapacityMass;
 }
 
 /** Answers one contextual capability question from event-derived facts. */

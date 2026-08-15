@@ -2,9 +2,11 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../../projection.js";
 import { canContain, assessCapability, isItemAccessible } from "../../action-capability/capability.js";
+import { resolveInteractionTarget } from "../../interactions/index.js";
 import { ruleEventId } from "../../ids.js";
 import type { Affordance } from "../../action-capability/types.js";
 import type { WorldObject } from "../../objects/types.js";
+import type { PlayerFacingCandidate } from "../../interactions/types.js";
 import { epistemicEvidenceFromObservation, phenomenonObservation, testimonyFromRumor } from "./epistemic.js";
 export { epistemicEvidenceFromObservation, phenomenonObservation, testimonyFromRumor } from "./epistemic.js";
 
@@ -33,6 +35,19 @@ function rejected(event: DomainEvent, reason: string): DomainEvent {
   };
 }
 
+function rejectedAmbiguous(event: DomainEvent, candidates: readonly PlayerFacingCandidate[]): DomainEvent {
+  return {
+    ...base(event),
+    eventId: ruleEventId(event.eventId, "ActionRejected", 0),
+    type: "ActionRejected",
+    payload: {
+      reason: "ambiguous_target",
+      candidateNames: candidates.map((candidate) => candidate.name),
+      candidates,
+    },
+  };
+}
+
 function objectById(world: ReadonlyWorld, id: string | undefined): WorldObject | undefined {
   return id ? world.objects.get(id) : undefined;
 }
@@ -42,12 +57,27 @@ function namedObject(world: ReadonlyWorld, raw: unknown, subjectId = PLAYER_ID):
   const query = String((raw as { raw?: string }).raw ?? "").trim().toLowerCase();
   if (!query) return undefined;
   return [...world.objects.values()].find((item) => {
-    const visible = item.locationId === world.currentLocationId || isItemAccessible(world, subjectId, item.id);
+    const visible = objectVisible(world, item, subjectId);
     return visible
       && (item.name.toLowerCase().includes(query)
         || item.id.toLowerCase().includes(query)
         || item.aliases.some((alias) => alias.toLowerCase() === query));
   });
+}
+
+/**
+ * Whether the subject can see/reach an object. The action-capability placements
+ * model is the authoritative source once an item moves (carried / container /
+ * location), because the object projection's `locationId` is only rewritten for
+ * `to.kind === 'location'` and otherwise keeps the stale pre-move location — a
+ * closed container would not shield an item from a `use` otherwise. Objects
+ * without a placement record fall back to the projection location for
+ * bootstrap/legacy objects that were never moved.
+ */
+function objectVisible(world: ReadonlyWorld, item: WorldObject, subjectId: string): boolean {
+  const placement = world.actionCapabilities?.placements.get(item.id);
+  if (placement) return isItemAccessible(world, subjectId, item.id);
+  return item.locationId === world.currentLocationId;
 }
 
 function placementFor(world: ReadonlyWorld, itemId: string) {
@@ -150,19 +180,33 @@ export const itemPossession: Rule<ReadonlyWorld> = {
 export const itemContainment: Rule<ReadonlyWorld> = {
   id: "action_capability.item_containment",
   phase: "physics",
-  listens: ["ActionValidated"],
+  listens: ["InteractionValidated"],
   produces: ["ItemMoved", "ActionRejected"],
   handle: (event, world) => {
-    const original = originalPayload(event);
-    if (!original || original.operation !== "place") return [];
-    const subjectId = actorId(event, original);
-    const item = namedObject(world, original.target, subjectId);
-    const container = namedObject(world, original.secondaryTarget ?? original.instrument, subjectId);
+    const payload = event.payload as {
+      verb?: string;
+      entityId?: string;
+      secondaryTarget?: string | null;
+      subjectId?: string;
+    };
+    if (payload.verb !== "place") return [];
+    const subjectId = actorId(event, payload);
+    const item = objectById(world, payload.entityId);
     const itemPlacement = item ? placementFor(world, item.id) : undefined;
-    if (!item || !container || !itemPlacement) return [rejected(event, "placement_target_missing")];
-    if (item.id === container.id) return [rejected(event, "containment_cycle")];
+    if (!item || !itemPlacement) return [rejected(event, "placement_target_missing")];
+
+    const containerQuery = payload.secondaryTarget?.trim() ?? "";
+    const containerResolution = resolveInteractionTarget(world, "place", containerQuery);
+    if (containerResolution.kind !== "resolved") {
+      if (containerResolution.kind === "ambiguous") {
+        return [rejectedAmbiguous(event, containerResolution.candidates)];
+      }
+      return [rejected(event, "placement_target_missing")];
+    }
+    const containerId = containerResolution.target.id;
+    if (item.id === containerId) return [rejected(event, "containment_cycle")];
     if (itemPlacement.kind !== "carried" || itemPlacement.holderId !== subjectId) return [rejected(event, "item_not_carried")];
-    if (!canContain(world, container.id, item.id, subjectId)) return [rejected(event, "container_unavailable")];
+    if (!canContain(world, containerId, item.id, subjectId)) return [rejected(event, "container_unavailable")];
     return [{
       ...base(event),
       eventId: ruleEventId(event.eventId, "ItemMoved", 0),
@@ -170,9 +214,9 @@ export const itemContainment: Rule<ReadonlyWorld> = {
       payload: {
         itemId: item.id,
         from: itemPlacement,
-        to: { kind: "container", containerId: container.id },
+        to: { kind: "container", containerId },
         subjectId,
-        containerId: container.id,
+        containerId,
         reason: "placed",
       },
     }];
@@ -249,20 +293,46 @@ const AFFORDANCES = new Set<Affordance>([
   "illuminate", "ignite", "signal", "contain", "experiment",
 ]);
 
-/** Applies an accessible item affordance through the existing ActionValidated path. */
+/** Applies an accessible item affordance through the canonical interaction chain. */
 export const affordanceUse: Rule<ReadonlyWorld> = {
   id: "action_capability.affordance_use",
   phase: "physics",
-  listens: ["ActionValidated"],
+  listens: ["InteractionValidated"],
   produces: ["ItemUsed", "ProficiencyEvidenceRecorded", "EpistemicEvidenceRecorded", "PhenomenonInteracted", "ObjectTemperatureChanged", "ActionRejected"],
   handle: (event, world) => {
-    const original = originalPayload(event);
-    if (!original || original.operation !== "use") return [];
-    const subjectId = actorId(event, original);
-    const target = namedObject(world, original.target, subjectId);
-    const instrument = namedObject(world, original.instrument, subjectId);
-    const affordance = typeof original.goal === "string" ? original.goal.toLowerCase() as Affordance : undefined;
-    if (!target || !instrument || !affordance || !AFFORDANCES.has(affordance)) return [rejected(event, "affordance_not_specified")];
+    const payload = event.payload as {
+      verb?: string;
+      entityId?: string;
+      instrument?: string | null;
+      goal?: string | null;
+      manner?: string | null;
+      contextTags?: unknown;
+      subjectId?: string;
+      claimId?: string;
+      epistemicClaimId?: string;
+      proposition?: string;
+    };
+    if (payload.verb !== "use") return [];
+    const subjectId = actorId(event, payload);
+    const target = objectById(world, payload.entityId);
+    const affordance = typeof payload.goal === "string" ? payload.goal.toLowerCase() as Affordance : undefined;
+    if (!target || !affordance || !AFFORDANCES.has(affordance)) return [rejected(event, "affordance_not_specified")];
+
+    const instrumentQuery = payload.instrument?.trim() ?? "";
+    const instrumentResolution = resolveInteractionTarget(world, "use", instrumentQuery);
+    if (instrumentResolution.kind !== "resolved") {
+      if (instrumentResolution.kind === "ambiguous") {
+        return [rejectedAmbiguous(event, instrumentResolution.candidates)];
+      }
+      return [rejected(event, "affordance_not_specified")];
+    }
+    const instrument = objectById(world, instrumentResolution.target.id);
+    if (!instrument) return [rejected(event, "affordance_not_specified")];
+
+    // A closed container shields the target too: `use` must reach both the
+    // instrument and the thing it is applied to. The instrument is already
+    // guarded by assessCapability below; the target needs its own check.
+    if (!isItemAccessible(world, subjectId, target.id)) return [rejected(event, "target_inaccessible")];
     const assessment = assessCapability(world, { subjectId, affordance, instrumentId: instrument.id });
     if (!assessment.canAttempt) return [rejected(event, assessment.reasons.join(",") || "cannot_attempt")];
 
@@ -271,9 +341,9 @@ export const affordanceUse: Rule<ReadonlyWorld> = {
       || (affordance === "ignite" && target.state.flammable === true)
       || (affordance === "experiment" && target.state.phenomenon === true);
     const outcome = targetAccepts ? "achieved" : "not_achieved";
-    const techniqueId = typeof original.manner === "string" ? original.manner : null;
-    const contextTags = Array.isArray(original.contextTags)
-      ? original.contextTags.filter((tag): tag is string => typeof tag === "string")
+    const techniqueId = typeof payload.manner === "string" ? payload.manner : null;
+    const contextTags = Array.isArray(payload.contextTags)
+      ? payload.contextTags.filter((tag): tag is string => typeof tag === "string")
       : [];
     const common = base(event);
     const result: DomainEvent[] = [
@@ -298,9 +368,9 @@ export const affordanceUse: Rule<ReadonlyWorld> = {
         },
       },
     ];
-    const claimId = typeof original.claimId === "string"
-      ? original.claimId
-      : typeof original.epistemicClaimId === "string" ? original.epistemicClaimId : undefined;
+    const claimId = typeof payload.claimId === "string"
+      ? payload.claimId
+      : typeof payload.epistemicClaimId === "string" ? payload.epistemicClaimId : undefined;
     if (claimId) {
       result.push({
         ...common,
@@ -311,7 +381,7 @@ export const affordanceUse: Rule<ReadonlyWorld> = {
           evidenceId: ruleEventId(event.eventId, "EpistemicEvidenceRecorded", result.length),
           relation: outcome === "achieved" ? "supports" : "contradicts",
           observerId: subjectId,
-          proposition: typeof original.proposition === "string" ? original.proposition : "experiment outcome",
+          proposition: typeof payload.proposition === "string" ? payload.proposition : "experiment outcome",
           sourceInteractionEventId: event.eventId,
         },
       });

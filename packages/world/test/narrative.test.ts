@@ -70,10 +70,9 @@ describe("formatEvent", () => {
     expect(result!.text).not.toContain("wall_caution");
   });
 
-  it("ConsequenceCreated", () => {
+  it("ConsequenceCreated returns null (internal scheduling, not narrated)", () => {
     const result = formatEvent(e("cc-1", "ConsequenceCreated", { id: "aud@1", type: "audacity", expiresAt: 10 }, 3));
-    expect(result!.text).toContain("audacity");
-    expect(result!.text).toContain("10");
+    expect(result).toBeNull();
   });
 
   it("ConsequenceExpired returns null", () => {

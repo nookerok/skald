@@ -8,7 +8,7 @@ import {
 } from "./intent-proposal.js";
 
 const INTERACTION_VERBS = new Set<string>(INTENT_CAPABILITIES.interactionVerbs);
-const LEGACY_OPERATIONS = new Set(["approach", "enter", "heat", "cool", "place", "use", "create_mark", "speak", "call", "wait"]);
+const LEGACY_OPERATIONS = new Set(["approach", "enter", "heat", "cool", "create_mark", "speak", "call", "wait"]);
 
 /** Convert one validated proposal into an existing transient command. */
 export function validateIntentProposal(raw: unknown, rawText: string): IntentProposalValidation {
@@ -49,7 +49,7 @@ function mapPrimary(proposal: IntentProposalV1, rawText: string): ExecutableInte
       rawText,
       interpretation,
     };
-    if (primary.target?.trim()) return { ...result, target: { raw: primary.target.trim() }, ...(primary.secondaryTarget?.trim() ? { secondaryTarget: { raw: primary.secondaryTarget.trim() } } : {}), ...(primary.instrument?.trim() ? { instrument: { raw: primary.instrument.trim() } } : {}) };
+    if (primary.target?.trim()) return { ...result, target: { raw: primary.target.trim() }, ...(primary.secondaryTarget?.trim() ? { secondaryTarget: { raw: primary.secondaryTarget.trim() } } : {}), ...(primary.instrument?.trim() ? { instrument: { raw: primary.instrument.trim() } } : {}), ...(primary.goal?.trim() ? { goal: primary.goal.trim() } : {}), ...(primary.manner?.trim() ? { manner: primary.manner.trim() } : {}) };
     if (primary.verb === "observe" || primary.verb === "listen") return result;
     return null;
   }

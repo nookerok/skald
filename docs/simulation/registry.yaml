@@ -8,7 +8,7 @@
 #   Пример: maturity: production — это ложь, пока нет всех evidence.
 
 registryVersion: 1.0.0
-lastUpdated: "2026-08-05"
+lastUpdated: "2026-08-14"
 
 systems:
   - systemId: action-capability

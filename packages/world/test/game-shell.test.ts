@@ -113,9 +113,8 @@ describe("Game Shell read model", () => {
   it("classifies activity from source events and skips unclassified entries", () => {
     const events = [
       event("ObservationUpdated", "risk", 1, { key: "risk_taken", delta: 1 }),
-      event("ConsequenceCreated", "cons", 2, {
-        id: "audacity-1", type: "audacity", severity: 1,
-        createdAt: 2, expiresAt: 8, data: {},
+      event("ConsequenceFired", "cons", 2, {
+        consequenceId: "audacity-1", consequenceType: "audacity", firedAt: 2,
       }),
       event("TickPassed", "tick", 3, { delta: 1, playerOffline: true }),
     ];

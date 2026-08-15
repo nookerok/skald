@@ -3,6 +3,7 @@ import type { Rule } from "@skald/rule-engine";
 import type { EntityComponentName, EntityComponents } from "../entities/types.js";
 import { getInteractionDefinition, type InteractionDefinition } from "../interaction-registry.js";
 import { resolveInteractionTarget, targetFromObject } from "../interactions/index.js";
+import type { PlayerFacingCandidate } from "../interactions/types.js";
 import type { ReadonlyWorld } from "../projection.js";
 import { ruleEventId } from "../ids.js";
 
@@ -20,13 +21,17 @@ function baseFrom(event: DomainEvent) {
 function reject(
   event: DomainEvent,
   reason: "no_such_target" | "not_applicable" | "ambiguous_target",
-  candidateNames?: readonly string[],
+  candidates?: readonly PlayerFacingCandidate[],
 ): DomainEvent {
   return {
     ...baseFrom(event),
     eventId: ruleEventId(event.eventId, "ActionRejected", 0),
     type: "ActionRejected",
-    payload: candidateNames ? { reason, candidateNames } : { reason },
+    payload: candidates ? {
+      reason,
+      candidateNames: candidates.map((candidate) => candidate.name),
+      candidates,
+    } : { reason },
   };
 }
 
@@ -42,7 +47,7 @@ export const interactionResolveTarget: Rule<ReadonlyWorld> = {
   listens: ["InteractionTimeValidated"],
   produces: ["TargetResolved", "ActionRejected"],
   handle: (event, world) => {
-    const payload = event.payload as { verb?: string; object?: string; secondaryTarget?: string | null; instrument?: string | null };
+    const payload = event.payload as { verb?: string; object?: string; secondaryTarget?: string | null; instrument?: string | null; goal?: string | null; manner?: string | null };
     if (!payload.verb) return [reject(event, "no_such_target")];
 
     const resolution = resolveInteractionTarget(world, payload.verb, payload.object ?? "");
@@ -57,6 +62,8 @@ export const interactionResolveTarget: Rule<ReadonlyWorld> = {
           verb: payload.verb,
           secondaryTarget: payload.secondaryTarget ?? null,
           instrument: payload.instrument ?? null,
+          goal: payload.goal ?? null,
+          manner: payload.manner ?? null,
         },
       }];
     }
@@ -69,7 +76,7 @@ export const interactionResolveTarget: Rule<ReadonlyWorld> = {
       }];
     }
     if (resolution.kind === "ambiguous") {
-      return [reject(event, "ambiguous_target", resolution.candidates.map((candidate) => candidate.name))];
+      return [reject(event, "ambiguous_target", resolution.candidates)];
     }
     return [reject(event, "no_such_target")];
   },
@@ -92,6 +99,8 @@ export function resolveInteractionLaw(
     verb?: string;
     secondaryTarget?: string | null;
     instrument?: string | null;
+    goal?: string | null;
+    manner?: string | null;
   };
   const definition = payload.verb ? lookup(payload.verb) : undefined;
   if (!definition) return [reject(event, "not_applicable")];
@@ -107,6 +116,8 @@ export function resolveInteractionLaw(
         verb: definition.verb,
         secondaryTarget: payload.secondaryTarget ?? null,
         instrument: payload.instrument ?? null,
+        goal: payload.goal ?? null,
+        manner: payload.manner ?? null,
       },
     }];
   }
@@ -131,6 +142,8 @@ export function resolveInteractionLaw(
       verb: definition.verb,
       secondaryTarget: payload.secondaryTarget ?? null,
       instrument: payload.instrument ?? null,
+      goal: payload.goal ?? null,
+      manner: payload.manner ?? null,
     },
   }];
 }

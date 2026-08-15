@@ -103,12 +103,12 @@ export const AUDACITY_TRIGGERED: PresentationTemplate = {
 };
 
 export const CONSEQUENCE_CREATED: PresentationTemplate = {
+  // ConsequenceCreated schedules an internal future effect and is not an
+  // observer-visible fact (see observation/builder.ts). It must not surface
+  // the consequence type or its trigger timing; the player learns of the
+  // consequence through its manifestation (ConsequenceFired / AudacityTriggered).
   id: "consequence_created", listens: ["ConsequenceCreated"],
-  present: (event, _world) => {
-    const { type, expiresAt } = event.payload as { type: string; expiresAt: number };
-    const mark: PresentationCandidate["discoveryMark"] = type === "audacity" ? "omen" : null;
-    return cand("consequence_created", "consequence", "notable", 80, `Твои действия породили последствие: ${type} (до тика ${expiresAt}).`, event, `cons:created:${type}`, `consequence:${type}`, `Последствие: ${type}`, mark);
-  },
+  present: (_event, _world) => null,
 };
 
 export const CONSEQUENCE_FIRED: PresentationTemplate = {
