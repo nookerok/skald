@@ -58,6 +58,18 @@ describe("Visual Shell — presentation purity", () => {
     expect(humanizeLatestResponse("Ты находишься в точке (4, 3). Мир вокруг продолжает меняться.")).toBe("Мир вокруг продолжает меняться.");
     expect(humanizeLatestResponse("В лесу разгорается пожар.")).toBe("В лесу разгорается пожар.");
   });
+  it("renders the authored region title instead of the internal world id", async () => {
+    const { renderLivingWorld } = await import("../public/living-world-shell.js");
+    renderLivingWorld({
+      worldId: "internal-secret-world-id",
+      regionTitle: "Бассейн Речного Стража",
+      world: { position: { x: 0, y: 0 }, locationName: "Переправа у Чёрного леса", connectedLocations: [] },
+      attention: {}, character: {}, knowledge: {}, recentActivity: [], lastTurn: null,
+    });
+    expect(doc.getElementById("active-world-label").textContent).toBe("Бассейн Речного Стража");
+    expect(doc.getElementById("active-world-label").textContent).not.toContain("internal-secret-world-id");
+  });
+
   it("renders current world facts without mutating snapshot", async () => {
     const { renderLivingWorld } = await import("../public/living-world-shell.js");
     const snapshot = {

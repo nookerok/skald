@@ -4,8 +4,8 @@ import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
-import { configureDatabase, execSchemaV6 } from "./schema.js";
-import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, validateUserVersion, verifyIntegrity } from "./migrations.js";
+import { configureDatabase, execSchemaV7 } from "./schema.js";
+import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 
 export interface CommitOptions {
@@ -60,6 +60,7 @@ export interface CreateWorldParams {
   readonly characterName: string;
   readonly characterPresetId: string;
   readonly worldTemplateId: string;
+  readonly entrypointId?: string | undefined;
   readonly characterWound: string;
   readonly characterPromise: string;
   readonly characterPrinciple: string;
@@ -147,11 +148,11 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const versionAction = validateUserVersion(db);
 
   if (versionAction === "fresh") {
-    execSchemaV6(db);
+    execSchemaV7(db);
     // Create legacy world record so FK constraints are satisfied
     db.prepare(
-      "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).run(LEGACY_WORLD_ID, "Первый мир", "legacy", null, null, "active", 0);
+      "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, entrypoint_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(LEGACY_WORLD_ID, "Первый мир", "legacy", null, null, null, "active", 0);
   } else if (versionAction === "migrate") {
     verifyIntegrity(db);
     const result = migrateV1ToV2(db);
@@ -166,6 +167,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
+    migrateV6ToV7(db);
+    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
   } else if (versionAction === "migrateV3") {
     verifyIntegrity(db);
     migrateV2ToV3(db);
@@ -176,6 +179,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
+    migrateV6ToV7(db);
+    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
   } else if (versionAction === "migrateV4") {
     verifyIntegrity(db);
     migrateV3ToV4(db);
@@ -184,18 +189,26 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
+    migrateV6ToV7(db);
+    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
   } else if (versionAction === "migrateV5") {
     verifyIntegrity(db);
     migrateV4ToV5(db);
     console.log(`[persistence] migrated v4→v5: turn_narrations table added`);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
+    migrateV6ToV7(db);
+    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
   } else if (versionAction === "migrateV6") {
     verifyIntegrity(db);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
+    migrateV6ToV7(db);
+    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
+  } else if (versionAction === "migrateV7") {
+    migrateV6ToV7(db);
   } else {
-    // Already v6 — verify
+    // Already v7 — verify
     verifyIntegrity(db);
   }
 
@@ -213,10 +226,10 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     "UPDATE worlds SET last_played_at = ? WHERE world_id = ?",
   );
   const listWorlds = db.prepare(
-    "SELECT w.world_id, w.save_label, w.template_id, w.character_id, w.character_name_snapshot, w.status, w.created_at, w.last_played_at, (SELECT MAX(timestamp) FROM events WHERE world_id = w.world_id) AS world_time, (SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary') AS primary_world_id, (SELECT to_world_id FROM world_successions WHERE from_world_id = w.world_id) AS successor_world_id FROM worlds w ORDER BY CASE WHEN w.world_id = (SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary') THEN 0 ELSE 1 END, w.last_played_at DESC NULLS LAST, w.created_at DESC",
+    "SELECT w.world_id, w.save_label, w.template_id, w.entrypoint_id, w.character_id, w.character_name_snapshot, w.status, w.created_at, w.last_played_at, (SELECT MAX(timestamp) FROM events WHERE world_id = w.world_id) AS world_time, (SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary') AS primary_world_id, (SELECT to_world_id FROM world_successions WHERE from_world_id = w.world_id) AS successor_world_id FROM worlds w ORDER BY CASE WHEN w.world_id = (SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary') THEN 0 ELSE 1 END, w.last_played_at DESC NULLS LAST, w.created_at DESC",
   );
   const getWorld = db.prepare(
-    "SELECT w.world_id, w.save_label, w.template_id, w.character_id, w.character_name_snapshot, w.status, w.created_at, w.last_played_at, (SELECT MAX(timestamp) FROM events WHERE world_id = w.world_id) AS world_time, (SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary') AS primary_world_id, (SELECT to_world_id FROM world_successions WHERE from_world_id = w.world_id) AS successor_world_id FROM worlds w WHERE w.world_id = ?",
+    "SELECT w.world_id, w.save_label, w.template_id, w.entrypoint_id, w.character_id, w.character_name_snapshot, w.status, w.created_at, w.last_played_at, (SELECT MAX(timestamp) FROM events WHERE world_id = w.world_id) AS world_time, (SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary') AS primary_world_id, (SELECT to_world_id FROM world_successions WHERE from_world_id = w.world_id) AS successor_world_id FROM worlds w WHERE w.world_id = ?",
   );
   const getPrimary = db.prepare("SELECT world_id FROM world_entrypoints WHERE entrypoint = 'primary'");
   const getSuccessor = db.prepare("SELECT to_world_id FROM world_successions WHERE from_world_id = ?");
@@ -369,6 +382,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         worldId: r["world_id"] as string,
         saveLabel: r["save_label"] as string,
         templateId: r["template_id"] as string,
+        entrypointId: (r["entrypoint_id"] as string) ?? null,
         characterId: (r["character_id"] as string) ?? null,
         characterName: (r["character_name_snapshot"] as string) ?? null,
         status: r["status"] as "active" | "archived" | "corrupt",
@@ -387,6 +401,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         worldId: r["world_id"] as string,
         saveLabel: r["save_label"] as string,
         templateId: r["template_id"] as string,
+        entrypointId: (r["entrypoint_id"] as string) ?? null,
         characterId: (r["character_id"] as string) ?? null,
         characterName: (r["character_name_snapshot"] as string) ?? null,
         status: r["status"] as "active" | "archived" | "corrupt",
@@ -460,7 +475,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
           if (getWorld.get(params.worldId)) throw Object.assign(new Error("world already exists"), { code: "DUPLICATE_WORLD" });
           const characterId = `char-${params.worldId}`;
           db.prepare("INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, now);
-          db.prepare("INSERT INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(params.worldId, params.saveLabel, params.worldTemplateId, characterId, params.characterName, "active", now);
+          db.prepare("INSERT INTO worlds (world_id, save_label, template_id, entrypoint_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(params.worldId, params.saveLabel, params.worldTemplateId, params.entrypointId ?? null, characterId, params.characterName, "active", now);
           for (const e of params.bootstrapEvents) db.prepare("INSERT INTO events (world_id, event_id, type, schema_version, payload_json, timestamp, causation_id, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(params.worldId, e.eventId, e.type, e.schemaVersion, JSON.stringify(e.payload), e.timestamp, e.causationId ?? null, e.correlationId);
           db.prepare("INSERT INTO world_creation_requests (idempotency_key, request_hash, world_id, created_at) VALUES (?, ?, ?, ?)").run(params.idempotencyKey, params.requestHash, params.worldId, now);
           record = getWorld.get(params.worldId) as Record<string, unknown>;
@@ -470,7 +485,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         db.prepare("INSERT INTO world_successions (from_world_id, to_world_id, reason, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(from_world_id) DO UPDATE SET to_world_id = excluded.to_world_id, reason = excluded.reason, created_at = excluded.created_at").run(succession.fromWorldId, params.worldId, succession.reason, now);
         db.prepare("INSERT INTO world_entrypoints (entrypoint, world_id, updated_at) VALUES ('primary', ?, ?) ON CONFLICT(entrypoint) DO UPDATE SET world_id = excluded.world_id, updated_at = excluded.updated_at").run(params.worldId, now);
         db.exec("COMMIT");
-        return { created, worldRecord: { worldId: record["world_id"] as string, saveLabel: record["save_label"] as string, templateId: record["template_id"] as string, characterId: (record["character_id"] as string) ?? null, characterName: (record["character_name_snapshot"] as string) ?? null, status: record["status"] as "active", createdAt: record["created_at"] as number, lastPlayedAt: (record["last_played_at"] as number) ?? null, worldTime: 0, isPrimary: true, successorWorldId: null } };
+        return { created, worldRecord: { worldId: record["world_id"] as string, saveLabel: record["save_label"] as string, templateId: record["template_id"] as string, entrypointId: (record["entrypoint_id"] as string) ?? null, characterId: (record["character_id"] as string) ?? null, characterName: (record["character_name_snapshot"] as string) ?? null, status: record["status"] as "active", createdAt: record["created_at"] as number, lastPlayedAt: (record["last_played_at"] as number) ?? null, worldTime: 0, isPrimary: true, successorWorldId: null } };
       } catch (err) {
         db.exec("ROLLBACK");
         throw err;
@@ -495,6 +510,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
             worldId: record["world_id"] as string,
             saveLabel: record["save_label"] as string,
             templateId: record["template_id"] as string,
+            entrypointId: (record["entrypoint_id"] as string) ?? null,
             characterId: (record["character_id"] as string) ?? null,
             characterName: (record["character_name_snapshot"] as string) ?? null,
             status: record["status"] as "active",
@@ -522,8 +538,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
 
         // 2. Insert world record
         db.prepare(
-          "INSERT INTO worlds (world_id, save_label, template_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ).run(params.worldId, params.saveLabel, params.worldTemplateId, characterId, params.characterName, "active", now);
+          "INSERT INTO worlds (world_id, save_label, template_id, entrypoint_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ).run(params.worldId, params.saveLabel, params.worldTemplateId, params.entrypointId ?? null, characterId, params.characterName, "active", now);
 
         // 3. Insert bootstrap events
         for (const e of params.bootstrapEvents) {
@@ -545,6 +561,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
             worldId: params.worldId,
             saveLabel: params.saveLabel,
             templateId: params.worldTemplateId,
+            entrypointId: params.entrypointId ?? null,
             characterId,
             characterName: params.characterName,
             status: "active",

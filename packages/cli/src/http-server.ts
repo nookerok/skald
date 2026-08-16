@@ -9,6 +9,8 @@ import {
   handleWorlds,
   handleContinue,
   handleCharacterPresets,
+  handleNewGameOptions,
+  handleNewGamePrologue,
   handleWorldTemplates,
   handleCreateWorld,
 } from "./http/catalog-handlers.js";
@@ -195,6 +197,8 @@ export async function startServer(options?: {
       // Catalog
       if (method === "GET" && url.pathname === "/api/worlds") { const r = handleWorlds(runtimes); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/continue") { const r = handleContinue(runtimes); handle(r.statusCode, JSON.parse(r.body)); return; }
+      if (method === "GET" && url.pathname === "/api/new-game/options") { const r = handleNewGameOptions(); handle(r.statusCode, JSON.parse(r.body)); return; }
+      if (method === "POST" && url.pathname === "/api/new-game/prologue") { let body: unknown; try { body = await readJsonBody(req); } catch { errHandle(400, "invalid_request", "invalid body"); return; } const r = handleNewGamePrologue(body); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/character-presets") { const r = handleCharacterPresets(); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/world-templates") { const r = handleWorldTemplates(); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/health") {
@@ -229,7 +233,7 @@ export async function startServer(options?: {
       }
 
       // 405 for catalog GET-only endpoints with wrong method
-      const catalogGets = ["/api/worlds", "/api/character-presets", "/api/world-templates", "/api/continue"];
+      const catalogGets = ["/api/worlds", "/api/new-game/options", "/api/new-game/prologue", "/api/character-presets", "/api/world-templates", "/api/continue"];
       if (method !== "GET" && catalogGets.includes(url.pathname)) {
         errHandle(405, "method_not_allowed", `method ${method} not allowed`); return;
       }

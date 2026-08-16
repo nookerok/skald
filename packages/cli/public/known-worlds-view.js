@@ -6,8 +6,8 @@ import { fetchWorlds, fetchPresenceSummary } from "./world-api-client.js";
 import { renderPresenceCard, cardStateFor, CARD_STATE_LOADING, CARD_STATE_CORRUPT } from "./presence-card-view.js";
 
 export const PARALLEL_PRESENCE_FETCHES = 3;
-const SECTION_LABEL = "Известные миры";
-const EMPTY_HINT = "Мир ждёт своего наблюдателя. Открой новый мир и оставь первый след.";
+const SECTION_LABEL = "Твои истории";
+const EMPTY_HINT = "Твоя история ещё не началась. Начни новую историю и оставь первый след.";
 
 export async function loadKnownWorlds(container) {
   const worlds = await fetchWorlds();

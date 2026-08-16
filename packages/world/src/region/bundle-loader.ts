@@ -1,10 +1,23 @@
-﻿import { readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { DomainEvent } from "@skald/event-bus";
+import type { RegionEntrypoint } from "../setup/types.js";
 import type { ElevationDefinition, HydrographyDefinition, RegionToponymIndex } from "./types.js";
 import type { ResourceNodeDefinition, ResourceProcessDefinition, ResourceDemandDefinition } from "../resource/types.js";
 
+export interface CompiledEntrypoint extends Omit<RegionEntrypoint, "title" | "description" | "atmosphere"> {
+  readonly presentation: {
+    readonly title: string;
+    readonly teaser?: string;
+    readonly description: string;
+    readonly atmosphere: string;
+  };
+  readonly bootstrapEvents: readonly DomainEvent[];
+}
+
 export interface CompiledRegionBundle {
+  readonly entrypoints?: readonly CompiledEntrypoint[];
+  readonly defaultEntrypointId?: string;
   readonly schemaVersion: number;
   readonly regionVersion: number;
   readonly regionDefinition: unknown;

@@ -1,4 +1,4 @@
-export const USER_VERSION = 6;
+export const USER_VERSION = 7;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
@@ -139,4 +139,12 @@ export function execSchemaV6(db: { exec(sql: string): void }): void {
     FOREIGN KEY (to_world_id) REFERENCES worlds(world_id),
     CHECK (from_world_id <> to_world_id)
   ) STRICT`);
+}
+
+/** Latest schema for fresh databases. Entrypoint metadata is additive and is
+ * not a source of current world truth; the Event Log remains authoritative. */
+export function execSchemaV7(db: { exec(sql: string): void }): void {
+  execSchemaV6(db);
+  db.exec("ALTER TABLE worlds ADD COLUMN entrypoint_id TEXT");
+  db.exec("PRAGMA user_version = 7");
 }

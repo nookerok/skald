@@ -17,8 +17,8 @@ describe("known-worlds-view.js", () => {
     expect(src).toContain("export async function fillPresenceSummaries");
   });
 
-  it("labels the section Известные миры", () => {
-    expect(code("known-worlds-view.js")).toContain("Известные миры");
+  it("labels the section Твои истории", () => {
+    expect(code("known-worlds-view.js")).toContain("Твои истории");
   });
 
   it("limits parallel presence fetches to three", () => {
@@ -78,9 +78,13 @@ describe("presence-card-view.js", () => {
 });
 
 describe("menu-view.js", () => {
-  it("renames the new game action to Открыть новый мир", () => {
+  it("anchors the menu in the authored region", () => {
+    expect(code("menu-view.js")).toContain('textContent = "Бассейн Речного Стража"');
+  });
+
+  it("renames the new game action to Начать новую историю", () => {
     const src = code("menu-view.js");
-    expect(src).toContain('textContent = "Открыть новый мир"');
+    expect(src).toContain('textContent = "Начать новую историю"');
     expect(src).not.toContain('textContent = "Новая игра"');
   });
 

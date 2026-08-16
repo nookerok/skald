@@ -1,10 +1,11 @@
 import { createRequestKey } from "./world-api-client.js";
 
-const DRAFT_KEY = "skald:new-game-draft:1";
+const DRAFT_KEY = "skald:new-game-draft:2";
+const LEGACY_DRAFT_KEY = "skald:new-game-draft:1";
 
 export function loadDraft() {
   try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const raw = sessionStorage.getItem(DRAFT_KEY) || sessionStorage.getItem(LEGACY_DRAFT_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -16,7 +17,7 @@ export function saveDraft(draft) {
 }
 
 export function clearDraft() {
-  try { sessionStorage.removeItem(DRAFT_KEY); } catch {}
+  try { sessionStorage.removeItem(DRAFT_KEY); sessionStorage.removeItem(LEGACY_DRAFT_KEY); } catch {}
 }
 
 export function createWorldId() {

@@ -41,6 +41,10 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 
 ## Runtime flows
 
+    New Story onboarding -> GET /api/new-game/options -> authored background +
+    entrypoint -> read-only prologue -> POST /api/worlds (living_region,
+    idempotent) -> observer session -> first Presence acknowledge -> #/world/:id
+
     Browser/REPL -> Interpretation Gateway (deterministic fast path or
     closed LLM IntentProposalV1) -> schema/capability validation -> command
     handler -> RuleEngine -> staged Domain Events -> EventBus + Projection

@@ -223,9 +223,10 @@ describe("app.js return route", () => {
     expect(src).toContain('window.location.replace("#/world/" + worldId + "/return")');
   });
 
-  it("routes the new world to the return path after creation", () => {
+  it("opens the shell after first presence is acknowledged", () => {
     const src = code("new-game-view.js");
-    expect(src).toContain('"#/world/" + targetWorldId + "/return"');
+    expect(src).toContain("acknowledgePresence");
+    expect(src).toContain('"#/world/" + encodeURIComponent(pendingReq.worldId)');
   });
 
   it("wires the graceful exit flow and blocks commands while leaving", () => {

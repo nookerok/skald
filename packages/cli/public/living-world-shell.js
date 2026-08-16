@@ -9,7 +9,7 @@ import { renderObserverMap } from "./map-view.js";
 import { renderMapLegend } from "./map-legend.js";
 function setText(id, value) { const element = byId(id); if (element) element.textContent = value == null ? "" : String(value); }
 function renderConnection(snapshot) {
-  setText("active-world-label", snapshot.worldId || "Мир");
+  setText("active-world-label", snapshot.regionTitle || "История");
   setText("time-display", "Ход " + (snapshot.revision?.worldTime ?? 0));
   const world = snapshot.world || {};
   setText("place-display", world.locationName || "Место неизвестно");

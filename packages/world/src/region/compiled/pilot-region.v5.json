@@ -2,11 +2,2095 @@
   "schemaVersion": 5,
   "regionId": "riverwatch-basin",
   "regionVersion": 4,
+  "defaultEntrypointId": "river_waystation_arrival",
+  "entrypoints": [
+    {
+      "id": "river_waystation_arrival",
+      "regionId": "riverwatch-basin",
+      "locationId": "river_waystation",
+      "presentation": {
+        "title": "Переправа у Чёрного леса",
+        "teaser": "Путь начинается у переправы, где лес подходит к воде.",
+        "description": "Небольшой путевой двор у реки и кромки Чёрного леса. Отсюда начинается дорога в Бассейне Речного Стража.",
+        "atmosphere": "Вода шумит за настилом, а за спиной темнеют первые ели."
+      },
+      "openingSituation": "Переправа готовится к утру, но течение уже принесло новости, которым никто не рад.",
+      "initialObservationRefs": [
+        "landmark:glass_crater",
+        "landmark:suspended_monolith",
+        "location:blackwood_edge",
+        "location:glass_crater",
+        "location:river_waystation",
+        "relation:river_crossing",
+        "relation:road_waystation_city",
+        "relation:road_waystation_forest"
+      ],
+      "initialKnowledgeRefs": [
+        "location:river_waystation",
+        "relation:road_waystation_city"
+      ],
+      "initialRevealRefs": [
+        "location:blackwood_edge",
+        "location:river_waystation",
+        "relation:river_crossing",
+        "relation:road_waystation_city"
+      ],
+      "availableBackgroundIds": [
+        "echo",
+        "keeper",
+        "wanderer"
+      ],
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ],
+      "bootstrapEvents": [
+        {
+          "eventId": "boot#canon-genesis",
+          "type": "CanonGenesisRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "regionId": "riverwatch-basin",
+            "regionVersion": 4,
+            "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+            "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+            "compilerVersion": "pilot-region-compiler-v5",
+            "canonicalRefs": [
+              "regions.pilot-region.elevation.f1",
+              "regions.pilot-region.elevation.f2",
+              "regions.pilot-region.geography.f1",
+              "regions.pilot-region.geography.f2",
+              "regions.pilot-region.geography.f3",
+              "regions.pilot-region.geography.f5",
+              "regions.pilot-region.geography.f6",
+              "regions.pilot-region.history.f1",
+              "regions.pilot-region.history.f2",
+              "regions.pilot-region.history.f3",
+              "regions.pilot-region.history.f4",
+              "regions.pilot-region.history.f5",
+              "regions.pilot-region.hydrography.f1",
+              "regions.pilot-region.hydrography.f2",
+              "regions.pilot-region.hydrography.f3",
+              "regions.pilot-region.hydrography.f4",
+              "regions.pilot-region.toponymy.f1",
+              "regions.pilot-region.toponymy.f10",
+              "regions.pilot-region.toponymy.f11",
+              "regions.pilot-region.toponymy.f12",
+              "regions.pilot-region.toponymy.f13",
+              "regions.pilot-region.toponymy.f2",
+              "regions.pilot-region.toponymy.f3",
+              "regions.pilot-region.toponymy.f4",
+              "regions.pilot-region.toponymy.f5",
+              "regions.pilot-region.toponymy.f6",
+              "regions.pilot-region.toponymy.f7",
+              "regions.pilot-region.toponymy.f8",
+              "regions.pilot-region.toponymy.f9",
+              "regions.pilot-region.visual-interpretation.f3",
+              "regions.pilot-region.visual-interpretation.f5",
+              "universal.laws.heat_dynamics",
+              "universal.laws.time_and_ticks"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.elevation.f1",
+                "regions.pilot-region.elevation.f2",
+                "regions.pilot-region.geography.f1",
+                "regions.pilot-region.geography.f2",
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.geography.f5",
+                "regions.pilot-region.geography.f6",
+                "regions.pilot-region.history.f1",
+                "regions.pilot-region.history.f2",
+                "regions.pilot-region.history.f3",
+                "regions.pilot-region.history.f4",
+                "regions.pilot-region.history.f5",
+                "regions.pilot-region.hydrography.f1",
+                "regions.pilot-region.hydrography.f2",
+                "regions.pilot-region.hydrography.f3",
+                "regions.pilot-region.hydrography.f4",
+                "regions.pilot-region.toponymy.f1",
+                "regions.pilot-region.toponymy.f10",
+                "regions.pilot-region.toponymy.f11",
+                "regions.pilot-region.toponymy.f12",
+                "regions.pilot-region.toponymy.f13",
+                "regions.pilot-region.toponymy.f2",
+                "regions.pilot-region.toponymy.f3",
+                "regions.pilot-region.toponymy.f4",
+                "regions.pilot-region.toponymy.f5",
+                "regions.pilot-region.toponymy.f6",
+                "regions.pilot-region.toponymy.f7",
+                "regions.pilot-region.toponymy.f8",
+                "regions.pilot-region.toponymy.f9",
+                "regions.pilot-region.visual-interpretation.f3",
+                "regions.pilot-region.visual-interpretation.f5",
+                "universal.laws.heat_dynamics",
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": null
+        },
+        {
+          "eventId": "boot#region",
+          "type": "RegionDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "region": {
+              "id": "riverwatch-basin",
+              "name": "Бассейн Речного Стража",
+              "version": 4,
+              "bounds": {
+                "minXMetres": 0,
+                "minYMetres": 0,
+                "maxXMetres": 20000,
+                "maxYMetres": 20000
+              },
+              "terrainTileSizeMetres": 250,
+              "simulationCellSizeMetres": 1000,
+              "locations": [
+                {
+                  "id": "blackwood_edge",
+                  "name": "Кромка Чёрного леса",
+                  "description": "Дорога исчезает среди тёмных елей.",
+                  "anchor": {
+                    "xMetres": 6000,
+                    "yMetres": 12000
+                  },
+                  "footprintTileIds": [
+                    "tile-23-47"
+                  ]
+                },
+                {
+                  "id": "glass_crater",
+                  "name": "Стеклянная впадина",
+                  "description": "Круглая чаша земли, где камень блестит после дождя.",
+                  "anchor": {
+                    "xMetres": 3800,
+                    "yMetres": 4200
+                  },
+                  "footprintTileIds": [
+                    "tile-14-16"
+                  ]
+                },
+                {
+                  "id": "high_pass",
+                  "name": "Северный перевал",
+                  "description": "Каменный проход под снегом и облаками.",
+                  "anchor": {
+                    "xMetres": 12000,
+                    "yMetres": 18000
+                  },
+                  "footprintTileIds": [
+                    "tile-47-71"
+                  ]
+                },
+                {
+                  "id": "old_ruins",
+                  "name": "Развалины на уступе",
+                  "description": "Каменные остатки над долиной, занесённые травой.",
+                  "anchor": {
+                    "xMetres": 16000,
+                    "yMetres": 14000
+                  },
+                  "footprintTileIds": [
+                    "tile-63-55"
+                  ]
+                },
+                {
+                  "id": "river_waystation",
+                  "name": "Переправа у Чёрного леса",
+                  "description": "Небольшой путевой двор у реки и кромки леса.",
+                  "anchor": {
+                    "xMetres": 8000,
+                    "yMetres": 9500
+                  },
+                  "footprintTileIds": [
+                    "tile-31-38",
+                    "tile-32-38"
+                  ]
+                },
+                {
+                  "id": "riverwatch_city",
+                  "name": "Речной Страж",
+                  "description": "Город за стенами, где сходятся торговые дороги.",
+                  "anchor": {
+                    "xMetres": 13500,
+                    "yMetres": 7500
+                  },
+                  "footprintTileIds": [
+                    "tile-53-29",
+                    "tile-54-29",
+                    "tile-53-30",
+                    "tile-54-30"
+                  ]
+                },
+                {
+                  "id": "southern_borough",
+                  "name": "Южный посад",
+                  "description": "Посад за стенами при изгибе реки, южнее главного города.",
+                  "anchor": {
+                    "xMetres": 9500,
+                    "yMetres": 5000
+                  },
+                  "footprintTileIds": [
+                    "tile-37-19",
+                    "tile-38-19"
+                  ]
+                },
+                {
+                  "id": "western_cliff_waterfalls",
+                  "name": "Водопады западных утёсов",
+                  "description": "Несколько потоков падают с уступа и питают реку.",
+                  "anchor": {
+                    "xMetres": 6500,
+                    "yMetres": 16000
+                  },
+                  "footprintTileIds": [
+                    "tile-26-64",
+                    "tile-27-64"
+                  ]
+                }
+              ],
+              "landmarks": [
+                {
+                  "id": "glass_crater",
+                  "name": "Стеклянная впадина",
+                  "description": "Тёмный круг в лесной кромке.",
+                  "anchor": {
+                    "xMetres": 3800,
+                    "yMetres": 4200
+                  },
+                  "elevationMetres": 20,
+                  "silhouetteClass": "crater"
+                },
+                {
+                  "id": "old_ruins",
+                  "name": "Развалины на уступе",
+                  "description": "Одинокие камни на восточном уступе.",
+                  "anchor": {
+                    "xMetres": 16000,
+                    "yMetres": 14000
+                  },
+                  "elevationMetres": 190,
+                  "silhouetteClass": "ruin"
+                },
+                {
+                  "id": "riverwatch_city",
+                  "name": "Речной Страж",
+                  "description": "Городская стена и башни над рекой.",
+                  "anchor": {
+                    "xMetres": 13500,
+                    "yMetres": 7500
+                  },
+                  "elevationMetres": 40,
+                  "silhouetteClass": "city"
+                },
+                {
+                  "id": "suspended_monolith",
+                  "name": "Парящий монолит",
+                  "description": "Тёмный силуэт, иногда видимый над северными облаками.",
+                  "anchor": {
+                    "xMetres": 11000,
+                    "yMetres": 18000
+                  },
+                  "elevationMetres": 1400,
+                  "silhouetteClass": "monolith"
+                },
+                {
+                  "id": "western_cliff_waterfalls",
+                  "name": "Водопады западных утёсов",
+                  "description": "Белые потоки на западных скалах, слышные после дождя.",
+                  "anchor": {
+                    "xMetres": 6500,
+                    "yMetres": 16000
+                  },
+                  "elevationMetres": 800,
+                  "silhouetteClass": "waterfall"
+                }
+              ],
+              "relations": [
+                {
+                  "id": "river_basin",
+                  "kind": "river",
+                  "fromId": "high_pass",
+                  "toId": "riverwatch_city",
+                  "label": "Река из северных гор",
+                  "points": [
+                    {
+                      "xMetres": 12000,
+                      "yMetres": 18000
+                    },
+                    {
+                      "xMetres": 10500,
+                      "yMetres": 13000
+                    },
+                    {
+                      "xMetres": 9500,
+                      "yMetres": 9000
+                    },
+                    {
+                      "xMetres": 13500,
+                      "yMetres": 7500
+                    }
+                  ]
+                },
+                {
+                  "id": "river_crossing",
+                  "kind": "crossing",
+                  "fromId": "river_waystation",
+                  "toId": "riverwatch_city",
+                  "label": "Переправа",
+                  "points": [
+                    {
+                      "xMetres": 8000,
+                      "yMetres": 9500
+                    },
+                    {
+                      "xMetres": 9500,
+                      "yMetres": 9400
+                    },
+                    {
+                      "xMetres": 10000,
+                      "yMetres": 9000
+                    }
+                  ]
+                },
+                {
+                  "id": "road_city_ruins",
+                  "kind": "road",
+                  "fromId": "riverwatch_city",
+                  "toId": "old_ruins",
+                  "label": "Восточный тракт",
+                  "points": [
+                    {
+                      "xMetres": 13500,
+                      "yMetres": 7500
+                    },
+                    {
+                      "xMetres": 15000,
+                      "yMetres": 10500
+                    },
+                    {
+                      "xMetres": 16000,
+                      "yMetres": 14000
+                    }
+                  ]
+                },
+                {
+                  "id": "road_city_south",
+                  "kind": "road",
+                  "fromId": "riverwatch_city",
+                  "toId": "southern_borough",
+                  "label": "Южный тракт",
+                  "points": [
+                    {
+                      "xMetres": 13500,
+                      "yMetres": 7500
+                    },
+                    {
+                      "xMetres": 11500,
+                      "yMetres": 6200
+                    },
+                    {
+                      "xMetres": 9500,
+                      "yMetres": 5000
+                    }
+                  ]
+                },
+                {
+                  "id": "road_forest_waterfalls",
+                  "kind": "road",
+                  "fromId": "blackwood_edge",
+                  "toId": "western_cliff_waterfalls",
+                  "label": "Тропа к западным утёсам",
+                  "points": [
+                    {
+                      "xMetres": 6000,
+                      "yMetres": 12000
+                    },
+                    {
+                      "xMetres": 6200,
+                      "yMetres": 14000
+                    },
+                    {
+                      "xMetres": 6500,
+                      "yMetres": 16000
+                    }
+                  ]
+                },
+                {
+                  "id": "road_waystation_city",
+                  "kind": "road",
+                  "fromId": "river_waystation",
+                  "toId": "riverwatch_city",
+                  "label": "Дорога к Речному Стражу",
+                  "points": [
+                    {
+                      "xMetres": 8000,
+                      "yMetres": 9500
+                    },
+                    {
+                      "xMetres": 10500,
+                      "yMetres": 8500
+                    },
+                    {
+                      "xMetres": 13500,
+                      "yMetres": 7500
+                    }
+                  ]
+                },
+                {
+                  "id": "road_waystation_forest",
+                  "kind": "road",
+                  "fromId": "river_waystation",
+                  "toId": "blackwood_edge",
+                  "label": "Лесная дорога",
+                  "points": [
+                    {
+                      "xMetres": 8000,
+                      "yMetres": 9500
+                    },
+                    {
+                      "xMetres": 7000,
+                      "yMetres": 10500
+                    },
+                    {
+                      "xMetres": 6000,
+                      "yMetres": 12000
+                    }
+                  ]
+                },
+                {
+                  "id": "road_waystation_waterfalls",
+                  "kind": "road",
+                  "fromId": "river_waystation",
+                  "toId": "western_cliff_waterfalls",
+                  "label": "Тропа к водопадам",
+                  "points": [
+                    {
+                      "xMetres": 8000,
+                      "yMetres": 9500
+                    },
+                    {
+                      "xMetres": 7000,
+                      "yMetres": 12500
+                    },
+                    {
+                      "xMetres": 6500,
+                      "yMetres": 16000
+                    }
+                  ]
+                }
+              ],
+              "hydrography": {
+                "waterBodies": [
+                  {
+                    "id": "southern_water_body",
+                    "kind": "unresolved_water_body",
+                    "classification": "unresolved",
+                    "inflows": [
+                      "river_basin"
+                    ],
+                    "outflows": [],
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.hydrography.f3"
+                    ]
+                  }
+                ],
+                "watercourses": [
+                  {
+                    "id": "river_basin",
+                    "kind": "main_course",
+                    "sourceRef": "northern_snow_range",
+                    "sinkRef": "southern_water_body",
+                    "flowDirection": "north_to_south",
+                    "tributaryRefs": [
+                      "western_waterfall_channel"
+                    ],
+                    "seasonality": "perennial",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.hydrography.f1"
+                    ]
+                  },
+                  {
+                    "id": "western_waterfall_channel",
+                    "kind": "tributary",
+                    "sourceRef": "western_cliff_waterfalls",
+                    "sinkRef": "river_basin",
+                    "flowDirection": "west_to_centre",
+                    "seasonality": "unresolved",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.hydrography.f2"
+                    ]
+                  }
+                ],
+                "catchments": [
+                  {
+                    "id": "northern_mountain_catchment",
+                    "drainsTo": "river_basin",
+                    "terrainRefs": [
+                      "northern_snow_range",
+                      "high_pass"
+                    ],
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.hydrography.f4"
+                    ]
+                  }
+                ],
+                "wetlands": []
+              },
+              "elevation": {
+                "bands": [
+                  {
+                    "id": "band.lowland",
+                    "rank": 1,
+                    "label": "river_lowland",
+                    "elevationBand": 1,
+                    "slopeBand": 1
+                  },
+                  {
+                    "id": "band.foothill",
+                    "rank": 2,
+                    "label": "western_foothills",
+                    "elevationBand": 3,
+                    "slopeBand": 2
+                  },
+                  {
+                    "id": "band.upland",
+                    "rank": 3,
+                    "label": "eastern_uplands",
+                    "elevationBand": 4,
+                    "slopeBand": 3
+                  },
+                  {
+                    "id": "band.alpine",
+                    "rank": 4,
+                    "label": "northern_range",
+                    "elevationBand": 5,
+                    "slopeBand": 5
+                  }
+                ],
+                "controlAreas": [
+                  {
+                    "id": "elevation.eastern_uplands",
+                    "bandRef": "band.upland",
+                    "regionZone": "eastern_uplands",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.elevation.f1"
+                    ]
+                  },
+                  {
+                    "id": "elevation.northern_range",
+                    "bandRef": "band.alpine",
+                    "regionZone": "northern_mountains",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.elevation.f1"
+                    ]
+                  },
+                  {
+                    "id": "elevation.river_corridor",
+                    "bandRef": "band.lowland",
+                    "regionZone": "central_valley",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.elevation.f1"
+                    ]
+                  }
+                ],
+                "constraints": [
+                  {
+                    "id": "constraint.northern-higher-than-valley",
+                    "kind": "higherThan",
+                    "subject": "northern_snow_range",
+                    "reference": "riverwatch_valley",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.elevation.f2"
+                    ]
+                  },
+                  {
+                    "id": "constraint.waterfalls-drain-to-rive",
+                    "kind": "drainsToward",
+                    "subject": "western_cliff_waterfalls",
+                    "reference": "river_basin",
+                    "status": "canon",
+                    "canonicalRefs": [
+                      "regions.pilot-region.elevation.f2"
+                    ]
+                  }
+                ]
+              },
+              "toponymIndex": {
+                "subjects": [
+                  {
+                    "id": "blackwood_forest",
+                    "canonicalName": "Чёрный лес",
+                    "aliases": [
+                      "чёрная чаща"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f6"
+                    ]
+                  },
+                  {
+                    "id": "eastern_uplands",
+                    "canonicalName": "Восточные высоты",
+                    "aliases": [
+                      "восточный кряж"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f8"
+                    ]
+                  },
+                  {
+                    "id": "glass_crater",
+                    "canonicalName": "Стеклянная впадина",
+                    "aliases": [
+                      "стеклянный кратер"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f9"
+                    ]
+                  },
+                  {
+                    "id": "high_pass",
+                    "canonicalName": "Северный перевал",
+                    "aliases": [
+                      "горный проход"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f3"
+                    ]
+                  },
+                  {
+                    "id": "northern_snow_range",
+                    "canonicalName": "Северный снежный хребет",
+                    "aliases": [
+                      "северный хребет"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f2"
+                    ]
+                  },
+                  {
+                    "id": "old_ruins",
+                    "canonicalName": "Развалины на уступе",
+                    "aliases": [
+                      "каменный уступ"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f12"
+                    ]
+                  },
+                  {
+                    "id": "river_basin",
+                    "canonicalName": "Река из северных гор",
+                    "aliases": [
+                      "северное русло"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f4"
+                    ]
+                  },
+                  {
+                    "id": "riverwatch_city",
+                    "canonicalName": "Речной Страж",
+                    "aliases": [
+                      "город у реки"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f10"
+                    ]
+                  },
+                  {
+                    "id": "riverwatch_valley",
+                    "canonicalName": "Долина Стража",
+                    "aliases": [
+                      "речная долина"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f7"
+                    ]
+                  },
+                  {
+                    "id": "riverwatch-basin",
+                    "canonicalName": "Бассейн Речного Стража",
+                    "aliases": [
+                      "речной бассейн"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f1"
+                    ]
+                  },
+                  {
+                    "id": "southern_borough",
+                    "canonicalName": "Южный посад",
+                    "aliases": [
+                      "южный квартал"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f11"
+                    ]
+                  },
+                  {
+                    "id": "suspended_monolith",
+                    "canonicalName": "Парящий монолит",
+                    "aliases": [
+                      "висячий камень"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f13"
+                    ]
+                  },
+                  {
+                    "id": "western_cliff_waterfalls",
+                    "canonicalName": "Водопады западных утёсов",
+                    "aliases": [
+                      "западные каскады"
+                    ],
+                    "canonicalRefs": [
+                      "regions.pilot-region.toponymy.f5"
+                    ]
+                  }
+                ]
+              },
+              "contentDigest": "a566f9f1",
+              "terrainRules": {
+                "river": {
+                  "centerMetres": 9500,
+                  "amplitudeMetres": 1100,
+                  "periodMetres": 1850,
+                  "halfWidthMetres": 220
+                },
+                "marsh": {
+                  "maxYMetres": 3000,
+                  "minXMetres": 5000,
+                  "maxXMetres": 14000
+                },
+                "forest": {
+                  "maxXMetres": 7000,
+                  "minYMetres": 4000
+                },
+                "mountains": {
+                  "minYMetres": 16000,
+                  "eastMinXMetres": 15000,
+                  "eastMinYMetres": 10000
+                },
+                "crater": {
+                  "centerXMetres": 3800,
+                  "centerYMetres": 4200,
+                  "radiusMetres": 1300
+                }
+              },
+              "cellGrid": {
+                "columns": 20,
+                "rows": 20,
+                "cellSizeMetres": 1000
+              }
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.elevation.f1",
+                "regions.pilot-region.elevation.f2",
+                "regions.pilot-region.geography.f1",
+                "regions.pilot-region.geography.f2",
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.geography.f5",
+                "regions.pilot-region.geography.f6",
+                "regions.pilot-region.history.f1",
+                "regions.pilot-region.history.f2",
+                "regions.pilot-region.history.f3",
+                "regions.pilot-region.history.f4",
+                "regions.pilot-region.history.f5",
+                "regions.pilot-region.hydrography.f1",
+                "regions.pilot-region.hydrography.f2",
+                "regions.pilot-region.hydrography.f3",
+                "regions.pilot-region.hydrography.f4",
+                "regions.pilot-region.toponymy.f1",
+                "regions.pilot-region.toponymy.f10",
+                "regions.pilot-region.toponymy.f11",
+                "regions.pilot-region.toponymy.f12",
+                "regions.pilot-region.toponymy.f13",
+                "regions.pilot-region.toponymy.f2",
+                "regions.pilot-region.toponymy.f3",
+                "regions.pilot-region.toponymy.f4",
+                "regions.pilot-region.toponymy.f5",
+                "regions.pilot-region.toponymy.f6",
+                "regions.pilot-region.toponymy.f7",
+                "regions.pilot-region.toponymy.f8",
+                "regions.pilot-region.toponymy.f9",
+                "regions.pilot-region.visual-interpretation.f3",
+                "regions.pilot-region.visual-interpretation.f5",
+                "universal.laws.heat_dynamics",
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": null
+        },
+        {
+          "eventId": "boot#region#PlayerSpawned",
+          "type": "PlayerSpawned",
+          "schemaVersion": 1,
+          "payload": {
+            "x": 0,
+            "y": 0,
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.elevation.f1",
+                "regions.pilot-region.elevation.f2",
+                "regions.pilot-region.geography.f1",
+                "regions.pilot-region.geography.f2",
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.geography.f5",
+                "regions.pilot-region.geography.f6",
+                "regions.pilot-region.history.f1",
+                "regions.pilot-region.history.f2",
+                "regions.pilot-region.history.f3",
+                "regions.pilot-region.history.f4",
+                "regions.pilot-region.history.f5",
+                "regions.pilot-region.hydrography.f1",
+                "regions.pilot-region.hydrography.f2",
+                "regions.pilot-region.hydrography.f3",
+                "regions.pilot-region.hydrography.f4",
+                "regions.pilot-region.toponymy.f1",
+                "regions.pilot-region.toponymy.f10",
+                "regions.pilot-region.toponymy.f11",
+                "regions.pilot-region.toponymy.f12",
+                "regions.pilot-region.toponymy.f13",
+                "regions.pilot-region.toponymy.f2",
+                "regions.pilot-region.toponymy.f3",
+                "regions.pilot-region.toponymy.f4",
+                "regions.pilot-region.toponymy.f5",
+                "regions.pilot-region.toponymy.f6",
+                "regions.pilot-region.toponymy.f7",
+                "regions.pilot-region.toponymy.f8",
+                "regions.pilot-region.toponymy.f9",
+                "regions.pilot-region.visual-interpretation.f3",
+                "regions.pilot-region.visual-interpretation.f5",
+                "universal.laws.heat_dynamics",
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#blackwood_edge",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "blackwood_edge",
+            "name": "Кромка Чёрного леса",
+            "description": "Дорога исчезает среди тёмных елей.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#glass_crater",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "glass_crater",
+            "name": "Стеклянная впадина",
+            "description": "Круглая чаша земли, где камень блестит после дождя.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2",
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#high_pass",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "high_pass",
+            "name": "Северный перевал",
+            "description": "Каменный проход под снегом и облаками.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#old_ruins",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "old_ruins",
+            "name": "Развалины на уступе",
+            "description": "Каменные остатки над долиной, занесённые травой.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#river_waystation",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "river_waystation",
+            "name": "Переправа у Чёрного леса",
+            "description": "Небольшой путевой двор у реки и кромки леса.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#riverwatch_city",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "riverwatch_city",
+            "name": "Речной Страж",
+            "description": "Город за стенами, где сходятся торговые дороги.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#southern_borough",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "southern_borough",
+            "name": "Южный посад",
+            "description": "Посад за стенами при изгибе реки, южнее главного города.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f6"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#LocationDefined#western_cliff_waterfalls",
+          "type": "LocationDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "western_cliff_waterfalls",
+            "name": "Водопады западных утёсов",
+            "description": "Несколько потоков падают с уступа и питают реку.",
+            "objectIds": [],
+            "connections": {},
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.visual-interpretation.f3",
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#glass_crater_surface",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "glass_crater_surface",
+            "name": "Стеклянная поверхность впадины",
+            "aliases": [
+              "стеклянная поверхность",
+              "блестящий камень"
+            ],
+            "description": "На дне чаши камень отражает свет после дождя. Причина блеска неясна.",
+            "material": "glass",
+            "locationId": "glass_crater",
+            "integrity": 100,
+            "temperature": 9,
+            "state": {
+              "contentKind": "discovery_node",
+              "reflective": true,
+              "origin": "unknown"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#old_ruins_masonry",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "old_ruins_masonry",
+            "name": "Каменная кладка",
+            "aliases": [
+              "кладка",
+              "камни развалин",
+              "тёмный камень",
+              "каменную кладку"
+            ],
+            "description": "Ровные швы каменной кладки проступают под травой; один слой заметно темнее и повреждённее остальных.",
+            "material": "stone",
+            "locationId": "old_ruins",
+            "integrity": 38,
+            "temperature": 8,
+            "state": {
+              "contentKind": "discovery_node",
+              "structuralTrace": true,
+              "damageCause": "unknown"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.history.f1",
+                "regions.pilot-region.history.f4"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#western_cliff_waterfalls",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "western_cliff_waterfalls",
+            "name": "Водопады западных утёсов",
+            "aliases": [
+              "водопад",
+              "водопады"
+            ],
+            "description": "Несколько потоков падают с уступа и разбиваются о камни, питая реку.",
+            "material": "water",
+            "locationId": "western_cliff_waterfalls",
+            "integrity": 100,
+            "temperature": 8,
+            "state": {
+              "contentKind": "landmark",
+              "supportsRelation": "river_basin"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.visual-interpretation.f3",
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#PlayerLocationChanged",
+          "type": "PlayerLocationChanged",
+          "schemaVersion": 1,
+          "payload": {
+            "locationId": "river_waystation",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.elevation.f1",
+                "regions.pilot-region.elevation.f2",
+                "regions.pilot-region.geography.f1",
+                "regions.pilot-region.geography.f2",
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.geography.f5",
+                "regions.pilot-region.geography.f6",
+                "regions.pilot-region.history.f1",
+                "regions.pilot-region.history.f2",
+                "regions.pilot-region.history.f3",
+                "regions.pilot-region.history.f4",
+                "regions.pilot-region.history.f5",
+                "regions.pilot-region.hydrography.f1",
+                "regions.pilot-region.hydrography.f2",
+                "regions.pilot-region.hydrography.f3",
+                "regions.pilot-region.hydrography.f4",
+                "regions.pilot-region.toponymy.f1",
+                "regions.pilot-region.toponymy.f10",
+                "regions.pilot-region.toponymy.f11",
+                "regions.pilot-region.toponymy.f12",
+                "regions.pilot-region.toponymy.f13",
+                "regions.pilot-region.toponymy.f2",
+                "regions.pilot-region.toponymy.f3",
+                "regions.pilot-region.toponymy.f4",
+                "regions.pilot-region.toponymy.f5",
+                "regions.pilot-region.toponymy.f6",
+                "regions.pilot-region.toponymy.f7",
+                "regions.pilot-region.toponymy.f8",
+                "regions.pilot-region.toponymy.f9",
+                "regions.pilot-region.visual-interpretation.f3",
+                "regions.pilot-region.visual-interpretation.f5",
+                "universal.laws.heat_dynamics",
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#0",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "river_basin",
+            "kind": "river",
+            "fromId": "high_pass",
+            "toId": "riverwatch_city",
+            "distanceMetres": 12000,
+            "baseTravelTicks": 0,
+            "terrainCost": 0,
+            "passability": "blocked",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2",
+                "regions.pilot-region.geography.f3"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#1",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "river_crossing",
+            "kind": "crossing",
+            "fromId": "river_waystation",
+            "toId": "riverwatch_city",
+            "distanceMetres": 2000,
+            "baseTravelTicks": 2,
+            "terrainCost": 1.5,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#2",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "road_city_ruins",
+            "kind": "road",
+            "fromId": "riverwatch_city",
+            "toId": "old_ruins",
+            "distanceMetres": 6800,
+            "baseTravelTicks": 5,
+            "terrainCost": 1,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f3"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#3",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "road_city_south",
+            "kind": "road",
+            "fromId": "riverwatch_city",
+            "toId": "southern_borough",
+            "distanceMetres": 4500,
+            "baseTravelTicks": 3,
+            "terrainCost": 1,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f6"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#4",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "road_forest_waterfalls",
+            "kind": "road",
+            "fromId": "blackwood_edge",
+            "toId": "western_cliff_waterfalls",
+            "distanceMetres": 4200,
+            "baseTravelTicks": 4,
+            "terrainCost": 1.6,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#5",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "road_waystation_city",
+            "kind": "road",
+            "fromId": "river_waystation",
+            "toId": "riverwatch_city",
+            "distanceMetres": 5500,
+            "baseTravelTicks": 4,
+            "terrainCost": 1,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f3"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#6",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "road_waystation_forest",
+            "kind": "road",
+            "fromId": "river_waystation",
+            "toId": "blackwood_edge",
+            "distanceMetres": 3200,
+            "baseTravelTicks": 3,
+            "terrainCost": 1.2,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Travel#7",
+          "type": "TravelMetadataAttached",
+          "schemaVersion": 1,
+          "payload": {
+            "relationId": "road_waystation_waterfalls",
+            "kind": "road",
+            "fromId": "river_waystation",
+            "toId": "western_cliff_waterfalls",
+            "distanceMetres": 6800,
+            "baseTravelTicks": 5,
+            "terrainCost": 1.5,
+            "passability": "open",
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f3",
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Process#river",
+          "type": "RiverProcessDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "processId": "river-basin-process",
+            "watercourseId": "river_basin",
+            "baselineLevel": 40,
+            "minimumLevel": 20,
+            "maximumLevel": 90,
+            "cycleLengthTicks": 16,
+            "phaseOffset": 0,
+            "riseRate": 8,
+            "fallRate": 5,
+            "provenance": {
+              "canonicalRefs": [
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Process#crossing",
+          "type": "CrossingConditionInitialized",
+          "schemaVersion": 1,
+          "payload": {
+            "crossingId": "river_crossing",
+            "watercourseId": "river_basin",
+            "openAtOrBelow": 55,
+            "difficultAtOrBelow": 75,
+            "closedAbove": 75,
+            "baseTravelCostTicks": 2,
+            "provenance": {
+              "canonicalRefs": [
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Process#weather",
+          "type": "WeatherProcessDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "processId": "weather-region",
+            "climateZone": "temperate",
+            "seasonCycleTicks": 100,
+            "phaseOffset": 0,
+            "provenance": {
+              "canonicalRefs": [
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Process#heat",
+          "type": "HeatProcessDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "processId": "heat-region",
+            "ambientTemperature": 18,
+            "transferRate": 0.1,
+            "dissipationRate": 0.05,
+            "zoneThresholds": {
+              "cold": 0,
+              "warm": 25,
+              "hot": 60
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "universal.laws.heat_dynamics"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Settlement#riverwatch_city",
+          "type": "SettlementCreated",
+          "schemaVersion": 1,
+          "payload": {
+            "settlementId": "riverwatch_city",
+            "population": 60,
+            "risk": 40,
+            "status": "active",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f2"
+            ],
+            "createdAt": 0,
+            "updatedAt": 0,
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Settlement#southern_borough",
+          "type": "SettlementCreated",
+          "schemaVersion": 1,
+          "payload": {
+            "settlementId": "southern_borough",
+            "population": 35,
+            "risk": 25,
+            "status": "active",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f6"
+            ],
+            "createdAt": 0,
+            "updatedAt": 0,
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f6"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#0",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "location",
+            "subjectId": "river_waystation",
+            "knowledge": "traversed",
+            "observedAt": 0,
+            "confidence": 1,
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#1",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "relation",
+            "subjectId": "road_waystation_city",
+            "knowledge": "observed",
+            "observedAt": 0,
+            "confidence": 0.9,
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#2",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "relation",
+            "subjectId": "river_crossing",
+            "knowledge": "observed",
+            "observedAt": 0,
+            "confidence": 0.85,
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#3",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "landmark",
+            "subjectId": "suspended_monolith",
+            "knowledge": "glimpsed",
+            "observedAt": 0,
+            "confidence": 0.45,
+            "bearing": "северо-восток",
+            "canonicalRefs": [
+              "regions.pilot-region.monolith.f1"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.monolith.f1"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#4",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "location",
+            "subjectId": "blackwood_edge",
+            "knowledge": "observed",
+            "observedAt": 0,
+            "confidence": 0.7,
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#5",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "location",
+            "subjectId": "glass_crater",
+            "knowledge": "rumored",
+            "observedAt": 0,
+            "confidence": 0.3,
+            "canonicalRefs": [
+              "regions.pilot-region.visual-interpretation.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#6",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "landmark",
+            "subjectId": "glass_crater",
+            "knowledge": "rumored",
+            "observedAt": 0,
+            "confidence": 0.25,
+            "bearing": "юго-запад",
+            "canonicalRefs": [
+              "regions.pilot-region.visual-interpretation.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.visual-interpretation.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#Observation#7",
+          "type": "SpatialObservationRecorded",
+          "schemaVersion": 1,
+          "payload": {
+            "subjectKind": "relation",
+            "subjectId": "road_waystation_forest",
+            "knowledge": "rumored",
+            "observedAt": 0,
+            "confidence": 0.5,
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#ResourceNodeDefined#resource.blackwood_herbs",
+          "type": "ResourceNodeDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "resource.blackwood_herbs",
+            "resourceKind": "herbs",
+            "sourceModel": "renewable",
+            "locationId": "blackwood_edge",
+            "capacityUnits": 40,
+            "initialStockUnits": 40,
+            "quality": "common",
+            "requiresObservation": true,
+            "extractionMethods": [
+              {
+                "id": "hand_gathering",
+                "maximumPerAction": 3,
+                "difficulty": 1
+              }
+            ],
+            "regeneration": {
+              "model": "interval",
+              "intervalWorldTime": 12,
+              "amountUnits": 2,
+              "maximumUnits": 40,
+              "blockedBy": [
+                {
+                  "situationType": "forest_fire",
+                  "scope": "same_location"
+                }
+              ],
+              "pauseWhileBlocked": true
+            },
+            "status": "runtime_backed",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f2"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#ResourceNodeDefined#resource.blackwood_timber",
+          "type": "ResourceNodeDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "resource.blackwood_timber",
+            "resourceKind": "timber",
+            "sourceModel": "renewable",
+            "locationId": "blackwood_edge",
+            "capacityUnits": 100,
+            "initialStockUnits": 100,
+            "quality": "common",
+            "extractionMethods": [
+              {
+                "id": "manual_felling",
+                "maximumPerAction": 5,
+                "difficulty": 1
+              }
+            ],
+            "regeneration": {
+              "intervalWorldTime": 24,
+              "amountUnits": 2,
+              "maximumUnits": 100,
+              "blockedBy": [
+                {
+                  "situationType": "forest_fire",
+                  "scope": "same_location"
+                }
+              ],
+              "pauseWhileBlocked": true
+            },
+            "status": "runtime_backed",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f2"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#ResourceNodeDefined#resource.old_ruins_stone",
+          "type": "ResourceNodeDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "resource.old_ruins_stone",
+            "resourceKind": "stone",
+            "sourceModel": "stock",
+            "locationId": "old_ruins",
+            "capacityUnits": 60,
+            "initialStockUnits": 60,
+            "quality": "poor",
+            "extractionMethods": [
+              {
+                "id": "salvage_stone",
+                "maximumPerAction": 4,
+                "difficulty": 1
+              }
+            ],
+            "regeneration": null,
+            "status": "runtime_backed",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f2"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f2"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#ResourceProcessDefined#process.riverwatch.firewood",
+          "type": "ResourceProcessDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "process.riverwatch.firewood",
+            "locationId": "river_waystation",
+            "durationWorldTime": 6,
+            "inputs": [
+              {
+                "resourceKind": "timber",
+                "quality": "common",
+                "amountUnits": 2
+              }
+            ],
+            "outputs": [
+              {
+                "resourceKind": "firewood",
+                "quality": "common",
+                "amountUnits": 1
+              }
+            ],
+            "status": "runtime_backed",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#ResourceDemandDefined#demand.riverwatch.firewood",
+          "type": "ResourceDemandDefined",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "demand.riverwatch.firewood",
+            "ownerId": "riverwatch-main",
+            "resourceKind": "firewood",
+            "quality": "common",
+            "amountPerInterval": 1,
+            "intervalWorldTime": 12,
+            "status": "runtime_backed",
+            "canonicalRefs": [
+              "regions.pilot-region.geography.f5"
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#StrategySet",
+          "type": "StrategySet",
+          "schemaVersion": 1,
+          "payload": {
+            "entries": [
+              {
+                "condition": "always",
+                "action": "idle"
+              }
+            ],
+            "provenance": {
+              "canonicalRefs": [
+                "universal.laws.time_and_ticks"
+              ],
+              "compilerVersion": "pilot-region-compiler-v5",
+              "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+              "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        }
+      ]
+    }
+  ],
   "compilerVersion": "pilot-region-compiler-v5",
   "provenance": {
-    "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
-    "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-    "bootstrapDigest": "a807f2ba13772c239aa6de9d59ad8404f0217b73dcd2e0f5d5b8e68fb3e7c151",
+    "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+    "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+    "bootstrapDigest": "f964c6fb5019c86f4d95b9b92e4b10a820510e365c4aab9c3fa361ccf63687f8",
     "canonicalRefs": [
       "regions.pilot-region.elevation.f1",
       "regions.pilot-region.elevation.f2",
@@ -1842,8 +3926,8 @@
       "payload": {
         "regionId": "riverwatch-basin",
         "regionVersion": 4,
-        "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
-        "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
+        "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
+        "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
         "compilerVersion": "pilot-region-compiler-v5",
         "canonicalRefs": [
           "regions.pilot-region.elevation.f1",
@@ -1917,8 +4001,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2627,8 +4711,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2680,8 +4764,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2704,8 +4788,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2729,8 +4813,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2753,8 +4837,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2777,8 +4861,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2801,8 +4885,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2825,8 +4909,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2849,8 +4933,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2874,8 +4958,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2909,8 +4993,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2947,8 +5031,8 @@
             "regions.pilot-region.history.f4"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -2982,8 +5066,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3034,8 +5118,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3062,8 +5146,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3090,8 +5174,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3117,8 +5201,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3144,8 +5228,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3172,8 +5256,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3199,8 +5283,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3227,8 +5311,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3255,8 +5339,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3283,8 +5367,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3308,8 +5392,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3331,8 +5415,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3359,8 +5443,8 @@
             "universal.laws.heat_dynamics"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3387,8 +5471,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3415,8 +5499,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3442,8 +5526,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3469,8 +5553,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3496,8 +5580,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3524,8 +5608,8 @@
             "regions.pilot-region.monolith.f1"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3551,8 +5635,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3578,8 +5662,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3606,8 +5690,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3633,8 +5717,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3684,8 +5768,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3733,8 +5817,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3771,8 +5855,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3811,8 +5895,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3840,8 +5924,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },
@@ -3865,8 +5949,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v5",
-          "compilerInputDigest": "0bbb377de266d86dfd5da9b0c94bbfe113899489065da07ba3d92fbf13e52420",
-          "canonDigest": "8919b12c2558fc7003c402ff6a92dfbf63b9d160a23bf08588fc0f45ef584859",
+          "compilerInputDigest": "2eb05830342b601fbacb002a0f931dd85e54f8dfac6e1586b2ad3b771d3b2d57",
+          "canonDigest": "088a04ff220ee15d882d8d7321c7995ece7b456435ce93cc7b87f556719bebbc",
           "regionVersion": 4
         }
       },

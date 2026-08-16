@@ -235,6 +235,16 @@ function playerFacingEntry(entry: import("../presentation/types.js").Presentatio
   };
 }
 
+function buildRegionTitle(events: readonly DomainEvent[]): string | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.type !== "RegionDefined") continue;
+    const region = (event.payload as { region?: { name?: unknown } } | undefined)?.region;
+    return typeof region?.name === "string" && region.name.trim().length > 0 ? region.name : undefined;
+  }
+  return undefined;
+}
+
 function buildDiscoverySignals(model: import("../observation/types.js").BeliefModel, worldTime: number): PlayerTurnView["discoverySignals"] {
   return [...model.beliefs.values()]
     .filter((belief) => belief.patternId.startsWith("discovery:") && belief.supportingEvidence.some((entry) => entry.observedAt === worldTime))
@@ -293,8 +303,10 @@ export function buildGameShellSnapshot(
     if (activity.length >= 5) break;
   }
 
+  const regionTitle = buildRegionTitle(events);
   return deepFreeze({
     schemaVersion: 1 as const,
+    ...(regionTitle ? { regionTitle } : {}),
     worldId,
     revision: { worldTime: world.time, eventNumber: world.eventNumber },
     character: buildCharacterView(characterProfile, world),

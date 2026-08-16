@@ -12,6 +12,8 @@
   letter-spacing: 0.2em;
 }
 
+.menu-region { color: #f2ddb0; font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; margin-top: 16px; }
+
 .menu-tagline {
   color: var(--text-muted);
   font-size: var(--font-sm);

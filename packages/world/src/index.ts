@@ -68,8 +68,9 @@ export type {
 } from "./observation/types.js";
 export { buildPlayerGuidance, GUIDANCE_ACTIONS } from "./guidance/index.js";
 export type * from "./guidance/types.js";
-export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplate, listCharacterPresets, listWorldTemplates, buildBootstrapEvents } from "./setup/index.js";
-export type { CharacterPreset, WorldTemplate } from "./setup/types.js";
+export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplate, listCharacterPresets, listWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "./setup/index.js";
+export type { CharacterPreset, WorldTemplate, RegionEntrypoint, PrologueDTO } from "./setup/types.js";
+export type { BootstrapSelection } from "./setup/bootstrap-builder.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";

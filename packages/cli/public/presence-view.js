@@ -112,13 +112,13 @@ export function renderPresenceView(session, summary) {
   heading.id = "presence-phase-title";
   heading.setAttribute("data-phase-title", "true");
   heading.tabIndex = -1;
-  heading.textContent = "Возвращение в мир";
+  heading.textContent = mode === "first" ? "Начало пути" : "Возвращение в мир";
   panel.appendChild(heading);
 
   const status = document.createElement("p");
   status.className = "presence-entry-status";
   const hasServerStatus = summary && summary.schemaVersion === 1 && typeof summary.presenceStatus === "string";
-  status.textContent = hasServerStatus ? summary.presenceStatus : "Мир ждёт твоего возвращения.";
+  status.textContent = hasServerStatus ? summary.presenceStatus : mode === "first" ? "Здесь начнётся твой первый след." : "Мир ждёт твоего возвращения.";
   panel.appendChild(status);
 
   const highlights = selectPresenceHighlights(session);

@@ -1,11 +1,55 @@
 import { commandEventId } from "../ids.js";
 import type { DomainEvent } from "@skald/event-bus";
 import { getWorldTemplate } from "./world-templates.js";
+import { getCharacterPreset } from "./character-presets.js";
 import { OLD_TOWER_OBJECTS, OLD_TOWER_LOCATIONS } from "../objects/definitions.js";
 import { LEGACY_LOCATIONS, LEGACY_OBJECTS } from "../objects/definitions.js";
 import { buildRegionBootstrapEvents } from "../region/compiler.js";
+import { getDefaultRegionEntrypoint, getRegionEntrypoint } from "./entrypoints.js";
 
-export function buildBootstrapEvents(templateId: string): readonly DomainEvent[] {
+export interface BootstrapSelection {
+  readonly templateId: string;
+  readonly regionId?: string | undefined;
+  readonly entrypointId?: string | undefined;
+  readonly backgroundId?: string | undefined;
+}
+
+/** Materialize only author-approved entrypoint knowledge as domain facts. */
+function buildEntrypointKnowledgeEvents(entrypoint: Exclude<ReturnType<typeof getRegionEntrypoint>, null>, regionEvents: readonly DomainEvent[]): DomainEvent[] {
+  const observations = new Map<string, { readonly subjectKind: string; readonly subjectId: string; readonly knowledge?: string; readonly confidence?: number }>();
+  for (const event of regionEvents) {
+    if (event.type !== "SpatialObservationRecorded") continue;
+    const payload = event.payload as { subjectKind?: string; subjectId?: string; knowledge?: string; confidence?: number };
+    if (typeof payload.subjectKind !== "string" || typeof payload.subjectId !== "string") continue;
+    observations.set(`${payload.subjectKind}:${payload.subjectId}`, payload as { subjectKind: string; subjectId: string; knowledge?: string; confidence?: number });
+  }
+  const locations = new Map<string, string>();
+  for (const event of regionEvents) {
+    if (event.type !== "LocationDefined") continue;
+    const payload = event.payload as { id?: string; name?: string };
+    if (typeof payload.id === "string" && typeof payload.name === "string") locations.set(payload.id, payload.name);
+  }
+  const routes = new Map<string, string>();
+  const regionEvent = regionEvents.find((event) => event.type === "RegionDefined");
+  const region = (regionEvent?.payload as { region?: { relations?: readonly { id?: string; label?: string }[] } } | undefined)?.region;
+  for (const relation of region?.relations ?? []) {
+    if (typeof relation.id === "string") routes.set(relation.id, relation.label ?? relation.id);
+  }
+  const locationEvent = regionEvents.find((event) => event.type === "PlayerLocationChanged");
+  return entrypoint.initialKnowledgeRefs.map((ref, index) => {
+    const observation = observations.get(ref);
+    if (!observation) throw new Error(`entrypoint knowledge reference has no observation: ${ref}`);
+    const subjectKind = observation.subjectKind;
+    const subjectId = observation.subjectId;
+    const label = subjectKind === "location" ? locations.get(subjectId) ?? subjectId : subjectKind === "relation" ? routes.get(subjectId) ?? subjectId : subjectId;
+    const article = subjectKind === "relation" ? "Ты знаешь дорогу" : "Ты знаешь место";
+    return { eventId: commandEventId(`bootstrap-entrypoint-${entrypoint.id}-knowledge-${index}`, "KnowledgeAcquired"), type: "KnowledgeAcquired", schemaVersion: 1, payload: { subjectId: "player", knowledgeId: `entrypoint:${entrypoint.id}:${ref}`, proposition: `${article} «${label}».`, sourceObservationRef: ref, knowledge: observation.knowledge, confidence: observation.confidence }, timestamp: 0, correlationId: "bootstrap", causationId: locationEvent?.eventId ?? null };
+  });
+}
+
+export function buildBootstrapEvents(selection: string | BootstrapSelection): readonly DomainEvent[] {
+  const options = typeof selection === "string" ? { templateId: selection } : selection;
+  const templateId = options.templateId;
   const template = getWorldTemplate(templateId);
   if (!template && templateId !== "legacy") {
     throw new Error(`Unknown world template: ${templateId}`);
@@ -13,7 +57,35 @@ export function buildBootstrapEvents(templateId: string): readonly DomainEvent[]
   const events: DomainEvent[] = [];
 
   if (templateId === "living_region") {
-    return buildRegionBootstrapEvents(template?.regionId ?? "riverwatch-basin");
+    const regionId = options.regionId ?? template?.regionId ?? "riverwatch-basin";
+    const entrypoint = options.entrypointId ? getRegionEntrypoint(options.entrypointId, regionId) : getDefaultRegionEntrypoint(regionId);
+    if (!entrypoint) throw new Error(`Unknown region entrypoint: ${options.entrypointId}`);
+    if (options.backgroundId && !entrypoint.availableBackgroundIds.includes(options.backgroundId)) throw new Error(`Background ${options.backgroundId} cannot start at ${entrypoint.id}`);
+    const regionEvents = [...buildRegionBootstrapEvents(regionId, entrypoint.id)];
+    regionEvents.push(...buildEntrypointKnowledgeEvents(entrypoint, regionEvents));
+    const locationEvent = regionEvents.find((event) => event.type === "PlayerLocationChanged");
+    const locationId = (locationEvent?.payload as { locationId?: unknown } | undefined)?.locationId;
+    if (locationId !== entrypoint.locationId) {
+      throw new Error("compiled region bootstrap does not start at entrypoint " + entrypoint.id);
+    }
+    if (options.backgroundId) {
+      const background = getCharacterPreset(options.backgroundId);
+      if (!background) throw new Error("Unknown character background: " + options.backgroundId);
+      regionEvents.push({
+        eventId: commandEventId("bootstrap-background-" + background.id, "KnowledgeAcquired"),
+        type: "KnowledgeAcquired",
+        schemaVersion: 1,
+        payload: {
+          subjectId: "player",
+          knowledgeId: "background:" + background.id,
+          proposition: background.startingKnowledge,
+        },
+        timestamp: 0,
+        correlationId: "bootstrap",
+        causationId: locationEvent?.eventId ?? null,
+      });
+    }
+    return Object.freeze(regionEvents);
   }
 
   events.push({

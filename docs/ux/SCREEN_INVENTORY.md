@@ -27,7 +27,7 @@ These are backed by the current Discovery, Guidance and Belief read models.
 ## Tier C - future concepts
 
 Inventory, NPC Dialogue Focus, Account/Save Management and write-capable
-Offline Mode. Main Menu, world selection and character setup are current.
+Offline Mode. Main Menu, single-region story onboarding and character setup are current.
 
 ## Screen record
 

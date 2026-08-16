@@ -145,3 +145,30 @@
   font-size: var(--font-sm);
   padding: 0.5rem 0;
 }
+
+.ng-prologue {
+  margin: 1.25rem 0;
+  padding: clamp(1.1rem, 3vw, 2rem);
+  border: 1px solid var(--aaa-line, var(--border));
+  border-radius: var(--aaa-radius, 12px);
+  background: linear-gradient(145deg, rgba(18, 35, 44, .9), rgba(6, 15, 21, .88));
+  color: var(--text-primary);
+  line-height: 1.65;
+}
+.ng-prologue-location { color: var(--aaa-gold-hi, var(--accent)); text-transform: uppercase; letter-spacing: .08em; font-size: var(--font-xs); }
+.ng-prologue-hook { margin-top: 1.25rem; color: var(--aaa-gold-hi, var(--accent)); font-style: italic; }
+
+
+.ng-region-title {
+  margin: 1.2rem 0 .2rem;
+  color: var(--aaa-gold-hi, var(--accent));
+  font-size: var(--font-sm);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.ng-entrypoint-note {
+  margin: .6rem 0 1rem;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}

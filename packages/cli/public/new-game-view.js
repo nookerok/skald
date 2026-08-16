@@ -1,56 +1,71 @@
 import { loadDraft, saveDraft, clearDraft, createWorldId, createIdempotencyKey } from "./new-game-state.js";
+import { fetchObserverSession, acknowledgePresence, createRequestKey } from "./world-api-client.js";
+import { savePresenceLease } from "./presence-lease.js";
 
-let presets = [];
-let templates = [];
-let step = "character"; // character | world | confirm
-let selectedPresetId = null;
-let selectedTemplateId = null;
+let backgrounds = [];
+let entrypoints = [];
+let region = null;
+let step = "character"; // character | entrypoint | prologue
+let selectedBackgroundId = null;
+let selectedEntrypointId = null;
 let characterName = "";
-let saveLabel = "";
 let pendingReq = null;
+let prologue = null;
+let prologueKey = "";
+let prologueError = "";
+let prologueRequest = 0;
 
-export async function loadPresets() {
+export async function loadNewGameOptions() {
   try {
-    const res = await fetch("/api/character-presets");
-    const body = await res.json();
-    presets = body.presets || [];
-  } catch { presets = []; }
+    const response = await fetch("/api/new-game/options", { signal: AbortSignal.timeout(8000) });
+    const body = await response.json();
+    backgrounds = Array.isArray(body.backgrounds) ? body.backgrounds : [];
+    entrypoints = Array.isArray(body.entrypoints) ? body.entrypoints : [];
+    region = body.region || null;
+    if (!entrypoints.some((entry) => entry.id === selectedEntrypointId)) selectedEntrypointId = entrypoints.length === 1 ? entrypoints[0].id : null;
+    saveCurrentDraft();
+  } catch {
+    backgrounds = [];
+    entrypoints = [];
+    region = null;
+  }
 }
 
-export async function loadTemplates() {
-  try {
-    const res = await fetch("/api/world-templates");
-    const body = await res.json();
-    templates = body.templates || [];
-  } catch { templates = []; }
+function migrateDraft(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  return {
+    name: typeof raw.name === "string" ? raw.name : "",
+    backgroundId: raw.backgroundId || raw.presetId || null,
+    entrypointId: raw.entrypointId || null,
+  };
 }
 
 export async function initNewGame() {
-  const draft = loadDraft();
-  if (draft.name) characterName = draft.name;
-  if (draft.presetId) selectedPresetId = draft.presetId;
-  if (draft.templateId) selectedTemplateId = draft.templateId;
-  if (draft.saveLabel) saveLabel = draft.saveLabel;
-
-  // Restore pending creation request
+  const draft = migrateDraft(loadDraft());
+  characterName = draft.name;
+  selectedBackgroundId = draft.backgroundId;
+  selectedEntrypointId = draft.entrypointId;
   pendingReq = loadPendingRequest();
   if (pendingReq) {
     characterName = pendingReq.body.characterName;
-    selectedPresetId = pendingReq.body.characterPresetId;
-    selectedTemplateId = pendingReq.body.worldTemplateId;
-    saveLabel = pendingReq.body.saveLabel;
+    selectedBackgroundId = pendingReq.body.backgroundId;
+    selectedEntrypointId = pendingReq.body.entrypointId;
   }
-
-  await loadPresets();
-  await loadTemplates();
-
-  // Restore step from hash
+  await loadNewGameOptions();
   const hash = window.location.hash;
-  if (hash.includes("/new/confirm") || hash.includes("/new/world")) {
-    step = hash.includes("/new/confirm") ? "confirm" : "world";
-  }
-
+  if (hash.includes("/new/prologue")) step = "prologue";
+  else if (hash.includes("/new/entrypoint") || hash.includes("/new/world")) step = "entrypoint";
+  else if (hash.includes("/new/confirm")) step = "prologue";
+  else step = "character";
   renderNewGame();
+  if (pendingReq?.phase === "opening_conversation") {
+    const targetWorldId = pendingReq.worldId;
+    clearPendingRequest();
+    clearDraft();
+    window.location.hash = "#/world/" + encodeURIComponent(targetWorldId);
+    return;
+  }
+  if (pendingReq && pendingReq.phase !== "complete") resumeStoryStart();
 }
 
 export function renderNewGame() {
@@ -60,32 +75,23 @@ export function renderNewGame() {
   container.className = "new-game-screen";
   container.dataset.step = step;
   container.appendChild(renderJourneyProgress(step));
-
-  switch (step) {
-    case "character": renderCharacterStep(container); break;
-    case "world": renderWorldStep(container); break;
-    case "confirm": renderConfirmStep(container); break;
-  }
+  if (step === "character") renderCharacterStep(container);
+  else if (step === "entrypoint") renderEntrypointStep(container);
+  else renderPrologueStep(container);
 }
 
 function renderJourneyProgress(activeStep) {
-  const steps = [
-    ["character", "\u0413\u0435\u0440\u043e\u0439"],
-    ["world", "\u041c\u0438\u0440"],
-    ["confirm", "\u041d\u0430\u0447\u0430\u043b\u043e"],
-  ];
+  const steps = [["character", "Персонаж"], ["entrypoint", "Начало пути"], ["prologue", "Пролог"]];
   const progress = document.createElement("ol");
   progress.className = "ng-progress";
-  progress.setAttribute("aria-label", "\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u043d\u043e\u0432\u043e\u0439 \u0438\u0433\u0440\u044b");
+  progress.setAttribute("aria-label", "Начало новой истории");
   const activeIndex = steps.findIndex(([id]) => id === activeStep);
-  steps.forEach(([id, label], index) => {
+  for (const [id, label] of steps) {
+    const index = steps.findIndex(([candidate]) => candidate === id);
     const item = document.createElement("li");
     item.className = "ng-progress-step";
-    if (index < activeIndex) item.dataset.state = "complete";
-    if (id === activeStep) {
-      item.dataset.state = "active";
-      item.setAttribute("aria-current", "step");
-    }
+    item.dataset.state = index < activeIndex ? "complete" : id === activeStep ? "active" : "pending";
+    if (id === activeStep) { item.setAttribute("aria-current", "step"); }
     const number = document.createElement("span");
     number.className = "ng-progress-index";
     number.textContent = String(index + 1).padStart(2, "0");
@@ -94,344 +100,286 @@ function renderJourneyProgress(activeStep) {
     text.textContent = label;
     item.append(number, text);
     progress.appendChild(item);
-  });
+  }
   return progress;
+}
+
+function saveCurrentDraft() {
+  saveDraft({ name: characterName, backgroundId: selectedBackgroundId, entrypointId: selectedEntrypointId });
 }
 
 function renderCharacterStep(container) {
   const title = document.createElement("h2");
-  title.textContent = "Новая игра";
+  title.textContent = "Кто ты?";
   container.appendChild(title);
-
   const question = document.createElement("p");
   question.className = "ng-question";
-  question.textContent = "Кем я войду в этот мир?";
+  question.textContent = "Назови себя и выбери прошлое, которое приведёт тебя к первой двери.";
   container.appendChild(question);
-
-  // Name input
-  const nameLabel = document.createElement("label");
-  nameLabel.className = "ng-label";
-  nameLabel.textContent = "Имя";
-  const nameInput = document.createElement("input");
-  nameInput.type = "text";
-  nameInput.className = "ng-input";
-  nameInput.maxLength = 40;
-  nameInput.placeholder = "Введи имя персонажа";
-  nameInput.value = characterName;
-  nameInput.addEventListener("input", () => {
-    characterName = nameInput.value.trim();
-    saveDraft({ name: characterName, presetId: selectedPresetId, templateId: selectedTemplateId, saveLabel });
-    const next = container.querySelector(".ng-btn-next");
-    if (next) next.disabled = !characterName || !selectedPresetId;
-  });
-  nameLabel.appendChild(nameInput);
-  container.appendChild(nameLabel);
-
-  // Preset cards
-  const presetSection = document.createElement("div");
-  presetSection.className = "ng-cards";
-  for (const p of presets) {
+  const label = document.createElement("label");
+  label.className = "ng-label";
+  label.textContent = "Имя";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "ng-input";
+  input.maxLength = 40;
+  input.placeholder = "Как к тебе обращаться?";
+  input.value = characterName;
+  input.addEventListener("input", () => { characterName = input.value.trim(); prologue = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); updateNext(); });
+  label.appendChild(input);
+  container.appendChild(label);
+  const cards = document.createElement("div");
+  cards.className = "ng-cards";
+  for (const background of backgrounds) {
     const card = document.createElement("div");
-    card.className = "ng-card" + (selectedPresetId === p.id ? " ng-card-selected" : "");
+    const selected = selectedBackgroundId === background.id;
+    card.className = "ng-card" + (selected ? " ng-card-selected" : "");
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
-    card.setAttribute("aria-pressed", String(selectedPresetId === p.id));
-
-    const presetTitle = document.createElement("div");
-    presetTitle.className = "ng-card-title";
-    presetTitle.textContent = p.title;
-    const presetDescription = document.createElement("div");
-    presetDescription.className = "ng-card-desc";
-    presetDescription.textContent = p.description;
-    card.append(presetTitle, presetDescription);
-    if (selectedPresetId === p.id) {
-      const traits = document.createElement("div");
-      traits.className = "ng-card-traits";
-      const wound = document.createElement("p");
-      const woundEm = document.createElement("em");
-      woundEm.textContent = p.wound;
-      wound.appendChild(woundEm);
-      const promise = document.createElement("p");
-      const promiseLabel = document.createElement("strong");
-      promiseLabel.textContent = "Обещание:";
-      promise.append(promiseLabel, document.createTextNode(" " + p.promise));
-      const principle = document.createElement("p");
-      const principleLabel = document.createElement("strong");
-      principleLabel.textContent = "Принцип:";
-      principle.append(principleLabel, document.createTextNode(" " + p.principle));
-      traits.append(wound, promise, principle);
-      card.appendChild(traits);
+    card.setAttribute("aria-pressed", String(selected));
+    const heading = document.createElement("div");
+    heading.className = "ng-card-title";
+    heading.textContent = background.title;
+    const description = document.createElement("div");
+    description.className = "ng-card-desc";
+    description.textContent = background.description;
+    card.append(heading, description);
+    if (selected) {
+      const details = document.createElement("div");
+      details.className = "ng-card-traits";
+      details.append(textLine("Твоё прошлое", background.history), textLine("Что ты умеешь замечать", background.startingKnowledge), textLine("Незавершённая нить", background.openingHook));
+      card.appendChild(details);
     }
-    card.addEventListener("click", () => {
-      selectedPresetId = selectedPresetId === p.id ? null : p.id;
-      saveDraft({ name: characterName, presetId: selectedPresetId, templateId: selectedTemplateId, saveLabel });
-      renderNewGame();
-    });
-    card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); card.click(); } });
-    presetSection.appendChild(card);
+    const choose = () => { selectedBackgroundId = selected ? null : background.id; prologue = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); renderNewGame(); };
+    card.addEventListener("click", choose);
+    card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); } });
+    cards.appendChild(card);
   }
-  container.appendChild(presetSection);
-
-  // Navigation
-  const nav = document.createElement("div");
-  nav.className = "ng-nav";
-  const backBtn = document.createElement("button");
-  backBtn.className = "ng-btn ng-btn-back";
-  backBtn.textContent = "Назад";
-  backBtn.addEventListener("click", () => window.location.hash = "#/menu");
-  nav.appendChild(backBtn);
-
-  const nextBtn = document.createElement("button");
-  nextBtn.className = "ng-btn ng-btn-next";
-  nextBtn.textContent = "Выбрать мир";
-  nextBtn.disabled = !characterName || !selectedPresetId;
-  nextBtn.addEventListener("click", () => {
-    if (!characterName || !selectedPresetId) return;
-    step = "world";
-    window.location.hash = "#/new/world";
-  });
-  nav.appendChild(nextBtn);
+  container.appendChild(cards);
+  const nav = navigation("Назад", "Выбрать начало", () => { window.location.hash = "#/menu"; }, () => { step = "entrypoint"; window.location.hash = "#/new/entrypoint"; }, () => Boolean(characterName && selectedBackgroundId));
   container.appendChild(nav);
+  function updateNext() { const button = nav.querySelector(".ng-btn-next"); if (button) button.disabled = !characterName || !selectedBackgroundId; }
 }
 
-function renderWorldStep(container) {
-  // Restore draft
-  const draft = loadDraft();
-  if (!draft.name || !draft.presetId) { window.location.hash = "#/new/character"; return; }
-  characterName = draft.name || characterName;
-  selectedPresetId = draft.presetId || selectedPresetId;
-
+function renderEntrypointStep(container) {
+  if (!characterName || !selectedBackgroundId) { window.location.hash = "#/new/character"; return; }
   const title = document.createElement("h2");
-  title.textContent = "Выбор мира";
+  title.textContent = "Откуда начинается твоя история?";
   container.appendChild(title);
-
+  const regionTitle = document.createElement("p");
+  regionTitle.className = "ng-region-title";
+  regionTitle.textContent = region?.title || "Бассейн Речного Стража";
+  container.appendChild(regionTitle);
   const question = document.createElement("p");
   question.className = "ng-question";
-  question.textContent = "Какой мир я хочу исследовать?";
+  question.textContent = region?.description || "Один живой регион, в котором дорога меняется вместе с теми, кто по ней идёт.";
   container.appendChild(question);
-
-  const cardSection = document.createElement("div");
-  cardSection.className = "ng-cards";
-  for (const t of templates) {
+  if (entrypoints.length === 1) {
+    const note = document.createElement("p");
+    note.className = "ng-entrypoint-note";
+    note.textContent = "Это единственное авторски подтверждённое начало. Другие дороги откроются тебе уже в игре.";
+    container.appendChild(note);
+  }
+  const cards = document.createElement("div");
+  cards.className = "ng-cards";
+  for (const entrypoint of entrypoints) {
     const card = document.createElement("div");
-    card.className = "ng-card" + (selectedTemplateId === t.id ? " ng-card-selected" : "");
+    const selected = selectedEntrypointId === entrypoint.id;
+    card.className = "ng-card" + (selected ? " ng-card-selected" : "");
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
-    card.setAttribute("aria-pressed", String(selectedTemplateId === t.id));
-
-    const templateTitle = document.createElement("div");
-    templateTitle.className = "ng-card-title";
-    templateTitle.textContent = t.title;
-    const templateDescription = document.createElement("div");
-    templateDescription.className = "ng-card-desc";
-    templateDescription.textContent = t.description;
-    const templateQuestion = document.createElement("div");
-    templateQuestion.className = "ng-card-question";
-    templateQuestion.textContent = t.startingQuestion;
-    card.append(templateTitle, templateDescription, templateQuestion);
-    card.addEventListener("click", () => {
-      selectedTemplateId = selectedTemplateId === t.id ? null : t.id;
-      saveDraft({ name: characterName, presetId: selectedPresetId, templateId: selectedTemplateId, saveLabel });
+    card.setAttribute("aria-pressed", String(selected));
+    const heading = document.createElement("div");
+    heading.className = "ng-card-title";
+    heading.textContent = entrypoint.title;
+    const description = document.createElement("div");
+    description.className = "ng-card-desc";
+    description.textContent = entrypoint.description;
+    const atmosphere = document.createElement("div");
+    atmosphere.className = "ng-card-question";
+    atmosphere.textContent = entrypoint.atmosphere;
+    card.append(heading, description, atmosphere);
+    const choose = () => {
+      // A single authored start is a confirmation, not a toggleable choice.
+      // Keep it selected so the player cannot accidentally create an empty
+      // entrypoint selection while the Canon still exposes only one start.
+      selectedEntrypointId = entrypoints.length === 1 ? entrypoint.id : (selected ? null : entrypoint.id);
+      prologue = null;
+      prologueKey = "";
+      prologueError = "";
+      saveCurrentDraft();
       renderNewGame();
-    });
-    card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); card.click(); } });
-    cardSection.appendChild(card);
+    };
+    card.addEventListener("click", choose);
+    card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); } });
+    cards.appendChild(card);
   }
-  container.appendChild(cardSection);
-
-  // Save label
-  const labelInput = document.createElement("input");
-  labelInput.type = "text";
-  labelInput.className = "ng-input";
-  labelInput.maxLength = 80;
-  labelInput.placeholder = "Название сохранения (необязательно)";
-  labelInput.value = saveLabel || (characterName + " — " + (templates.find(t => t.id === selectedTemplateId)?.title || "Мир"));
-  labelInput.addEventListener("input", () => {
-    saveLabel = labelInput.value.trim();
-    saveDraft({ name: characterName, presetId: selectedPresetId, templateId: selectedTemplateId, saveLabel });
-  });
-  container.appendChild(labelInput);
-
-  const nav = document.createElement("div");
-  nav.className = "ng-nav";
-  const backBtn = document.createElement("button");
-  backBtn.className = "ng-btn ng-btn-back";
-  backBtn.textContent = "Назад";
-  backBtn.addEventListener("click", () => { step = "character"; window.location.hash = "#/new/character"; });
-  nav.appendChild(backBtn);
-
-  const nextBtn = document.createElement("button");
-  nextBtn.className = "ng-btn ng-btn-next";
-  nextBtn.textContent = "Подтвердить";
-  nextBtn.disabled = !selectedTemplateId;
-  nextBtn.addEventListener("click", () => {
-    if (!selectedTemplateId) return;
-    step = "confirm";
-    window.location.hash = "#/new/confirm";
-  });
-  nav.appendChild(nextBtn);
-  container.appendChild(nav);
+  container.appendChild(cards);
+  container.appendChild(navigation("Назад", "Увидеть пролог", () => { step = "character"; window.location.hash = "#/new/character"; }, () => { step = "prologue"; window.location.hash = "#/new/prologue"; }, () => Boolean(selectedEntrypointId)));
 }
 
-function renderConfirmStep(container) {
-  const draft = loadDraft();
-  if (!draft.name || !draft.presetId || !draft.templateId) { window.location.hash = "#/new/character"; return; }
-  characterName = draft.name;
-  selectedPresetId = draft.presetId;
-  selectedTemplateId = draft.templateId;
-  saveLabel = draft.saveLabel || (characterName + " — " + (templates.find(t => t.id === selectedTemplateId)?.title || "Мир"));
-
+function renderPrologueStep(container) {
+  const background = backgrounds.find((item) => item.id === selectedBackgroundId);
+  const entrypoint = entrypoints.find((item) => item.id === selectedEntrypointId);
+  if (!characterName || !background || !entrypoint) { window.location.hash = "#/new/character"; return; }
+  const key = `${characterName}|${background.id}|${entrypoint.id}`;
   const title = document.createElement("h2");
-  title.textContent = "Подтверждение";
+  title.textContent = "Пролог";
   container.appendChild(title);
-
-  const info = document.createElement("div");
-  info.className = "ng-confirm-info";
-
-  const preset = presets.find(p => p.id === selectedPresetId);
-  const template = templates.find(t => t.id === selectedTemplateId);
-
-  const infoLine = (label, value) => {
-    const line = document.createElement("p");
-    const strong = document.createElement("strong");
-    strong.textContent = label + ":";
-    line.append(strong, document.createTextNode(" " + value));
-    return line;
-  };
-  info.append(
-    infoLine("Персонаж", characterName + " (" + (preset?.title || "") + ")"),
-    infoLine("Мир", template?.title || ""),
-    infoLine("Сохранение", saveLabel),
-  );
-  container.appendChild(info);
-
-  if (pendingReq && pendingReq.state === "pending") {
-    const pendingMsg = document.createElement("div");
-    pendingMsg.className = "ng-pending";
-    pendingMsg.textContent = "Мир создаётся...";
-    container.appendChild(pendingMsg);
+  if (prologueKey !== key && !prologueError) {
+    const loading = document.createElement("p");
+    loading.className = "ng-pending";
+    loading.setAttribute("role", "status");
+    loading.textContent = "Собираем начало твоей истории…";
+    container.appendChild(loading);
+    void requestPrologue(key, background.id, entrypoint.id);
+    container.appendChild(navigation("Изменить начало", "Начать путь", () => { step = "entrypoint"; window.location.hash = "#/new/entrypoint"; }, beginStory, () => false));
     return;
   }
-
-  if (pendingReq) {
-    const errMsg = document.createElement("div");
-    errMsg.className = "ng-error";
-    if (pendingReq.state === "timeout") {
-      errMsg.textContent = "Мир не отвечает. Проверь соединение и попробуй снова.";
-    } else if (pendingReq.state === "terminal") {
-      errMsg.textContent = "Создание мира невозможно с этими параметрами. Начни заново.";
-    } else {
-      errMsg.textContent = "Не удалось создать мир. Попробуй снова.";
-    }
-    container.appendChild(errMsg);
+  if (prologueError) {
+    const error = document.createElement("p");
+    error.className = "ng-error";
+    error.setAttribute("role", "alert");
+    error.textContent = prologueError;
+    container.appendChild(error);
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "ng-btn ng-btn-next";
+    retry.textContent = "Повторить";
+    retry.addEventListener("click", () => { prologueError = ""; renderNewGame(); });
+    container.appendChild(retry);
+    return;
   }
+  const scene = document.createElement("article");
+  scene.className = "ng-prologue";
+  const location = document.createElement("p");
+  location.className = "ng-prologue-location";
+  location.textContent = `${prologue.locationTitle} · ${region?.title || "Бассейн Речного Стража"}`;
+  scene.appendChild(location);
+  for (const paragraph of prologue.paragraphs) { const node = document.createElement("p"); node.textContent = paragraph; scene.appendChild(node); }
+  const reminder = document.createElement("p");
+  reminder.className = "ng-prologue-hook";
+  reminder.textContent = `${prologue.backgroundReminder} ${prologue.openingHook}`;
+  scene.appendChild(reminder);
+  container.appendChild(scene);
+  const nav = navigation("Изменить начало", "Начать путь", () => { step = "entrypoint"; window.location.hash = "#/new/entrypoint"; }, beginStory, () => !pendingReq && Boolean(prologue));
+  container.appendChild(nav);
+  if (pendingReq && pendingReq.phase !== "complete") {
+    const status = document.createElement("p");
+    status.className = "ng-pending";
+    status.setAttribute("role", "status");
+    status.textContent = pendingReq.phase === "failed" ? "Начало не открылось. Попробуй ещё раз." : "Открываем путь…";
+    container.appendChild(status);
+  }
+}
 
+async function requestPrologue(key, backgroundId, entrypointId) {
+  const requestId = ++prologueRequest;
+  try {
+    const response = await fetch("/api/new-game/prologue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ characterName, backgroundId, entrypointId }), signal: AbortSignal.timeout(8000) });
+    const result = await response.json();
+    if (!result.ok || !result.prologue) throw new Error(result.error?.message || "Не удалось открыть пролог.");
+    if (requestId !== prologueRequest) return;
+    prologue = result.prologue;
+    prologueKey = key;
+    prologueError = "";
+    renderNewGame();
+  } catch (error) {
+    if (requestId !== prologueRequest) return;
+    prologueError = error instanceof Error ? error.message : "Не удалось открыть пролог.";
+    renderNewGame();
+  }
+}
+
+function textLine(label, value) {
+  const line = document.createElement("p");
+  const strong = document.createElement("strong");
+  strong.textContent = label + ": ";
+  line.append(strong, document.createTextNode(value));
+  return line;
+}
+
+function navigation(backText, nextText, onBack, onNext, enabled) {
   const nav = document.createElement("div");
   nav.className = "ng-nav";
-  const backBtn = document.createElement("button");
-  backBtn.className = "ng-btn ng-btn-back";
-  backBtn.textContent = "Назад";
-  backBtn.addEventListener("click", () => { step = "world"; window.location.hash = "#/new/world"; });
-  nav.appendChild(backBtn);
-
-  const createBtn = document.createElement("button");
-  createBtn.className = "ng-btn ng-btn-create";
-  if (pendingReq && pendingReq.state === "terminal") {
-    createBtn.textContent = "Начать заново";
-    createBtn.addEventListener("click", () => {
-      clearPendingRequest();
-      pendingReq = null;
-      window.location.hash = "#/new/character";
-    });
-  } else {
-    createBtn.textContent = pendingReq ? "Повторить" : "Создать мир";
-    createBtn.addEventListener("click", () => {
-      if (pendingReq) { submitPendingRequest(); } else { createNewRequest(); }
-    });
-  }
-  nav.appendChild(createBtn);
-  container.appendChild(nav);
+  const back = document.createElement("button");
+  back.className = "ng-btn ng-btn-back";
+  back.type = "button";
+  back.textContent = backText;
+  back.addEventListener("click", onBack);
+  const next = document.createElement("button");
+  next.className = "ng-btn ng-btn-next ng-btn-create";
+  next.type = "button";
+  next.textContent = nextText;
+  next.disabled = !enabled();
+  next.addEventListener("click", () => { if (!next.disabled) onNext(); });
+  nav.append(back, next);
+  return nav;
 }
 
 function loadPendingRequest() {
   try {
     const raw = sessionStorage.getItem("skald:new-game:pending");
-    if (!raw) return null;
-    const req = JSON.parse(raw);
-    if (!req.worldId || !req.idempotencyKey || !req.body) return null;
-    return req;
+    const request = raw ? JSON.parse(raw) : null;
+    return request?.worldId && request?.idempotencyKey && request?.body ? request : null;
   } catch { return null; }
 }
 
-function savePendingRequest(req) {
-  try { sessionStorage.setItem("skald:new-game:pending", JSON.stringify(req)); } catch {}
+function savePendingRequest(request) {
+  try { sessionStorage.setItem("skald:new-game:pending", JSON.stringify(request)); } catch {}
 }
 
 function clearPendingRequest() {
   try { sessionStorage.removeItem("skald:new-game:pending"); } catch {}
 }
 
-function createNewRequest() {
-  const worldId = createWorldId();
-  const idempotencyKey = createIdempotencyKey();
-  const body = {
-    worldId, idempotencyKey,
-    saveLabel: saveLabel || (characterName + " — Мир"),
-    characterName, characterPresetId: selectedPresetId,
-    worldTemplateId: selectedTemplateId,
-  };
-
-  pendingReq = { worldId, idempotencyKey, body, state: "pending" };
+function beginStory() {
+  if (pendingReq) { resumeStoryStart(); return; }
+  const body = { worldId: createWorldId(), idempotencyKey: createIdempotencyKey(), characterName, backgroundId: selectedBackgroundId, entrypointId: selectedEntrypointId };
+  pendingReq = { worldId: body.worldId, idempotencyKey: body.idempotencyKey, body, phase: "creating_story" };
   savePendingRequest(pendingReq);
-  submitPendingRequest();
+  resumeStoryStart();
 }
 
-async function submitPendingRequest() {
-  if (!pendingReq) { pendingReq = loadPendingRequest(); }
-  if (!pendingReq) return;
-
-  pendingReq.state = "pending";
+async function resumeStoryStart() {
+  if (!pendingReq || pendingReq.phase === "complete" || pendingReq.running) return;
+  pendingReq.running = true;
   savePendingRequest(pendingReq);
   renderNewGame();
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
   try {
-    const res = await fetch("/api/worlds", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pendingReq.body),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    const result = await res.json();
-    if (result.ok) {
-      const targetWorldId = result.world?.worldId ?? pendingReq.worldId;
-      clearDraft();
-      clearPendingRequest();
-      pendingReq = null;
-      window.location.hash = "#/world/" + targetWorldId + "/return";
-    } else if (result.error && (result.error.code === "conflict" || result.error.code === "invalid_request")) {
-      // Terminal error — show message and offer start-over
-      pendingReq.state = "terminal";
+    if (pendingReq.phase === "creating_story" || pendingReq.phase === "failed") {
+      pendingReq.phase = "creating_story";
+      const response = await fetch("/api/worlds", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pendingReq.body), signal: AbortSignal.timeout(15000) });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error?.message || "story creation failed");
+      pendingReq.worldId = result.world?.worldId || pendingReq.worldId;
+      pendingReq.phase = "loading_first_presence";
+      delete pendingReq.running;
       savePendingRequest(pendingReq);
-      renderNewGame();
-    } else {
-      pendingReq.state = "failed";
-      savePendingRequest(pendingReq);
-      renderNewGame();
     }
-  } catch (err) {
-    clearTimeout(timeout);
-    pendingReq.state = err.name === "AbortError" ? "timeout" : "failed";
+    const sessionResult = await fetchObserverSession(pendingReq.worldId);
+    if (!sessionResult.body?.ok || !sessionResult.body.session?.revision) throw new Error("Не удалось открыть начало истории.");
+    pendingReq.revision = sessionResult.body.session.revision;
+    pendingReq.phase = "acknowledging_first_presence";
+    pendingReq.presenceKey = pendingReq.presenceKey || createRequestKey("presence-ack");
+    delete pendingReq.running;
     savePendingRequest(pendingReq);
     renderNewGame();
+    const ack = await acknowledgePresence(pendingReq.worldId, pendingReq.presenceKey, pendingReq.revision.worldTime, pendingReq.revision.eventNumber);
+    if (!ack.body?.ok) {
+      if (ack.status === 409 && ack.body?.error?.code === "stale_revision") { pendingReq.presenceKey = createRequestKey("presence-ack"); pendingReq.phase = "loading_first_presence"; savePendingRequest(pendingReq); return resumeStoryStart(); }
+      throw new Error(ack.body?.error?.message || "Не удалось подтвердить начало.");
+    }
+    savePresenceLease(pendingReq.worldId, pendingReq.revision);
+    pendingReq.phase = "opening_conversation";
+    delete pendingReq.running;
+    savePendingRequest(pendingReq);
+    const targetWorldId = pendingReq.worldId;
+    window.location.hash = "#/world/" + encodeURIComponent(pendingReq.worldId);
+    void targetWorldId;
+    clearPendingRequest();
+    clearDraft();
+  } catch (error) {
+    if (pendingReq) { delete pendingReq.running; pendingReq.phase = "failed"; pendingReq.error = error instanceof Error ? error.message : "Не удалось открыть начало истории."; savePendingRequest(pendingReq); renderNewGame(); }
   }
-}
-
-function escapeHtml(str) {
-  if (!str) return "";
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

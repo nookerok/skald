@@ -111,6 +111,8 @@ export interface KnowledgeSummary {
 
 export interface GameShellSnapshot {
   schemaVersion: 1;
+  /** Player-facing region title; internal worldId is never rendered as a title. */
+  regionTitle?: string;
   worldId: string;
   revision: { worldTime: number; eventNumber: number };
   character: CharacterView;

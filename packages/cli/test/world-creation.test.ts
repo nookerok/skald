@@ -37,6 +37,58 @@ describe("World creation", () => {
     expect(body.presets.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("GET /api/new-game/options exposes one region and authored starts", async () => {
+    const { status, body } = await api("/api/new-game/options");
+    expect(status).toBe(200);
+    expect(body.region.id).toBe("riverwatch-basin");
+    expect(body.entrypoints).toEqual([expect.objectContaining({ id: "river_waystation_arrival" })]);
+    expect(body).not.toHaveProperty("templates");
+  });
+
+  it("new-game options hide runtime and compiler metadata", async () => {
+    const { body } = await api("/api/new-game/options");
+    expect(body.entrypoints[0]).not.toHaveProperty("locationId");
+    expect(body.entrypoints[0]).not.toHaveProperty("canonicalRefs");
+    expect(body.entrypoints[0]).not.toHaveProperty("bootstrapEvents");
+    expect(body.entrypoints[0]).not.toHaveProperty("availableBackgroundIds");
+    expect(JSON.stringify(body)).not.toContain("worldTemplateId");
+    expect(JSON.stringify(body)).not.toContain("saveLabel");
+  });
+
+  it("returns a deterministic read-only prologue before story creation", async () => {
+    const request = { characterName: "Ирден", backgroundId: "keeper", entrypointId: "river_waystation_arrival" };
+    const first = await api("/api/new-game/prologue", { method: "POST", body: JSON.stringify(request) });
+    const second = await api("/api/new-game/prologue", { method: "POST", body: JSON.stringify(request) });
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual(second.body);
+    expect(first.body.prologue.paragraphs.join(" ")).toContain("Ирден");
+    expect(first.body.prologue.paragraphs.join(" ")).toContain("Переправа у Чёрного леса");
+  });
+
+  it("POST /api/worlds starts a living-region story without world-template UI fields", async () => {
+    const { status, body } = await api("/api/worlds", {
+      method: "POST",
+      body: JSON.stringify({
+        worldId: "new-story-entrypoint-001",
+        idempotencyKey: "new-story-entrypoint-key",
+        characterName: "Ирден",
+        backgroundId: "keeper",
+        entrypointId: "river_waystation_arrival",
+      }),
+    });
+    expect(status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(body.world.templateId).toBe("living_region");
+    expect(body.world.entrypointId).toBe("river_waystation_arrival");
+    const events = await api("/api/worlds/new-story-entrypoint-001/events");
+    expect(events.status).toBe(200);
+    expect(events.body.events.some((event: any) => event.type === "KnowledgeAcquired" && event.payload.knowledgeId === "background:keeper")).toBe(true);
+    const shell = await api("/api/worlds/new-story-entrypoint-001/game-shell");
+    expect(shell.status).toBe(200);
+    expect(shell.body.snapshot.regionTitle).toBe("Бассейн Речного Стража");
+    expect(shell.body.snapshot.regionTitle).not.toContain("new-story-entrypoint-001");
+  });
+
   it("POST /api/character-presets returns 405", async () => {
     const { status } = await api("/api/character-presets", { method: "POST" });
     expect(status).toBe(405);

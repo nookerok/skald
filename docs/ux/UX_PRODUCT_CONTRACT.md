@@ -84,3 +84,15 @@ flow.
 World creation is an operational atomic transaction, not a Domain Event
 or a Rule. Character presets and world templates are server-side static
 allowlists.
+
+### Single-region story onboarding
+
+The player does not choose a world or template. The public start is one
+authored region, Бассейн Речного Стража, with the sequence `character →
+entrypoint → prologue → conversation`. `worldId`, `living_region`, generated
+save labels and compatibility template fields remain internal. The browser
+uses `/api/new-game/options` and a read-only prologue composer, then sends one
+idempotent story-start operation whose backend stages creation, first Presence
+acknowledge and the browser-session lease before opening the Game Shell.
+Existing worlds retain the return Presence flow; it is never shown as the first
+screen of a new story.

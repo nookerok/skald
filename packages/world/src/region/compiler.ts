@@ -1,4 +1,4 @@
-﻿import type { DomainEvent } from "@skald/event-bus";
+import type { DomainEvent } from "@skald/event-bus";
 import type { ElevationDefinition, HydrographyDefinition, RegionDefinition, RegionToponymIndex, TerrainSurface } from "./types.js";
 import type { CompiledRegionBundle } from "./bundle-loader.js";
 import type { ResourceNodeDefinition, ResourceProcessDefinition, ResourceDemandDefinition } from "../resource/types.js";
@@ -76,9 +76,25 @@ function materializeBundle(regionId: string): MaterializedBundle {
 
 const DEFAULT_REGION_ID = "riverwatch-basin";
 
-/** Generic compiled bootstrap for a selected region. */
-export function buildRegionBootstrapEvents(regionId = DEFAULT_REGION_ID): readonly DomainEvent[] {
-  return materializeBundle(regionId).events;
+function materializeSelectedEvents(events: readonly DomainEvent[], region: RegionDefinition): readonly DomainEvent[] {
+  return Object.freeze(events.map((entry) => {
+    if (entry.type !== "RegionDefined") return Object.freeze({ ...entry });
+    const payload = entry.payload as { region: CompactRegion; provenance?: unknown };
+    return Object.freeze({ ...entry, payload: { ...payload, region } });
+  }));
+}
+
+/** Generic compiled bootstrap for a selected region or authored entrypoint. */
+export function buildRegionBootstrapEvents(regionId = DEFAULT_REGION_ID, entrypointId?: string): readonly DomainEvent[] {
+  const materialized = materializeBundle(regionId);
+  if (!entrypointId) return materialized.events;
+  const entrypoint = materialized.bundle.entrypoints?.find((candidate) => candidate.id === entrypointId);
+  // Older compiled bundles do not carry authored entrypoint metadata. Their legacy start remains valid.
+  if (!entrypoint) {
+    if (!materialized.bundle.entrypoints?.length) return materialized.events;
+    throw new Error("compiled region entrypoint not found: " + entrypointId);
+  }
+  return materializeSelectedEvents(entrypoint.bootstrapEvents, materialized.region);
 }
 
 /** Generic runtime region definition. */

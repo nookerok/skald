@@ -1,4 +1,4 @@
-﻿// Canon -> deterministic compiled region bundle.
+// Canon -> deterministic compiled region bundle.
 // This compiler is intentionally boring: no image reads, clock, random values,
 // network or LLM. The reference artifact is validated separately and neve
 // enters this projection.
@@ -99,6 +99,35 @@ function buildEvents(p, region, inputDigest, canonDigest) {
   return events;
 }
 
+function observationKey(payload) { return `${payload.subjectKind}:${payload.subjectId}`; }
+
+function buildEntrypointDefinitions(projection, events) {
+  const authored = projection.bootstrap?.entrypoints ?? [];
+  return authored.map((entrypoint) => {
+    const observationRefs = new Set(entrypoint.initialObservationRefs ?? []);
+    const selected = events.filter((event) => {
+      if (event.type === 'PlayerLocationChanged') return event.payload?.locationId === entrypoint.locationId;
+      if (event.type === 'SpatialObservationRecorded') return observationRefs.has(observationKey(event.payload));
+      return true;
+    });
+    const locationEvents = selected.filter((event) => event.type === 'PlayerLocationChanged');
+    if (locationEvents.length !== 1) throw new Error('entrypoint must compile exactly one PlayerLocationChanged: ' + entrypoint.id);
+    return {
+      id: entrypoint.id,
+      regionId: projection.regionId,
+      locationId: entrypoint.locationId,
+      presentation: { title: entrypoint.title, teaser: entrypoint.teaser ?? entrypoint.description, description: entrypoint.description, atmosphere: entrypoint.atmosphere },
+      openingSituation: entrypoint.openingSituation,
+      initialObservationRefs: [...entrypoint.initialObservationRefs].sort(),
+      initialKnowledgeRefs: [...entrypoint.initialKnowledgeRefs].sort(),
+      initialRevealRefs: [...entrypoint.initialRevealRefs].sort(),
+      availableBackgroundIds: [...entrypoint.availableBackgroundIds].sort(),
+      canonicalRefs: [...(entrypoint.canonicalRefs ?? [])].sort(),
+      bootstrapEvents: selected,
+    };
+  }).sort((a, b) => a.id.localeCompare(b.id));
+}
+
 function compactRegion(region, terrainRules) {
   return { ...region, tiles: undefined, cells: undefined, terrainRules, cellGrid: { columns: Math.round(region.bounds.maxXMetres / region.simulationCellSizeMetres), rows: Math.round(region.bounds.maxYMetres / region.simulationCellSizeMetres), cellSizeMetres: region.simulationCellSizeMetres } };
 }
@@ -122,8 +151,9 @@ export function compileRegion(regionId = null) {
   const acceptedResourceDemands = (projection.resourceDemandDefinitions ?? []).filter((entry) => ["canon", "runtime_backed", "derived"].includes(entry.status));
   const objectProvenance = Object.fromEntries([...projection.locations, ...projection.landmarks, ...projection.relations, ...projection.content, ...acceptedResources, ...acceptedResourceProcesses, ...acceptedResourceDemands, ...(acceptedHydrography.waterBodies ?? []), ...(acceptedHydrography.watercourses ?? []), ...(acceptedHydrography.catchments ?? []), ...(acceptedElevation.controlAreas ?? []), ...(acceptedElevation.constraints ?? []), ...(acceptedToponymIndex.subjects ?? [])].map((entry) => [entry.id, { canonicalRefs: entry.canonicalRefs ?? [] }]));
   const allEvents = compactEvents;
+  const entrypoints = buildEntrypointDefinitions(projection, allEvents);
   const finalBootstrapDigest = sha256(allEvents);
-  return { schemaVersion: BUNDLE_SCHEMA_VERSION, regionId: projection.regionId, regionVersion: projection.region.version, compilerVersion: projection.compilerVersion, provenance: { canonDigest, compilerInputDigest: inputDigest, bootstrapDigest: finalBootstrapDigest, canonicalRefs: projection.canonicalRefs, referenceArtifactRuntimeAllowed: false }, regionDefinition: compact, hydrographyDefinition: acceptedHydrography, elevationDefinition: acceptedElevation, toponymIndex: acceptedToponymIndex, contentDefinitions: projection.content ?? [], discoveryDefinitions: acceptedDiscovery, simulationDefinitions: acceptedSimulation, resourceDefinitions: acceptedResources, resourceProcessDefinitions: acceptedResourceProcesses, resourceDemandDefinitions: acceptedResourceDemands, objectProvenance, events: allEvents };
+  return { schemaVersion: BUNDLE_SCHEMA_VERSION, regionId: projection.regionId, regionVersion: projection.region.version, defaultEntrypointId: projection.bootstrap?.defaultEntrypointId ?? projection.bootstrap?.entrypoints?.[0]?.id ?? projection.bootstrap?.startLocationId, entrypoints, compilerVersion: projection.compilerVersion, provenance: { canonDigest, compilerInputDigest: inputDigest, bootstrapDigest: finalBootstrapDigest, canonicalRefs: projection.canonicalRefs, referenceArtifactRuntimeAllowed: false }, regionDefinition: compact, hydrographyDefinition: acceptedHydrography, elevationDefinition: acceptedElevation, toponymIndex: acceptedToponymIndex, contentDefinitions: projection.content ?? [], discoveryDefinitions: acceptedDiscovery, simulationDefinitions: acceptedSimulation, resourceDefinitions: acceptedResources, resourceProcessDefinitions: acceptedResourceProcesses, resourceDemandDefinitions: acceptedResourceDemands, objectProvenance, events: allEvents };
 }
 
 const mode = process.argv.includes("--check") ? "check" : "write";

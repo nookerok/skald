@@ -1,4 +1,4 @@
-﻿function sorted(items, key = 'id') { return [...(items ?? [])].sort((a, b) => String(a?.[key] ?? '').localeCompare(String(b?.[key] ?? ''))); }
+function sorted(items, key = 'id') { return [...(items ?? [])].sort((a, b) => String(a?.[key] ?? '').localeCompare(String(b?.[key] ?? ''))); }
 
 function normalizeSections(projection) {
   const hydrography = projection.hydrography ? {
@@ -27,7 +27,29 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     for (const [key, child] of Object.entries(value)) if (key !== 'canonicalRefs' && child && typeof child === 'object') checkRefs(child, label + '.' + key);
   };
   for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','resourceProcessDefinitions','resourceDemandDefinitions','hydrography','elevation','toponymIndex']) checkRefs(projection[section], section);
+  const locationIds = new Set((projection.locations ?? []).map((entry) => entry.id));
+  const entrypointIds = new Set();
+  const observationKeys = new Set((projection.observations ?? []).map((entry) => `${entry.subjectKind}:${entry.subjectId}`));
+  for (const entrypoint of projection.bootstrap?.entrypoints ?? []) {
+    if (!entrypoint.id || entrypointIds.has(entrypoint.id)) throw new Error('duplicate bootstrap entrypoint: ' + entrypoint.id);
+    entrypointIds.add(entrypoint.id);
+    if (!locationIds.has(entrypoint.locationId)) throw new Error('bootstrap entrypoint location is not declared: ' + entrypoint.locationId);
+    if (!Array.isArray(entrypoint.availableBackgroundIds) || entrypoint.availableBackgroundIds.length === 0 || entrypoint.availableBackgroundIds.some((id) => typeof id !== 'string' || id.length === 0)) throw new Error('bootstrap entrypoint has no valid backgrounds: ' + entrypoint.id);
+    for (const field of ['initialObservationRefs', 'initialKnowledgeRefs', 'initialRevealRefs']) {
+      if (!Array.isArray(entrypoint[field]) || entrypoint[field].some((ref) => typeof ref !== 'string' || ref.length === 0)) throw new Error('bootstrap entrypoint has invalid ' + field + ': ' + entrypoint.id);
+      for (const ref of entrypoint[field]) if (!observationKeys.has(ref)) throw new Error('bootstrap entrypoint references unknown observation ' + ref + ': ' + entrypoint.id);
+    }
+    const observations = new Set(entrypoint.initialObservationRefs);
+    for (const ref of entrypoint.initialRevealRefs) if (!observations.has(ref)) throw new Error('bootstrap entrypoint reveal is not an initial observation ' + ref + ': ' + entrypoint.id);
+    for (const observation of projection.observations ?? []) {
+      const ref = `${observation.subjectKind}:${observation.subjectId}`;
+      if (observations.has(ref) && ['observed', 'traversed'].includes(observation.knowledge) && !entrypoint.initialRevealRefs.includes(ref)) throw new Error('bootstrap entrypoint omits reveal for visible observation ' + ref + ': ' + entrypoint.id);
+    }
+  }
   if (projection.bootstrap?.startLocationId && !(projection.locations ?? []).some((entry) => entry.id === projection.bootstrap.startLocationId)) throw new Error('bootstrap startLocationId is not a declared location: ' + projection.bootstrap.startLocationId);
+  const defaultEntrypointId = projection.bootstrap?.defaultEntrypointId;
+  if (entrypointIds.size > 0 && !defaultEntrypointId) throw new Error('bootstrap defaultEntrypointId is required when authored entrypoints exist');
+  if (defaultEntrypointId && !entrypointIds.has(defaultEntrypointId)) throw new Error('bootstrap defaultEntrypointId is not an authored entrypoint: ' + defaultEntrypointId);
   const resourceIds = new Set();
   for (const resource of projection.resourceDefinitions ?? []) {
     if (!resource.id || !resource.resourceKind || !resource.locationId) throw new Error('resource definition requires id, resourceKind and locationId');
@@ -74,5 +96,5 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     }
     for (const body of sections.hydrography.waterBodies) for (const ref of body.inflows ?? []) if (!watercourseIds.has(ref)) throw new Error('hydrography water body has dangling inflow: ' + ref);
   }
-  return { ...projection, ...sections, canonicalRefs: [...(projection.canonicalRefs ?? [])].sort(), locations: sorted(projection.locations), landmarks: sorted(projection.landmarks), relations: sorted(projection.relations), travel: sorted(projection.travel, 'relationId'), settlements: sorted(projection.settlements, 'settlementId'), observations: [...(projection.observations ?? [])], content: sorted(projection.content), discoveryDefinitions: sorted(projection.discoveryDefinitions), simulationMetadata: sorted(projection.simulationMetadata, 'locationId'), resourceDefinitions: sorted(projection.resourceDefinitions), resourceProcessDefinitions: sorted(projection.resourceProcessDefinitions), resourceDemandDefinitions: sorted(projection.resourceDemandDefinitions) };
+  return { ...projection, ...sections, canonicalRefs: [...(projection.canonicalRefs ?? [])].sort(), locations: sorted(projection.locations), landmarks: sorted(projection.landmarks), relations: sorted(projection.relations), travel: sorted(projection.travel, 'relationId'), settlements: sorted(projection.settlements, 'settlementId'), observations: [...(projection.observations ?? [])], content: sorted(projection.content), discoveryDefinitions: sorted(projection.discoveryDefinitions), simulationMetadata: sorted(projection.simulationMetadata, 'locationId'), resourceDefinitions: sorted(projection.resourceDefinitions), resourceProcessDefinitions: sorted(projection.resourceProcessDefinitions), resourceDemandDefinitions: sorted(projection.resourceDemandDefinitions), bootstrap: { ...(projection.bootstrap ?? {}), entrypoints: [...(projection.bootstrap?.entrypoints ?? [])].sort((a, b) => a.id.localeCompare(b.id)) } };
 }

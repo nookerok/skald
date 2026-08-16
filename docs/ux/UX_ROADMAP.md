@@ -26,11 +26,14 @@ Static action allowlist. Browser guidance-view.js with dismissal.
 Schema v2 migration, WorldRuntimeManager, scoped HTTP API, Main Menu,
 Continue via /api/continue, hash routing, world-api-client.
 
-## UX-4.1 - New Game Flow & Real Save Creation (completed)
+## UX-4.1 - New Story Entry & Real Story Creation (completed)
 
-Character presets, world templates, schema v3 (world_creation_requests),
-POST /api/worlds with atomic create transaction, Character Selection
-and World Selection UI, draft and pending state, retry idempotency.
+The player starts inside the single authored region, Бассейн Речного Стража:
+Кто ты? → Откуда начинается твоя история? → Пролог → Начать путь.
+The public catalog is `/api/new-game/options`; technical world templates,
+world IDs and save labels remain internal compatibility metadata. Creation uses
+an authored `entrypointId`, deterministic bootstrap events, idempotent retry and
+an inline first Presence acknowledge before opening the Game Shell conversation.
 
 ## UX-5.0 - Visual Shell and Observation & Belief (completed)
 

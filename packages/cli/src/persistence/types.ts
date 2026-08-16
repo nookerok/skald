@@ -22,6 +22,8 @@ export interface WorldRecord {
   worldId: WorldId;
   saveLabel: string;
   templateId: WorldTemplateId;
+  /** Authored onboarding start; null for legacy stories. */
+  entrypointId: string | null;
   characterId: CharacterProfileId | null;
   characterName: string | null;
   status: "active" | "archived" | "corrupt";

@@ -17,6 +17,11 @@ export async function loadMenu() {
   logo.textContent = "SKALD";
   container.appendChild(logo);
 
+  const region = document.createElement("p");
+  region.className = "menu-region";
+  region.textContent = "Бассейн Речного Стража";
+  container.appendChild(region);
+
   const tagline = document.createElement("p");
   tagline.className = "menu-tagline";
   tagline.textContent = "Мир помнит твои поступки.";
@@ -38,7 +43,7 @@ export async function loadMenu() {
   // New world button
   const newWorldBtn = document.createElement("button");
   newWorldBtn.className = "menu-secondary-btn";
-  newWorldBtn.textContent = "Открыть новый мир";
+  newWorldBtn.textContent = "Начать новую историю";
   newWorldBtn.addEventListener("click", () => { window.location.hash = "#/new/character"; });
   container.appendChild(newWorldBtn);
 

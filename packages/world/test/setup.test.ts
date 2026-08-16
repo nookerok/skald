@@ -3,6 +3,9 @@ import { CHARACTER_PRESETS, getCharacterPreset, listCharacterPresets } from "../
 import { WORLD_TEMPLATES, getWorldTemplate, listWorldTemplates } from "../src/setup/world-templates.js";
 import { buildBootstrapEvents } from "../src/setup/bootstrap-builder.js";
 import { WorldProjector } from "../src/projection.js";
+import { listRegionEntrypoints, getDefaultRegionEntrypoint } from "../src/setup/entrypoints.js";
+import { buildPrologue } from "../src/setup/prologue.js";
+import { loadCompiledRegionBundle } from "../src/region/bundle-loader.js";
 
 describe("character presets", () => {
   it("registry is immutable", () => {
@@ -57,6 +60,69 @@ describe("world templates", () => {
 
   it("getWorldTemplate returns null for unknown ID", () => {
     expect(getWorldTemplate("nonexistent")).toBeNull();
+  });
+});
+
+describe("living region onboarding", () => {
+  it("exposes only authored starts", () => {
+    const entries = listRegionEntrypoints();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ id: "river_waystation_arrival", locationId: "river_waystation" });
+    expect(getDefaultRegionEntrypoint().id).toBe("river_waystation_arrival");
+  });
+
+  it("compiles the authored entrypoint with one location transition and scoped evidence", () => {
+    const bundle = loadCompiledRegionBundle("riverwatch-basin");
+    const compiled = bundle.entrypoints?.find((entry) => entry.id === "river_waystation_arrival");
+    expect(compiled?.presentation.title).toBe("Переправа у Чёрного леса");
+    expect(compiled?.bootstrapEvents).toBeTruthy();
+    expect(compiled?.bootstrapEvents?.filter((event) => event.type === "PlayerLocationChanged")).toHaveLength(1);
+    const events = buildBootstrapEvents({ templateId: "living_region", entrypointId: "river_waystation_arrival" });
+    expect(events.filter((event) => event.type === "PlayerLocationChanged")).toHaveLength(1);
+    const observed = events.filter((event) => event.type === "SpatialObservationRecorded");
+    expect(observed).toHaveLength(compiled?.initialObservationRefs.length ?? 0);
+    const initialKnowledge = events.filter((event) => event.type === "KnowledgeAcquired");
+    expect(initialKnowledge).toEqual(expect.arrayContaining([expect.objectContaining({ type: "KnowledgeAcquired", payload: expect.objectContaining({ knowledgeId: "entrypoint:river_waystation_arrival:location:river_waystation" }) }), expect.objectContaining({ type: "KnowledgeAcquired", payload: expect.objectContaining({ knowledgeId: "entrypoint:river_waystation_arrival:relation:road_waystation_city" }) })]));
+    expect(events).toEqual(buildBootstrapEvents({ templateId: "living_region", entrypointId: "river_waystation_arrival" }));
+  });
+
+  it("binds a selected background to deterministic starting knowledge", () => {
+    const events = buildBootstrapEvents({
+      templateId: "living_region",
+      regionId: "riverwatch-basin",
+      entrypointId: "river_waystation_arrival",
+      backgroundId: "keeper",
+    });
+    expect(events.filter((event) => event.type === "KnowledgeAcquired")).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "KnowledgeAcquired",
+        payload: expect.objectContaining({
+          subjectId: "player",
+          knowledgeId: "background:keeper",
+        }),
+      }),
+    ]));
+  });
+
+  it("covers every authored background in the prologue matrix", () => {
+    const entrypoint = getDefaultRegionEntrypoint();
+    for (const background of listCharacterPresets()) {
+      const prologue = buildPrologue({ characterName: "Ирден", background, entrypoint });
+      expect(prologue.paragraphs.join(" ")).toContain(background.history);
+      expect(prologue.paragraphs.join(" ")).toContain(entrypoint.openingSituation);
+      expect(prologue.openingHook).toContain(background.openingHook);
+    }
+  });
+
+  it("builds deterministic personalized prologue content", () => {
+    const background = getCharacterPreset("keeper")!;
+    const entrypoint = getDefaultRegionEntrypoint();
+    const first = buildPrologue({ characterName: "Ирден", background, entrypoint });
+    const second = buildPrologue({ characterName: "Ирден", background, entrypoint });
+    expect(first).toEqual(second);
+    expect(first.paragraphs.join(" ")).toContain("Ирден");
+    expect(first.paragraphs.join(" ")).toContain(entrypoint.title);
+    expect(first.openingHook).toContain(background.openingHook);
   });
 });
 

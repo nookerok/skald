@@ -75,6 +75,19 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).toContain('aria-current", "step');
   });
 
+  it("new-game onboarding speaks only in story terms", () => {
+    const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
+    expect(code).toContain("#/new/entrypoint");
+    expect(code).toContain("#/new/prologue");
+    expect(code).toContain("Начать путь");
+    expect(code).not.toContain("Выбор мира");
+    expect(code).not.toContain("Выбрать мир");
+    expect(code).not.toContain("Создать мир");
+    expect(code).not.toContain("saveLabel");
+    expect(code).not.toContain("worldTemplateId");
+    expect(code).not.toContain("/api/world-templates");
+  });
+
   it("loads the premium interface layer last and covers every player surface", () => {
     const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
     const css = readFileSync(resolve(PUBLIC, "skald-aaa.css"), "utf-8");
@@ -105,7 +118,7 @@ describe("Browser ES modules — import link integrity", () => {
 
   it("new-game-view.js preserves pending request on retry", () => {
     const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
-    expect(code).toContain("submitPendingRequest");
+    expect(code).toContain("resumeStoryStart");
     expect(code).toContain("loadPendingRequest");
     expect(code).toContain("clearPendingRequest");
     expect(code).toContain("skald:new-game:pending");
@@ -113,15 +126,15 @@ describe("Browser ES modules — import link integrity", () => {
 
   it("new-game-view.js has start-over for terminal errors", () => {
     const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
-    expect(code).toContain("terminal");
-    expect(code).toContain("Начать заново");
+    expect(code).toContain("phase === \"failed\"");
+    expect(code).toContain("Попробуй ещё раз");
   });
 
   it("new-game-view.js captures targetWorldId before clearing pending", () => {
     const code = readFileSync(resolve(PUBLIC, "new-game-view.js"), "utf-8");
     // Verify targetWorldId is saved and used as fallback in success block
-    expect(code).toContain("const targetWorldId = result.world");
-    expect(code).toContain('"#/world/" + targetWorldId');
+    expect(code).toContain("pendingReq.worldId = result.world");
+    expect(code).toContain("encodeURIComponent(pendingReq.worldId)");
   });
 
   it("all named imports in app.js actually exist in the target modules", () => {

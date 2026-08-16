@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -136,9 +136,25 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 3) return "migrateV4";
   if (v === 4) return "migrateV5";
   if (v === 5) return "migrateV6";
-  if (v === 6) return "open";
+  if (v === 6) return "migrateV7";
+  if (v === 7) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-6.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-7.`);
+}
+
+export function migrateV6ToV7(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    const columns = db.prepare("PRAGMA table_info(worlds)").all() as { name?: string }[];
+    if (!columns.some((column) => column.name === "entrypoint_id")) db.exec("ALTER TABLE worlds ADD COLUMN entrypoint_id TEXT");
+    db.exec("PRAGMA user_version = 7");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  verifyIntegrity(db);
 }
 
 export function migrateV5ToV6(db: SqliteHandle): void {

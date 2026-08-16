@@ -1,4 +1,4 @@
-﻿# Deterministic Canon -> bootstrap projection for the pilot region.
+# Deterministic Canon -> bootstrap projection for the pilot region.
 # This is design-time input. Runtime consumes only the generated bundle.
 schemaVersion: 1
 compilerProjection:
@@ -48,6 +48,38 @@ compilerProjection:
     cellSizeMetres: 1000
   bootstrap:
     startLocationId: river_waystation
+    defaultEntrypointId: river_waystation_arrival
+    entrypoints:
+      - id: river_waystation_arrival
+        locationId: river_waystation
+        title: Переправа у Чёрного леса
+        teaser: Путь начинается у переправы, где лес подходит к воде.
+        description: Небольшой путевой двор у реки и кромки Чёрного леса. Отсюда начинается дорога в Бассейне Речного Стража.
+        atmosphere: Вода шумит за настилом, а за спиной темнеют первые ели.
+        openingSituation: Переправа готовится к утру, но течение уже принесло новости, которым никто не рад.
+        initialObservationRefs:
+          - location:river_waystation
+          - relation:road_waystation_city
+          - relation:river_crossing
+          - landmark:suspended_monolith
+          - location:blackwood_edge
+          - location:glass_crater
+          - landmark:glass_crater
+          - relation:road_waystation_forest
+        initialKnowledgeRefs:
+          - location:river_waystation
+          - relation:road_waystation_city
+        initialRevealRefs:
+          - location:river_waystation
+          - location:blackwood_edge
+          - relation:road_waystation_city
+          - relation:river_crossing
+        availableBackgroundIds:
+          - wanderer
+          - keeper
+          - echo
+        canonicalRefs:
+          - regions.pilot-region.geography.f5
     playerSpawn:
       x: 0
       y: 0
