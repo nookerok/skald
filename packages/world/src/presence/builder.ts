@@ -22,6 +22,7 @@ import { computeBeliefDrift, computeBeliefRevision, STALE_FRESHNESS_THRESHOLD } 
 import type {
   BeliefDriftDTO,
   BeliefDriftLevel,
+  FirstEntryDTO,
   CheckpointState,
   DiagnosticsBeliefReference,
   DiagnosticsDormantThread,
@@ -37,6 +38,7 @@ import type {
   ReobservationSubject,
   WorldPresenceSummary,
 } from "./types.js";
+import type { CharacterBackground, RegionEntrypoint } from "../setup/types.js";
 
 /** Maximum number of newly observed changes in the presence DTO. */
 export const MAX_NEARBY_CHANGES = 20;
@@ -44,6 +46,7 @@ export const MAX_NEARBY_CHANGES = 20;
 export const MAX_REOBSERVATIONS = 5;
 /** Maximum number of montage statements. */
 export const MAX_STATEMENTS = 6;
+const MAX_FIRST_ENTRY_TEXT = 420;
 
 function deepFreeze<T>(obj: T): T {
   if (obj === null || obj === undefined || typeof obj !== "object") return obj;
@@ -100,6 +103,7 @@ interface PresenceInternals {
   readonly dormantThreads: readonly InternalDormantThread[];
   readonly statements: readonly InternalStatement[];
   readonly focus: PresenceFocus;
+  readonly firstEntry: FirstEntryDTO | null;
   readonly uncertainThreadCount: number;
   readonly changedThreadCount: number;
 }
@@ -328,6 +332,106 @@ function buildFocus(currentModel: BeliefModelDTO, checkpointModel: BeliefModelDT
   });
 }
 
+
+/** Inputs required to compose an observer-safe first-entry scene. */
+export interface FirstEntryContext {
+  readonly characterName: string;
+  readonly background: CharacterBackground;
+  readonly entrypoint: RegionEntrypoint;
+  readonly playerContext: PlayerContext;
+  readonly currentModel?: BeliefModelDTO;
+  readonly world?: ReadonlyWorld;
+  readonly initialTestimony?: readonly string[];
+  readonly initialKnowledge?: readonly string[];
+  readonly accessibleItems?: readonly string[];
+  /** Runtime callers set this after checking the observer-visible relation. */
+  readonly knownContactVisible?: boolean;
+}
+
+function firstEntryText(values: readonly (string | null | undefined)[], limit = 3): string {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const text = typeof value === "string" ? value.trim() : "";
+    const key = text.toLocaleLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    result.push(text);
+    if (result.length >= limit) break;
+  }
+  const joined = result.join(" ");
+  return joined.length <= MAX_FIRST_ENTRY_TEXT
+    ? joined
+    : joined.slice(0, MAX_FIRST_ENTRY_TEXT - 1).trimEnd() + "…";
+}
+
+function safeAccessibleItemName(value: string | undefined): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text || /^(item|object|entity|location|relation|pattern|event):/i.test(text)) return "";
+  return text;
+}
+
+/** Builds only from approved background/entrypoint content and observer-scoped evidence. */
+export function buildFirstEntry(input: FirstEntryContext): FirstEntryDTO {
+  const model = input.currentModel;
+  const focus = model && input.world ? buildFocus(model, null, input.world.time) : null;
+  const observed = model
+    ? model.beliefs
+      .filter((belief) => belief.patternId.startsWith("sound:") || belief.patternId.startsWith("heat:") || belief.patternId.startsWith("situation:"))
+      .flatMap((belief) => belief.supportingEvidence)
+      .sort((a, b) => b.observedAt - a.observedAt || a.id.localeCompare(b.id))
+      .map((entry) => entry.description)
+    : [];
+  const bridge = input.entrypoint.backgroundConnections.find(
+    (connection) => connection.backgroundId === input.background.id,
+  )?.arrivalHook ?? input.entrypoint.backgroundBridges[input.background.id] ?? "";
+  const itemName = safeAccessibleItemName(input.accessibleItems?.[0]);
+  const itemCue = itemName
+    ? "Среди вещей у тебя осталось: " + itemName + "."
+    : "";
+  const testimonyCue = input.initialTestimony?.[0] ?? "";
+  const knowledgeCue = input.initialKnowledge?.[0] ?? "";
+  const sensory = firstEntryText([
+    input.entrypoint.arrivalScene,
+    input.entrypoint.atmosphere,
+    focus?.ambientDescription,
+    ...(focus?.sensoryCues ?? []),
+  ], 3);
+  const visibleSituation = firstEntryText([
+    input.entrypoint.openingSituation,
+    input.entrypoint.openingProblem,
+    ...observed,
+  ], 3);
+  const personalHook = firstEntryText([
+    input.background.openingHook,
+    input.background.obligation,
+    testimonyCue,
+    knowledgeCue,
+    itemCue,
+    bridge,
+  ], 4);
+  return deepFreeze({
+    schemaVersion: 1 as const,
+    character: { name: input.characterName.trim() },
+    background: {
+      title: input.background.title,
+      summary: firstEntryText([input.background.formerRole, input.background.rupture, input.background.history], 3),
+    },
+    startingLocation: {
+      title: input.playerContext.locationTitle || input.entrypoint.title,
+      description: input.playerContext.locationDescription || input.entrypoint.description,
+    },
+    reasonForArrival: firstEntryText([input.background.reasonInRegion, bridge], 2),
+    visibleSituation,
+    sensoryContext: Object.freeze(sensory ? sensory.split(/(?<=[.!?])\s+/).filter(Boolean) : []),
+    knownContact: input.knownContactVisible === true ? {
+      name: input.entrypoint.localContact.name,
+      description: input.entrypoint.localContact.description,
+    } : null,
+    personalHook,
+  });
+}
+
 function buildPresenceSnapshot(input: {
   playerContext: PlayerContext;
   revision: { worldTime: number; eventNumber: number };
@@ -413,10 +517,14 @@ function buildPresenceInternals(input: {
   world: ReadonlyWorld;
   playerContext: PlayerContext;
   checkpoint: ObserverCheckpoint | null;
+  firstEntryContext?: FirstEntryContext | undefined;
 }): PresenceInternals {
   const currentModel = reconstructCurrentModel(input.events, input.world);
   const resolved = resolveCheckpointState(input.events, input.checkpoint);
   const checkpointModel = resolved.model;
+  const firstEntry = resolved.state === "missing" && input.firstEntryContext
+    ? buildFirstEntry({ ...input.firstEntryContext, currentModel, world: input.world })
+    : null;
   // An incompatible checkpoint must not silently build presence: fall back to
   // "no memory" while keeping the raw checkpoint visible in the DTO.
   const effectiveCheckpoint = resolved.state === "valid" ? input.checkpoint : null;
@@ -491,6 +599,7 @@ function buildPresenceInternals(input: {
     dormantThreads: dormantSummaries,
     statements,
     focus,
+    firstEntry,
     uncertainThreadCount: threadJournal?.counts.uncertain ?? 0,
     changedThreadCount: threadJournal?.counts.changedSincePresence ?? 0,
   };
@@ -502,6 +611,7 @@ export function buildObserverSession(input: {
   world: ReadonlyWorld;
   playerContext: PlayerContext;
   checkpoint: ObserverCheckpoint | null;
+  firstEntryContext?: FirstEntryContext | undefined;
 }): ObserverSessionDTO {
   return assembleObserverSession(buildPresenceInternals(input), input);
 }
@@ -511,6 +621,7 @@ function assembleObserverSession(internals: PresenceInternals, input: {
   world: ReadonlyWorld;
   playerContext: PlayerContext;
   checkpoint: ObserverCheckpoint | null;
+  firstEntryContext?: FirstEntryContext | undefined;
 }): ObserverSessionDTO {
   const presence = buildPresenceSnapshot({
     playerContext: input.playerContext,
@@ -525,13 +636,14 @@ function assembleObserverSession(internals: PresenceInternals, input: {
   });
 
   return deepFreeze({
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     revision: deepFreeze({ ...internals.revision }),
     checkpointState: internals.checkpointState,
     checkpoint: input.checkpoint ? deepFreeze({ ...input.checkpoint }) : null,
     beliefModel: internals.currentModel,
     drift: internals.drift,
     presence,
+    firstEntry: internals.firstEntry,
     statements: deepFreeze(internals.statements.map((statement) => ({
       text: statement.text,
       source: statement.source,
@@ -553,6 +665,7 @@ export function buildObserverSessionAndSummary(input: {
   world: ReadonlyWorld;
   playerContext: PlayerContext;
   checkpoint: ObserverCheckpoint | null;
+  firstEntryContext?: FirstEntryContext | undefined;
 }): { session: ObserverSessionDTO; summary: WorldPresenceSummary } {
   const internals = buildPresenceInternals(input);
   return {

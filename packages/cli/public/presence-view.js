@@ -51,6 +51,48 @@ export function selectPresenceHighlights(session) {
   return uniqueText([...nearby, ...observedStatements]).slice(0, MAX_RETURN_HIGHLIGHTS);
 }
 
+
+function appendFirstEntryContext(panel, firstEntry) {
+  const section = document.createElement("section");
+  section.className = "presence-first-entry";
+  section.setAttribute("aria-label", "Начало пути");
+  const character = document.createElement("p");
+  character.className = "presence-first-character";
+  character.textContent = firstEntry.character.name + " — " + firstEntry.background.title;
+  section.appendChild(character);
+
+  const summary = document.createElement("p");
+  summary.className = "presence-first-background";
+  summary.textContent = firstEntry.background.summary;
+  section.appendChild(summary);
+
+  const location = document.createElement("p");
+  location.className = "presence-first-location";
+  location.textContent = firstEntry.startingLocation.title + ". " + firstEntry.startingLocation.description;
+  section.appendChild(location);
+
+  const blocks = [
+    ["Почему ты здесь", firstEntry.reasonForArrival],
+    ["Что видно сейчас", firstEntry.visibleSituation],
+    ["Ощущения", firstEntry.sensoryContext.join(" ")],
+    ["Знакомый человек", firstEntry.knownContact ? firstEntry.knownContact.name + ". " + firstEntry.knownContact.description : ""],
+    ["Твой след", firstEntry.personalHook],
+  ];
+  for (const [label, value] of blocks) {
+    if (!value) continue;
+    const block = document.createElement("div");
+    block.className = "presence-first-block";
+    const title = document.createElement("h3");
+    title.className = "presence-section-title";
+    title.textContent = label;
+    const text = document.createElement("p");
+    text.className = "presence-first-text";
+    text.textContent = value;
+    block.append(title, text);
+    section.appendChild(block);
+  }
+  panel.appendChild(section);
+}
 function appendFocusContext(panel, session) {
   const presence = session.presence || {};
   const focus = presence.focus || {};
@@ -112,7 +154,7 @@ export function renderPresenceView(session, summary) {
   heading.id = "presence-phase-title";
   heading.setAttribute("data-phase-title", "true");
   heading.tabIndex = -1;
-  heading.textContent = mode === "first" ? "Начало пути" : "Возвращение в мир";
+  heading.textContent = mode === "first" ? "Начало пути" : "Возвращение";
   panel.appendChild(heading);
 
   const status = document.createElement("p");
@@ -121,29 +163,32 @@ export function renderPresenceView(session, summary) {
   status.textContent = hasServerStatus ? summary.presenceStatus : mode === "first" ? "Здесь начнётся твой первый след." : "Мир ждёт твоего возвращения.";
   panel.appendChild(status);
 
-  const highlights = selectPresenceHighlights(session);
-  if (highlights.length > 0) {
-    const section = document.createElement("section");
-    section.className = "presence-highlights";
-    section.setAttribute("aria-label", "Главное при возвращении");
-    section.appendChild(sectionTitle("Главное сейчас"));
-    const items = list("presence-highlights-list");
-    for (const highlight of highlights) {
-      const item = document.createElement("li");
-      item.className = "presence-highlight";
-      item.textContent = highlight;
-      items.appendChild(item);
+  if (mode === "first" && session?.firstEntry) {
+    appendFirstEntryContext(panel, session.firstEntry);
+  } else {
+    const highlights = selectPresenceHighlights(session);
+    if (highlights.length > 0) {
+      const section = document.createElement("section");
+      section.className = "presence-highlights";
+      section.setAttribute("aria-label", "Главное после возвращения");
+      section.appendChild(sectionTitle("Главное сейчас"));
+      const items = list("presence-highlights-list");
+      for (const highlight of highlights) {
+        const item = document.createElement("li");
+        item.className = "presence-highlight";
+        item.textContent = highlight;
+        items.appendChild(item);
+      }
+      section.appendChild(items);
+      panel.appendChild(section);
     }
-    section.appendChild(items);
-    panel.appendChild(section);
+    appendFocusContext(panel, session);
   }
-
-  appendFocusContext(panel, session);
 
   const enterBtn = document.createElement("button");
   enterBtn.className = "presence-enter-btn";
   enterBtn.type = "button";
-  enterBtn.textContent = mode === "first" ? "Войти в мир" : "Продолжить";
+  enterBtn.textContent = mode === "first" ? "Начать путь" : "Вернуться";
   enterBtn.addEventListener("click", () => {
     window.dispatchEvent(new CustomEvent("skald:presence-ack"));
   });

@@ -75,6 +75,7 @@ function materializeBundle(regionId: string): MaterializedBundle {
 }
 
 const DEFAULT_REGION_ID = "riverwatch-basin";
+const DEFAULT_ENTRYPOINT_ID = "river_waystation_arrival";
 
 function materializeSelectedEvents(events: readonly DomainEvent[], region: RegionDefinition): readonly DomainEvent[] {
   return Object.freeze(events.map((entry) => {
@@ -133,7 +134,7 @@ export function buildRegionResourceDefinitions(regionId = DEFAULT_REGION_ID): re
 
 /** Compatibility wrappers for existing living-region callers. */
 export function buildPilotRegionBootstrapEvents(): readonly DomainEvent[] {
-  return buildRegionBootstrapEvents(DEFAULT_REGION_ID);
+  return buildRegionBootstrapEvents(DEFAULT_REGION_ID, DEFAULT_ENTRYPOINT_ID);
 }
 
 export function buildPilotRegionDefinition(): RegionDefinition {

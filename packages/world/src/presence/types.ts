@@ -144,15 +144,35 @@ export interface PresenceStatement {
     | "known_thread";
 }
 
+/**
+ * Observer-safe scene shown before the player acknowledges their first
+ * presence in an authored living-region story. It contains presentation
+ * facts only; internal ids and simulation identifiers never cross this
+ * boundary.
+ */
+export interface FirstEntryDTO {
+  readonly schemaVersion: 1;
+  readonly character: { readonly name: string };
+  readonly background: { readonly title: string; readonly summary: string };
+  readonly startingLocation: { readonly title: string; readonly description: string };
+  readonly reasonForArrival: string;
+  readonly visibleSituation: string;
+  readonly sensoryContext: readonly string[];
+  readonly knownContact: { readonly name: string; readonly description: string } | null;
+  readonly personalHook: string;
+}
+
 /** Consistent aggregate returned to the entry path. */
 export interface ObserverSessionDTO {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly revision: WorldRevision;
   readonly checkpointState: CheckpointState;
   readonly checkpoint: ObserverCheckpoint | null;
   readonly beliefModel: BeliefModelDTO;
   readonly drift: BeliefDriftDTO;
   readonly presence: PresenceSnapshot;
+  /** Present only while the observer checkpoint is missing for an authored start. */
+  readonly firstEntry: FirstEntryDTO | null;
   /** Montage sentences; content authority stays on the backend. */
   readonly statements: readonly PresenceStatement[];
 }

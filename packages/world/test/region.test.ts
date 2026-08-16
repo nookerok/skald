@@ -63,7 +63,7 @@ describe("first living region", () => {
   it("carries Canon provenance and excludes proposal-only seeds", () => {
     const events = buildPilotRegionBootstrapEvents();
     const genesis = events.find((event) => event.type === "CanonGenesisRecorded");
-    expect(genesis?.payload).toMatchObject({ regionId: "riverwatch-basin", regionVersion: 4, compilerVersion: "pilot-region-compiler-v5", provenance: { canonicalRefs: expect.arrayContaining(["regions.pilot-region.geography.f1"]) } });
+    expect(genesis?.payload).toMatchObject({ regionId: "riverwatch-basin", regionVersion: 4, compilerVersion: "pilot-region-compiler-v6", provenance: { canonicalRefs: expect.arrayContaining(["regions.pilot-region.geography.f1"]) } });
     const region = events.find((event) => event.type === "RegionDefined");
     expect((region?.payload as any).provenance.canonicalRefs).toContain("regions.pilot-region.geography.f1");
     for (const event of events.filter((entry) => entry.type !== "CanonGenesisRecorded")) expect((event.payload as any).provenance.canonicalRefs.length).toBeGreaterThan(0);

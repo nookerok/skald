@@ -28,12 +28,33 @@ export function buildRegionIR(projection, canonIds = new Set()) {
   };
   for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','resourceProcessDefinitions','resourceDemandDefinitions','hydrography','elevation','toponymIndex','backgroundBindings']) checkRefs(projection[section], section);
   const locationIds = new Set((projection.locations ?? []).map((entry) => entry.id));
+  const relationIds = new Set((projection.relations ?? []).map((entry) => entry.id));
   const entrypointIds = new Set();
+  const approvedEntrypointIds = new Set();
+  const declaredBackgroundIds = new Set((projection.backgroundBindings ?? []).map((entry) => entry.id));
   const observationKeys = new Set((projection.observations ?? []).map((entry) => `${entry.subjectKind}:${entry.subjectId}`));
   for (const entrypoint of projection.bootstrap?.entrypoints ?? []) {
     if (!entrypoint.id || entrypointIds.has(entrypoint.id)) throw new Error('duplicate bootstrap entrypoint: ' + entrypoint.id);
     entrypointIds.add(entrypoint.id);
+    if (!['approved', 'proposal', 'rejected'].includes(entrypoint.status ?? 'approved')) throw new Error('bootstrap entrypoint has invalid status: ' + entrypoint.id);
+    if (entrypoint.status !== 'approved') continue;
+    approvedEntrypointIds.add(entrypoint.id);
     if (!locationIds.has(entrypoint.locationId)) throw new Error('bootstrap entrypoint location is not declared: ' + entrypoint.locationId);
+    for (const field of ['arrivalScene', 'openingSituation', 'openingProblem']) if (typeof entrypoint[field] !== 'string' || entrypoint[field].trim().length === 0) throw new Error('bootstrap entrypoint has invalid ' + field + ': ' + entrypoint.id);
+    if (!entrypoint.localContact || typeof entrypoint.localContact.id !== 'string' || typeof entrypoint.localContactRef !== 'string' || entrypoint.localContactRef !== entrypoint.localContact.id || typeof entrypoint.localContact.name !== 'string' || typeof entrypoint.localContact.description !== 'string' || typeof entrypoint.localContact.relationKind !== 'string') throw new Error('bootstrap entrypoint local contact is invalid: ' + entrypoint.id);
+    if (typeof entrypoint.openingProblemRef !== 'string' || !entrypoint.openingProblemRef || !['presentation_only', 'simulation'].includes(entrypoint.openingProblemMode ?? 'presentation_only')) throw new Error('bootstrap entrypoint problem reference is invalid: ' + entrypoint.id);
+    const routeRefs = entrypoint.initialRouteRefs ?? entrypoint.availableRouteRefs;
+    if (!Array.isArray(routeRefs) || routeRefs.length === 0 || routeRefs.some((ref) => !relationIds.has(ref))) throw new Error('bootstrap entrypoint has unknown route: ' + entrypoint.id);
+    for (const routeRef of routeRefs) {
+      const relation = (projection.relations ?? []).find((candidate) => candidate.id === routeRef);
+      if (!relation || (relation.fromId !== entrypoint.locationId && relation.toId !== entrypoint.locationId)) throw new Error('bootstrap entrypoint route does not touch start location ' + routeRef + ': ' + entrypoint.id);
+    }
+    const bridges = entrypoint.backgroundConnections ?? Object.entries(entrypoint.backgroundBridges ?? {}).map(([backgroundId, arrivalHook]) => ({ backgroundId, arrivalHook }));
+    if (!Array.isArray(bridges) || bridges.length === 0 || new Set(bridges.map((bridge) => bridge.backgroundId)).size !== bridges.length || bridges.some((bridge) => typeof bridge.backgroundId !== 'string' || typeof bridge.arrivalHook !== 'string' || bridge.arrivalHook.trim().length === 0)) throw new Error('bootstrap entrypoint background connections are invalid: ' + entrypoint.id);
+    for (const backgroundId of entrypoint.availableBackgroundIds ?? []) {
+      if (!declaredBackgroundIds.has(backgroundId)) throw new Error('bootstrap entrypoint references unknown background: ' + backgroundId);
+      if (!bridges.some((bridge) => bridge.backgroundId === backgroundId)) throw new Error('bootstrap entrypoint has no background bridge: ' + entrypoint.id + '/' + backgroundId);
+    }
     if (!Array.isArray(entrypoint.availableBackgroundIds) || entrypoint.availableBackgroundIds.length === 0 || entrypoint.availableBackgroundIds.some((id) => typeof id !== 'string' || id.length === 0)) throw new Error('bootstrap entrypoint has no valid backgrounds: ' + entrypoint.id);
     for (const field of ['initialObservationRefs', 'initialKnowledgeRefs', 'initialRevealRefs']) {
       if (!Array.isArray(entrypoint[field]) || entrypoint[field].some((ref) => typeof ref !== 'string' || ref.length === 0)) throw new Error('bootstrap entrypoint has invalid ' + field + ': ' + entrypoint.id);
@@ -70,7 +91,7 @@ export function buildRegionIR(projection, canonIds = new Set()) {
   if (projection.bootstrap?.startLocationId && !(projection.locations ?? []).some((entry) => entry.id === projection.bootstrap.startLocationId)) throw new Error('bootstrap startLocationId is not a declared location: ' + projection.bootstrap.startLocationId);
   const defaultEntrypointId = projection.bootstrap?.defaultEntrypointId;
   if (entrypointIds.size > 0 && !defaultEntrypointId) throw new Error('bootstrap defaultEntrypointId is required when authored entrypoints exist');
-  if (defaultEntrypointId && !entrypointIds.has(defaultEntrypointId)) throw new Error('bootstrap defaultEntrypointId is not an authored entrypoint: ' + defaultEntrypointId);
+  if (defaultEntrypointId && !approvedEntrypointIds.has(defaultEntrypointId)) throw new Error('bootstrap defaultEntrypointId must reference an approved entrypoint: ' + defaultEntrypointId);
   const resourceIds = new Set();
   for (const resource of projection.resourceDefinitions ?? []) {
     if (!resource.id || !resource.resourceKind || !resource.locationId) throw new Error('resource definition requires id, resourceKind and locationId');

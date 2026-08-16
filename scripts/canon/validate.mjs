@@ -88,7 +88,7 @@ export function validateCanon() {
       for (const [key, entries] of Object.entries({ locations: projection?.locations, landmarks: projection?.landmarks, relations: projection?.relations, travel: projection?.travel, observations: projection?.observations, discoveryDefinitions: projection?.discoveryDefinitions, simulationMetadata: projection?.simulationMetadata })) {
         if (!Array.isArray(entries) || entries.length === 0) errors.push(doc.file + ": compilerProjection." + key + " must be a non-empty list");
       }
-      if (projection?.locations?.length !== 8 || projection?.landmarks?.length !== 5 || projection?.relations?.length !== 8 || projection?.travel?.length !== 8 || projection?.observations?.length !== 8) errors.push(doc.file + ": pilot compiler projection entity counts changed; review bootstrap parity explicitly");
+      if (projection?.locations?.length !== 8 || projection?.landmarks?.length !== 5 || projection?.relations?.length !== 8 || projection?.travel?.length !== 8 || projection?.observations?.length !== 13) errors.push(doc.file + ": pilot compiler projection entity counts changed; review bootstrap parity explicitly");
       for (const [key, entries] of Object.entries({ hydrography: projection?.hydrography, elevation: projection?.elevation, toponymIndex: projection?.toponymIndex })) {
         if (!entries || typeof entries !== "object") errors.push(doc.file + ": compilerProjection." + key + " is required for region v4");
       }

@@ -52,7 +52,11 @@ describe("World creation", () => {
     const { status, body } = await api("/api/new-game/options");
     expect(status).toBe(200);
     expect(body.region.id).toBe("riverwatch-basin");
-    expect(body.entrypoints).toEqual([expect.objectContaining({ id: "river_waystation_arrival" })]);
+    expect(body.entrypoints).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "river_waystation_arrival" }),
+      expect.objectContaining({ id: "riverwatch_city_arrival" }),
+      expect.objectContaining({ id: "southern_borough_arrival" }),
+    ]));
     expect(body).not.toHaveProperty("templates");
   });
 
@@ -92,6 +96,7 @@ describe("World creation", () => {
     const second = await api("/api/new-game/prologue", { method: "POST", body: JSON.stringify(request) });
     expect(first.status).toBe(200);
     expect(first.body).toEqual(second.body);
+    expect(first.body.firstEntry).toMatchObject({ character: { name: "Ирден" }, startingLocation: { title: "Переправа у Чёрного леса" } });
     expect(first.body.prologue.paragraphs.join(" ")).toContain("Ирден");
     expect(first.body.prologue.paragraphs.join(" ")).toContain("Переправа у Чёрного леса");
   });
@@ -125,16 +130,64 @@ describe("World creation", () => {
     expect(status).toBe(405);
   });
 
-  it("GET /api/world-templates returns templates", async () => {
+  it("GET /api/world-templates exposes only the production living region", async () => {
     const { status, body } = await api("/api/world-templates");
     expect(status).toBe(200);
-    expect(Array.isArray(body.templates)).toBe(true);
+    expect(body.templates).toEqual([expect.objectContaining({ id: "living_region" })]);
+    expect(body.templates.some((template: any) => template.id === "old_tower" || template.id === "crossroads")).toBe(false);
+  });
+
+  it("public create API fixes living_region and generates worldId server-side", async () => {
+    const request = { characterName: "Лея", backgroundId: "echo", entrypointId: "southern_borough_arrival" };
+    const first = await api("/api/worlds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "public-create-001" },
+      body: JSON.stringify(request),
+    });
+    expect(first.status).toBe(201);
+    expect(first.body.world.templateId).toBe("living_region");
+    expect(first.body.world.entrypointId).toBe("southern_borough_arrival");
+    expect(first.body.world.worldId).toMatch(/^world-/);
+    const replay = await api("/api/worlds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "public-create-001" },
+      body: JSON.stringify(request),
+    });
+    expect(replay.status).toBe(200);
+    expect(replay.body.world.worldId).toBe(first.body.world.worldId);
   });
 
   it("POST /api/world-templates returns 405", async () => {
     const { status } = await api("/api/world-templates", { method: "POST" });
     expect(status).toBe(405);
   });
+
+  it("production router removes legacy world catalog and creation fields", async () => {
+    const strict = await startServer({
+      host: "127.0.0.1",
+      port: 0,
+      dbPath: join(dbDir, "strict-production.sqlite"),
+      allowLegacyWorldCreation: false,
+    });
+    try {
+      const templates = await fetch(strict.url + "/api/world-templates");
+      expect(templates.status).toBe(404);
+      const legacy = await fetch(strict.url + "/api/worlds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "strict-legacy-001" },
+        body: JSON.stringify({
+          characterName: "A",
+          backgroundId: "wanderer",
+          entrypointId: "river_waystation_arrival",
+          worldTemplateId: "old_tower",
+        }),
+      });
+      expect(legacy.status).toBe(400);
+    } finally {
+      await strict.close();
+    }
+  });
+
 
   it("POST /api/worlds creates a new world", async () => {
     const { status, body } = await api("/api/worlds", {

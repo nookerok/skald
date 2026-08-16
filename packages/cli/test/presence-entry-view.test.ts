@@ -75,9 +75,20 @@ describe("presence-view.js", () => {
     expect(src).toContain("presence-return-context");
     expect(src).toContain("focus.ambientDescription");
     expect(src).toContain("focus.sensoryCues");
-    expect(src).toContain('enterBtn.textContent = mode === "first" ? "Войти в мир" : "Продолжить"');
+    expect(src).toContain('enterBtn.textContent = mode === "first" ? "Начать путь" : "Вернуться"');
     expect(src).toContain("skald:presence-ack");
     expect(src).not.toContain("presence-continue-btn");
+  });
+
+  it("renders the observer-safe first-entry fields and keeps legacy wording out", () => {
+    const presence = code("presence-view.js");
+    const onboarding = code("new-game-view.js");
+    for (const field of ["character", "background", "startingLocation", "reasonForArrival", "visibleSituation", "sensoryContext", "knownContact", "personalHook"]) {
+      expect(presence).toContain("firstEntry." + field);
+      expect(onboarding).toContain("firstEntry." + field);
+    }
+    expect(presence).not.toContain("Возвращение в мир");
+    expect(onboarding).toContain("Начать путь");
   });
 });
 

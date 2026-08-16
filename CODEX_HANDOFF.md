@@ -1,3 +1,19 @@
+# Current work (2026-08-16 — ADR-0034 FirstEntryDTO and entry modes)
+
+- First launch and return Presence are now checkpoint-driven: authored
+  living-region starts expose deterministic observer-safe FirstEntryDTO;
+  existing or incompatible checkpoints use the return surface.
+- The same DTO composer feeds /api/new-game/prologue and observer-session;
+  onboarding renders the scene before the one-click create -> observer-session ->
+  acknowledge -> Game Shell chain. Acknowledge remains idempotent and
+  resume-safe.
+- ObserverSessionDTO is version 2; legacy worlds without background/entrypoint
+  metadata keep the compatibility surface and receive firstEntry: null.
+- Full validation after this milestone: 126 test files, 1566 passed, 1 skipped;
+  Canon, Simulation, eval, adventure acceptance and diff checks PASS.
+- Browser QA, commit, push and deployment remain separate and were not run in
+  this task.
+
 # Current work (2026-08-13 — ADR-0031 release evidence)
 
 - Runtime commit is `4c2600e70dcb931024cbf3077f985ff90949e6ba`;

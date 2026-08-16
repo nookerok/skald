@@ -68,8 +68,8 @@ export type {
 } from "./observation/types.js";
 export { buildPlayerGuidance, GUIDANCE_ACTIONS } from "./guidance/index.js";
 export type * from "./guidance/types.js";
-export { CHARACTER_BACKGROUNDS, CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterBackground, getCharacterPreset, getWorldTemplate, listCharacterBackgrounds, listCharacterPresets, listWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "./setup/index.js";
-export type { CharacterBackground, CharacterPreset, WorldTemplate, RegionEntrypoint, PrologueDTO } from "./setup/types.js";
+export { CHARACTER_BACKGROUNDS, CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterBackground, getCharacterPreset, getWorldTemplate, listCharacterBackgrounds, listCharacterPresets, listWorldTemplates, listPlayerWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue, buildPrologueFromFirstEntry } from "./setup/index.js";
+export type { CharacterBackground, CharacterPreset, WorldTemplate, WorldTemplateAudience, RegionEntrypoint, PrologueDTO } from "./setup/types.js";
 export type { BootstrapSelection } from "./setup/bootstrap-builder.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
@@ -113,6 +113,7 @@ export type {
 // UX-6 — Observer presence reconstruction (read-only)
 export {
   buildObserverSession,
+  buildFirstEntry,
   buildObserverSessionAndSummary,
   buildWorldPresenceSummary,
   buildPresenceDiagnostics,

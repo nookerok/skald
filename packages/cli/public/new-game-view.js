@@ -1,4 +1,4 @@
-import { loadDraft, saveDraft, clearDraft, createWorldId, createIdempotencyKey } from "./new-game-state.js";
+import { loadDraft, saveDraft, clearDraft } from "./new-game-state.js";
 import { fetchObserverSession, acknowledgePresence, createRequestKey } from "./world-api-client.js";
 import { savePresenceLease } from "./presence-lease.js";
 
@@ -11,6 +11,7 @@ let selectedEntrypointId = null;
 let characterName = "";
 let pendingReq = null;
 let prologue = null;
+let firstEntry = null;
 let prologueKey = "";
 let prologueError = "";
 let prologueRequest = 0;
@@ -125,7 +126,7 @@ function renderCharacterStep(container) {
   input.maxLength = 40;
   input.placeholder = "Как к тебе обращаться?";
   input.value = characterName;
-  input.addEventListener("input", () => { characterName = input.value.trim(); prologue = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); updateNext(); });
+  input.addEventListener("input", () => { characterName = input.value.trim(); prologue = null; firstEntry = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); updateNext(); });
   label.appendChild(input);
   container.appendChild(label);
   const cards = document.createElement("div");
@@ -166,7 +167,7 @@ function renderCharacterStep(container) {
       details.appendChild(starts);
       card.appendChild(details);
     }
-    const choose = () => { selectedBackgroundId = selected ? null : background.id; prologue = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); renderNewGame(); };
+    const choose = () => { selectedBackgroundId = selected ? null : background.id; prologue = null; firstEntry = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); renderNewGame(); };
     card.addEventListener("click", choose);
     card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); } });
     cards.appendChild(card);
@@ -190,21 +191,15 @@ function renderEntrypointStep(container) {
   question.className = "ng-question";
   question.textContent = region?.description || "Один живой регион, в котором дорога меняется вместе с теми, кто по ней идёт.";
   container.appendChild(question);
-  if (entrypoints.length === 1) {
-    const note = document.createElement("p");
-    note.className = "ng-entrypoint-note";
-    note.textContent = "Это единственное авторски подтверждённое начало. Другие дороги откроются тебе уже в игре.";
-    container.appendChild(note);
-  }
   const cards = document.createElement("div");
   cards.className = "ng-cards";
   for (const entrypoint of entrypoints) {
     const card = document.createElement("div");
     const selected = selectedEntrypointId === entrypoint.id;
     card.className = "ng-card" + (selected ? " ng-card-selected" : "");
-    card.setAttribute("role", "button");
-    card.setAttribute("tabindex", "0");
-    card.setAttribute("aria-pressed", String(selected));
+    card.setAttribute("role", "radio");
+    card.setAttribute("tabindex", selected ? "0" : "-1");
+    card.setAttribute("aria-checked", String(selected));
     const heading = document.createElement("div");
     heading.className = "ng-card-title";
     heading.textContent = entrypoint.title;
@@ -216,11 +211,11 @@ function renderEntrypointStep(container) {
     atmosphere.textContent = entrypoint.atmosphere;
     card.append(heading, description, atmosphere);
     const choose = () => {
-      // A single authored start is a confirmation, not a toggleable choice.
-      // Keep it selected so the player cannot accidentally create an empty
-      // entrypoint selection while the Canon still exposes only one start.
-      selectedEntrypointId = entrypoints.length === 1 ? entrypoint.id : (selected ? null : entrypoint.id);
+      // Entrypoints are a radio choice: selecting another start replaces the
+      // previous one and a repeated click never clears the selection.
+      selectedEntrypointId = entrypoint.id;
       prologue = null;
+      firstEntry = null;
       prologueKey = "";
       prologueError = "";
       saveCurrentDraft();
@@ -268,17 +263,30 @@ function renderPrologueStep(container) {
   }
   const scene = document.createElement("article");
   scene.className = "ng-prologue";
-  const location = document.createElement("p");
-  location.className = "ng-prologue-location";
-  location.textContent = `${prologue.locationTitle} · ${region?.title || "Бассейн Речного Стража"}`;
-  scene.appendChild(location);
-  for (const paragraph of prologue.paragraphs) { const node = document.createElement("p"); node.textContent = paragraph; scene.appendChild(node); }
-  const reminder = document.createElement("p");
-  reminder.className = "ng-prologue-hook";
-  reminder.textContent = `${prologue.backgroundReminder} ${prologue.openingHook}`;
-  scene.appendChild(reminder);
+  if (firstEntry) {
+    const identity = document.createElement("p");
+    identity.className = "ng-prologue-location";
+    identity.textContent = firstEntry.character.name + " · " + firstEntry.background.title;
+    scene.appendChild(identity);
+    scene.appendChild(textLine("Начало", firstEntry.startingLocation.title + ". " + firstEntry.startingLocation.description));
+    scene.appendChild(textLine("Почему ты здесь", firstEntry.reasonForArrival));
+    scene.appendChild(textLine("Что видно сейчас", firstEntry.visibleSituation));
+    if (firstEntry.sensoryContext.length > 0) scene.appendChild(textLine("Ощущения", firstEntry.sensoryContext.join(" ")));
+    if (firstEntry.knownContact) scene.appendChild(textLine("Знакомый человек", firstEntry.knownContact.name + ". " + firstEntry.knownContact.description));
+    scene.appendChild(textLine("Твой след", firstEntry.personalHook));
+  } else {
+    const location = document.createElement("p");
+    location.className = "ng-prologue-location";
+    location.textContent = prologue.locationTitle + " · " + (region?.title || "Бассейн Речного Стража");
+    scene.appendChild(location);
+    for (const paragraph of prologue.paragraphs) { const node = document.createElement("p"); node.textContent = paragraph; scene.appendChild(node); }
+    const reminder = document.createElement("p");
+    reminder.className = "ng-prologue-hook";
+    reminder.textContent = prologue.backgroundReminder + " " + prologue.openingHook;
+    scene.appendChild(reminder);
+  }
   container.appendChild(scene);
-  const nav = navigation("Изменить начало", "Начать путь", () => { step = "entrypoint"; window.location.hash = "#/new/entrypoint"; }, beginStory, () => !pendingReq && Boolean(prologue));
+  const nav = navigation("Изменить начало", "Начать путь", () => { step = "entrypoint"; window.location.hash = "#/new/entrypoint"; }, beginStory, () => !pendingReq && Boolean(firstEntry || prologue));
   container.appendChild(nav);
   if (pendingReq && pendingReq.phase !== "complete") {
     const status = document.createElement("p");
@@ -294,9 +302,10 @@ async function requestPrologue(key, backgroundId, entrypointId) {
   try {
     const response = await fetch("/api/new-game/prologue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ characterName, backgroundId, entrypointId }), signal: AbortSignal.timeout(8000) });
     const result = await response.json();
-    if (!result.ok || !result.prologue) throw new Error(result.error?.message || "Не удалось открыть пролог.");
+    if (!result.ok || (!result.prologue && !result.firstEntry)) throw new Error(result.error?.message || "Не удалось открыть пролог.");
     if (requestId !== prologueRequest) return;
-    prologue = result.prologue;
+    prologue = result.prologue || null;
+    firstEntry = result.firstEntry || null;
     prologueKey = key;
     prologueError = "";
     renderNewGame();
@@ -337,7 +346,7 @@ function loadPendingRequest() {
   try {
     const raw = sessionStorage.getItem("skald:new-game:pending");
     const request = raw ? JSON.parse(raw) : null;
-    return request?.worldId && request?.idempotencyKey && request?.body ? request : null;
+    return request?.idempotencyKey && request?.body ? request : null;
   } catch { return null; }
 }
 
@@ -351,8 +360,8 @@ function clearPendingRequest() {
 
 function beginStory() {
   if (pendingReq) { resumeStoryStart(); return; }
-  const body = { worldId: createWorldId(), idempotencyKey: createIdempotencyKey(), characterName, backgroundId: selectedBackgroundId, entrypointId: selectedEntrypointId };
-  pendingReq = { worldId: body.worldId, idempotencyKey: body.idempotencyKey, body, phase: "creating_story" };
+  const body = { characterName, backgroundId: selectedBackgroundId, entrypointId: selectedEntrypointId };
+  pendingReq = { worldId: null, idempotencyKey: createRequestKey("world-create"), body, phase: "creating_story" };
   savePendingRequest(pendingReq);
   resumeStoryStart();
 }
@@ -365,7 +374,7 @@ async function resumeStoryStart() {
   try {
     if (pendingReq.phase === "creating_story" || pendingReq.phase === "failed") {
       pendingReq.phase = "creating_story";
-      const response = await fetch("/api/worlds", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pendingReq.body), signal: AbortSignal.timeout(15000) });
+      const response = await fetch("/api/worlds", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": pendingReq.idempotencyKey }, body: JSON.stringify(pendingReq.body), signal: AbortSignal.timeout(15000) });
       const result = await response.json();
       if (!result.ok) throw new Error(result.error?.message || "story creation failed");
       pendingReq.worldId = result.world?.worldId || pendingReq.worldId;

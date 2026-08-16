@@ -36,6 +36,8 @@ export interface CharacterBackground {
 export type CharacterPreset = CharacterBackground;
 
 
+export type WorldTemplateAudience = "production" | "test" | "admin";
+
 export interface WorldTemplate {
   readonly id: string;
   readonly title: string;
@@ -43,7 +45,27 @@ export interface WorldTemplate {
   readonly startingQuestion: string;
   readonly templateVersion: number;
   readonly available: boolean;
+  /** Primary audience used by simple catalog filters. */
+  readonly audience: WorldTemplateAudience;
+  /** Capabilities allowed to address this template internally. */
+  readonly audiences: readonly WorldTemplateAudience[];
   readonly regionId?: string;
+}
+
+export interface RegionEntrypointContact {
+  readonly name: string;
+  readonly description: string;
+}
+
+export interface RegionEntrypointRoute {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: string;
+}
+
+export interface RegionEntrypointBackgroundConnection {
+  readonly backgroundId: string;
+  readonly arrivalHook: string;
 }
 
 export interface RegionEntrypoint {
@@ -55,6 +77,17 @@ export interface RegionEntrypoint {
   readonly description: string;
   readonly atmosphere: string;
   readonly openingSituation: string;
+  /** Arrival scene shown in the prologue and the first shell response. */
+  readonly arrivalScene: string;
+  /** The first local person or social contact available at this start. */
+  readonly localContact: RegionEntrypointContact;
+  /** The concrete problem already in motion when the story opens. */
+  readonly openingProblem: string;
+  /** Routes the player can plausibly know from this starting place. */
+  readonly availableRoutes: readonly RegionEntrypointRoute[];
+  /** Background-specific bridges authored for this starting place. */
+  readonly backgroundBridges: Readonly<Record<string, string>>;
+  readonly backgroundConnections: readonly RegionEntrypointBackgroundConnection[];
   /** Stable spatial evidence keys included in this start's bootstrap. */
   readonly initialObservationRefs: readonly string[];
   /** Author-approved knowledge references available before the first action. */

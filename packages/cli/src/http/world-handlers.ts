@@ -23,6 +23,8 @@ import {
   buildSpatialWorldProjection,
   narrateTurnLLM,
   buildBackgroundNarrativeContext,
+  getCharacterBackground,
+  getRegionEntrypoint,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -565,8 +567,11 @@ export function handleObserverSession(runtime: WorldRuntime, worldId: string): J
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
+  const playerContext = resolvePlayerContext(world);
+  const firstEntryContext = buildFirstEntryContext(runtime, world, events, playerContext);
   const { session, summary } = buildObserverSessionAndSummary({
-    worldId, events, world, playerContext: resolvePlayerContext(world), checkpoint,
+    worldId, events, world, playerContext, checkpoint,
+    ...(firstEntryContext ? { firstEntryContext } : {}),
   });
   const beliefModel = serializeBeliefModel(buildBeliefModel(events, world, "player"));
   const threads = buildObserverThreadJournal({
@@ -616,10 +621,46 @@ export function handleWorldPresence(runtime: WorldRuntime, worldId: string): Jso
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const checkpoint = runtime.store.getObserverCheckpoint(worldId, "player");
+  const playerContext = resolvePlayerContext(world);
+  const firstEntryContext = buildFirstEntryContext(runtime, world, events, playerContext);
   const { session, summary } = buildObserverSessionAndSummary({
-    worldId, events, world, playerContext: resolvePlayerContext(world), checkpoint,
+    worldId, events, world, playerContext, checkpoint,
+    ...(firstEntryContext ? { firstEntryContext } : {}),
   });
-  return json({ ok: true, checkpoint, presence: session.presence, summary });
+  return json({ ok: true, checkpoint, presence: session.presence, firstEntry: session.firstEntry, summary });
+}
+
+
+function buildFirstEntryContext(
+  runtime: WorldRuntime,
+  world: ReturnType<WorldRuntime["projection"]["getSnapshot"]>,
+  events: readonly DomainEvent[],
+  playerContext: { readonly locationTitle: string; readonly locationDescription: string },
+) {
+  const record = runtime.store.getWorldRecord(runtime.worldId);
+  if (!record || record.templateId !== "living_region" || !record.entrypointId || !record.characterId || !record.characterName) return undefined;
+  const profile = runtime.store.getCharacterProfile(record.characterId);
+  const backgroundId = profile?.background_id;
+  if (!backgroundId) return undefined;
+  const background = getCharacterBackground(backgroundId);
+  const entrypoint = getRegionEntrypoint(record.entrypointId);
+  if (!background || !entrypoint || !entrypoint.availableBackgroundIds.includes(background.id)) return undefined;
+  const narrativeContext = buildBackgroundNarrativeContext(events, world, profile);
+  const knownContactVisible = [...world.relations.values()].some((relation) => {
+    if (relation.from !== "player") return false;
+    const entity = world.entities.get(relation.to);
+    return entity?.name === entrypoint.localContact.name;
+  });
+  return {
+    characterName: record.characterName,
+    background,
+    entrypoint,
+    playerContext,
+    initialTestimony: narrativeContext?.testimony ?? [],
+    initialKnowledge: narrativeContext?.playerKnowledge ?? [],
+    accessibleItems: narrativeContext?.accessibleItems ?? [],
+    knownContactVisible,
+  };
 }
 
 function currentBeliefRevision(runtime: WorldRuntime): number {

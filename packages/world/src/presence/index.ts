@@ -1,5 +1,6 @@
 export {
   buildObserverSession,
+  buildFirstEntry,
   buildObserverSessionAndSummary,
   buildWorldPresenceSummary,
   buildPresenceDiagnostics,

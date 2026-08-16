@@ -91,8 +91,19 @@ The player does not choose a world or template. The public start is one
 authored region, Бассейн Речного Стража, with the sequence `character →
 entrypoint → prologue → conversation`. `worldId`, `living_region`, generated
 save labels and compatibility template fields remain internal. The browser
-uses `/api/new-game/options` and a read-only prologue composer, then sends one
-idempotent story-start operation whose backend stages creation, first Presence
-acknowledge and the browser-session lease before opening the Game Shell.
+uses `/api/new-game/options` and a read-only prologue composer, then sends
+`{ characterName, backgroundId, entrypointId }` to `POST /api/worlds` with
+`Idempotency-Key`; the backend generates the world id, fixes `living_region`
+and stages creation, first Presence acknowledge and the browser-session lease
+before opening the Game Shell.
 Existing worlds retain the return Presence flow; it is never shown as the first
 screen of a new story.
+
+The entry surface is checkpoint-driven. A missing checkpoint for an authored
+living-region story receives an observer-safe FirstEntryDTO and renders
+«Начало пути» with the CTA «Начать путь». A valid or incompatible checkpoint
+renders «Возвращение» with the CTA «Вернуться». FirstEntryDTO contains only the
+selected background, entrypoint, current observer-visible conditions, initial
+testimony/knowledge and accessible inventory; it never creates events or
+changes
+world state.

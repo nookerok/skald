@@ -15,6 +15,7 @@ import { clearExitPending } from "./presence-exit-controller.js";
 let state = initialState();
 let container = null;
 let worldId = null;
+let presenceAckListener = null;
 
 function readPending() {
   try {
@@ -105,7 +106,7 @@ function render() {
       return;
     case PHASE.STALE_REVISION:
       setBusy(false);
-      renderError("Мир успел измениться.", "Получаем свежий взгляд на мир…", "Продолжить", retrySession);
+      renderError("Мир успел измениться.", "Получаем свежий взгляд на мир…", "Обновить взгляд", retrySession);
       return;
     case PHASE.UNAVAILABLE:
       setBusy(false);
@@ -163,11 +164,13 @@ export async function startPresenceEntry(targetContainer, targetWorldId) {
   container = targetContainer;
   worldId = targetWorldId;
   clearExitPending(worldId);
-  window.addEventListener("skald:presence-ack", () => {
+  if (presenceAckListener) window.removeEventListener("skald:presence-ack", presenceAckListener);
+  presenceAckListener = () => {
     if (state.phase !== PHASE.PRESENCE) return;
     const revision = state.session?.revision;
-    if (revision) ack(createRequestKey("presence-ack"), revision.worldTime, revision.eventNumber);
-  });
+    if (revision) void ack(createRequestKey("presence-ack"), revision.worldTime, revision.eventNumber);
+  };
+  window.addEventListener("skald:presence-ack", presenceAckListener);
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Tab") return;
     const dialog = container?.closest('[role="dialog"][aria-modal="true"]');

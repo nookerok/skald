@@ -3,7 +3,7 @@
   "regions": [
     {
       "regionId": "riverwatch-basin",
-      "bundlePath": "./compiled/pilot-region.v5.json"
+      "bundlePath": "./compiled/pilot-region.v6.json"
     }
   ]
 }

@@ -157,6 +157,15 @@ must remain free of domain classification, event interpretation, network
 authority and action selection. Any contract change requires a schema version
 and an ADR update before changing the UI.
 
+
+## First entry and return boundary
+
+The observer entry path has two deterministic modes. A missing checkpoint for an authored living-region story produces FirstEntryDTO and the player-facing phase «Начало пути». An existing or incompatible checkpoint produces the return phase «Возвращение»; incompatible memory is never treated as a new story.
+
+FirstEntryDTO is an observer-safe read model assembled from the accepted character background, selected region entrypoint, current player-visible conditions, initial testimony/knowledge and accessible inventory. It contains no world, event, Canon or internal entity identifiers. It is presentation data only: it does not create Domain Events, mutate Projection or promote a presentation-only opening problem into simulation truth.
+
+The first action is labelled «Начать путь» and the return action «Вернуться». Acknowledge is idempotent and resume-safe: the client persists the request key and revision before sending it, re-fetches on a stale revision and opens the Game Shell only after the checkpoint is confirmed.
+
 ## Verification obligations
 
 Changes to this contract or its renderer require:

@@ -8,6 +8,8 @@ const _templates: Record<string, WorldTemplate> = {
     startingQuestion: "Что скрывает башня, которую никто не решается открыть?",
     templateVersion: 1,
     available: true,
+    audience: "test",
+    audiences: ["test", "admin"],
   },
   crossroads: {
     id: "crossroads",
@@ -16,6 +18,8 @@ const _templates: Record<string, WorldTemplate> = {
     startingQuestion: "Куда ведёт дорога, которую ты выберешь?",
     templateVersion: 1,
     available: true,
+    audience: "test",
+    audiences: ["test", "admin"],
   },
   living_region: {
     id: "living_region",
@@ -24,6 +28,8 @@ const _templates: Record<string, WorldTemplate> = {
     startingQuestion: "Что изменится вокруг переправы, пока ты пытаешься понять этот край?",
     templateVersion: 1,
     available: true,
+    audience: "production",
+    audiences: ["production", "test", "admin"],
     regionId: "riverwatch-basin",
   },
 };
@@ -41,4 +47,8 @@ export function getWorldTemplate(id: string): WorldTemplate | null {
 
 export function listWorldTemplates(): WorldTemplate[] {
   return Object.values(_templates);
+}
+
+export function listPlayerWorldTemplates(): WorldTemplate[] {
+  return listWorldTemplates().filter((template) => template.available && template.audiences.includes("production"));
 }

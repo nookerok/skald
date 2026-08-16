@@ -20,7 +20,20 @@ export interface CompiledBackgroundBinding {
   };
 }
 
+export interface CompiledEntrypointBackgroundBinding {
+  readonly id: string;
+  readonly status: "approved";
+  readonly entrypointId: string;
+  readonly backgroundId: string;
+  readonly arrivalHook: string;
+  readonly canonicalRefs: readonly string[];
+}
+
 export interface CompiledEntrypoint extends Omit<RegionEntrypoint, "title" | "description" | "atmosphere"> {
+  readonly initialRouteRefs: readonly string[];
+  readonly localContactRef: string;
+  readonly openingProblemRef: string;
+  readonly openingProblemMode: "presentation_only" | "simulation";
   readonly presentation: {
     readonly title: string;
     readonly teaser?: string;
@@ -33,6 +46,7 @@ export interface CompiledEntrypoint extends Omit<RegionEntrypoint, "title" | "de
 export interface CompiledRegionBundle {
   readonly entrypoints?: readonly CompiledEntrypoint[];
   readonly backgroundBindings?: readonly CompiledBackgroundBinding[];
+  readonly entrypointBackgroundBindings?: readonly CompiledEntrypointBackgroundBinding[];
   readonly defaultEntrypointId?: string;
   readonly schemaVersion: number;
   readonly regionVersion: number;

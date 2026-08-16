@@ -145,12 +145,15 @@ export async function startServer(options?: {
   corsOrigin?: string;
   /** Optional non-network router used by deterministic acceptance harnesses. */
   router?: ModelRouter | null;
+  /** Enable legacy world-template creation only for tests/eval/admin harnesses. */
+  allowLegacyWorldCreation?: boolean;
 }): Promise<StartedServer> {
   const dbPath = options?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
   const store = createMultiWorldStore(dbPath);
   const runtimes = new WorldRuntimeManager(store, options?.router);
   const serverApp: ServerApp = { store, runtimes };
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
+  const allowLegacyWorldCreation = options?.allowLegacyWorldCreation ?? process.env.NODE_ENV === "test";
   let closed = false;
   const schedulePoisonExit = process.env.NODE_ENV === "test"
     ? (_res: PoisonResponse): void => {}
@@ -167,7 +170,7 @@ export async function startServer(options?: {
         res.writeHead(204, {
           "Access-Control-Allow-Origin": corsOrigin,
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key",
           "Access-Control-Max-Age": "86400",
           ...secHeaders(corsOrigin),
         });
@@ -200,7 +203,10 @@ export async function startServer(options?: {
       if (method === "GET" && url.pathname === "/api/new-game/options") { const r = handleNewGameOptions(); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "POST" && url.pathname === "/api/new-game/prologue") { let body: unknown; try { body = await readJsonBody(req); } catch { errHandle(400, "invalid_request", "invalid body"); return; } const r = handleNewGamePrologue(body); handle(r.statusCode, JSON.parse(r.body)); return; }
       if (method === "GET" && url.pathname === "/api/character-presets") { const r = handleCharacterPresets(); handle(r.statusCode, JSON.parse(r.body)); return; }
-      if (method === "GET" && url.pathname === "/api/world-templates") { const r = handleWorldTemplates(); handle(r.statusCode, JSON.parse(r.body)); return; }
+      if (method === "GET" && url.pathname === "/api/world-templates") {
+        if (!allowLegacyWorldCreation) { errHandle(404, "not_found", "world-template catalog is not part of the production API"); return; }
+        const r = handleWorldTemplates(); handle(r.statusCode, JSON.parse(r.body)); return;
+      }
       if (method === "GET" && url.pathname === "/api/health") {
         const poisoned = runtimes.isAnyPoisoned();
         handle(poisoned ? 503 : 200, { status: poisoned ? "poisoned" : "ok", uptimeSeconds: Math.floor(process.uptime()), persistence: "sqlite", multiWorld: true });
@@ -214,7 +220,8 @@ export async function startServer(options?: {
         try { body = await readJsonBody(req); } catch (err) {
           errHandle((err as any)?.message?.includes("too large") ? 413 : 400, "invalid_request", "invalid body"); return;
         }
-        const r = await handleCreateWorld(runtimes, body);
+        const idempotencyHeader = req.headers["idempotency-key"];
+        const r = await handleCreateWorld(runtimes, body, { idempotencyKey: typeof idempotencyHeader === "string" ? idempotencyHeader : undefined, allowLegacy: allowLegacyWorldCreation });
         handle(r.statusCode, JSON.parse(r.body)); return;
       }
 

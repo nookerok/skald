@@ -59,11 +59,40 @@ describe("Observer presence HTTP contract", () => {
     await server.close();
   });
 
+  it("returns FirstEntryDTO for an unacknowledged living-region story", async () => {
+    const created = await api("/api/worlds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "first-entry-create" },
+      body: JSON.stringify({ characterName: "Зоя", backgroundId: "keeper", entrypointId: "river_waystation_arrival" }),
+    });
+    expect(created.status).toBe(201);
+    const first = await api("/api/worlds/" + created.body.world.worldId + "/observer-session");
+    expect(first.body.session.checkpointState).toBe("missing");
+    expect(first.body.session.firstEntry).toMatchObject({
+      character: { name: "Зоя" },
+      background: { title: "Последний ученик сгоревшего архива" },
+      startingLocation: { title: "Переправа у Чёрного леса" },
+    });
+    expect(JSON.stringify(first.body.session.firstEntry)).not.toMatch(/worldId|backgroundId|entrypointId|canonicalRefs|patternId|eventId/);
+    const acked = await api("/api/worlds/" + created.body.world.worldId + "/presence/acknowledge", {
+      method: "POST",
+      body: JSON.stringify({
+        idempotencyKey: "first-entry-ack",
+        worldTime: first.body.session.revision.worldTime,
+        eventNumber: first.body.session.revision.eventNumber,
+      }),
+    });
+    expect(acked.status).toBe(200);
+    const after = await api("/api/worlds/" + created.body.world.worldId + "/observer-session");
+    expect(after.body.session.checkpointState).toBe("valid");
+    expect(after.body.session.firstEntry).toBeNull();
+  });
+
   it("returns a full observer session aligned with world state", async () => {
     const { status, body } = await session();
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.session.schemaVersion).toBe(1);
+    expect(body.session.schemaVersion).toBe(2);
     expect(body.session.checkpoint).toBeNull();
     expect(body.session.presence.schemaVersion).toBe(1);
     expect(body.session.drift.level).toBe("none");
@@ -89,6 +118,7 @@ describe("Observer presence HTTP contract", () => {
     expect(body.checkpoint).toBeNull();
     expect(body.presence.drift.level).toBe("none");
     expect(body.presence.location.title).toBeTruthy();
+    expect(body.firstEntry).toBeNull();
   });
 
   it("returns the known-worlds card summary with ready player-facing texts", async () => {
@@ -318,7 +348,7 @@ describe("Observer presence HTTP contract", () => {
     const { status, body } = await session();
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.session.schemaVersion).toBe(1);
+    expect(body.session.schemaVersion).toBe(2);
     expect(body.summary.schemaVersion).toBe(1);
     expect(body.summary.worldId).toBe("presence-world");
   });

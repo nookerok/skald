@@ -4,7 +4,7 @@ schemaVersion: 1
 compilerProjection:
   id: regions.pilot-region.compiler-projection
   regionId: riverwatch-basin
-  compilerVersion: pilot-region-compiler-v5
+  compilerVersion: pilot-region-compiler-v6
   canonicalRefs:
     - regions.pilot-region.geography.f1
     - regions.pilot-region.geography.f2
@@ -51,12 +51,39 @@ compilerProjection:
     defaultEntrypointId: river_waystation_arrival
     entrypoints:
       - id: river_waystation_arrival
+        status: approved
         locationId: river_waystation
         title: Переправа у Чёрного леса
         teaser: Путь начинается у переправы, где лес подходит к воде.
         description: Небольшой путевой двор у реки и кромки Чёрного леса. Отсюда начинается дорога в Бассейне Речного Стража.
         atmosphere: Вода шумит за настилом, а за спиной темнеют первые ели.
+        arrivalScene: Рассвет застает тебя на мокром настиле: за рекой темнеет Чёрный лес, а у костра уже спорят о ночном течении.
         openingSituation: Переправа готовится к утру, но течение уже принесло новости, которым никто не рад.
+        openingProblem: Ночной поток вынес к переправе след, которому никто не может дать имени.
+        openingProblemRef: presentation:river_waystation_arrival:opening-problem
+        openingProblemMode: presentation_only
+        localContact:
+          id: contact:waystation-keeper
+          name: Перевозчик у переправы
+          description: Он знает, кто проходил здесь до тебя, и первым замечает перемены в воде.
+          relationKind: knows
+          relationDelta: 1
+        localContactRef: contact:waystation-keeper
+        initialRouteRefs:
+          - road_waystation_city
+          - river_crossing
+          - road_waystation_forest
+        backgroundBridges:
+          wanderer: Здесь тебя узнают по северной дороге и ждут объяснения о странном знаке.
+          keeper: Переправа может сохранить следы, которые не успели сгореть в архиве.
+          echo: Ночной перевозчик помнит тот же ритм течения, который преследует тебя.
+        backgroundConnections:
+          - backgroundId: wanderer
+            arrivalHook: Здесь тебя узнают по северной дороге и ждут объяснения о странном знаке.
+          - backgroundId: keeper
+            arrivalHook: Переправа может сохранить следы, которые не успели сгореть в архиве.
+          - backgroundId: echo
+            arrivalHook: Ночной перевозчик помнит тот же ритм течения, который преследует тебя.
         initialObservationRefs:
           - location:river_waystation
           - relation:road_waystation_city
@@ -80,6 +107,108 @@ compilerProjection:
           - echo
         canonicalRefs:
           - regions.pilot-region.geography.f5
+      - id: riverwatch_city_arrival
+        status: approved
+        locationId: riverwatch_city
+        title: Речной Страж
+        teaser: Войти в город, где каждая дорога приносит новую версию старой истории.
+        description: Город за стенами, где сходятся торговые дороги и речные слухи.
+        atmosphere: Над воротами звенит цепь подъёмного моста, а внизу тянется мутная вода.
+        arrivalScene: Ты приходишь к городским воротам в час торговли: возчики спорят о разбитой дороге, а стража следит за уровнем реки.
+        openingSituation: В городе ищут свидетеля, который видел, как восточный тракт исчез в тумане.
+        openingProblem: Восточный тракт открыт на карте, но его последние путевые знаки ведут к месту, которого никто не помнит.
+        openingProblemRef: presentation:riverwatch_city_arrival:opening-problem
+        openingProblemMode: presentation_only
+        localContact:
+          id: contact:riverwatch-gatekeeper
+          name: Смотритель речных ворот
+          description: Он ведёт журнал проходов и знает, кто последним уходил по восточному тракту.
+          relationKind: knows
+          relationDelta: 1
+        localContactRef: contact:riverwatch-gatekeeper
+        initialRouteRefs:
+          - road_waystation_city
+          - road_city_ruins
+          - road_city_south
+        backgroundBridges:
+          wanderer: Городская стража могла видеть тот самый северный знак, который привёл тебя к реке.
+          keeper: Архивист города ждёт копию записи, исчезнувшей перед пожаром.
+          echo: В городском журнале есть отметка о ночном шуме у переправы.
+        backgroundConnections:
+          - backgroundId: wanderer
+            arrivalHook: Городская стража могла видеть тот самый северный знак, который привёл тебя к реке.
+          - backgroundId: keeper
+            arrivalHook: Архивист города ждёт копию записи, исчезнувшей перед пожаром.
+          - backgroundId: echo
+            arrivalHook: В городском журнале есть отметка о ночном шуме у переправы.
+        initialObservationRefs:
+          - location:riverwatch_city
+          - relation:road_waystation_city
+          - relation:road_city_ruins
+          - relation:road_city_south
+          - landmark:riverwatch_city
+        initialKnowledgeRefs:
+          - location:riverwatch_city
+          - relation:road_city_south
+        initialRevealRefs:
+          - location:riverwatch_city
+          - relation:road_waystation_city
+          - relation:road_city_ruins
+          - relation:road_city_south
+        availableBackgroundIds:
+          - wanderer
+          - keeper
+          - echo
+        canonicalRefs:
+          - regions.pilot-region.geography.f2
+          - regions.pilot-region.geography.f6
+      - id: southern_borough_arrival
+        status: approved
+        locationId: southern_borough
+        title: Южный посад
+        teaser: Торговый посад у изгиба реки, где новости приходят раньше караванов.
+        description: Посад за стенами при изгибе реки, южнее главного города.
+        atmosphere: Между амбарами пахнет зерном и мокрой верёвкой, а за домами слышно тяжёлое течение.
+        arrivalScene: Ты входишь в посад вместе с речными телегами: здесь знают цену воде, зерну и каждому чужому лицу.
+        openingSituation: Общинные склады готовятся к подъёму воды, но никто не может договориться, откуда придёт следующая волна.
+        openingProblem: Уровень реки меняется быстрее обычного, и южные жители ищут того, кто проверит старые отметки на сваях.
+        openingProblemRef: presentation:southern_borough_arrival:opening-problem
+        openingProblemMode: presentation_only
+        localContact:
+          id: contact:southern-borough-warden
+          name: Староста южного посада
+          description: Он отвечает за склады и помнит, где на старых сваях отмечали прежние подъёмы воды.
+          relationKind: knows
+          relationDelta: 1
+        localContactRef: contact:southern-borough-warden
+        initialRouteRefs:
+          - road_city_south
+        backgroundBridges:
+          wanderer: Торговцы узнают северную дорожную метку на твоём обломке и предложат провести тебя к старому броду.
+          keeper: На посаде сохранились хозяйственные записи, которые не попали в городской архив.
+          echo: Рыбаки слышали тот же повторяющийся удар воды, что и ты в ночь у переправы.
+        backgroundConnections:
+          - backgroundId: wanderer
+            arrivalHook: Торговцы узнают северную дорожную метку на твоём обломке и предложат провести тебя к старому броду.
+          - backgroundId: keeper
+            arrivalHook: На посаде сохранились хозяйственные записи, которые не попали в городской архив.
+          - backgroundId: echo
+            arrivalHook: Рыбаки слышали тот же повторяющийся удар воды, что и ты в ночь у переправы.
+        initialObservationRefs:
+          - location:southern_borough
+          - relation:road_city_south
+        initialKnowledgeRefs:
+          - location:southern_borough
+          - relation:road_city_south
+        initialRevealRefs:
+          - location:southern_borough
+          - relation:road_city_south
+        availableBackgroundIds:
+          - wanderer
+          - keeper
+          - echo
+        canonicalRefs:
+          - regions.pilot-region.geography.f6
     playerSpawn:
       x: 0
       y: 0
@@ -678,6 +807,41 @@ compilerProjection:
       confidence: 0.5
       canonicalRefs:
         - regions.pilot-region.geography.f5
+    - subjectKind: location
+      subjectId: riverwatch_city
+      knowledge: traversed
+      observedAt: 0
+      confidence: 1
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - subjectKind: relation
+      subjectId: road_city_ruins
+      knowledge: observed
+      observedAt: 0
+      confidence: 0.9
+      canonicalRefs:
+        - regions.pilot-region.geography.f3
+    - subjectKind: relation
+      subjectId: road_city_south
+      knowledge: observed
+      observedAt: 0
+      confidence: 0.9
+      canonicalRefs:
+        - regions.pilot-region.geography.f6
+    - subjectKind: landmark
+      subjectId: riverwatch_city
+      knowledge: glimpsed
+      observedAt: 0
+      confidence: 0.8
+      canonicalRefs:
+        - regions.pilot-region.geography.f2
+    - subjectKind: location
+      subjectId: southern_borough
+      knowledge: traversed
+      observedAt: 0
+      confidence: 1
+      canonicalRefs:
+        - regions.pilot-region.geography.f6
   content:
     - id: glass_crater_surface
       name: Стеклянная поверхность впадины

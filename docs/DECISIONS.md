@@ -42,6 +42,8 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 
 | D-033 | Social Emergence is designed but deferred; Relation remains a low-level primitive; server-side EpistemicClass preserves the boundary between World Truth, Knowledge and Interpretation for Narrative | accepted | docs/adr/0033-epistemic-presentation-boundary.md |
 
+| D-034 | FirstEntryDTO separates checkpoint-missing first launch from valid/incompatible return Presence; onboarding and Presence share a deterministic observer-safe scene, with idempotent one-click acknowledge | accepted | docs/adr/0034-first-entry-presence-modes.md |
+
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;
 it does not replace executable tests.

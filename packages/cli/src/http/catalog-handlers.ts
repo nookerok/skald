@@ -1,6 +1,6 @@
 import type { WorldRuntimeManager } from "../runtime/index.js";
-import { listCharacterBackgrounds, listWorldTemplates, getCharacterBackground, getWorldTemplate, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "@skald/world";
-import { createHash } from "node:crypto";
+import { listCharacterBackgrounds, listPlayerWorldTemplates, getCharacterBackground, getWorldTemplate, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologueFromFirstEntry, buildFirstEntry } from "@skald/world";
+import { createHash, randomUUID } from "node:crypto";
 import type { CreateWorldParams } from "../persistence/sqlite-store.js";
 
 export interface JsonResponse {
@@ -77,7 +77,7 @@ export function handleCharacterPresets(): JsonResponse {
 }
 
 export function handleWorldTemplates(): JsonResponse {
-  return json({ templates: listWorldTemplates().filter((t) => t.available) });
+  return json({ templates: listPlayerWorldTemplates() });
 }
 
 function playerEntrypoint(entry: ReturnType<typeof listRegionEntrypoints>[number]) {
@@ -88,6 +88,12 @@ function playerEntrypoint(entry: ReturnType<typeof listRegionEntrypoints>[number
     description: entry.description,
     atmosphere: entry.atmosphere,
     openingSituation: entry.openingSituation,
+    arrivalScene: entry.arrivalScene,
+    localContact: entry.localContact,
+    openingProblem: entry.openingProblem,
+    availableRoutes: entry.availableRoutes,
+    backgroundBridges: entry.backgroundBridges,
+    backgroundConnections: entry.backgroundConnections,
   };
 }
 
@@ -110,22 +116,40 @@ export function handleNewGamePrologue(body: unknown): JsonResponse {
   const entrypoint = getRegionEntrypoint(entrypointId);
   if (!entrypoint) return error("unknown_entrypoint", "unknown or unavailable story beginning", 400);
   if (!entrypoint.availableBackgroundIds.includes(background.id)) return error("incompatible_start", "this background cannot begin at the selected place", 400);
-  return json({ ok: true, prologue: buildPrologue({ characterName, background, entrypoint }) });
+  const firstEntry = buildFirstEntry({
+    characterName,
+    background,
+    entrypoint,
+    playerContext: { locationTitle: entrypoint.title, locationDescription: entrypoint.description },
+    initialTestimony: [background.startingTestimony],
+    initialKnowledge: [background.startingKnowledge],
+    accessibleItems: [background.startingItem],
+    knownContactVisible: true,
+  });
+  return json({ ok: true, firstEntry, prologue: buildPrologueFromFirstEntry(firstEntry) });
 }
 
-export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unknown): Promise<JsonResponse> {
+export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unknown, requestMeta: { readonly idempotencyKey?: string | undefined; readonly allowLegacy?: boolean | undefined } = {}): Promise<JsonResponse> {
   if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
   const b = body as Record<string, unknown>;
 
-  const worldId = b["worldId"];
-  const idempotencyKey = b["idempotencyKey"];
-  const saveLabelRaw = b["saveLabel"];
+  const legacyMode = requestMeta.allowLegacy === true && (
+    Object.prototype.hasOwnProperty.call(b, "worldId") ||
+    Object.prototype.hasOwnProperty.call(b, "idempotencyKey") ||
+    Object.prototype.hasOwnProperty.call(b, "worldTemplateId") ||
+    Object.prototype.hasOwnProperty.call(b, "saveLabel")
+  );
+  const allowedPublicKeys = new Set(["characterName", "backgroundId", "entrypointId"]);
+  if (!legacyMode && Object.keys(b).some((key) => !allowedPublicKeys.has(key))) return error("invalid_request", "public story creation accepts only characterName, backgroundId and entrypointId", 400);
+  const worldId = legacyMode ? b["worldId"] : "world-" + randomUUID();
+  const idempotencyKey = legacyMode ? b["idempotencyKey"] : requestMeta.idempotencyKey;
+  const saveLabelRaw = legacyMode ? b["saveLabel"] : undefined;
   const characterNameRaw = b["characterName"];
-  const backgroundId = b["backgroundId"] ?? b["characterPresetId"];
+  const backgroundId = b["backgroundId"] ?? (legacyMode ? b["characterPresetId"] : undefined);
   const characterPresetId = backgroundId;
   const entrypointId = b["entrypointId"];
-  const legacyWorldTemplateId = b["worldTemplateId"];
-  const worldTemplateId = typeof legacyWorldTemplateId === "string" ? legacyWorldTemplateId : "living_region";
+  const legacyWorldTemplateId = legacyMode ? b["worldTemplateId"] : undefined;
+  const worldTemplateId = legacyMode && typeof legacyWorldTemplateId === "string" ? legacyWorldTemplateId : "living_region";
 
   // Strict typeof checks before any operations
   if (typeof worldId !== "string" || worldId.length < 1 || worldId.length > 128)
@@ -133,14 +157,14 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(worldId as string))
     return error("invalid_world_id", "worldId must be alphanumeric", 400);
   if (typeof idempotencyKey !== "string" || idempotencyKey.length < 1 || idempotencyKey.length > 128)
-    return error("invalid_key", "idempotencyKey required (string, 1-128 chars)", 400);
+    return error("invalid_key", "Idempotency-Key header required (string, 1-128 chars)", 400);
   if (saveLabelRaw !== undefined && typeof saveLabelRaw !== "string")
     return error("invalid_label", "saveLabel must be a string", 400);
   if (typeof characterNameRaw !== "string")
     return error("invalid_name", "characterName must be a string", 400);
   if (typeof characterPresetId !== "string")
     return error("unknown_background", "backgroundId must be a string", 400);
-  if (entrypointId !== undefined && typeof entrypointId !== "string")
+  if ((!legacyMode && typeof entrypointId !== "string") || (entrypointId !== undefined && typeof entrypointId !== "string"))
     return error("unknown_entrypoint", "entrypointId must be a string", 400);
 
   const characterName = (characterNameRaw as string).trim();
@@ -154,7 +178,7 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   const background = typeof characterPresetId === "string" ? getCharacterBackground(characterPresetId) : null;
   if (!background) return error("unknown_background", "unknown character background", 400);
 
-  if (legacyWorldTemplateId === undefined && worldTemplateId !== "living_region") return error("unknown_template", "new stories must use living_region", 400);
+  if (!legacyMode && worldTemplateId !== "living_region") return error("unknown_template", "new stories must use living_region", 400);
   const template = getWorldTemplate(worldTemplateId);
   if (!template || !template.available) return error("unknown_template", `unknown or unavailable world template: ${worldTemplateId}`, 400);
   const entrypoint = worldTemplateId === "living_region"
@@ -164,7 +188,10 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   if (entrypoint && !entrypoint.availableBackgroundIds.includes(String(backgroundId))) return error("incompatible_start", "this background cannot begin at the selected place", 400);
 
   // Creation metadata selects the authored start; location truth remains in bootstrap events.
-  const requestDigest = createHash("sha256").update(JSON.stringify({ worldId, saveLabel, characterName, backgroundId: backgroundId, worldTemplateId, entrypointId: entrypoint?.id ?? null })).digest("hex");
+  const digestPayload = legacyMode
+    ? { worldId, saveLabel, characterName, backgroundId, worldTemplateId, entrypointId: entrypoint?.id ?? null }
+    : { characterName, backgroundId, worldTemplateId, entrypointId: entrypoint?.id ?? null };
+  const requestDigest = createHash("sha256").update(JSON.stringify(digestPayload)).digest("hex");
 
   const bootstrapEvents = buildBootstrapEvents({
     templateId: worldTemplateId,

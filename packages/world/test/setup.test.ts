@@ -103,7 +103,8 @@ describe("world templates", () => {
 describe("living region onboarding", () => {
   it("exposes only authored starts", () => {
     const entries = listRegionEntrypoints();
-    expect(entries).toHaveLength(1);
+    expect(entries).toHaveLength(3);
+    expect(entries.map((entry) => entry.id)).toEqual(["river_waystation_arrival", "riverwatch_city_arrival", "southern_borough_arrival"]);
     expect(entries[0]).toMatchObject({ id: "river_waystation_arrival", locationId: "river_waystation" });
     expect(getDefaultRegionEntrypoint().id).toBe("river_waystation_arrival");
   });

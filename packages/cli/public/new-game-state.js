@@ -1,4 +1,3 @@
-import { createRequestKey } from "./world-api-client.js";
 
 const DRAFT_KEY = "skald:new-game-draft:2";
 const LEGACY_DRAFT_KEY = "skald:new-game-draft:1";
@@ -18,12 +17,4 @@ export function saveDraft(draft) {
 
 export function clearDraft() {
   try { sessionStorage.removeItem(DRAFT_KEY); sessionStorage.removeItem(LEGACY_DRAFT_KEY); } catch {}
-}
-
-export function createWorldId() {
-  return createRequestKey("world");
-}
-
-export function createIdempotencyKey() {
-  return createRequestKey("ik");
 }

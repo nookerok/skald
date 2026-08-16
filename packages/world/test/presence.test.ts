@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import { WorldProjector } from "../src/projection.js";
 import { bootstrapWorldEvents } from "../src/bootstrap.js";
+import { buildBootstrapEvents } from "../src/setup/bootstrap-builder.js";
+import { getCharacterBackground } from "../src/setup/character-presets.js";
+import { getRegionEntrypoint } from "../src/setup/entrypoints.js";
 import type { PresentationThread } from "../src/journal/index.js";
 import {
   buildObserverSession,
@@ -282,11 +285,67 @@ describe("computeBeliefDrift", () => {
 });
 
 describe("buildObserverSession", () => {
+  it("builds an observer-safe first entry only while the checkpoint is missing", () => {
+    const events = buildBootstrapEvents({
+      templateId: "living_region",
+      entrypointId: "river_waystation_arrival",
+      backgroundId: "keeper",
+    });
+    const world = worldWith(events).getSnapshot();
+    const background = getCharacterBackground("keeper")!;
+    const entrypoint = getRegionEntrypoint("river_waystation_arrival")!;
+    const firstEntryContext = {
+      characterName: "Зоя",
+      background,
+      entrypoint,
+      playerContext: {
+        locationTitle: entrypoint.title,
+        locationDescription: entrypoint.description,
+      },
+      initialTestimony: [background.startingTestimony],
+      initialKnowledge: [background.startingKnowledge],
+      accessibleItems: [background.startingItem],
+      knownContactVisible: true,
+    };
+    const first = buildObserverSession({ events, world, playerContext: PLAYER_CONTEXT, checkpoint: null, firstEntryContext });
+    expect(first.schemaVersion).toBe(2);
+    expect(first.checkpointState).toBe("missing");
+    expect(first.firstEntry).toMatchObject({
+      character: { name: "Зоя" },
+      background: { title: background.title },
+      startingLocation: { title: entrypoint.title },
+      knownContact: { name: entrypoint.localContact.name },
+    });
+    expect(JSON.stringify(first.firstEntry)).not.toMatch(/worldId|backgroundId|entrypointId|canonicalRefs|patternId|eventId/);
+    expect(Object.isFrozen(first.firstEntry)).toBe(true);
+    expect(first.firstEntry?.background.summary).toContain(background.formerRole);
+    expect(first.firstEntry?.background.summary).toContain(background.rupture);
+    expect(first.firstEntry?.personalHook).toContain(background.obligation);
+    const withoutVisibleContact = buildObserverSession({
+      events,
+      world,
+      playerContext: PLAYER_CONTEXT,
+      checkpoint: null,
+      firstEntryContext: { ...firstEntryContext, knownContactVisible: false, accessibleItems: ["item:hidden"] },
+    });
+    expect(withoutVisibleContact.firstEntry?.knownContact).toBeNull();
+    expect(withoutVisibleContact.firstEntry?.personalHook).not.toContain("item:hidden");
+    const withCheckpoint = buildObserverSession({
+      events,
+      world,
+      playerContext: PLAYER_CONTEXT,
+      checkpoint: checkpointAtTime(events, 0),
+      firstEntryContext,
+    });
+    expect(withCheckpoint.firstEntry).toBeNull();
+  });
+
+
   it("builds a consistent session with revision and belief model", () => {
     const events = playthrough(8);
     const world = worldWith(events).getSnapshot();
     const session = buildObserverSession({ events, world, playerContext: PLAYER_CONTEXT, checkpoint: null });
-    expect(session.schemaVersion).toBe(1);
+    expect(session.schemaVersion).toBe(2);
     expect(session.revision).toEqual({ worldTime: 8, eventNumber: events.length });
     expect(session.checkpointState).toBe("missing");
     expect(session.checkpoint).toBeNull();

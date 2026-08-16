@@ -12,7 +12,7 @@ import { validateMapKnowledgeMatrix } from "../validate-map-knowledge-matrix.mjs
 
 const ROOT = resolve(process.cwd());
 const COMPILED_DIR = resolve(ROOT, "packages/world/src/region/compiled");
-const BUNDLE_SCHEMA_VERSION = 5;
+const BUNDLE_SCHEMA_VERSION = 6;
 
 function bounds(x, y, size) { return { minXMetres: x, minYMetres: y, maxXMetres: x + size, maxYMetres: y + size }; }
 function point(xMetres, yMetres) { return { xMetres, yMetres }; }
@@ -66,7 +66,7 @@ function buildRegion(p) {
   return { ...base, contentDigest: fnv1a(JSON.stringify(base)) };
 }
 
-function provenance(refs, inputDigest, canonDigest, regionVersion, compilerVersion = "pilot-region-compiler-v5") {
+function provenance(refs, inputDigest, canonDigest, regionVersion, compilerVersion = "pilot-region-compiler-v6") {
   return { canonicalRefs: Object.freeze([...(refs ?? [])]), compilerVersion, compilerInputDigest: inputDigest, canonDigest, regionVersion };
 }
 
@@ -207,29 +207,107 @@ function buildBackgroundBindings(p, inputDigest, canonDigest) {
 
 function observationKey(payload) { return `${payload.subjectKind}:${payload.subjectId}`; }
 
-function buildEntrypointDefinitions(projection, events) {
+function buildEntrypointBackgroundBindings(projection) {
+  const bindings = [];
+  for (const entrypoint of projection.bootstrap?.entrypoints ?? []) {
+    if ((entrypoint.status ?? "approved") !== "approved") continue;
+    const connections = entrypoint.backgroundConnections ?? Object.entries(entrypoint.backgroundBridges ?? {}).map(([backgroundId, arrivalHook]) => ({ backgroundId, arrivalHook }));
+    for (const connection of connections) {
+      bindings.push({
+        id: entrypoint.id + "#" + connection.backgroundId,
+        status: "approved",
+        entrypointId: entrypoint.id,
+        backgroundId: connection.backgroundId,
+        arrivalHook: connection.arrivalHook,
+        canonicalRefs: [...(entrypoint.canonicalRefs ?? [])].sort(),
+      });
+    }
+  }
+  return bindings.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function buildEntrypointDefinitions(projection, events, inputDigest, canonDigest) {
   const authored = projection.bootstrap?.entrypoints ?? [];
-  return authored.map((entrypoint) => {
+  const relationById = new Map((projection.relations ?? []).map((relation) => [relation.id, relation]));
+  return authored.filter((entrypoint) => (entrypoint.status ?? "approved") === "approved").map((entrypoint) => {
     const observationRefs = new Set(entrypoint.initialObservationRefs ?? []);
     const selected = events.filter((event) => {
-      if (event.type === 'PlayerLocationChanged') return event.payload?.locationId === entrypoint.locationId;
+      if (event.type === 'PlayerLocationChanged') return false;
       if (event.type === 'SpatialObservationRecorded') return observationRefs.has(observationKey(event.payload));
       return true;
     });
-    const locationEvents = selected.filter((event) => event.type === 'PlayerLocationChanged');
-    if (locationEvents.length !== 1) throw new Error('entrypoint must compile exactly one PlayerLocationChanged: ' + entrypoint.id);
+    const authoredLocationEvent = events.find((event) => event.type === 'PlayerLocationChanged' && event.payload?.locationId === entrypoint.locationId);
+    const locationEvent = authoredLocationEvent ?? {
+      eventId: 'boot#entrypoint#' + entrypoint.id + '#PlayerLocationChanged',
+      type: 'PlayerLocationChanged',
+      schemaVersion: 1,
+      payload: {
+        locationId: entrypoint.locationId,
+        provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion),
+      },
+      timestamp: 0,
+      correlationId: 'boot#entrypoint#' + entrypoint.id,
+      causationId: 'boot#region',
+    };
+    selected.push(locationEvent);
+    const locationEvents = [locationEvent];
+    const location = (projection.locations ?? []).find((candidate) => candidate.id === entrypoint.locationId);
+    const contact = entrypoint.localContact;
+    const contactEvents = contact ? [
+      {
+        eventId: 'boot#entrypoint#' + entrypoint.id + '#ContactPlaced',
+        type: 'ObjectPlaced',
+        schemaVersion: 1,
+        payload: {
+          entityId: contact.id,
+          x: location?.xMetres ?? 0,
+          y: location?.yMetres ?? 0,
+          name: contact.name,
+          aliases: [],
+          description: contact.description,
+          components: { contact: { locationId: entrypoint.locationId, entrypointId: entrypoint.id } },
+          provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion),
+        },
+        timestamp: 0,
+        correlationId: 'boot#entrypoint#' + entrypoint.id,
+        causationId: locationEvents[0].eventId,
+      },
+      {
+        eventId: 'boot#entrypoint#' + entrypoint.id + '#RelationChanged',
+        type: 'RelationChanged',
+        schemaVersion: 1,
+        payload: { from: 'player', to: contact.id, kind: contact.relationKind, delta: contact.relationDelta ?? 1, provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion) },
+        timestamp: 0,
+        correlationId: 'boot#entrypoint#' + entrypoint.id,
+        causationId: 'boot#entrypoint#' + entrypoint.id + '#ContactPlaced',
+      },
+    ] : [];
+    const routeRefs = entrypoint.initialRouteRefs ?? entrypoint.availableRouteRefs ?? [];
+    const backgroundConnections = entrypoint.backgroundConnections ?? Object.entries(entrypoint.backgroundBridges ?? {}).map(([backgroundId, arrivalHook]) => ({ backgroundId, arrivalHook }));
+    const backgroundBridges = Object.fromEntries(backgroundConnections.map((connection) => [connection.backgroundId, connection.arrivalHook]));
+    const routes = routeRefs.map((id) => relationById.get(id)).filter(Boolean).map((relation) => ({ id: relation.id, label: relation.label, kind: relation.kind }));
     return {
       id: entrypoint.id,
       regionId: projection.regionId,
       locationId: entrypoint.locationId,
       presentation: { title: entrypoint.title, teaser: entrypoint.teaser ?? entrypoint.description, description: entrypoint.description, atmosphere: entrypoint.atmosphere },
       openingSituation: entrypoint.openingSituation,
+      arrivalScene: entrypoint.arrivalScene,
+      localContact: { name: contact.name, description: contact.description },
+      openingProblem: entrypoint.openingProblem,
+      openingProblemRef: entrypoint.openingProblemRef,
+      openingProblemMode: entrypoint.openingProblemMode ?? 'presentation_only',
+      localContactRef: entrypoint.localContactRef ?? contact.id,
+      initialRouteRefs: [...routeRefs].sort(),
+      availableRoutes: routes,
+      backgroundBridges,
+      backgroundConnections: backgroundConnections.map((connection) => ({ backgroundId: connection.backgroundId, arrivalHook: connection.arrivalHook })).sort((a, b) => a.backgroundId.localeCompare(b.backgroundId)),
       initialObservationRefs: [...entrypoint.initialObservationRefs].sort(),
       initialKnowledgeRefs: [...entrypoint.initialKnowledgeRefs].sort(),
       initialRevealRefs: [...entrypoint.initialRevealRefs].sort(),
       availableBackgroundIds: [...entrypoint.availableBackgroundIds].sort(),
       canonicalRefs: [...(entrypoint.canonicalRefs ?? [])].sort(),
-      bootstrapEvents: selected,
+      bootstrapEvents: [...selected, ...contactEvents],
     };
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -257,10 +335,11 @@ export function compileRegion(regionId = null) {
   const acceptedResourceDemands = (projection.resourceDemandDefinitions ?? []).filter((entry) => ["canon", "runtime_backed", "derived"].includes(entry.status));
   const objectProvenance = Object.fromEntries([...projection.locations, ...projection.landmarks, ...projection.relations, ...projection.content, ...acceptedResources, ...acceptedResourceProcesses, ...acceptedResourceDemands, ...(acceptedHydrography.waterBodies ?? []), ...(acceptedHydrography.watercourses ?? []), ...(acceptedHydrography.catchments ?? []), ...(acceptedElevation.controlAreas ?? []), ...(acceptedElevation.constraints ?? []), ...(acceptedToponymIndex.subjects ?? [])].map((entry) => [entry.id, { canonicalRefs: entry.canonicalRefs ?? [] }]));
   const allEvents = compactEvents;
-  const entrypoints = buildEntrypointDefinitions(projection, allEvents);
+  const entrypoints = buildEntrypointDefinitions(projection, allEvents, inputDigest, canonDigest);
+  const entrypointBackgroundBindings = buildEntrypointBackgroundBindings(projection);
   const backgroundBindings = buildBackgroundBindings(projection, inputDigest, canonDigest);
-  const finalBootstrapDigest = sha256({ regionEvents: allEvents, backgroundBindings });
-  return { schemaVersion: BUNDLE_SCHEMA_VERSION, regionId: projection.regionId, regionVersion: region.version, defaultEntrypointId: projection.bootstrap?.defaultEntrypointId ?? projection.bootstrap?.entrypoints?.[0]?.id ?? projection.bootstrap?.startLocationId, entrypoints, backgroundBindings, compilerVersion: projection.compilerVersion, provenance: { canonDigest, compilerInputDigest: inputDigest, bootstrapDigest: finalBootstrapDigest, canonicalRefs: projection.canonicalRefs, referenceArtifactRuntimeAllowed: false }, regionDefinition: compact, hydrographyDefinition: acceptedHydrography, elevationDefinition: acceptedElevation, toponymIndex: acceptedToponymIndex, contentDefinitions: projection.content ?? [], discoveryDefinitions: acceptedDiscovery, simulationDefinitions: acceptedSimulation, resourceDefinitions: acceptedResources, resourceProcessDefinitions: acceptedResourceProcesses, resourceDemandDefinitions: acceptedResourceDemands, objectProvenance, events: allEvents };
+  const finalBootstrapDigest = sha256({ regionEvents: allEvents, entrypoints, entrypointBackgroundBindings, backgroundBindings });
+  return { schemaVersion: BUNDLE_SCHEMA_VERSION, regionId: projection.regionId, regionVersion: region.version, defaultEntrypointId: projection.bootstrap?.defaultEntrypointId ?? projection.bootstrap?.entrypoints?.[0]?.id ?? projection.bootstrap?.startLocationId, entrypoints, backgroundBindings, entrypointBackgroundBindings, compilerVersion: projection.compilerVersion, provenance: { canonDigest, compilerInputDigest: inputDigest, bootstrapDigest: finalBootstrapDigest, canonicalRefs: projection.canonicalRefs, referenceArtifactRuntimeAllowed: false }, regionDefinition: compact, hydrographyDefinition: acceptedHydrography, elevationDefinition: acceptedElevation, toponymIndex: acceptedToponymIndex, contentDefinitions: projection.content ?? [], discoveryDefinitions: acceptedDiscovery, simulationDefinitions: acceptedSimulation, resourceDefinitions: acceptedResources, resourceProcessDefinitions: acceptedResourceProcesses, resourceDemandDefinitions: acceptedResourceDemands, objectProvenance, events: allEvents };
 
 }
 
