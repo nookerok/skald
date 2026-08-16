@@ -4,8 +4,8 @@ import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
-import { configureDatabase, execSchemaV7 } from "./schema.js";
-import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, validateUserVersion, verifyIntegrity } from "./migrations.js";
+import { configureDatabase, execSchemaV8 } from "./schema.js";
+import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 
 export interface CommitOptions {
@@ -19,6 +19,7 @@ export interface CharacterProfileRecord {
   wound: string;
   promise: string;
   principle: string;
+  background_id: string | null;
 }
 
 export interface MultiWorldStore {
@@ -58,6 +59,7 @@ export interface CreateWorldParams {
   readonly requestHash: string;
   readonly saveLabel: string;
   readonly characterName: string;
+  readonly backgroundId?: string | undefined;
   readonly characterPresetId: string;
   readonly worldTemplateId: string;
   readonly entrypointId?: string | undefined;
@@ -148,7 +150,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const versionAction = validateUserVersion(db);
 
   if (versionAction === "fresh") {
-    execSchemaV7(db);
+    execSchemaV8(db);
     // Create legacy world record so FK constraints are satisfied
     db.prepare(
       "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, entrypoint_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -168,7 +170,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
-    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
   } else if (versionAction === "migrateV3") {
     verifyIntegrity(db);
     migrateV2ToV3(db);
@@ -180,7 +183,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
-    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
   } else if (versionAction === "migrateV4") {
     verifyIntegrity(db);
     migrateV3ToV4(db);
@@ -190,7 +194,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
-    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
   } else if (versionAction === "migrateV5") {
     verifyIntegrity(db);
     migrateV4ToV5(db);
@@ -198,17 +203,24 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
-    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
   } else if (versionAction === "migrateV6") {
     verifyIntegrity(db);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
-    console.log(`[persistence] migrated v6→v7: onboarding entrypoint metadata added`);
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
   } else if (versionAction === "migrateV7") {
     migrateV6ToV7(db);
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+  } else if (versionAction === "migrateV8") {
+    migrateV7ToV8(db);
+    console.log("[persistence] migrated v7->v8: character background added");
   } else {
-    // Already v7 — verify
+    // Already v8 — verify
     verifyIntegrity(db);
   }
 
@@ -446,7 +458,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
 
     getCharacterProfile(characterId: string): CharacterProfileRecord | null {
       const row = db.prepare(
-        "SELECT display_name, wound, promise, principle FROM character_profiles WHERE character_id = ?",
+        "SELECT display_name, wound, promise, principle, background_id FROM character_profiles WHERE character_id = ?",
       ).get(characterId) as Record<string, string> | undefined;
       if (!row) return null;
       return {
@@ -454,6 +466,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         wound: row["wound"]!,
         promise: row["promise"]!,
         principle: row["principle"]!,
+        background_id: (row["background_id"] as string) ?? null,
       };
     },
 
@@ -474,7 +487,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         } else {
           if (getWorld.get(params.worldId)) throw Object.assign(new Error("world already exists"), { code: "DUPLICATE_WORLD" });
           const characterId = `char-${params.worldId}`;
-          db.prepare("INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, now);
+          db.prepare("INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, background_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, params.backgroundId ?? params.characterPresetId ?? null, now);
           db.prepare("INSERT INTO worlds (world_id, save_label, template_id, entrypoint_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(params.worldId, params.saveLabel, params.worldTemplateId, params.entrypointId ?? null, characterId, params.characterName, "active", now);
           for (const e of params.bootstrapEvents) db.prepare("INSERT INTO events (world_id, event_id, type, schema_version, payload_json, timestamp, causation_id, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(params.worldId, e.eventId, e.type, e.schemaVersion, JSON.stringify(e.payload), e.timestamp, e.causationId ?? null, e.correlationId);
           db.prepare("INSERT INTO world_creation_requests (idempotency_key, request_hash, world_id, created_at) VALUES (?, ?, ?, ?)").run(params.idempotencyKey, params.requestHash, params.worldId, now);
@@ -533,8 +546,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
       try {
         // 1. Insert character profile
         db.prepare(
-          "INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ).run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, now);
+          "INSERT INTO character_profiles (character_id, display_name, wound, promise, principle, profile_version, background_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ).run(characterId, params.characterName, params.characterWound, params.characterPromise, params.characterPrinciple, params.characterProfileVersion, params.backgroundId ?? params.characterPresetId ?? null, now);
 
         // 2. Insert world record
         db.prepare(

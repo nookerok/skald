@@ -3,6 +3,7 @@ import type { ReadonlyWorld } from "./projection.js";
 import { selectTurnPresentation } from "./presentation/selector.js";
 import type { TurnPresentation } from "./presentation/types.js";
 import { observationLabel, situationLabel } from "./game-shell/player-facing.js";
+import type { BackgroundNarrativeContext } from "./setup/background-context.js";
 
 export interface NarrativeEntry {
   readonly kind: "action" | "observation" | "consequence" | "situation" | "world" | "tick" | "relation" | "time";
@@ -18,6 +19,8 @@ export interface NarrativeSnapshot {
   readonly presentation: TurnPresentation;
   readonly worldTime: number;
   readonly playerPosition: { readonly x: number; readonly y: number };
+  /** Optional observer-safe background context for the narrative adapter. */
+  readonly backgroundContext?: BackgroundNarrativeContext;
 }
 
 const OBSERVATION_KEYS = new Set(["risk_taken", "wall_caution", "edge_awareness", "impatience", "world_reaction_fear"]);
@@ -202,7 +205,7 @@ export function formatWorldState(world: ReadonlyWorld): NarrativeEntry[] {
 export function buildNarrative(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
-  opts?: { sinceTick?: number },
+  opts?: { sinceTick?: number; backgroundContext?: BackgroundNarrativeContext },
 ): NarrativeSnapshot {
   const filtered = opts?.sinceTick !== undefined
     ? events.filter((e) => e.timestamp >= opts.sinceTick!)
@@ -254,5 +257,6 @@ export function buildNarrative(
     presentation,
     worldTime: world.time,
     playerPosition: { x: world.player.x, y: world.player.y },
+    ...(opts?.backgroundContext ? { backgroundContext: opts.backgroundContext } : {}),
   };
 }

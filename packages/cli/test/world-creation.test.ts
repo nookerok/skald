@@ -33,8 +33,19 @@ describe("World creation", () => {
   it("GET /api/character-presets returns presets", async () => {
     const { status, body } = await api("/api/character-presets");
     expect(status).toBe(200);
+    expect(Array.isArray(body.backgrounds)).toBe(true);
+    expect(body.backgrounds.length).toBeGreaterThanOrEqual(2);
+    expect(body.backgrounds[0]).toMatchObject({
+      id: expect.any(String),
+      title: expect.any(String),
+      formerRole: expect.any(String),
+      rupture: expect.any(String),
+      reasonInRegion: expect.any(String),
+      knownConnection: expect.any(String),
+      obligation: expect.any(String),
+    });
     expect(Array.isArray(body.presets)).toBe(true);
-    expect(body.presets.length).toBeGreaterThanOrEqual(2);
+    expect(body.presets).toHaveLength(body.backgrounds.length);
   });
 
   it("GET /api/new-game/options exposes one region and authored starts", async () => {
@@ -43,6 +54,26 @@ describe("World creation", () => {
     expect(body.region.id).toBe("riverwatch-basin");
     expect(body.entrypoints).toEqual([expect.objectContaining({ id: "river_waystation_arrival" })]);
     expect(body).not.toHaveProperty("templates");
+  });
+
+  it("new-game options expose authored background questions without compiler internals", async () => {
+    const { body } = await api("/api/new-game/options");
+    const keeper = body.backgrounds.find((item: any) => item.id === "keeper");
+    expect(keeper).toMatchObject({
+      title: "Последний ученик сгоревшего архива",
+      formerRole: expect.any(String),
+      rupture: expect.any(String),
+      reasonInRegion: expect.any(String),
+      knownConnection: expect.any(String),
+      obligation: expect.any(String),
+      startingTestimony: expect.any(String),
+      startingContact: expect.any(String),
+      startingItem: expect.any(String),
+      familiarPlace: expect.any(String),
+      procedureKnowledge: expect.any(String),
+    });
+    expect(keeper).not.toHaveProperty("startingTestimonyRefs");
+    expect(keeper).not.toHaveProperty("canonicalRefs");
   });
 
   it("new-game options hide runtime and compiler metadata", async () => {

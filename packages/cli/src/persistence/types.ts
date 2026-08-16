@@ -14,6 +14,8 @@ export interface CharacterProfile {
   wound: string;
   promise: string;
   principle: string;
+  /** Selected origin package; null for legacy profiles. */
+  backgroundId: string | null;
   profileVersion: number;
   createdAt: number;
 }

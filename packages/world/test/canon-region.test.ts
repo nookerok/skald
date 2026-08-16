@@ -10,6 +10,19 @@ describe("generic Canon region IR", () => {
     expect(bundle).not.toContain("region-source.png");
   });
 
+  it("compiles approved character background bindings separately from region bootstrap", async () => {
+    const fs = await import("node:fs");
+    const bundle = JSON.parse(fs.readFileSync("packages/world/src/region/compiled/pilot-region.v5.json", "utf8"));
+    expect(bundle.backgroundBindings.map((binding: any) => binding.id)).toEqual(["echo", "keeper", "wanderer"]);
+    for (const binding of bundle.backgroundBindings) {
+      expect(binding.status).toBe("approved");
+      expect(binding.bootstrapEvents.some((event: any) => event.type === "TestimonyReceived")).toBe(true);
+      expect(binding.bootstrapEvents.some((event: any) => event.type === "ObjectPlaced")).toBe(true);
+      expect(binding.bootstrapEvents.some((event: any) => event.type === "RelationChanged")).toBe(true);
+      expect(JSON.stringify(binding)).not.toContain("region-source.png");
+    }
+  });
+
   it("is deterministic, version-sensitive and rejects dangling refs", async () => {
     // @ts-expect-error Canon tooling is JavaScript by design.
     const loader = await import("../../../scripts/canon/region/load-region-canon.mjs");

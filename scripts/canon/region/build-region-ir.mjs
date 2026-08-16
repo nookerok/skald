@@ -26,7 +26,7 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     for (const ref of value.canonicalRefs ?? []) if (canonIds.size && !canonIds.has(ref)) throw new Error(label + ' references unknown Canon id: ' + ref);
     for (const [key, child] of Object.entries(value)) if (key !== 'canonicalRefs' && child && typeof child === 'object') checkRefs(child, label + '.' + key);
   };
-  for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','resourceProcessDefinitions','resourceDemandDefinitions','hydrography','elevation','toponymIndex']) checkRefs(projection[section], section);
+  for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','resourceProcessDefinitions','resourceDemandDefinitions','hydrography','elevation','toponymIndex','backgroundBindings']) checkRefs(projection[section], section);
   const locationIds = new Set((projection.locations ?? []).map((entry) => entry.id));
   const entrypointIds = new Set();
   const observationKeys = new Set((projection.observations ?? []).map((entry) => `${entry.subjectKind}:${entry.subjectId}`));
@@ -45,6 +45,27 @@ export function buildRegionIR(projection, canonIds = new Set()) {
       const ref = `${observation.subjectKind}:${observation.subjectId}`;
       if (observations.has(ref) && ['observed', 'traversed'].includes(observation.knowledge) && !entrypoint.initialRevealRefs.includes(ref)) throw new Error('bootstrap entrypoint omits reveal for visible observation ' + ref + ': ' + entrypoint.id);
     }
+  }
+  const backgroundIds = new Set();
+  for (const background of projection.backgroundBindings ?? []) {
+    if (!background || typeof background.id !== 'string' || !background.id) throw new Error('background binding requires id');
+    if (backgroundIds.has(background.id)) throw new Error('duplicate background binding: ' + background.id);
+    backgroundIds.add(background.id);
+    if (!['approved', 'proposal'].includes(background.status)) throw new Error('background binding has invalid status: ' + background.id);
+    if (!Array.isArray(background.canonicalRefs)) throw new Error('background binding has invalid canonicalRefs: ' + background.id);
+    if (background.status !== 'approved') continue;
+    const available = new Set([...(projection.bootstrap?.entrypoints ?? [])].flatMap((entry) => entry.availableBackgroundIds ?? []));
+    if (available.size > 0 && !available.has(background.id)) throw new Error('approved background is not available at any entrypoint: ' + background.id);
+    if (!background.testimony || typeof background.testimony.claimId !== 'string' || typeof background.testimony.proposition !== 'string') throw new Error('approved background testimony is invalid: ' + background.id);
+    if (!background.contact || typeof background.contact.id !== 'string' || typeof background.contact.name !== 'string' || typeof background.contact.locationId !== 'string') throw new Error('approved background contact is invalid: ' + background.id);
+    if (!locationIds.has(background.contact.locationId)) throw new Error('background contact location is not declared: ' + background.id);
+    if (!background.relation || typeof background.relation.from !== 'string' || typeof background.relation.to !== 'string' || typeof background.relation.kind !== 'string') throw new Error('approved background relation is invalid: ' + background.id);
+    if (background.relation.to !== background.contact.id) throw new Error('background relation target must be its contact: ' + background.id);
+    if (!background.item || typeof background.item.id !== 'string' || typeof background.item.locationId !== 'string') throw new Error('approved background item is invalid: ' + background.id);
+    if (!locationIds.has(background.item.locationId)) throw new Error('background item location is not declared: ' + background.id);
+    if (!Array.isArray(background.observations) || background.observations.some((observation) => !observation || typeof observation.subjectKind !== 'string' || typeof observation.subjectId !== 'string')) throw new Error('background observations are invalid: ' + background.id);
+    if (!Array.isArray(background.knowledge) || background.knowledge.some((knowledge) => !knowledge || typeof knowledge.knowledgeId !== 'string' || typeof knowledge.proposition !== 'string')) throw new Error('background knowledge is invalid: ' + background.id);
+    if (typeof background.openingHookRef !== 'string' || !background.openingHookRef) throw new Error('background openingHookRef is invalid: ' + background.id);
   }
   if (projection.bootstrap?.startLocationId && !(projection.locations ?? []).some((entry) => entry.id === projection.bootstrap.startLocationId)) throw new Error('bootstrap startLocationId is not a declared location: ' + projection.bootstrap.startLocationId);
   const defaultEntrypointId = projection.bootstrap?.defaultEntrypointId;
@@ -96,5 +117,5 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     }
     for (const body of sections.hydrography.waterBodies) for (const ref of body.inflows ?? []) if (!watercourseIds.has(ref)) throw new Error('hydrography water body has dangling inflow: ' + ref);
   }
-  return { ...projection, ...sections, canonicalRefs: [...(projection.canonicalRefs ?? [])].sort(), locations: sorted(projection.locations), landmarks: sorted(projection.landmarks), relations: sorted(projection.relations), travel: sorted(projection.travel, 'relationId'), settlements: sorted(projection.settlements, 'settlementId'), observations: [...(projection.observations ?? [])], content: sorted(projection.content), discoveryDefinitions: sorted(projection.discoveryDefinitions), simulationMetadata: sorted(projection.simulationMetadata, 'locationId'), resourceDefinitions: sorted(projection.resourceDefinitions), resourceProcessDefinitions: sorted(projection.resourceProcessDefinitions), resourceDemandDefinitions: sorted(projection.resourceDemandDefinitions), bootstrap: { ...(projection.bootstrap ?? {}), entrypoints: [...(projection.bootstrap?.entrypoints ?? [])].sort((a, b) => a.id.localeCompare(b.id)) } };
+  return { ...projection, ...sections, canonicalRefs: [...(projection.canonicalRefs ?? [])].sort(), locations: sorted(projection.locations), landmarks: sorted(projection.landmarks), relations: sorted(projection.relations), travel: sorted(projection.travel, 'relationId'), settlements: sorted(projection.settlements, 'settlementId'), observations: [...(projection.observations ?? [])], content: sorted(projection.content), discoveryDefinitions: sorted(projection.discoveryDefinitions), simulationMetadata: sorted(projection.simulationMetadata, 'locationId'), resourceDefinitions: sorted(projection.resourceDefinitions), resourceProcessDefinitions: sorted(projection.resourceProcessDefinitions), resourceDemandDefinitions: sorted(projection.resourceDemandDefinitions), backgroundBindings: sorted(projection.backgroundBindings), bootstrap: { ...(projection.bootstrap ?? {}), entrypoints: [...(projection.bootstrap?.entrypoints ?? [])].sort((a, b) => a.id.localeCompare(b.id)) } };
 }

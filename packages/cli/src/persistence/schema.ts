@@ -1,4 +1,4 @@
-export const USER_VERSION = 7;
+export const USER_VERSION = 8;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
@@ -147,4 +147,12 @@ export function execSchemaV7(db: { exec(sql: string): void }): void {
   execSchemaV6(db);
   db.exec("ALTER TABLE worlds ADD COLUMN entrypoint_id TEXT");
   db.exec("PRAGMA user_version = 7");
+}
+
+
+/** Latest additive migration: persist the selected background identity. */
+export function execSchemaV8(db: { exec(sql: string): void }): void {
+  execSchemaV7(db);
+  db.exec("ALTER TABLE character_profiles ADD COLUMN background_id TEXT");
+  db.exec("PRAGMA user_version = 8");
 }

@@ -29,12 +29,19 @@ export interface InventoryComponent {
   readonly itemIds: readonly string[];
 }
 
+/** Minimal contact metadata; this is not an NPC simulation model. */
+export interface ContactComponent {
+  readonly locationId: string;
+  readonly backgroundId: string;
+}
+
 export interface EntityComponents {
   readonly material?: MaterialComponent | undefined;
   readonly thermal?: ThermalComponent | undefined;
   readonly physical?: PhysicalComponent | undefined;
   readonly relation?: RelationComponent | undefined;
   readonly inventory?: InventoryComponent | undefined;
+  readonly contact?: ContactComponent | undefined;
 }
 
 export type EntityComponentName = keyof EntityComponents;

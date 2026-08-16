@@ -1,6 +1,6 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { ElevationDefinition, HydrographyDefinition, RegionDefinition, RegionToponymIndex, TerrainSurface } from "./types.js";
-import type { CompiledRegionBundle } from "./bundle-loader.js";
+import type { CompiledBackgroundBinding, CompiledRegionBundle } from "./bundle-loader.js";
 import type { ResourceNodeDefinition, ResourceProcessDefinition, ResourceDemandDefinition } from "../resource/types.js";
 import { loadCompiledRegionBundle } from "./bundle-loader.js";
 
@@ -85,6 +85,11 @@ function materializeSelectedEvents(events: readonly DomainEvent[], region: Regio
 }
 
 /** Generic compiled bootstrap for a selected region or authored entrypoint. */
+/** Returns the approved, compiled effects for one character background. */
+export function getRegionBackgroundBinding(regionId: string, backgroundId: string): CompiledBackgroundBinding | null {
+  return materializeBundle(regionId).bundle.backgroundBindings?.find((binding) => binding.id === backgroundId) ?? null;
+}
+
 export function buildRegionBootstrapEvents(regionId = DEFAULT_REGION_ID, entrypointId?: string): readonly DomainEvent[] {
   const materialized = materializeBundle(regionId);
   if (!entrypointId) return materialized.events;

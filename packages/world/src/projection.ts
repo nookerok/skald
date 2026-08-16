@@ -235,6 +235,7 @@ function deepCloneComponents(components: EntityComponents): EntityComponents {
     inventory: components.inventory
       ? Object.freeze({ ...components.inventory, itemIds: Object.freeze([...components.inventory.itemIds]) })
       : undefined,
+    contact: components.contact ? Object.freeze({ ...components.contact }) : undefined,
   });
 }
 

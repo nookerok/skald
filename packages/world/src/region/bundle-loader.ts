@@ -5,6 +5,21 @@ import type { RegionEntrypoint } from "../setup/types.js";
 import type { ElevationDefinition, HydrographyDefinition, RegionToponymIndex } from "./types.js";
 import type { ResourceNodeDefinition, ResourceProcessDefinition, ResourceDemandDefinition } from "../resource/types.js";
 
+export interface CompiledBackgroundBinding {
+  readonly id: string;
+  readonly status: "approved";
+  readonly canonicalRefs: readonly string[];
+  readonly bootstrapEvents: readonly DomainEvent[];
+  readonly narrative: {
+    readonly startingTestimonyRefs: readonly string[];
+    readonly contactRefs: readonly string[];
+    readonly startingItemRefs: readonly string[];
+    readonly familiarSpatialRefs: readonly string[];
+    readonly procedureKnowledgeRefs: readonly string[];
+    readonly openingHookRef: string;
+  };
+}
+
 export interface CompiledEntrypoint extends Omit<RegionEntrypoint, "title" | "description" | "atmosphere"> {
   readonly presentation: {
     readonly title: string;
@@ -17,6 +32,7 @@ export interface CompiledEntrypoint extends Omit<RegionEntrypoint, "title" | "de
 
 export interface CompiledRegionBundle {
   readonly entrypoints?: readonly CompiledEntrypoint[];
+  readonly backgroundBindings?: readonly CompiledBackgroundBinding[];
   readonly defaultEntrypointId?: string;
   readonly schemaVersion: number;
   readonly regionVersion: number;

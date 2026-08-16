@@ -8,8 +8,8 @@ export {
   type AcknowledgeObserverCheckpointParams,
   type AcknowledgeObserverCheckpointResult,
 } from "./sqlite-store.js";
-export { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, validateUserVersion, verifyIntegrity } from "./migrations.js";
-export { configureDatabase, execSchemaV2, execSchemaV3, execSchemaV4, execSchemaV5, execSchemaV6, USER_VERSION } from "./schema.js";
+export { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, validateUserVersion, verifyIntegrity } from "./migrations.js";
+export { configureDatabase, execSchemaV2, execSchemaV3, execSchemaV4, execSchemaV5, execSchemaV6, execSchemaV7, execSchemaV8, USER_VERSION } from "./schema.js";
 export type {
   WorldId,
   CharacterProfileId,

@@ -1,10 +1,10 @@
 import { commandEventId } from "../ids.js";
 import type { DomainEvent } from "@skald/event-bus";
 import { getWorldTemplate } from "./world-templates.js";
-import { getCharacterPreset } from "./character-presets.js";
+import { getCharacterBackground } from "./character-presets.js";
 import { OLD_TOWER_OBJECTS, OLD_TOWER_LOCATIONS } from "../objects/definitions.js";
 import { LEGACY_LOCATIONS, LEGACY_OBJECTS } from "../objects/definitions.js";
-import { buildRegionBootstrapEvents } from "../region/compiler.js";
+import { buildRegionBootstrapEvents, getRegionBackgroundBinding } from "../region/compiler.js";
 import { getDefaultRegionEntrypoint, getRegionEntrypoint } from "./entrypoints.js";
 
 export interface BootstrapSelection {
@@ -69,21 +69,56 @@ export function buildBootstrapEvents(selection: string | BootstrapSelection): re
       throw new Error("compiled region bootstrap does not start at entrypoint " + entrypoint.id);
     }
     if (options.backgroundId) {
-      const background = getCharacterPreset(options.backgroundId);
+      const background = getCharacterBackground(options.backgroundId);
       if (!background) throw new Error("Unknown character background: " + options.backgroundId);
-      regionEvents.push({
-        eventId: commandEventId("bootstrap-background-" + background.id, "KnowledgeAcquired"),
-        type: "KnowledgeAcquired",
-        schemaVersion: 1,
-        payload: {
-          subjectId: "player",
-          knowledgeId: "background:" + background.id,
-          proposition: background.startingKnowledge,
-        },
-        timestamp: 0,
-        correlationId: "bootstrap",
-        causationId: locationEvent?.eventId ?? null,
-      });
+      const binding = getRegionBackgroundBinding(regionId, background.id);
+      if (binding) {
+        // Keep the legacy compact key close to the entrypoint knowledge so
+        // bounded event feeds remain backward-compatible.
+        regionEvents.push({
+          eventId: commandEventId("bootstrap-background-" + background.id, "KnowledgeAcquired"),
+          type: "KnowledgeAcquired",
+          schemaVersion: 1,
+          payload: {
+            subjectId: "player",
+            knowledgeId: "background:" + background.id,
+            proposition: background.startingKnowledge,
+          },
+          timestamp: 0,
+          correlationId: "bootstrap",
+          causationId: locationEvent?.eventId ?? null,
+        });
+        const existingSubjects = new Set(regionEvents
+          .filter((event) => event.type === "SpatialObservationRecorded")
+          .map((event) => {
+            const payload = event.payload as { subjectKind?: string; subjectId?: string };
+            return payload.subjectKind && payload.subjectId ? payload.subjectKind + ":" + payload.subjectId : "";
+          }));
+        for (const event of binding.bootstrapEvents) {
+          if (event.type === "SpatialObservationRecorded") {
+            const payload = event.payload as { subjectKind?: string; subjectId?: string };
+            const key = payload.subjectKind && payload.subjectId ? payload.subjectKind + ":" + payload.subjectId : "";
+            if (existingSubjects.has(key)) continue;
+            existingSubjects.add(key);
+          }
+          regionEvents.push(event);
+        }
+      } else {
+        // Compatibility with pre-background compiled bundles.
+        regionEvents.push({
+          eventId: commandEventId("bootstrap-background-" + background.id, "KnowledgeAcquired"),
+          type: "KnowledgeAcquired",
+          schemaVersion: 1,
+          payload: {
+            subjectId: "player",
+            knowledgeId: "background:" + background.id,
+            proposition: background.startingKnowledge,
+          },
+          timestamp: 0,
+          correlationId: "bootstrap",
+          causationId: locationEvent?.eventId ?? null,
+        });
+      }
     }
     return Object.freeze(regionEvents);
   }

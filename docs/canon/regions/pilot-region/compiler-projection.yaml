@@ -83,6 +83,162 @@ compilerProjection:
     playerSpawn:
       x: 0
       y: 0
+  backgroundBindings:
+    - id: wanderer
+      status: approved
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+      testimony:
+        claimId: background:wanderer:north-road-marker
+        observerId: player
+        sourceId: northern-road-traveller
+        proposition: На северной дороге свидетель видел дорожный знак, который не должен был оказаться у переправы.
+        subjectId: road_waystation_forest
+      contact:
+        id: contact:waystation-ferryman
+        name: Перевозчик у переправы
+        description: Человек, к которому герой может обратиться по памяти северной дороги.
+        locationId: river_waystation
+      relation:
+        from: player
+        to: contact:waystation-ferryman
+        kind: knows
+        delta: 1
+      item:
+        id: wanderer-road-marker
+        name: Обломок северного дорожного знака
+        aliases:
+          - обломок знака
+          - дорожный знак
+        description: Обломок дерева с выцветшей меткой северной дороги.
+        material: wood
+        locationId: river_waystation
+        integrity: 45
+        temperature: 20
+        mass: 0.4
+        portable: true
+        affordances:
+          - signal
+        state:
+          origin: north_road
+          backgroundId: wanderer
+      observations:
+        - subjectKind: relation
+          subjectId: road_city_ruins
+          knowledge: glimpsed
+          observedAt: 0
+          confidence: 0.55
+          observerId: player
+      knowledge:
+        - knowledgeId: background:wanderer:read-road-signs
+          proposition: Ты умеешь читать старые дорожные знаки и сопоставлять их с направлением пути.
+          sourceObservationRef: relation:road_city_ruins
+      openingHookRef: hook:wanderer-misplaced-marker
+    - id: keeper
+      status: approved
+      canonicalRefs:
+        - regions.pilot-region.history.f1
+        - regions.pilot-region.history.f2
+        - regions.pilot-region.history.f4
+      testimony:
+        claimId: background:keeper:missing-basin-record
+        observerId: player
+        sourceId: burned-archive-catalogue
+        proposition: Перед пожаром из архива исчезла запись о Бассейне Речного Стража.
+        subjectId: old_ruins_masonry
+      contact:
+        id: contact:riverwatch-archivist
+        name: Архивист Речного Стража
+        description: Хранитель городских записей, знакомый с архивной манерой героя.
+        locationId: riverwatch_city
+      relation:
+        from: player
+        to: contact:riverwatch-archivist
+        kind: knows
+        delta: 1
+      item:
+        id: keeper-writing-kit
+        name: Письменные принадлежности архивиста
+        aliases:
+          - письменные принадлежности
+          - набор для записей
+        description: Обёрнутые тканью уголь, стилус и листы для копирования надписей.
+        material: fabric
+        locationId: river_waystation
+        integrity: 80
+        temperature: 20
+        mass: 0.3
+        portable: true
+        affordances:
+          - signal
+          - experiment
+        state:
+          purpose: preserve_record
+          backgroundId: keeper
+      observations:
+        - subjectKind: location
+          subjectId: old_ruins
+          knowledge: glimpsed
+          observedAt: 0
+          confidence: 0.62
+          observerId: player
+      knowledge:
+        - knowledgeId: background:keeper:preserve-inscription
+          proposition: Ты знаешь процедуру бережного копирования старой надписи, но ещё не доказал, что она сработает здесь.
+          sourceObservationRef: location:old_ruins
+      openingHookRef: hook:keeper-missing-basin-record
+    - id: echo
+      status: approved
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+        - regions.pilot-region.history.f3
+      testimony:
+        claimId: background:echo:night-crossing
+        observerId: player
+        sourceId: night-at-the-crossing
+        proposition: В ту ночь течение вынесло к переправе нечто, чему свидетель не смог дать имени.
+        subjectId: river_crossing
+      contact:
+        id: contact:night-ferryman
+        name: Ночной перевозчик
+        description: Перевозчик, который дежурил у переправы в ночь старого происшествия.
+        locationId: river_waystation
+      relation:
+        from: player
+        to: contact:night-ferryman
+        kind: knows
+        delta: 1
+      item:
+        id: echo-signal-cord
+        name: Узелковый шнур ночного дозорного
+        aliases:
+          - шнур
+          - узелковый шнур
+        description: Короткий шнур с узлами для отметки времени и направления звука.
+        material: fabric
+        locationId: river_waystation
+        integrity: 70
+        temperature: 20
+        mass: 0.2
+        portable: true
+        affordances:
+          - signal
+          - experiment
+        state:
+          purpose: mark_sound
+          backgroundId: echo
+      observations:
+        - subjectKind: water
+          subjectId: river_basin
+          knowledge: glimpsed
+          observedAt: 0
+          confidence: 0.48
+          observerId: player
+      knowledge:
+        - knowledgeId: background:echo:listen-to-current
+          proposition: Ты умеешь отмечать повторяющийся ритм течения, но ещё не знаешь его причины.
+          sourceObservationRef: water:river_basin
+      openingHookRef: hook:echo-repeating-impact
   terrain:
     river:
       centerMetres: 9500

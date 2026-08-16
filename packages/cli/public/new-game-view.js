@@ -142,12 +142,28 @@ function renderCharacterStep(container) {
     heading.textContent = background.title;
     const description = document.createElement("div");
     description.className = "ng-card-desc";
-    description.textContent = background.description;
+    description.textContent = background.shortDescription || background.description;
     card.append(heading, description);
     if (selected) {
       const details = document.createElement("div");
       details.className = "ng-card-traits";
-      details.append(textLine("Твоё прошлое", background.history), textLine("Что ты умеешь замечать", background.startingKnowledge), textLine("Незавершённая нить", background.openingHook));
+      details.append(
+        textLine("Кем ты был", background.formerRole || background.history),
+        textLine("Что произошло", background.rupture || background.wound),
+        textLine("Почему ты здесь", background.reasonInRegion || background.history),
+        textLine("Что тебе уже знакомо", background.knownConnection || background.startingKnowledge),
+        textLine("Что осталось незавершённым", background.obligation || background.openingHook),
+      );
+      const starts = document.createElement("div");
+      starts.className = "ng-card-starts";
+      starts.append(
+        textLine("Ты начинаешь с", background.startingTestimony || background.startingKnowledge),
+        textLine("Твой контакт", background.startingContact || background.knownConnection),
+        textLine("Предмет при тебе", background.startingItem || "ничего, кроме памяти"),
+        textLine("Знакомое место", background.familiarPlace || background.knownConnection),
+        textLine("Доступная процедура", background.procedureKnowledge || background.startingKnowledge),
+      );
+      details.appendChild(starts);
       card.appendChild(details);
     }
     const choose = () => { selectedBackgroundId = selected ? null : background.id; prologue = null; prologueKey = ""; prologueError = ""; saveCurrentDraft(); renderNewGame(); };

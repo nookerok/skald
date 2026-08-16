@@ -22,6 +22,7 @@ import {
   buildObserverMap,
   buildSpatialWorldProjection,
   narrateTurnLLM,
+  buildBackgroundNarrativeContext,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -503,8 +504,11 @@ export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): Js
 export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
-  const snapshot = buildNarrative(events, world);
-  return json({ ok: true, entries: snapshot.entries, presentation: snapshot.presentation, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  const record = runtime.store.getWorldRecord(runtime.worldId);
+  const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+  const backgroundContext = buildBackgroundNarrativeContext(events, world, profile);
+  const snapshot = buildNarrative(events, world, backgroundContext ? { backgroundContext } : undefined);
+  return json({ ok: true, entries: snapshot.entries, presentation: snapshot.presentation, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition, ...(snapshot.backgroundContext ? { backgroundContext: snapshot.backgroundContext } : {}) });
 }
 
 export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Promise<JsonResponse> {

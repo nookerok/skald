@@ -1,9 +1,9 @@
-import type { CharacterPreset, PrologueDTO, RegionEntrypoint } from "./types.js";
+import type { CharacterBackground, PrologueDTO, RegionEntrypoint } from "./types.js";
 
 /** Pure, non-authoritative onboarding prose assembled from accepted content. */
 export function buildPrologue(input: {
   readonly characterName: string;
-  readonly background: CharacterPreset;
+  readonly background: CharacterBackground;
   readonly entrypoint: RegionEntrypoint;
 }): PrologueDTO {
   const name = input.characterName.trim();
@@ -12,12 +12,12 @@ export function buildPrologue(input: {
   return Object.freeze({
     title: `История ${name}`,
     paragraphs: Object.freeze([
-      `${name} — ${background.history}`,
+      `${name} — ${background.history} ${background.formerRole} ${background.rupture}`,
       `${entrypoint.title}. ${entrypoint.description} ${entrypoint.atmosphere}`,
-      `${background.startingKnowledge} ${entrypoint.openingSituation}`,
+      `${background.reasonInRegion} ${background.knownConnection} ${entrypoint.openingSituation}`,
     ]),
-    backgroundReminder: background.promise,
+    backgroundReminder: background.obligation,
     locationTitle: entrypoint.title,
-    openingHook: `${background.openingHook} Теперь этот след начинается здесь.`,
+    openingHook: `${background.openingHook} ${background.obligation} Теперь этот след начинается здесь.`,
   });
 }

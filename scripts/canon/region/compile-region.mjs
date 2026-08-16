@@ -99,6 +99,112 @@ function buildEvents(p, region, inputDigest, canonDigest) {
   return events;
 }
 
+function buildBackgroundBindings(p, inputDigest, canonDigest) {
+  const bindings = [];
+  for (const background of p.backgroundBindings ?? []) {
+    if (background.status !== "approved") continue;
+    const refs = [...(background.canonicalRefs ?? [])].sort();
+    const events = [];
+    const event = (suffix, type, payload, causationId = "boot#region") => ({
+      eventId: "boot#background#" + background.id + "#" + suffix,
+      type,
+      schemaVersion: 1,
+      payload: {
+        ...payload,
+        provenance: provenance(refs, inputDigest, canonDigest, p.region.version, p.compilerVersion),
+      },
+      timestamp: 0,
+      correlationId: "boot#background#" + background.id,
+      causationId,
+    });
+    const testimony = background.testimony;
+    events.push(event("TestimonyReceived", "TestimonyReceived", {
+      claimId: testimony.claimId,
+      observerId: testimony.observerId ?? "player",
+      sourceId: testimony.sourceId ?? null,
+      proposition: testimony.proposition,
+      subjectId: testimony.subjectId ?? null,
+      receivedAt: 0,
+      sourceEventId: "boot#background#" + background.id + "#TestimonyReceived",
+    }));
+    const contact = background.contact;
+    const contactLocation = p.locations.find((location) => location.id === contact.locationId);
+    events.push(event("ContactPlaced", "ObjectPlaced", {
+      entityId: contact.id,
+      x: contactLocation?.xMetres ?? 0,
+      y: contactLocation?.yMetres ?? 0,
+      name: contact.name,
+      aliases: [],
+      description: contact.description,
+      components: { contact: { locationId: contact.locationId, backgroundId: background.id } },
+    }, events.at(-1).eventId));
+    const relation = background.relation;
+    events.push(event("RelationChanged", "RelationChanged", {
+      from: relation.from,
+      to: relation.to,
+      kind: relation.kind,
+      delta: relation.delta ?? 1,
+    }, events.at(-1).eventId));
+    const item = background.item;
+    const itemPlaced = event("ItemPlaced", "WorldObjectPlaced", {
+      id: item.id,
+      name: item.name,
+      aliases: item.aliases ?? [],
+      description: item.description,
+      material: item.material,
+      locationId: item.locationId,
+      integrity: item.integrity ?? 100,
+      temperature: item.temperature ?? 20,
+      mass: item.mass ?? 0,
+      portable: item.portable === true,
+      affordances: item.affordances ?? [],
+      containerCapacity: item.containerCapacity ?? null,
+      state: item.state ?? {},
+    }, events.at(-1).eventId);
+    events.push(itemPlaced);
+    events.push(event("ItemMoved", "ItemMoved", {
+      itemId: item.id,
+      from: { kind: "location", locationId: item.locationId },
+      to: { kind: "carried", holderId: "player" },
+    }, itemPlaced.eventId));
+    events.push(event("ItemPossessionChanged", "ItemPossessionChanged", {
+      itemId: item.id,
+      ownerId: "player",
+      reason: "character_background",
+    }, events.at(-1).eventId));
+    for (const [index, observation] of (background.observations ?? []).entries()) {
+      events.push(event("SpatialObservationRecorded#" + index, "SpatialObservationRecorded", {
+        ...observation,
+        observerId: observation.observerId ?? "player",
+        observedAt: observation.observedAt ?? 0,
+      }, events.at(-1).eventId));
+    }
+    for (const [index, knowledge] of (background.knowledge ?? []).entries()) {
+      events.push(event("KnowledgeAcquired#" + index, "KnowledgeAcquired", {
+        subjectId: "player",
+        knowledgeId: knowledge.knowledgeId,
+        proposition: knowledge.proposition,
+        sourceObservationRef: knowledge.sourceObservationRef,
+      }, events.at(-1).eventId));
+    }
+    bindings.push({
+      id: background.id,
+      status: "approved",
+      canonicalRefs: refs,
+      bootstrapEvents: events,
+      narrative: {
+        startingTestimonyRefs: [testimony.claimId],
+        contactRefs: [relation.to],
+        startingItemRefs: [item.id],
+        familiarSpatialRefs: (background.observations ?? []).map((observation) => observation.subjectKind + ":" + observation.subjectId).sort(),
+        procedureKnowledgeRefs: (background.knowledge ?? []).map((knowledge) => knowledge.knowledgeId).sort(),
+        openingHookRef: background.openingHookRef,
+      },
+    });
+  }
+  return bindings.sort((a, b) => a.id.localeCompare(b.id));
+}
+
 function observationKey(payload) { return `${payload.subjectKind}:${payload.subjectId}`; }
 
 function buildEntrypointDefinitions(projection, events) {
@@ -152,8 +258,10 @@ export function compileRegion(regionId = null) {
   const objectProvenance = Object.fromEntries([...projection.locations, ...projection.landmarks, ...projection.relations, ...projection.content, ...acceptedResources, ...acceptedResourceProcesses, ...acceptedResourceDemands, ...(acceptedHydrography.waterBodies ?? []), ...(acceptedHydrography.watercourses ?? []), ...(acceptedHydrography.catchments ?? []), ...(acceptedElevation.controlAreas ?? []), ...(acceptedElevation.constraints ?? []), ...(acceptedToponymIndex.subjects ?? [])].map((entry) => [entry.id, { canonicalRefs: entry.canonicalRefs ?? [] }]));
   const allEvents = compactEvents;
   const entrypoints = buildEntrypointDefinitions(projection, allEvents);
-  const finalBootstrapDigest = sha256(allEvents);
-  return { schemaVersion: BUNDLE_SCHEMA_VERSION, regionId: projection.regionId, regionVersion: projection.region.version, defaultEntrypointId: projection.bootstrap?.defaultEntrypointId ?? projection.bootstrap?.entrypoints?.[0]?.id ?? projection.bootstrap?.startLocationId, entrypoints, compilerVersion: projection.compilerVersion, provenance: { canonDigest, compilerInputDigest: inputDigest, bootstrapDigest: finalBootstrapDigest, canonicalRefs: projection.canonicalRefs, referenceArtifactRuntimeAllowed: false }, regionDefinition: compact, hydrographyDefinition: acceptedHydrography, elevationDefinition: acceptedElevation, toponymIndex: acceptedToponymIndex, contentDefinitions: projection.content ?? [], discoveryDefinitions: acceptedDiscovery, simulationDefinitions: acceptedSimulation, resourceDefinitions: acceptedResources, resourceProcessDefinitions: acceptedResourceProcesses, resourceDemandDefinitions: acceptedResourceDemands, objectProvenance, events: allEvents };
+  const backgroundBindings = buildBackgroundBindings(projection, inputDigest, canonDigest);
+  const finalBootstrapDigest = sha256({ regionEvents: allEvents, backgroundBindings });
+  return { schemaVersion: BUNDLE_SCHEMA_VERSION, regionId: projection.regionId, regionVersion: region.version, defaultEntrypointId: projection.bootstrap?.defaultEntrypointId ?? projection.bootstrap?.entrypoints?.[0]?.id ?? projection.bootstrap?.startLocationId, entrypoints, backgroundBindings, compilerVersion: projection.compilerVersion, provenance: { canonDigest, compilerInputDigest: inputDigest, bootstrapDigest: finalBootstrapDigest, canonicalRefs: projection.canonicalRefs, referenceArtifactRuntimeAllowed: false }, regionDefinition: compact, hydrographyDefinition: acceptedHydrography, elevationDefinition: acceptedElevation, toponymIndex: acceptedToponymIndex, contentDefinitions: projection.content ?? [], discoveryDefinitions: acceptedDiscovery, simulationDefinitions: acceptedSimulation, resourceDefinitions: acceptedResources, resourceProcessDefinitions: acceptedResourceProcesses, resourceDemandDefinitions: acceptedResourceDemands, objectProvenance, events: allEvents };
+
 }
 
 const mode = process.argv.includes("--check") ? "check" : "write";

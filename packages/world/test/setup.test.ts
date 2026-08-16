@@ -39,6 +39,43 @@ describe("character presets", () => {
   });
 });
 
+describe("character backgrounds", () => {
+  it("uses authored titles and exposes the five narrative questions", () => {
+    expect(getCharacterPreset("wanderer")?.title).toBe("Изгнанник с северной дороги");
+    expect(getCharacterPreset("keeper")?.title).toBe("Последний ученик сгоревшего архива");
+    expect(getCharacterPreset("echo")?.title).toBe("Свидетель ночи у переправы");
+    for (const background of listCharacterPresets()) {
+      expect(background.formerRole).toBeTruthy();
+      expect(background.rupture).toBeTruthy();
+      expect(background.reasonInRegion).toBeTruthy();
+      expect(background.knownConnection).toBeTruthy();
+      expect(background.obligation).toBeTruthy();
+      expect(background.startingTestimony).toBeTruthy();
+      expect(background.startingContact).toBeTruthy();
+      expect(background.startingItem).toBeTruthy();
+      expect(background.familiarPlace).toBeTruthy();
+      expect(background.procedureKnowledge).toBeTruthy();
+    }
+  });
+
+  it("materializes background effects through domain events", () => {
+    for (const background of listCharacterPresets()) {
+      const events = buildBootstrapEvents({
+        templateId: "living_region",
+        regionId: "riverwatch-basin",
+        entrypointId: "river_waystation_arrival",
+        backgroundId: background.id,
+      });
+      const types = new Set(events.map((event) => event.type));
+      for (const expectedType of ["TestimonyReceived", "RelationChanged", "WorldObjectPlaced", "ItemMoved", "ItemPossessionChanged", "SpatialObservationRecorded", "KnowledgeAcquired"]) {
+        expect(types.has(expectedType)).toBe(true);
+      }
+      expect(events.filter((event) => event.type === "TestimonyReceived").every((event) => (event.payload as any).observerId === "player")).toBe(true);
+      expect(events.some((event) => event.type === "WorldObjectPlaced" && (event.payload as any).state?.backgroundId === background.id)).toBe(true);
+    }
+  });
+});
+
 describe("world templates", () => {
   it("registry is immutable", () => {
     expect(() => { (WORLD_TEMPLATES as any).old_tower = null; }).toThrow();

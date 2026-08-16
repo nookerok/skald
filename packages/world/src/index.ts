@@ -68,8 +68,8 @@ export type {
 } from "./observation/types.js";
 export { buildPlayerGuidance, GUIDANCE_ACTIONS } from "./guidance/index.js";
 export type * from "./guidance/types.js";
-export { CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterPreset, getWorldTemplate, listCharacterPresets, listWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "./setup/index.js";
-export type { CharacterPreset, WorldTemplate, RegionEntrypoint, PrologueDTO } from "./setup/types.js";
+export { CHARACTER_BACKGROUNDS, CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterBackground, getCharacterPreset, getWorldTemplate, listCharacterBackgrounds, listCharacterPresets, listWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "./setup/index.js";
+export type { CharacterBackground, CharacterPreset, WorldTemplate, RegionEntrypoint, PrologueDTO } from "./setup/types.js";
 export type { BootstrapSelection } from "./setup/bootstrap-builder.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
@@ -191,3 +191,5 @@ export type { SettlementDefinition, SettlementState, SettlementReadView } from "
 export * from './action-capability/index.js';
 export { actionCapabilityRules, itemPossession, containerAccess, affordanceUse, phenomenonObservation } from './rules/interactions/action-capability.js';
 export * from "./region/index.js";
+export { buildBackgroundNarrativeContext } from "./setup/background-context.js";
+export type { BackgroundNarrativeContext } from "./setup/background-context.js";

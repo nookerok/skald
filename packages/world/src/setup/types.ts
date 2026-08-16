@@ -1,6 +1,14 @@
-export interface CharacterPreset {
+/** Player-facing origin package. Gameplay effects are materialized through bootstrap events. */
+export interface CharacterBackground {
   readonly id: string;
   readonly title: string;
+  readonly shortDescription: string;
+  readonly formerRole: string;
+  readonly rupture: string;
+  readonly reasonInRegion: string;
+  readonly knownConnection: string;
+  readonly obligation: string;
+  /** Compatibility presentation fields retained for old clients/prologues. */
   readonly description: string;
   readonly wound: string;
   readonly promise: string;
@@ -9,7 +17,24 @@ export interface CharacterPreset {
   readonly history: string;
   readonly startingKnowledge: string;
   readonly openingHook: string;
+  readonly startingTestimony: string;
+  readonly startingContact: string;
+  readonly startingItem: string;
+  readonly familiarPlace: string;
+  readonly procedureKnowledge: string;
+  /** Design-time references; never exposed by the player-facing API. */
+  readonly startingTestimonyRefs: readonly string[];
+  readonly contactRefs: readonly string[];
+  readonly startingItemRefs: readonly string[];
+  readonly familiarSpatialRefs: readonly string[];
+  readonly procedureKnowledgeRefs: readonly string[];
+  readonly openingHookRef: string;
+  readonly canonicalRefs: readonly string[];
 }
+
+/** @deprecated Use CharacterBackground. */
+export type CharacterPreset = CharacterBackground;
+
 
 export interface WorldTemplate {
   readonly id: string;

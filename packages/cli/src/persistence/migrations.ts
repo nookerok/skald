@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -137,9 +137,10 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 4) return "migrateV5";
   if (v === 5) return "migrateV6";
   if (v === 6) return "migrateV7";
-  if (v === 7) return "open";
+  if (v === 7) return "migrateV8";
+  if (v === 8) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-7.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-8.`);
 }
 
 export function migrateV6ToV7(db: SqliteHandle): void {
@@ -279,4 +280,20 @@ export function verifyIntegrity(db: SqliteHandle): void {
   if (foreignKeys.length > 0) {
     throw new Error(`Foreign key check failed: ${JSON.stringify(foreignKeys)}`);
   }
+}
+
+
+export function migrateV7ToV8(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    const columns = db.prepare("PRAGMA table_info(character_profiles)").all() as { name?: string }[];
+    if (!columns.some((column) => column.name === "background_id")) db.exec("ALTER TABLE character_profiles ADD COLUMN background_id TEXT");
+    db.exec("PRAGMA user_version = 8");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  verifyIntegrity(db);
 }

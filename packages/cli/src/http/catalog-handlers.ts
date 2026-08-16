@@ -1,5 +1,5 @@
 import type { WorldRuntimeManager } from "../runtime/index.js";
-import { listCharacterPresets, listWorldTemplates, getCharacterPreset, getWorldTemplate, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "@skald/world";
+import { listCharacterBackgrounds, listWorldTemplates, getCharacterBackground, getWorldTemplate, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue } from "@skald/world";
 import { createHash } from "node:crypto";
 import type { CreateWorldParams } from "../persistence/sqlite-store.js";
 
@@ -46,8 +46,34 @@ export function handleContinue(_runtimes: WorldRuntimeManager) {
   return json({ worldId: active[0]!.worldId });
 }
 
+function publicBackground(background: ReturnType<typeof listCharacterBackgrounds>[number]) {
+  return {
+    id: background.id,
+    title: background.title,
+    shortDescription: background.shortDescription,
+    formerRole: background.formerRole,
+    rupture: background.rupture,
+    reasonInRegion: background.reasonInRegion,
+    knownConnection: background.knownConnection,
+    obligation: background.obligation,
+    description: background.description,
+    wound: background.wound,
+    promise: background.promise,
+    principle: background.principle,
+    history: background.history,
+    startingKnowledge: background.startingKnowledge,
+    openingHook: background.openingHook,
+    startingTestimony: background.startingTestimony,
+    startingContact: background.startingContact,
+    startingItem: background.startingItem,
+    familiarPlace: background.familiarPlace,
+    procedureKnowledge: background.procedureKnowledge,
+  };
+}
+
 export function handleCharacterPresets(): JsonResponse {
-  return json({ presets: listCharacterPresets() });
+  const backgrounds = listCharacterBackgrounds().map(publicBackground);
+  return json({ backgrounds, presets: backgrounds });
 }
 
 export function handleWorldTemplates(): JsonResponse {
@@ -67,7 +93,7 @@ function playerEntrypoint(entry: ReturnType<typeof listRegionEntrypoints>[number
 
 /** Player-facing onboarding catalog: one region, no world-template vocabulary. */
 export function handleNewGameOptions(): JsonResponse {
-  const backgrounds = listCharacterPresets().map(({ id, title, description, wound, promise, principle, history, startingKnowledge, openingHook }) => ({ id, title, description, wound, promise, principle, history, startingKnowledge, openingHook }));
+  const backgrounds = listCharacterBackgrounds().map(publicBackground);
   return json({ schemaVersion: 1, region: { id: 'riverwatch-basin', title: 'Бассейн Речного Стража', description: 'Один живой регион: река, Чёрный лес и дороги, которые меняются вместе с теми, кто по ним идёт.' }, backgrounds, entrypoints: listRegionEntrypoints().map(playerEntrypoint) });
 }
 
@@ -79,7 +105,7 @@ export function handleNewGamePrologue(body: unknown): JsonResponse {
   const backgroundId = typeof input.backgroundId === "string" ? input.backgroundId : "";
   const entrypointId = typeof input.entrypointId === "string" ? input.entrypointId : "";
   if (!characterName || characterName.length > 40) return error("invalid_name", "characterName required (1-40 chars)", 400);
-  const background = getCharacterPreset(backgroundId);
+  const background = getCharacterBackground(backgroundId);
   if (!background) return error("unknown_background", "unknown character background", 400);
   const entrypoint = getRegionEntrypoint(entrypointId);
   if (!entrypoint) return error("unknown_entrypoint", "unknown or unavailable story beginning", 400);
@@ -95,7 +121,8 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   const idempotencyKey = b["idempotencyKey"];
   const saveLabelRaw = b["saveLabel"];
   const characterNameRaw = b["characterName"];
-  const characterPresetId = b["characterPresetId"] ?? b["backgroundId"];
+  const backgroundId = b["backgroundId"] ?? b["characterPresetId"];
+  const characterPresetId = backgroundId;
   const entrypointId = b["entrypointId"];
   const legacyWorldTemplateId = b["worldTemplateId"];
   const worldTemplateId = typeof legacyWorldTemplateId === "string" ? legacyWorldTemplateId : "living_region";
@@ -112,7 +139,7 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   if (typeof characterNameRaw !== "string")
     return error("invalid_name", "characterName must be a string", 400);
   if (typeof characterPresetId !== "string")
-    return error("unknown_preset", "characterPresetId must be a string", 400);
+    return error("unknown_background", "backgroundId must be a string", 400);
   if (entrypointId !== undefined && typeof entrypointId !== "string")
     return error("unknown_entrypoint", "entrypointId must be a string", 400);
 
@@ -124,8 +151,8 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
   if (saveLabel.length < 1 || saveLabel.length > 80) return error("invalid_label", "saveLabel must be 1-80 chars", 400);
   if (characterName.length < 1 || characterName.length > 40) return error("invalid_name", "characterName required (1-40 chars)", 400);
 
-  const preset = getCharacterPreset(characterPresetId);
-  if (!preset) return error("unknown_preset", `unknown character preset: ${characterPresetId}`, 400);
+  const background = typeof characterPresetId === "string" ? getCharacterBackground(characterPresetId) : null;
+  if (!background) return error("unknown_background", "unknown character background", 400);
 
   if (legacyWorldTemplateId === undefined && worldTemplateId !== "living_region") return error("unknown_template", "new stories must use living_region", 400);
   const template = getWorldTemplate(worldTemplateId);
@@ -134,10 +161,10 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
     ? (typeof entrypointId === "string" ? getRegionEntrypoint(entrypointId) : getDefaultRegionEntrypoint())
     : null;
   if (worldTemplateId === "living_region" && !entrypoint) return error("unknown_entrypoint", "unknown or unavailable entrypoint", 400);
-  if (entrypoint && !entrypoint.availableBackgroundIds.includes(characterPresetId)) return error("incompatible_start", "this background cannot begin at the selected place", 400);
+  if (entrypoint && !entrypoint.availableBackgroundIds.includes(String(backgroundId))) return error("incompatible_start", "this background cannot begin at the selected place", 400);
 
   // Creation metadata selects the authored start; location truth remains in bootstrap events.
-  const requestDigest = createHash("sha256").update(JSON.stringify({ worldId, saveLabel, characterName, backgroundId: characterPresetId, worldTemplateId, entrypointId: entrypoint?.id ?? null })).digest("hex");
+  const requestDigest = createHash("sha256").update(JSON.stringify({ worldId, saveLabel, characterName, backgroundId: backgroundId, worldTemplateId, entrypointId: entrypoint?.id ?? null })).digest("hex");
 
   const bootstrapEvents = buildBootstrapEvents({
     templateId: worldTemplateId,
@@ -151,13 +178,14 @@ export async function handleCreateWorld(runtimes: WorldRuntimeManager, body: unk
     requestHash: requestDigest,
     saveLabel,
     characterName,
-    characterPresetId,
+    characterPresetId: String(characterPresetId),
+    backgroundId: String(backgroundId),
     worldTemplateId,
     entrypointId: entrypoint?.id,
-    characterWound: preset.wound,
-    characterPromise: preset.promise,
-    characterPrinciple: preset.principle,
-    characterProfileVersion: preset.profileVersion,
+    characterWound: background.wound,
+    characterPromise: background.promise,
+    characterPrinciple: background.principle,
+    characterProfileVersion: background.profileVersion,
     bootstrapEvents,
   };
 
