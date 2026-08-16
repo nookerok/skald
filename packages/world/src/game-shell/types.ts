@@ -27,6 +27,8 @@ export interface WorldContextView {
   locationName?: string | undefined;
   locationDescription?: string | undefined;
   connectedLocations?: Array<{ id: string; label: string; detail?: string }> | undefined;
+  /** Observer-scoped route labels; unlike legacy connections, these are safe for player inquiries. */
+  knownRoutes?: Array<{ label: string; detail?: string; status?: "open" | "difficult" | "blocked" }> | undefined;
 }
 
 export type AttentionLevel = "calm" | "stirring" | "noticed" | "watched" | "pressured";

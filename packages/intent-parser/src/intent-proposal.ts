@@ -3,6 +3,7 @@ import type {
   InteractionCommand,
   JourneyIntent,
 } from "./types.js";
+import type { InquiryQueryId } from "./inquiry.js";
 
 /** A finite capability list supplied to the non-authoritative interpreter. */
 export interface IntentCapabilitiesManifest {
@@ -29,6 +30,42 @@ export const INTENT_CAPABILITIES: IntentCapabilitiesManifest = Object.freeze({
   journeySupported: true,
   onePrimaryIntentOnly: true,
 });
+
+/** Query ids an untrusted model may propose for the read-only inquiry path. */
+export interface InquiryCapabilitiesManifest {
+  readonly schemaVersion: 1;
+  readonly queryIds: readonly InquiryQueryId[];
+  readonly readOnly: true;
+}
+
+export const INQUIRY_CAPABILITIES: InquiryCapabilitiesManifest = Object.freeze({
+  schemaVersion: 1,
+  queryIds: [
+    "current_location",
+    "visible_scene",
+    "auditory_scene",
+    "character_identity",
+    "known_place_knowledge",
+    "available_routes",
+    "recent_events",
+    "inventory",
+    "known_contacts",
+    "map_position",
+  ] as const,
+  readOnly: true,
+});
+
+export interface InquiryProposalV1 {
+  readonly schemaVersion: 1;
+  readonly kind: "inquiry";
+  readonly queryId: string;
+  readonly ambiguity?: string;
+}
+
+export type InquiryProposalValidation =
+  | { readonly status: "accepted"; readonly queryId: InquiryQueryId }
+  | { readonly status: "clarification"; readonly question: string; readonly options: readonly { readonly optionId: string; readonly label: string }[] }
+  | { readonly status: "invalid"; readonly reason: string };
 
 export interface IntentProposalInput {
   readonly kind: "interaction" | "journey" | "legacy";
@@ -106,6 +143,29 @@ export function parseIntentProposal(raw: unknown): IntentProposalV1 | null {
     ...(candidate.ambiguities ? { ambiguities: Object.freeze([...(candidate.ambiguities as IntentProposalAmbiguity[])]) } : {}),
     ...(candidate.unsupportedFragments ? { unsupportedFragments: Object.freeze([...(candidate.unsupportedFragments as string[])]) } : {}),
     ...(candidate.modelConfidence !== undefined ? { modelConfidence: candidate.modelConfidence as number } : {}),
+  });
+}
+
+export function isInquiryProposal(value: unknown): value is InquiryProposalV1 {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.schemaVersion === 1
+    && candidate.kind === "inquiry"
+    && typeof candidate.queryId === "string"
+    && candidate.queryId.length <= 80
+    && (candidate.ambiguity === undefined || typeof candidate.ambiguity === "string");
+}
+
+export function parseInquiryProposal(raw: unknown): InquiryProposalV1 | null {
+  if (!isInquiryProposal(raw)) return null;
+  const candidate = raw as unknown as Record<string, unknown>;
+  if (!hasOnlyKeys(candidate, ["schemaVersion", "kind", "queryId", "ambiguity"])) return null;
+  if (typeof candidate.ambiguity === "string" && (candidate.ambiguity.length > 240 || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u.test(candidate.ambiguity))) return null;
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: "inquiry" as const,
+    queryId: candidate.queryId as string,
+    ...(typeof candidate.ambiguity === "string" ? { ambiguity: candidate.ambiguity } : {}),
   });
 }
 

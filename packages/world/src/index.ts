@@ -73,6 +73,8 @@ export type { CharacterBackground, CharacterPreset, WorldTemplate, WorldTemplate
 export type { BootstrapSelection } from "./setup/bootstrap-builder.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
+export { buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } from "./inquiry/index.js";
+export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { narrateLLM, narrateTurnLLM } from "./narrative-llm.js";
 export type { TurnNarration } from "./narrative-llm.js";

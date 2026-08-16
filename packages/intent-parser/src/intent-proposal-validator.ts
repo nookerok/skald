@@ -1,11 +1,14 @@
 import type { ActionIntentCommand, InteractionCommand, JourneyIntent } from "./types.js";
 import {
   INTENT_CAPABILITIES,
+  parseInquiryProposal,
   parseIntentProposal,
   type ExecutableIntent,
+  type InquiryProposalValidation,
   type IntentProposalV1,
   type IntentProposalValidation,
 } from "./intent-proposal.js";
+import { isInquiryQueryId } from "./inquiry.js";
 
 const INTERACTION_VERBS = new Set<string>(INTENT_CAPABILITIES.interactionVerbs);
 const LEGACY_OPERATIONS = new Set(["approach", "enter", "heat", "cool", "create_mark", "speak", "call", "wait"]);
@@ -24,6 +27,21 @@ export function validateIntentProposal(raw: unknown, rawText: string): IntentPro
   const intent = mapPrimary(proposal, rawText);
   if (!intent) return { status: "invalid", reason: "proposal primary intent is incomplete or unsupported" };
   return { status: "accepted", intent };
+}
+
+/** Validates only the query selector; the answer is built by the world read model. */
+export function validateInquiryProposal(raw: unknown): InquiryProposalValidation {
+  const proposal = parseInquiryProposal(raw);
+  if (!proposal) return { status: "invalid", reason: "proposal does not match InquiryProposalV1" };
+  if (!isInquiryQueryId(proposal.queryId)) return { status: "invalid", reason: "unknown inquiry query" };
+  if (proposal.ambiguity?.trim()) {
+    return {
+      status: "clarification",
+      question: proposal.ambiguity.trim(),
+      options: [{ optionId: "inquiry-rephrase", label: "Уточнить вопрос" }],
+    };
+  }
+  return { status: "accepted", queryId: proposal.queryId };
 }
 
 function mapPrimary(proposal: IntentProposalV1, rawText: string): ExecutableIntent | null {

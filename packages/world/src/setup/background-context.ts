@@ -28,7 +28,7 @@ export function buildBackgroundNarrativeContext(
   const knowledge: string[] = [];
   const testimony: string[] = [];
   const familiarSpatialRefs: string[] = [];
-  const itemIds = new Set<string>();
+  const itemOwners = new Map<string, string>();
   for (const event of events) {
     const payload = event.payload as Record<string, unknown>;
     if (event.type === "KnowledgeAcquired" && payload.subjectId === "player" && typeof payload.proposition === "string") {
@@ -41,16 +41,18 @@ export function buildBackgroundNarrativeContext(
         typeof payload.subjectKind === "string" && typeof payload.subjectId === "string") {
       familiarSpatialRefs.push(payload.subjectKind + ":" + payload.subjectId);
     }
-    if (event.type === "ItemPossessionChanged" && payload.ownerId === "player" && typeof payload.itemId === "string") {
-      itemIds.add(payload.itemId);
+    if (event.type === "ItemPossessionChanged" && typeof payload.itemId === "string") {
+      if (payload.ownerId === "player") itemOwners.set(payload.itemId, "player");
+      else itemOwners.delete(payload.itemId);
     }
   }
 
   const relations = [...world.relations.values()]
     .filter((relation) => relation.from === "player")
     .map((relation) => relation.kind + " → " + relation.to);
-  const accessibleItems = [...itemIds]
-    .map((id) => world.objects.get(id)?.name ?? id);
+  const accessibleItems = [...itemOwners.keys()]
+    .map((id) => world.objects.get(id)?.name)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
 
   return Object.freeze({
     backgroundId,

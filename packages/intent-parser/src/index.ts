@@ -54,12 +54,14 @@ export type {
   UnsupportedIntent,
   IntentResult,
 } from "./types.js";
+export { INQUIRY_QUERY_IDS, classifyPlayerInput, isInquiryQueryId, isQuestionLikeInput } from "./inquiry.js";
+export type { InquiryQueryId, InquiryRequest, PlayerInputClassification, PlayerInputKind } from "./inquiry.js";
 
 export { interpretIntent } from "./deterministic-interpreter.js";
 export type { InterpreterOptions } from "./deterministic-interpreter.js";
-export { INTENT_CAPABILITIES, isIntentProposal, parseIntentProposal } from "./intent-proposal.js";
-export type { ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation } from "./intent-proposal.js";
-export { validateIntentProposal } from "./intent-proposal-validator.js";
+export { INTENT_CAPABILITIES, INQUIRY_CAPABILITIES, isIntentProposal, parseIntentProposal, isInquiryProposal, parseInquiryProposal } from "./intent-proposal.js";
+export type { ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation, InquiryCapabilitiesManifest, InquiryProposalV1, InquiryProposalValidation } from "./intent-proposal.js";
+export { validateIntentProposal, validateInquiryProposal } from "./intent-proposal-validator.js";
 
 // ── Legacy parser (kept for backward compatibility) ──────────────────
 

@@ -11,8 +11,15 @@ import { byId, makeNode } from "./dom-helpers.js";
 const MAX_TURNS = 12;
 const localIntents = [];
 const localClarifications = [];
+const localInquiries = [];
 
 /** Remember the player's typed intention for this session. Returns the entry. */
+export function addLocalInquiry(question, answer) {
+  const entry = { question: String(question || ""), answer: String(answer || "") };
+  localInquiries.push(entry);
+  return entry;
+}
+
 export function addLocalIntent(text, requestKey) {
   const normalizedKey = typeof requestKey === "string" && requestKey ? requestKey : null;
   const existing = normalizedKey ? localIntents.find((item) => item.requestKey === normalizedKey) : null;
@@ -28,6 +35,13 @@ export function bindIntentWorldTime(intent, worldTime) {
   if (intent && typeof worldTime === "number" && Number.isFinite(worldTime)) {
     intent.worldTime = worldTime;
   }
+}
+
+export function removeLocalIntent(intent) {
+  const index = localIntents.indexOf(intent);
+  if (index >= 0) localIntents.splice(index, 1);
+  const clarificationIndex = localClarifications.findIndex((entry) => entry.intent === intent);
+  if (clarificationIndex >= 0) localClarifications.splice(clarificationIndex, 1);
 }
 
 export function setIntentStatus(intent, status) {
@@ -52,6 +66,7 @@ export function getLocalIntents() {
 export function clearLocalIntents() {
   localIntents.length = 0;
   localClarifications.length = 0;
+  localInquiries.length = 0;
 }
 
 function markLabel(mark) {
@@ -67,6 +82,21 @@ function intentNode(intent, pending) {
     makeNode("span", { className: "chat-intent-status", text: status }),
   );
   return node;
+}
+
+function inquiryNodes(entry) {
+  const player = makeNode("article", { className: "chat-intent" });
+  player.append(
+    makeNode("span", { className: "chat-intent-label", text: "ТЫ" }),
+    makeNode("p", { className: "chat-intent-text", text: entry.question }),
+    makeNode("span", { className: "chat-intent-status", text: "Вопрос мастеру" }),
+  );
+  const master = makeNode("article", { className: "chat-turn chat-turn--inquiry" });
+  master.append(
+    makeNode("div", { className: "chat-turn-header", text: "МАСТЕР" }),
+    makeNode("p", { className: "chat-world-primary", text: entry.answer }),
+  );
+  return [player, master];
 }
 
 function clarificationNode(entry) {
@@ -147,6 +177,7 @@ export function renderChatFeed(turns, intents = [], snapshot = null) {
     }
     children.push(turnNode(turn));
   }
+  for (const inquiry of localInquiries) children.push(...inquiryNodes(inquiry));
   const stateNode = worldStateNode(snapshot);
   if (stateNode) children.push(stateNode);
   // Intents without a journal turn yet (pending answer, rejected command or a

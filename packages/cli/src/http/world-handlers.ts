@@ -23,6 +23,7 @@ import {
   buildSpatialWorldProjection,
   narrateTurnLLM,
   buildBackgroundNarrativeContext,
+  buildInquiryAnswer,
   getCharacterBackground,
   getRegionEntrypoint,
 } from "@skald/world";
@@ -30,6 +31,7 @@ import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { interpretPlayerInput } from "../runtime/intent-gateway.js";
+import { classifyPlayerInput, parseIntent } from "@skald/intent-parser";
 import type { ExecutableIntent } from "@skald/intent-parser";
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { getMapDetailAsset } from "./map-detail-catalog.js";
@@ -262,13 +264,23 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   let resolvedIntent: ExecutableIntent | undefined;
 
   if (input !== "wait" && !input.startsWith("advance ")) {
-    if (runtime.processedKeys.has(idempotencyKey)) return error("duplicate_request", "duplicate idempotencyKey", 409);
     const interpretation = await interpretPlayerInput(input, runtime.router);
+    if (interpretation.status === "inquiry") {
+      const events = runtime.bus.query();
+      const world = runtime.projection.getSnapshot();
+      const record = runtime.store.getWorldRecord(runtime.worldId);
+      const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+      const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
+      const background = buildBackgroundNarrativeContext(events, world, profile);
+      const inquiry = buildInquiryAnswer(interpretation.inquiry, { shell, background });
+      return json({ ok: true, status: "inquiry", inquiry });
+    }
+    if (runtime.processedKeys.has(idempotencyKey)) return error("duplicate_request", "duplicate idempotencyKey", 409);
     if (interpretation.status === "clarification") {
       return json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options });
     }
     if (interpretation.status === "unsupported" || interpretation.status === "unavailable") {
-      return json({ ok: true, status: "clarification", question: interpretation.message, options: [{ optionId: "rephrase", label: "Переформулировать действие" }] });
+      return json({ ok: true, status: "clarification", question: interpretation.message, options: [{ optionId: "rephrase", label: "Уточнить намерение" }] });
     }
     resolvedIntent = interpretation.intent;
   }
@@ -365,15 +377,18 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         return json({ ok: true, resolution: "already_processed", message: "Это намерение уже было обработано.", reason: null });
       }
 
-      // parseIntent's typed contract today never yields ParseError, but the
-      // offline endpoint must survive parser evolution without silently
-      // reclassifying unparsable text; the union cast keeps the guard live.
-      const parsed = parseIntent(input) as
-        | ReturnType<typeof parseIntent>
-        | { type: "ParseError"; reason: string; input: string };
-      if (parsed.type === "ParseError") {
-        return json({ ok: true, resolution: "rejected", message: "Не удалось понять намерение. Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unparsable" });
+      const classification = classifyPlayerInput(input, parseIntent);
+      if (classification.kind === "inquiry") {
+        const events = runtime.bus.query();
+        const world = runtime.projection.getSnapshot();
+        const record = runtime.store.getWorldRecord(runtime.worldId);
+        const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+        const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
+        const background = buildBackgroundNarrativeContext(events, world, profile);
+        const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background });
+        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry });
       }
+      const parsed = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
       if (parsed.type !== "InteractionCommand") {
         return json({ ok: true, resolution: "rejected", message: "Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unsupported_offline_intent" });
       }
@@ -724,7 +739,6 @@ export async function handlePresenceAcknowledge(
 
 // --- Command execution helpers ---
 
-import { parseIntent } from "@skald/intent-parser";
 import { handleCommand as worldHandleCommand, commandEventId } from "@skald/world";
 import type { ProcessOptions, CommitContext } from "@skald/rule-engine";
 import { rollCriticalCheck } from "../dice-roller.js";

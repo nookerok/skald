@@ -14,6 +14,7 @@ import { buildKnowledgeSummary } from "./knowledge-view.js";
 import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
 import { blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 import { buildObservedResources } from "../resource/observer.js";
+import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
 
 interface CharacterProfileRecord {
   display_name: string;
@@ -168,7 +169,8 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
   const location = locationId ? world.locations.get(locationId) : undefined;
 
   const connectedLocations: Array<{ id: string; label: string; detail?: string }> = [];
-  if (location) {
+  const knownRoutes: Array<{ label: string; detail?: string; status?: "open" | "difficult" | "blocked" }> = [];
+  if (location && !world.spatial) {
     for (const [, connTarget] of Object.entries(location.connections)) {
       const connLoc = world.locations.get(connTarget);
       if (connLoc) {
@@ -187,16 +189,23 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
       if (!targetId || seen.has(targetId)) continue;
       const target = world.locations.get(targetId);
       if (!target) continue;
+      const observation = world.spatialKnowledge?.relations.get(relation.id);
+      if (!observation || spatialKnowledgeRank(observation.knowledge) < spatialKnowledgeRank("observed")) continue;
+      const crossing = relation.kind === "crossing"
+        ? world.spatial.crossingStates.get(relation.id) ?? [...world.spatial.crossingStates.values()].find((c) => c.crossingId === relation.id)
+        : undefined;
+      const status = crossing?.condition === "closed" ? "blocked" as const : crossing?.condition === "difficult" ? "difficult" as const : "open" as const;
       let detail = target.description;
-      if (relation.kind === "crossing") {
-        const crossing = world.spatial.crossingStates.get(relation.id)
-          ?? [...world.spatial.crossingStates.values()].find((c) => c.crossingId === relation.id);
-        if (crossing && crossing.condition === "closed") detail = "Переправа закрыта из-за высокой воды.";
-        else if (crossing && crossing.condition === "difficult") detail = "Переправа трудная — путь будет медленным.";
-      }
+      if (crossing?.condition === "closed") detail = "Переправа закрыта из-за высокой воды.";
+      else if (crossing?.condition === "difficult") detail = "Переправа трудная — путь будет медленным.";
+      // Only explicitly known relations are safe to expose as an available route.
+      knownRoutes.push({ label: target.name, detail, status });
       connectedLocations.push({ id: targetId, label: target.name, detail });
       seen.add(targetId);
     }
+  }
+  if (knownRoutes.length === 0 && !world.spatial) {
+    for (const connected of connectedLocations) knownRoutes.push({ label: connected.label, ...(connected.detail ? { detail: connected.detail } : {}), status: "open" });
   }
 
   return {
@@ -207,6 +216,7 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
     locationName: location?.name,
     locationDescription: location?.description,
     connectedLocations: connectedLocations.length > 0 ? connectedLocations : undefined,
+    knownRoutes: knownRoutes.length > 0 ? knownRoutes : undefined,
   };
 }
 

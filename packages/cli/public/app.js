@@ -1,6 +1,6 @@
 import { sendCommand, fetchState, fetchGameShell, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
+import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, addLocalInquiry, removeLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
 import { createNarrationPoll } from "./narration-poll.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -82,6 +82,13 @@ async function flushOfflineQueue() {
     const resolution = result?.body?.resolution;
     if (!resolution) { failed = true; break; }
     done.push(envelope.idempotencyKey);
+    if (resolution === "inquiry") {
+      removeLocalIntent(sessionIntent);
+      addLocalInquiry(envelope.input, result.body.inquiry?.answer || "Мастер ответил на вопрос.");
+      renderChatFeed(latestJournal);
+      renderOfflineBanner(null);
+      continue;
+    }
     if (resolution === "accepted") {
       setIntentStatus(sessionIntent, "accepted");
       if (Number.isFinite(result.body.state?.worldTime)) bindIntentWorldTime(sessionIntent, result.body.state.worldTime);
@@ -174,6 +181,16 @@ async function handle(input, overrideKey) {
   renderShellConnection("pending", "Мир отвечает…");
   try {
     const result = await sendCommand(input, key);
+    if (result.body?.ok && result.body?.status === "inquiry") {
+      removeLocalIntent(sessionIntent);
+      addLocalInquiry(input, result.body.inquiry?.answer || "Мастер пока не может ответить на этот вопрос.");
+      const inputElement = document.getElementById("command-input");
+      if (inputElement) inputElement.value = "";
+      dispatch("COMMAND_SUCCESS");
+      renderChatFeed(latestJournal);
+      renderShellConnection("ready", "Мастер отвечает");
+      return;
+    }
     if (result.body?.ok && result.body?.status === "clarification") {
       await keepPendingVisible(pendingStartedAt);
       dispatch("COMMAND_REJECTED");

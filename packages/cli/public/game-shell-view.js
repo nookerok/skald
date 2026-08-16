@@ -1,5 +1,5 @@
 import { renderLivingWorld } from "./living-world-shell.js";
-import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, setIntentStatus as setIntentStatusModel, addClarification as addClarificationModel, clearLocalIntents as clearLocalIntentsModel } from "./chat-feed-view.js";
+import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, addLocalInquiry as addLocalInquiryModel, removeLocalIntent as removeLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, setIntentStatus as setIntentStatusModel, addClarification as addClarificationModel, clearLocalIntents as clearLocalIntentsModel } from "./chat-feed-view.js";
 import { initActivityView } from "./activity-view.js";
 const overlayOpeners = new Map();
 let currentSnapshot = null;
@@ -13,6 +13,8 @@ export function humanizeLatestResponse(text) {
 }
 export function renderChatFeed(journal) { currentJournal = journal || null; renderChatFeedModel(journal?.turns, getLocalIntents(), currentSnapshot); }
 export function addLocalIntent(...args) { return addLocalIntentModel(...args); }
+export function addLocalInquiry(...args) { return addLocalInquiryModel(...args); }
+export function removeLocalIntent(...args) { return removeLocalIntentModel(...args); }
 export function bindIntentWorldTime(...args) { return bindIntentWorldTimeModel(...args); }
 export function setIntentStatus(...args) { return setIntentStatusModel(...args); }
 export function addClarification(...args) { return addClarificationModel(...args); }

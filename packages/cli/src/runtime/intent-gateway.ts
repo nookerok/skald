@@ -1,8 +1,12 @@
 import {
+  INQUIRY_CAPABILITIES,
   INTENT_CAPABILITIES,
+  classifyPlayerInput,
   parseIntent,
+  validateInquiryProposal,
   validateIntentProposal,
   type ExecutableIntent,
+  type InquiryRequest,
   type IntentResult,
   type IntentProposalValidation,
 } from "@skald/intent-parser";
@@ -11,6 +15,7 @@ import type { ModelRouter } from "@skald/world";
 export type IntentGatewayMode = "off" | "fallback";
 
 export type IntentGatewayResult =
+  | { readonly status: "inquiry"; readonly inquiry: InquiryRequest }
   | { readonly status: "accepted"; readonly intent: ExecutableIntent; readonly source: "deterministic" | "llm" }
   | { readonly status: "clarification"; readonly question: string; readonly options: readonly { readonly optionId: string; readonly label: string }[] }
   | { readonly status: "unsupported"; readonly message: string }
@@ -27,7 +32,43 @@ export async function interpretPlayerInput(
   router: ModelRouter | null,
   options?: { readonly mode?: IntentGatewayMode; readonly timeoutMs?: number },
 ): Promise<IntentGatewayResult> {
-  const deterministic = parseIntent(input);
+  const classification = classifyPlayerInput(input, parseIntent);
+  if (classification.kind === "inquiry") return { status: "inquiry", inquiry: classification.inquiry };
+  const deterministic = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
+  if (classification.kind === "inquiry_candidate") {
+    if ((options?.mode ?? readMode()) === "off" || router === null) {
+      return {
+        status: "clarification",
+        question: "Ты спрашиваешь о месте, своих знаниях или хочешь обратиться к кому-то в мире?",
+        options: [
+          { optionId: "place", label: "Спросить о месте" },
+          { optionId: "speech", label: "Обратиться к персонажу" },
+        ],
+      };
+    }
+    try {
+      const rawInquiry = await withTimeout(proposeInquiry(router, input), options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      const validatedInquiry = validateInquiryProposal(rawInquiry);
+      if (validatedInquiry.status === "accepted") {
+        return {
+          status: "inquiry",
+          inquiry: { type: "InquiryRequest", queryId: validatedInquiry.queryId, rawText: input, confidence: 1, source: "llm" },
+        };
+      }
+      if (validatedInquiry.status === "clarification") return validatedInquiry;
+    } catch {
+      // A question must never be reclassified as a world-changing speech action.
+    }
+    return {
+      status: "clarification",
+      question: "Я не до конца понял вопрос. Ты хочешь узнать о месте, о себе или о том, что произошло?",
+      options: [
+        { optionId: "place", label: "О месте" },
+        { optionId: "self", label: "О себе" },
+        { optionId: "events", label: "О событиях" },
+      ],
+    };
+  }
   if (isSafeDeterministic(deterministic) && !needsLLMForNaturalPhrase(input, deterministic)) return { status: "accepted", intent: deterministic, source: "deterministic" };
   if (deterministic.type === "ClarificationRequired") {
     return { status: "clarification", question: deterministic.question, options: deterministic.interpretations.map((label, index) => ({ optionId: `deterministic-${index + 1}`, label })) };
@@ -62,7 +103,7 @@ export async function interpretPlayerInput(
     // parser's already-safe command and still lets the world validate it.
     const safeFallback = isSafeDeterministic(deterministic) ? deterministic : null;
     if (safeFallback) return { status: "accepted", intent: safeFallback, source: "deterministic" };
-    return { status: "clarification", question: "Не удалось безопасно разобрать это действие. Попробуй назвать одну цель и одно действие.", options: [{ optionId: "rephrase", label: "Переформулировать действие" }] };
+    return { status: "clarification", question: "Я не уверен, что правильно понял. Скажи, чего ты хочешь добиться первым.", options: [{ optionId: "rephrase", label: "Уточнить намерение" }] };
   }
 }
 
@@ -117,7 +158,24 @@ function mapValidation(result: IntentProposalValidation): IntentGatewayResult {
   if (result.status === "accepted") return { status: "accepted", intent: result.intent, source: "llm" };
   if (result.status === "clarification") return result;
   if (result.status === "unsupported") return result;
-  return { status: "unavailable", message: "Я не смог безопасно разобрать это действие. Попробуй назвать одну цель и одно действие." };
+  return { status: "unavailable", message: "Я не уверен, что правильно понял это намерение. Скажи, чего ты хочешь добиться первым." };
+}
+
+async function proposeInquiry(router: ModelRouter, input: string): Promise<unknown> {
+  const response = await router.chat("interpret", [
+    {
+      role: "system",
+      content: [
+        "You are SKALD's non-authoritative inquiry classifier.",
+        "Return exactly one JSON object matching InquiryProposalV1.",
+        "Select one registered read-only query id. Do not answer the question.",
+        "Do not return world facts, ids, coordinates, events, actions or consequences.",
+        "Queries: " + JSON.stringify(INQUIRY_CAPABILITIES.queryIds),
+      ].join("\n"),
+    },
+    { role: "user", content: JSON.stringify({ kind: "player_inquiry", text: input.slice(0, 2_000) }) },
+  ], { dataClass: "player_input" });
+  return JSON.parse(response.text);
 }
 
 async function proposeIntent(router: ModelRouter, input: string): Promise<unknown> {
