@@ -13,7 +13,6 @@ import { initExitFlow, requestLeave, isExitInProgress } from "./presence-exit-co
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
 import { setControlsBusy, keepPendingVisible } from "./ui-state.js";
-import { showContextLocation } from "./context-rail-view.js";
 import { loadObserverMap } from "./map-client.js";
 import { renderLivingWorldMap } from "./living-world-shell.js";
 
@@ -371,7 +370,6 @@ function bindGlobal() {
   });
   document.addEventListener("skald:context-select", (event) => {
     const label = event.detail?.name || event.detail?.label;
-    if (event.detail?.locationId) showContextLocation(event.detail.locationId, label);
     if (label) renderShellConnection("ready", "Выбрано: " + label);
   });
 }

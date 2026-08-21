@@ -7,7 +7,15 @@ const OBSERVATION_LABELS: Record<string, string> = {
 const CONSEQUENCE_LABELS: Record<string, string> = { audacity: "Ответ мира", noise_attention: "Отзвук шума" };
 const SITUATION_LABELS: Record<string, string> = { forest_fire: "Лесной пожар" };
 const RELATION_TARGET_LABELS: Record<string, string> = { guild: "Местная община" };
-const RELATION_KIND_LABELS: Record<string, string> = { help: "Помощь", respect: "Уважение", fear: "Опасение", trust: "Доверие" };
+const RELATION_KIND_LABELS: Record<string, string> = {
+  help: "Помощь", respect: "Уважение", fear: "Опасение", trust: "Доверие", knows: "Знакомство",
+};
+const CONDITION_LABELS: Record<string, string> = {
+  "injured-hand": "Травмированная рука",
+  injured: "Травма",
+  fatigue: "Усталость",
+  exhausted: "Истощение",
+};
 const BLOCK_REASON_LABELS: Record<string, string> = { boundary: "Край доступного пути", wall: "Преграда" };
 const OPERATION_LABELS: Record<string, string> = {
   examine: "осмотреть", inspect: "изучить", observe: "осмотреться", listen: "прислушаться",
@@ -35,6 +43,7 @@ export function consequenceLabel(type: unknown): string { return safeLookup(CONS
 export function situationLabel(type: unknown): string { return safeLookup(SITUATION_LABELS, type, humanizeKey(type)); }
 export function relationTargetLabel(target: unknown): string { return safeLookup(RELATION_TARGET_LABELS, target, "Другой участник"); }
 export function relationKindLabel(kind: unknown): string { return safeLookup(RELATION_KIND_LABELS, kind, "Связь"); }
+export function conditionLabel(kind: unknown): string { return safeLookup(CONDITION_LABELS, kind, "Состояние требует внимания"); }
 export function blockedReasonLabel(reason: unknown): string { return safeLookup(BLOCK_REASON_LABELS, reason, "Путь преграждён"); }
 export function operationLabel(operation: unknown): string { return safeLookup(OPERATION_LABELS, operation, "действовать"); }
 
@@ -57,6 +66,12 @@ const INTERNAL_LABELS: readonly [string, string][] = [
   ["guild", "местная община"],
   ["forest_fire", "лесной пожар"],
   ["wall_caution", "память преграды"],
+  ["contact:waystation-keeper", "перевозчик у переправы"],
+  ["contact:riverwatch-gatekeeper", "смотритель речных ворот"],
+  ["contact:southern-borough-warden", "староста южного посада"],
+  ["contact:waystation-ferryman", "перевозчик у переправы"],
+  ["contact:riverwatch-archivist", "архивист Речного Стража"],
+  ["contact:night-ferryman", "ночной перевозчик"],
 ];
 
 export function sanitizePlayerFacingText(text: string): string {

@@ -32,7 +32,7 @@ function createDocument() {
     "stage-links", "stage-attention", "stage-attention-text", "situation-card",
     "primary-card", "empty-state", "notable-list", "background-list",
     "critical-check-card", "world-activity-list", "causal-timeline",
-    "context-world", "context-character", "context-knowledge",
+    "context-character", "context-knowledge", "map-current-location", "map-route-status",
     "world-sidebar-nearby", "world-sidebar-places", "world-sidebar-relations",
     "world-sidebar-interest", "turn-history-list",
   ];
@@ -44,6 +44,11 @@ function createDocument() {
     querySelectorAll() { return []; },
     dispatchEvent: vi.fn(),
   };
+}
+
+function textOf(node) {
+  if (!node) return "";
+  return [node.textContent || "", ...(node.children || []).map(textOf)].join(" ");
 }
 
 describe("Visual Shell — presentation purity", () => {
@@ -91,6 +96,48 @@ describe("Visual Shell — presentation purity", () => {
     const rendered = [...doc.elements.values()].map((element) => element.textContent).join(" ");
     expect(rendered).not.toMatch(/population|prosperity|inventory|hunger|late autumn|°C/i);
   });
+
+  it("renders the player space in natural language without numeric relationship scores", async () => {
+    const { renderLivingWorld } = await import("../public/living-world-shell.js");
+    renderLivingWorld({
+      world: {
+        locationName: "Переправа у Чёрного леса",
+        knownRoutes: [{ label: "Дорога к Речному Стражу", status: "difficult" }],
+      },
+      journey: { status: "idle" },
+      attention: {},
+      character: {
+        displayName: "Зоя",
+        backgroundTitle: "Последний ученик сгоревшего архива",
+        backgroundSummary: "Ты несёшь уцелевшую память через пепел.",
+        origin: "Ты переписывал каталоги старого архива.",
+        loss: "Архив сгорел.",
+        promise: "Сохранить то, что осталось.",
+        obligation: "Восстановить исчезнувшую запись.",
+        relations: [{ targetLabel: "Архивист Речного Стража", relationLabel: "Знакомство", value: 17 }],
+        items: [{ label: "Письменные принадлежности архивиста" }],
+        conditions: [{ label: "Травмированная рука" }],
+        consequences: [],
+      },
+      knowledge: {},
+      recentActivity: [],
+      lastTurn: null,
+    });
+
+    const characterText = textOf(doc.getElementById("context-character"));
+    expect(characterText).toContain("Откуда ты пришёл");
+    expect(characterText).toContain("Что ты потерял");
+    expect(characterText).toContain("Что ты обещал");
+    expect(characterText).toContain("Кому доверяешь");
+    expect(characterText).toContain("Что несёшь с собой");
+    expect(characterText).toContain("Архивист Речного Стража — Знакомство");
+    expect(characterText).not.toContain("17");
+    expect(characterText).not.toContain("Рана");
+    expect(characterText).not.toContain("Принцип");
+    expect(doc.getElementById("map-current-location").textContent).toContain("Переправа у Чёрного леса");
+    expect(doc.getElementById("map-route-status").textContent).toContain("путь сейчас труден");
+  });
+
   it("renders honest empty states for absent facts", async () => {
     const { renderLivingWorld } = await import("../public/living-world-shell.js");
     renderLivingWorld({ world: {}, attention: {}, character: {}, knowledge: {}, recentActivity: [], lastTurn: null });
@@ -118,6 +165,12 @@ describe("Visual Shell — presentation purity", () => {
     expect(html).toContain('data-context="character"');
     expect(html).toContain('data-context="knowledge"');
     expect(html).toContain('id="player-map-canvas"');
+    const playerSpace = html.match(/<section id="context-overlay"[\s\S]*?<section id="exit-overlay"/)?.[0] || "";
+    expect(playerSpace).not.toContain("<aside");
+    expect(playerSpace).not.toContain("context-overlay-grid");
+    expect(playerSpace.match(/data-context=/g)).toHaveLength(3);
+    expect(playerSpace).toContain('class="context-space"');
+    expect(playerSpace).toContain('id="map-route-status"');
     expect(html).not.toContain('suggestion-chip');
     expect(html).not.toContain('guidance-action');
   });
@@ -127,6 +180,78 @@ describe("Visual Shell — presentation purity", () => {
     expect(html).not.toMatch(/D-pad|Suggested Intentions|guidance-action|dir-btn|social-btn/i);
     expect(html).toContain('id="command-form"');
     expect(html).toContain('id="send-btn"');
+  });
+});
+
+describe("Visual Shell — player knowledge language", () => {
+  let doc;
+  beforeEach(() => {
+    doc = createDocument();
+    vi.stubGlobal("document", doc);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("groups typed observer data by origin without exposing internal vocabulary", async () => {
+    const { renderBeliefModel } = await import("../public/belief-view.js");
+    const container = createElement("div");
+    const evidence = (id, type, description) => ({
+      id,
+      type,
+      description,
+      strength: 0.7,
+      observedAt: 4,
+      linkedObservationIds: [],
+    });
+    const belief = (patternId, displayName, currentInterpretation, item) => ({
+      patternId,
+      displayName,
+      currentInterpretation,
+      confidence: 0.7,
+      supportingEvidence: [item],
+      openHypotheses: [],
+      lastObserved: 4,
+      freshness: 0.8,
+    });
+    renderBeliefModel(container, {
+      schemaVersion: 2,
+      observerId: "player",
+      beliefs: [
+        belief("place:river", "Высокая вода", "Река поднялась выше камней.", evidence("seen", "sensory", "Камни скрыты водой.")),
+        belief("story:ruins", "Рассказ о руинах", "Перевозчик говорит о развалинах.", evidence("told", "testimony", "Слова перевозчика.")),
+        belief("idea:course", "Старое русло", "Следы могут принадлежать прежнему руслу.", evidence("inferred", "inference", "Сопоставление следов.")),
+      ],
+      activeHypotheses: [{
+        id: "hypothesis:course",
+        targetId: "idea:course",
+        statement: "Старое русло могло изменить направление.",
+        confidence: 0.6,
+        supportingEvidenceIds: ["inferred"],
+        contradictingEvidenceIds: [],
+        status: "open",
+        createdAt: 4,
+        lastUpdated: 4,
+      }],
+      knownRelations: [],
+      contradictions: [{
+        id: "contradiction:course",
+        description: "Рассказ перевозчика не совпадает со следами на берегу.",
+        involvedHypothesisIds: ["hypothesis:course"],
+        involvedEvidenceIds: ["told", "inferred"],
+        detectedAt: 4,
+      }],
+      lastUpdated: 4,
+    });
+
+    const rendered = textOf(container);
+    expect(rendered).toContain("Что ты видел");
+    expect(rendered).toContain("Что тебе рассказали");
+    expect(rendered).toContain("Что ты предполагаешь");
+    expect(rendered).toContain("В чём сомневаешься");
+    expect(rendered).toContain("Камни скрыты водой");
+    expect(rendered).not.toContain("Река поднялась выше камней");
+    expect(rendered).toContain("Слова перевозчика");
+    expect(rendered).not.toMatch(/belief|confidence|pattern|thread/i);
+    expect(rendered).not.toContain("%");
   });
 });
 

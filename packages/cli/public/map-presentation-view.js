@@ -149,6 +149,9 @@ export function buildMapControls(svg, options = {}) {
 }
 
 export function buildDetailGallery(manifest, onSelect, mapDto) {
+  const details = (manifest.details || []).filter((detail) => isPresentationDetailUnlocked(detail, mapDto));
+  if (details.length === 0) return null;
+
   const section = document.createElement("section");
   const selectAsset = (event, asset) => {
     event?.preventDefault?.();
@@ -156,21 +159,22 @@ export function buildDetailGallery(manifest, onSelect, mapDto) {
     onSelect?.(asset);
   };
   section.className = "map-detail-gallery";
-  section.setAttribute("aria-label", "Укрупнённые регионы");
+  section.setAttribute("aria-label", "Знакомые части региона");
+
   const heading = document.createElement("div");
   heading.className = "map-detail-heading";
   const title = document.createElement("h3");
-  title.textContent = "Участки региона";
+  title.textContent = "Знакомые части региона";
   heading.appendChild(title);
   const note = document.createElement("p");
-  note.textContent = "Визуальная справка без новых фактов: туман скрывает неизведанное.";
+  note.textContent = "Новые фрагменты появляются, когда ты действительно добираешься туда.";
   heading.appendChild(note);
   section.appendChild(heading);
 
   const overviewButton = document.createElement("button");
   overviewButton.type = "button";
   overviewButton.className = "map-detail-switch map-detail-switch--overview";
-  overviewButton.textContent = "Обзор региона";
+  overviewButton.textContent = "Общий вид";
   overviewButton.setAttribute("aria-label", "Показать общий вид региона");
   overviewButton.setAttribute("data-map-detail", "overview");
   overviewButton.setAttribute("data-map-asset", "overview");
@@ -179,67 +183,33 @@ export function buildDetailGallery(manifest, onSelect, mapDto) {
 
   const grid = document.createElement("div");
   grid.className = "map-detail-grid";
-  for (const detail of manifest.details) {
-    const unlocked = isPresentationDetailUnlocked(detail, mapDto);
+  for (const detail of details) {
     const figure = document.createElement("figure");
-    figure.classList.add("map-detail-card");
-    if (!unlocked) figure.classList.add("map-detail-card--locked");
-    figure.setAttribute("role", unlocked ? "button" : "img");
-    if (unlocked) {
-      // Identifiers, labels and coverage metadata become public only after the
-      // server-scoped knowledge policy allows this detail.
-      figure.setAttribute("data-map-detail", detail.id);
-      figure.setAttribute("data-map-asset", detail.id);
-      figure.setAttribute("tabindex", "0");
-      figure.setAttribute("aria-label", "Показать " + detail.label);
-    } else {
-      figure.setAttribute("data-map-detail-state", "locked");
-      figure.setAttribute("aria-label", "Участок карты скрыт туманом");
-      figure.setAttribute("aria-disabled", "true");
-    }
+    figure.className = "map-detail-card";
+    figure.setAttribute("role", "button");
+    figure.setAttribute("data-map-detail", detail.id);
+    figure.setAttribute("data-map-asset", detail.id);
+    figure.setAttribute("tabindex", "0");
+    figure.setAttribute("aria-label", "Показать " + detail.label);
+
     const image = document.createElement("img");
-    if (unlocked) {
-      image.src = detail.src;
-      image.setAttribute("data-map-detail-image", detail.id);
-      image.setAttribute("data-map-coverage", JSON.stringify(detail.coverageBounds || null));
-    }
-    image.alt = unlocked ? detail.alt : "Участок скрыт туманом";
+    image.src = detail.src;
+    image.setAttribute("data-map-detail-image", detail.id);
+    image.setAttribute("data-map-coverage", JSON.stringify(detail.coverageBounds || null));
+    image.alt = detail.alt;
     image.loading = "lazy";
     figure.appendChild(image);
-    const veil = document.createElement("span");
-    veil.className = "map-detail-fog";
-    veil.setAttribute("aria-hidden", "true");
-    figure.appendChild(veil);
+
     const caption = document.createElement("figcaption");
-    caption.textContent = unlocked ? detail.label : "\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c";
+    caption.textContent = detail.label;
     figure.appendChild(caption);
-    if (unlocked && figure.addEventListener) {
+
+    if (figure.addEventListener) {
       figure.addEventListener("click", (event) => selectAsset(event, detail));
       figure.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") selectAsset(event, detail);
       });
     }
-    grid.appendChild(figure);
-  }
-  const slotCount = Number.isInteger(manifest.detailSlotCount) ? manifest.detailSlotCount : manifest.details.length;
-  for (let index = manifest.details.length; index < slotCount; index += 1) {
-    const figure = document.createElement("figure");
-    figure.className = "map-detail-card map-detail-card--locked";
-    figure.setAttribute("role", "img");
-    figure.setAttribute("data-map-detail-state", "locked");
-    figure.setAttribute("aria-label", "\u0423\u0447\u0430\u0441\u0442\u043e\u043a \u043a\u0430\u0440\u0442\u044b \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c");
-    figure.setAttribute("aria-disabled", "true");
-    const image = document.createElement("img");
-    image.alt = "\u0423\u0447\u0430\u0441\u0442\u043e\u043a \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c";
-    image.loading = "lazy";
-    figure.appendChild(image);
-    const veil = document.createElement("span");
-    veil.className = "map-detail-fog";
-    veil.setAttribute("aria-hidden", "true");
-    figure.appendChild(veil);
-    const caption = document.createElement("figcaption");
-    caption.textContent = "\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c";
-    figure.appendChild(caption);
     grid.appendChild(figure);
   }
   section.appendChild(grid);

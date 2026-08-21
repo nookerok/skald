@@ -2,14 +2,25 @@
 
 export interface CharacterView {
   displayName: string;
+  backgroundTitle: string | null;
+  backgroundSummary: string | null;
+  origin: string | null;
+  loss: string;
   wound: string;
   promise: string;
+  obligation: string | null;
   principle: string;
+  items: CharacterItemView[];
+  conditions: CharacterEffectView[];
   consequences: CharacterEffectView[];
   relations: RelationView[];
 }
 
 export interface CharacterEffectView {
+  label: string;
+}
+
+export interface CharacterItemView {
   label: string;
 }
 

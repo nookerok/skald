@@ -104,10 +104,31 @@ export function closeShellOverlay(id, restoreFocus = true) {
   overlayOpeners.delete(id);
 }
 export function initShellView(onCommand) {
-  document.querySelectorAll(".context-tab").forEach((tab) => tab.addEventListener("click", () => {
-    document.querySelectorAll(".context-tab").forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
+  const contextTabs = [...document.querySelectorAll(".context-tab")];
+  const activateContextTab = (tab, focus = false) => {
+    contextTabs.forEach((item) => {
+      const selected = item === tab;
+      item.setAttribute("aria-selected", String(selected));
+      item.setAttribute("tabindex", selected ? "0" : "-1");
+    });
     document.querySelectorAll(".context-panel").forEach((panel) => { panel.hidden = panel.id !== "context-" + tab.dataset.context; });
-  }));
+    if (focus) tab.focus();
+  };
+  contextTabs.forEach((tab, index) => {
+    if (tab.getAttribute("aria-selected") !== "true") tab.setAttribute("tabindex", "-1");
+    tab.addEventListener("click", () => activateContextTab(tab));
+    tab.addEventListener("keydown", (event) => {
+      let nextIndex = null;
+      if (event.key === "ArrowRight") nextIndex = (index + 1) % contextTabs.length;
+      else if (event.key === "ArrowLeft") nextIndex = (index - 1 + contextTabs.length) % contextTabs.length;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = contextTabs.length - 1;
+      if (nextIndex === null) return;
+      event.preventDefault();
+      const next = contextTabs[nextIndex];
+      if (next) activateContextTab(next, true);
+    });
+  });
   initActivityView();
   document.getElementById("open-journal-inline")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   const submitCommand = () => { const input = document.getElementById("command-input"); const value = input?.value.trim(); if (value) onCommand(value); };

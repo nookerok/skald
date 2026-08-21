@@ -28,7 +28,7 @@ describe("living region HTTP boundary", () => {
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.map.region.name).toBe("Бассейн Речного Стража");
-    expect(body.map.schemaVersion).toBe(3);
+    expect(body.map.schemaVersion).toBe(4);
     expect(body.map.revealZones.length).toBeGreaterThan(0);
     expect(body.map.availableDetails.map((detail: any) => detail.id)).toEqual([
       "overview",

@@ -281,6 +281,11 @@ describe("Browser ES modules — import link integrity", () => {
     expect(html).toContain('id="open-character-btn"');
     expect(html).toContain('id="open-knowledge-btn"');
     expect(html).not.toContain('id="open-dev-btn"');
+    expect(shell).toContain('event.key === "ArrowRight"');
+    expect(shell).toContain('event.key === "ArrowLeft"');
+    expect(shell).toContain('event.key === "Home"');
+    expect(shell).toContain('event.key === "End"');
+    expect(shell).toContain('item.setAttribute("tabindex", selected ? "0" : "-1")');
     expect(css).not.toContain(".command-retry{display:none}");
   });
 
@@ -300,13 +305,16 @@ describe("Browser ES modules — import link integrity", () => {
     expect(code).not.toContain("onCommand");
   });
 
-  it("keeps the full threads renderer available without adding a fourth player tab", () => {
+  it("keeps continuing threads out of the three player-space tabs", () => {
     const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
     const rail = readFileSync(resolve(PUBLIC, "context-rail-view.js"), "utf-8");
+    const aaa = readFileSync(resolve(PUBLIC, "skald-aaa.css"), "utf-8");
     expect(html).not.toContain('data-context="threads"');
     expect(html).not.toContain('aria-controls="context-threads"');
-    expect(rail).toContain('renderThreadsPanel');
-    expect(rail).toContain('snapshot.observerThreads');
+    expect(html).not.toContain("context-overlay-grid");
+    expect(aaa).not.toContain("context-overlay-grid");
+    expect(rail).not.toContain("renderThreadsPanel");
+    expect(rail).not.toContain("observerThreads");
   });
 
   it("visual shell has no shipped D-pad or social CSS selectors", () => {

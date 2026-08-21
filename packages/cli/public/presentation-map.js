@@ -19,7 +19,6 @@ export const PRESENTATION_MAP_MANIFEST = Object.freeze({
     sha256: "7feb764999fb39cede4531265bc0da7447dd4e6f9dfe2c406fa8d26883c6a1fb",
     coverageBounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 20000, maxYMetres: 20000 },
   }),
-  detailSlotCount: 5,
   details: Object.freeze([]),
 });
 
@@ -48,7 +47,7 @@ export function isPresentationDetailUnlocked(detail, mapDto) {
 
 export function getPresentationMap(mapDto) {
   const regionId = mapDto?.region?.ref || mapDto?.region?.id;
-  if (!mapDto?.region) return Object.freeze({ ...PRESENTATION_MAP_MANIFEST, details: Object.freeze(LEGACY_DETAIL_POLICIES.map((detail) => Object.freeze({ id: detail.id, label: "Region section", src: "/api/map-details/" + detail.id, alt: "Region section", unlock: { point: detail.point, minimumKnowledge: detail.minimumKnowledge } }))) });
+  if (!mapDto?.region) return Object.freeze({ ...PRESENTATION_MAP_MANIFEST, details: Object.freeze([]) });
   const isPilotRegion = regionId === PRESENTATION_MAP_MANIFEST.regionId
     || mapDto?.region?.name === "\u0411\u0430\u0441\u0441\u0435\u0439\u043d \u0420\u0435\u0447\u043d\u043e\u0433\u043e \u0421\u0442\u0440\u0430\u0436\u0430";
   if (!isPilotRegion) return null;

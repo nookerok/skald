@@ -256,6 +256,9 @@ export interface SpatialWorldProjection extends SpatialReadView {
 
 export interface ObserverMapRevealZone {
   readonly kind: "vicinity" | "route";
+  readonly profile?: "organic" | "memory_trace";
+  readonly seed?: string;
+  readonly edgeVariance?: number;
   readonly center?: ObserverMapPoint;
   readonly radiusMetres?: number;
   readonly path?: readonly ObserverMapPoint[];
@@ -273,7 +276,7 @@ export interface ObserverMapDetail {
 }
 
 export interface ObserverMapDTO {
-  readonly schemaVersion: 1 | 2 | 3;
+  readonly schemaVersion: 1 | 2 | 3 | 4;
   readonly revision: { readonly worldTime: number; readonly eventNumber: number };
   readonly region: { readonly ref: string; readonly name: string } | null;
   readonly observer: { readonly locationRef: string | null; readonly xMetres: number | null; readonly yMetres: number | null };
@@ -284,6 +287,8 @@ export interface ObserverMapDTO {
   readonly availableDetails?: readonly ObserverMapDetail[];
   /** Observer-scoped vector terrain; hidden tiles never cross this boundary. */
   readonly knownTerrain?: readonly ObserverMapTerrainPatch[];
+  /** Smooth observer-scoped terrain regions for the atlas renderer. */
+  readonly terrainRegions?: readonly ObserverMapTerrainRegion[];
   readonly locations: readonly ObserverMapLocation[];
   readonly landmarks: readonly ObserverMapLandmark[];
   readonly routes: readonly ObserverMapRoute[];
@@ -302,6 +307,13 @@ export interface ObserverMapTerrainPatch {
   readonly slopeBand: number;
 }
 
+export interface ObserverMapTerrainRegion {
+  readonly polygon: readonly ObserverMapPoint[];
+  readonly surface: TerrainSurface;
+  readonly elevationBand: number;
+  readonly slopeBand: number;
+}
+
 export interface ObserverMapLocation {
   readonly ref: string;
   readonly name: string;
@@ -314,6 +326,15 @@ export interface ObserverMapLocation {
   readonly xMetres: number | null;
   readonly yMetres: number | null;
   readonly bearing?: string | null;
+  /** Non-authoritative silhouette/haze for glimpsed knowledge without a point. */
+  readonly approximation?: ObserverMapApproximation | null;
+}
+
+export interface ObserverMapApproximation {
+  readonly shape: "haze" | "silhouette";
+  readonly bearing: string;
+  readonly distanceBand: "near" | "middle" | "far";
+  readonly angularSpan: number;
 }
 
 export interface ObserverMapLandmark {
@@ -326,6 +347,7 @@ export interface ObserverMapLandmark {
   readonly xMetres: number | null;
   readonly yMetres: number | null;
   readonly bearing: string | null;
+  readonly approximation?: ObserverMapApproximation | null;
 }
 
 export interface ObserverMapPoint {

@@ -11,16 +11,14 @@ export function renderMapLegend(container) {
   container.replaceChildren();
 
   const items = [
-    { color: "#e74c3c", label: "Твоё положение", type: "circle" },
-    { color: "#2ecc71", label: "Посещённое место", type: "circle" },
-    { color: "#3498db", label: "Наблюдённое место", type: "circle" },
-    { color: "#95a5a6", label: "Мельком замеченное", type: "dashed-circle" },
-    { color: "#9b59b6", label: "Ориентир", type: "diamond" },
-    { color: "#7f8c8d", label: "Маршрут", type: "line" },
-    { color: "#e67e22", label: "Переправа", type: "line" },
-    { color: "#081017", label: "Туман войны", type: "fog" },
+    { color: "#ef715c", label: "Ты здесь", type: "circle" },
+    { color: "#d7aa52", label: "Пройденное место", type: "circle" },
+    { color: "#64c7d8", label: "Наблюдённое место", type: "circle" },
+    { color: "#c8d2ce", label: "Дальний силуэт", type: "haze" },
+    { color: "#d8c08d", label: "Запомненный путь", type: "line" },
+    { color: "#b7c4c4", label: "Слух в направлении", type: "note" },
+    { color: "#081017", label: "Неизведанное", type: "fog" },
   ];
-
   const list = document.createElement("ul");
   list.className = "map-legend-list";
   list.setAttribute("aria-label", "Условные обозначения карты");
@@ -37,10 +35,11 @@ export function renderMapLegend(container) {
     swatch.style.marginRight = "6px";
     swatch.style.verticalAlign = "middle";
 
-    if (item.type === "circle" || item.type === "dashed-circle") {
+    if (item.type === "circle" || item.type === "haze") {
       swatch.style.borderRadius = "50%";
       swatch.style.border = `2px solid ${item.color}`;
-      if (item.type === "dashed-circle") {
+      if (item.type === "haze") {
+        swatch.style.background = "radial-gradient(circle, rgba(200,210,206,.7), transparent 70%)";
         swatch.style.borderStyle = "dashed";
       } else {
         swatch.style.backgroundColor = item.color;

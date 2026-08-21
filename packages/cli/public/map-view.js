@@ -18,6 +18,62 @@ const REVEAL_RADIUS = Object.freeze({
   glimpsed: 24,
 });
 
+function seededUnit(seed, index) {
+  let hash = 2166136261;
+  const value = String(seed) + ":" + index;
+  for (let i = 0; i < value.length; i += 1) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619) >>> 0;
+  return (hash % 10000) / 10000;
+}
+
+function closedOrganicPath(points) {
+  if (points.length < 3) return "";
+  const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const firstMid = midpoint(points.at(-1), points[0]);
+  let data = "M" + firstMid.x + "," + firstMid.y;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    const end = midpoint(current, next);
+    data += " Q" + current.x + "," + current.y + " " + end.x + "," + end.y;
+  }
+  return data + " Z";
+}
+
+function buildOrganicBlob(zone, knownArea, viewport) {
+  if (!zone.center || !Number.isFinite(zone.radiusMetres)) return null;
+  const center = projectPoint(zone.center.xMetres, zone.center.yMetres, knownArea, viewport);
+  if (!center) return null;
+  const spanX = Math.max(1, Number(knownArea.maxXMetres) - Number(knownArea.minXMetres));
+  const spanY = Math.max(1, Number(knownArea.maxYMetres) - Number(knownArea.minYMetres));
+  const pixelsPerMetre = Math.min(viewport.width / spanX, viewport.height / spanY);
+  const radius = Math.max(1, zone.radiusMetres * pixelsPerMetre);
+  const variance = Math.max(0, Math.min(0.45, Number(zone.edgeVariance) || 0.18));
+  const points = [];
+  const count = 24;
+  for (let index = 0; index < count; index += 1) {
+    const angle = (Math.PI * 2 * index) / count;
+    const jitter = 1 - variance + seededUnit(zone.seed || "organic", index) * variance * 2;
+    points.push({ x: center.x + Math.cos(angle) * radius * jitter, y: center.y + Math.sin(angle) * radius * jitter });
+  }
+  return Object.freeze({ path: closedOrganicPath(points), strength: Number.isFinite(zone.strength) ? zone.strength : 1 });
+}
+
+function buildMemoryTrace(zone, knownArea, viewport) {
+  if (!Array.isArray(zone.path) || zone.path.length < 2) return null;
+  const points = zone.path.map((point) => projectPoint(point.xMetres, point.yMetres, knownArea, viewport)).filter(Boolean);
+  if (points.length < 2) return null;
+  const variance = Math.max(0, Math.min(0.45, Number(zone.edgeVariance) || 0.25));
+  const width = Math.max(2, Number(zone.widthMetres || 0) * Math.min(viewport.width / Math.max(1, knownArea.maxXMetres - knownArea.minXMetres), viewport.height / Math.max(1, knownArea.maxYMetres - knownArea.minYMetres)));
+  return Object.freeze({
+    points: Object.freeze(points.map((point, index) => ({
+      x: point.x + (seededUnit(zone.seed || "trace", index) - 0.5) * width * variance,
+      y: point.y + (seededUnit(zone.seed || "trace", index + 31) - 0.5) * width * variance,
+    }))),
+    width,
+    strength: Number.isFinite(zone.strength) ? zone.strength : 1,
+  });
+}
+
 /**
  * Convert observer-scoped knowledge into fog reveal geometry.
  * Rumored subjects create no exact reveal and no hidden geometry is read.
@@ -28,10 +84,12 @@ const REVEAL_RADIUS = Object.freeze({
  */
 export function buildFogRevealModel(mapDto, knownArea, viewport) {
   if (!mapDto || !knownArea) {
-    return Object.freeze({ circles: Object.freeze([]), corridors: Object.freeze([]) });
+    return Object.freeze({ circles: Object.freeze([]), corridors: Object.freeze([]), blobs: Object.freeze([]), memoryTraces: Object.freeze([]) });
   }
   const circles = [];
   const corridors = [];
+  const blobs = [];
+  const memoryTraces = [];
   const addCircle = (xMetres, yMetres, radius, strength) => {
     const point = projectPoint(xMetres, yMetres, knownArea, viewport);
     if (point) circles.push(Object.freeze({ x: point.x, y: point.y, radius, strength }));
@@ -45,6 +103,16 @@ export function buildFogRevealModel(mapDto, knownArea, viewport) {
     const spanY = Math.max(1, Number(knownArea.maxYMetres) - Number(knownArea.minYMetres));
     const pixelsPerMetre = Math.min(viewport.width / spanX, viewport.height / spanY);
     for (const zone of mapDto.revealZones) {
+      if (zone?.profile === "organic") {
+        const blob = buildOrganicBlob(zone, knownArea, viewport);
+        if (blob) blobs.push(blob);
+        continue;
+      }
+      if (zone?.profile === "memory_trace") {
+        const trace = buildMemoryTrace(zone, knownArea, viewport);
+        if (trace) memoryTraces.push(trace);
+        continue;
+      }
       if (zone?.kind === "vicinity" && zone.center
         && Number.isFinite(zone.center.xMetres)
         && Number.isFinite(zone.center.yMetres)
@@ -95,6 +163,8 @@ export function buildFogRevealModel(mapDto, knownArea, viewport) {
   return Object.freeze({
     circles: Object.freeze(circles),
     corridors: Object.freeze(corridors),
+    blobs: Object.freeze(blobs),
+    memoryTraces: Object.freeze(memoryTraces),
   });
 }
 
@@ -187,10 +257,10 @@ export function renderObserverMap(container, mapDto, viewState = {}) {
 
   const fogStatus = document.createElement("p");
   fogStatus.className = "map-fog-status";
-  const exactLocations = (mapDto.locations || []).filter((location) => location.knowledge !== "rumored").length;
+  const exactLocations = (mapDto.locations || []).filter((location) => (location.knowledge === "observed" || location.knowledge === "traversed") && location.xMetres != null && location.yMetres != null).length;
   fogStatus.textContent = exactLocations > 0
-    ? "\u041e\u0442\u043a\u0440\u044b\u0442\u043e \u043c\u0435\u0441\u0442: " + exactLocations + ". \u041e\u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0440\u0435\u0433\u0438\u043e\u043d \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c."
-    : "\u0420\u0435\u0433\u0438\u043e\u043d \u0441\u043a\u0440\u044b\u0442 \u0442\u0443\u043c\u0430\u043d\u043e\u043c. \u0418\u0441\u0441\u043b\u0435\u0434\u0443\u0439 \u043c\u0438\u0440, \u0447\u0442\u043e\u0431\u044b \u043e\u0442\u043a\u0440\u044b\u0442\u044c \u043a\u0430\u0440\u0442\u0443.";
+    ? "Ты запомнил мест: " + exactLocations + ". Остальной регион скрыт туманом."
+    : "Пока виден только ближайший участок. Остальное скрыто туманом.";
   container.appendChild(fogStatus);
   container.appendChild(buildMapStatus(mapDto, viewState.journey));
   container.appendChild(buildMapControls(svg, {
@@ -198,29 +268,44 @@ export function renderObserverMap(container, mapDto, viewState = {}) {
     currentPoint,
   }));
   if (presentationMap && artwork) {
-    container.appendChild(buildDetailGallery(presentationMap, (asset) => {
+    const gallery = buildDetailGallery(presentationMap, (asset) => {
       if (asset.id !== "overview" && !isPresentationDetailUnlocked(asset, mapDto)) return;
       rememberMapAsset(presentationMap.regionId, asset.id);
       renderObserverMap(container, mapDto, viewState);
-    }, mapDto));
-}
+    }, mapDto);
+    if (gallery) container.appendChild(gallery);
+  }
   container.appendChild(buildMapList(mapDto));
 }
 
 function drawMapFoundation(svg, mapDto, knownArea, viewport) {
-  const terrain = mapDto.knownTerrain || [];
-  for (const patch of terrain) {
-    const topLeft = projectPoint(patch.bounds.minXMetres, patch.bounds.maxYMetres, knownArea, viewport);
-    const bottomRight = projectPoint(patch.bounds.maxXMetres, patch.bounds.minYMetres, knownArea, viewport);
-    if (!topLeft || !bottomRight) continue;
-    const rect = document.createElementNS(SVG_NS, "rect");
-    rect.classList.add("player-map-terrain", "terrain-" + patch.surface);
-    rect.setAttribute("x", String(Math.min(topLeft.x, bottomRight.x)));
-    rect.setAttribute("y", String(Math.min(topLeft.y, bottomRight.y)));
-    rect.setAttribute("width", String(Math.abs(bottomRight.x - topLeft.x)));
-    rect.setAttribute("height", String(Math.abs(bottomRight.y - topLeft.y)));
-    rect.setAttribute("aria-hidden", "true");
-    svg.appendChild(rect);
+  const terrainRegions = Array.isArray(mapDto.terrainRegions) && mapDto.terrainRegions.length > 0
+    ? mapDto.terrainRegions
+    : mapDto.schemaVersion >= 4 ? [] : null;
+  if (terrainRegions) {
+    for (const region of terrainRegions) {
+      const points = region.polygon.map((point) => projectPoint(point.xMetres, point.yMetres, knownArea, viewport)).filter(Boolean);
+      if (points.length < 3) continue;
+      const path = document.createElementNS(SVG_NS, "path");
+      path.classList.add("player-map-terrain-region", "terrain-" + region.surface);
+      path.setAttribute("d", points.map((point, index) => (index === 0 ? "M" : "L") + point.x + "," + point.y).join(" ") + " Z");
+      path.setAttribute("aria-hidden", "true");
+      svg.appendChild(path);
+    }
+  } else {
+    for (const patch of mapDto.knownTerrain || []) {
+      const topLeft = projectPoint(patch.bounds.minXMetres, patch.bounds.maxYMetres, knownArea, viewport);
+      const bottomRight = projectPoint(patch.bounds.maxXMetres, patch.bounds.minYMetres, knownArea, viewport);
+      if (!topLeft || !bottomRight) continue;
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.classList.add("player-map-terrain", "terrain-" + patch.surface);
+      rect.setAttribute("x", String(Math.min(topLeft.x, bottomRight.x)));
+      rect.setAttribute("y", String(Math.min(topLeft.y, bottomRight.y)));
+      rect.setAttribute("width", String(Math.abs(bottomRight.x - topLeft.x)));
+      rect.setAttribute("height", String(Math.abs(bottomRight.y - topLeft.y)));
+      rect.setAttribute("aria-hidden", "true");
+      svg.appendChild(rect);
+    }
   }
 
   const tone = document.createElementNS(SVG_NS, "rect");
@@ -252,6 +337,27 @@ function drawMapFoundation(svg, mapDto, knownArea, viewport) {
   mask.appendChild(cover);
 
   const reveal = buildFogRevealModel(mapDto, knownArea, viewport);
+  for (const blob of reveal.blobs) {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", blob.path);
+    path.setAttribute("fill", "black");
+    path.setAttribute("fill-opacity", String(blob.strength));
+    path.setAttribute("filter", "url(#player-map-fog-soften)");
+    mask.appendChild(path);
+  }
+  for (const trace of reveal.memoryTraces) {
+    const path = document.createElementNS(SVG_NS, "path");
+    const data = trace.points.map((point, index) => (index === 0 ? "M" : "L") + point.x + "," + point.y).join(" ");
+    path.setAttribute("d", data);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "black");
+    path.setAttribute("stroke-opacity", String(trace.strength));
+    path.setAttribute("stroke-width", String(trace.width));
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("filter", "url(#player-map-fog-soften)");
+    mask.appendChild(path);
+  }
   for (const area of reveal.circles) {
     const circle = document.createElementNS(SVG_NS, "circle");
     circle.setAttribute("cx", String(area.x));
@@ -291,14 +397,8 @@ function drawMapFoundation(svg, mapDto, knownArea, viewport) {
 
 function drawLocation(svg, location, knownArea, viewport) {
   if (location.knowledge === "rumored") return;
-  if (location.xMetres == null || location.yMetres == null) {
-    if (!location.bearing) return;
-    const text = document.createElementNS(SVG_NS, "text");
-    text.classList.add("map-bearing");
-    text.setAttribute("x", String(viewport.width / 2));
-    text.setAttribute("y", "24");
-    text.textContent = "Направление: " + location.bearing;
-    svg.appendChild(text);
+  if (location.knowledge === "glimpsed" || location.xMetres == null || location.yMetres == null) {
+    drawApproximation(svg, location.name, location.approximation, viewport);
     return;
   }
   const pos = projectPoint(location.xMetres, location.yMetres, knownArea, viewport);
@@ -307,7 +407,7 @@ function drawLocation(svg, location, knownArea, viewport) {
   const g = document.createElementNS(SVG_NS, "g");
   g.classList.add("map-location", "knowledge-" + location.knowledge);
   g.setAttribute("role", "img");
-  g.setAttribute("aria-label", location.name + " (" + location.knowledge + ")");
+  g.setAttribute("aria-label", location.name + (location.knowledge === "traversed" ? " — пройдено" : " — наблюдается"));
 
   const circle = document.createElementNS(SVG_NS, "circle");
   circle.setAttribute("cx", String(pos.x));
@@ -324,16 +424,9 @@ function drawLocation(svg, location, knownArea, viewport) {
 }
 
 function drawLandmark(svg, landmark, knownArea, viewport) {
-  if (landmark.xMetres == null || landmark.yMetres == null) {
-    if (landmark.bearing) {
-      const text = document.createElementNS(SVG_NS, "text");
-      text.classList.add("map-bearing");
-      text.setAttribute("x", String(viewport.width / 2));
-      text.setAttribute("y", "15");
-      text.setAttribute("text-anchor", "middle");
-      text.textContent = landmark.name + " — " + landmark.bearing;
-      svg.appendChild(text);
-    }
+  if (landmark.knowledge === "rumored") return;
+  if (landmark.knowledge === "glimpsed" || landmark.xMetres == null || landmark.yMetres == null) {
+    drawApproximation(svg, landmark.name, landmark.approximation, viewport);
     return;
   }
   const pos = projectPoint(landmark.xMetres, landmark.yMetres, knownArea, viewport);
@@ -342,7 +435,7 @@ function drawLandmark(svg, landmark, knownArea, viewport) {
   const g = document.createElementNS(SVG_NS, "g");
   g.classList.add("map-landmark");
   g.setAttribute("role", "img");
-  g.setAttribute("aria-label", landmark.name + " (" + landmark.silhouette + ")");
+  g.setAttribute("aria-label", landmark.name + " — наблюдаемый ориентир");
 
   const diamond = document.createElementNS(SVG_NS, "polygon");
   const size = landmark.silhouette === "monolith" ? 8 : 6;
@@ -355,6 +448,32 @@ function drawLandmark(svg, landmark, knownArea, viewport) {
   text.textContent = landmark.name;
   g.appendChild(text);
   svg.appendChild(g);
+}
+
+function drawApproximation(svg, name, approximation, viewport) {
+  if (!approximation?.bearing) return;
+  const directions = {
+    "север": [0, -1], "северо-восток": [0.7, -0.7], "восток": [1, 0],
+    "юго-восток": [0.7, 0.7], "юг": [0, 1], "юго-запад": [-0.7, 0.7],
+    "запад": [-1, 0], "северо-запад": [-0.7, -0.7],
+  };
+  const vector = directions[approximation.bearing] || [0, -1];
+  const haze = document.createElementNS(SVG_NS, "ellipse");
+  haze.classList.add("map-approximation-haze");
+  haze.setAttribute("cx", String(viewport.width / 2 + vector[0] * viewport.width * 0.28));
+  haze.setAttribute("cy", String(viewport.height / 2 + vector[1] * viewport.height * 0.28));
+  haze.setAttribute("rx", String(22 + approximation.angularSpan / 2));
+  haze.setAttribute("ry", String(13 + approximation.angularSpan / 3));
+  haze.setAttribute("aria-hidden", "true");
+  svg.appendChild(haze);
+
+  const text = document.createElementNS(SVG_NS, "text");
+  text.classList.add("map-approximation");
+  text.setAttribute("x", String(viewport.width / 2));
+  text.setAttribute("y", String(18 + Math.min(3, approximation.angularSpan / 10) * 8));
+  text.setAttribute("text-anchor", "middle");
+  text.textContent = (approximation.shape === "silhouette" ? "Силуэт: " : "Дальний взгляд: ") + name + " — " + approximation.bearing;
+  svg.appendChild(text);
 }
 
 function drawRoute(svg, route, knownArea, viewport) {
@@ -435,29 +554,38 @@ function buildMapStatus(mapDto, journey) {
 function buildMapList(mapDto) {
   const section = document.createElement("section");
   section.className = "player-map-list";
-  section.setAttribute("aria-label", "\u0418\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0435 \u043c\u0435\u0441\u0442\u0430");
+  section.setAttribute("aria-label", "Что осталось в памяти");
 
   const heading = document.createElement("h3");
-  heading.textContent = "\u0418\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0435 \u043c\u0435\u0441\u0442\u0430";
+  heading.textContent = "Что осталось в памяти";
   section.appendChild(heading);
 
   const list = document.createElement("ul");
   for (const location of mapDto.locations || []) {
     const item = document.createElement("li");
-    const suffix = location.knowledge === "rumored" ? " — \u043f\u043e \u0441\u043b\u0443\u0445\u0430\u043c, \u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u043e" : "";
-    item.textContent = location.name + suffix;
+    if (location.knowledge === "rumored") {
+      item.textContent = "Слух: " + location.name + (location.bearing ? " — к " + location.bearing : "");
+    } else if (location.knowledge === "glimpsed") {
+      item.textContent = "Дальний взгляд: " + location.name + (location.bearing ? " — " + location.bearing : "");
+    } else {
+      item.textContent = location.name;
+    }
     list.appendChild(item);
   }
   for (const landmark of mapDto.landmarks || []) {
     const item = document.createElement("li");
-    const bearing = landmark.bearing ? " — " + landmark.bearing : "";
-    const unknown = landmark.xMetres == null ? " (\u0442\u043e\u0447\u043d\u0430\u044f \u043f\u043e\u0437\u0438\u0446\u0438\u044f \u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430)" : "";
-    item.textContent = landmark.name + bearing + unknown;
+    if (landmark.knowledge === "rumored") {
+      item.textContent = "Слух: " + landmark.name + (landmark.bearing ? " — к " + landmark.bearing : "");
+    } else if (landmark.knowledge === "glimpsed") {
+      item.textContent = "Силуэт: " + landmark.name + (landmark.bearing ? " — " + landmark.bearing : "");
+    } else {
+      item.textContent = landmark.name;
+    }
     list.appendChild(item);
   }
   if (list.children.length === 0) {
     const item = document.createElement("li");
-    item.textContent = "\u0418\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0445 \u043c\u0435\u0441\u0442 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442.";
+    item.textContent = "Пока рядом нечего отметить.";
     list.appendChild(item);
   }
   section.appendChild(list);

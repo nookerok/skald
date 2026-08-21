@@ -31,17 +31,11 @@ body{background:radial-gradient(circle at 50% -10%,#1b3b50 0,var(--shell-bg) 45%
 .skald-center { width:min(1220px,100%); margin:0 auto; padding:clamp(16px,3vw,38px); }
 .world-stage { min-height:clamp(440px,58vh,700px); }
 .context-overlay { width:min(1180px,94vw); }
-.context-overlay-grid { display:grid; grid-template-columns:minmax(230px,.72fr) minmax(0,1.28fr); gap:18px; padding:18px; }
-.context-overlay-grid .world-sidebar,.context-overlay-grid .context-rail { min-width:0; max-height:70vh; overflow:auto; padding:18px; border:1px solid rgba(198,157,79,.22); border-radius:11px; background:linear-gradient(180deg,#0b1720,#071119); }
-.context-overlay-grid .world-sidebar { border-right:1px solid rgba(198,157,79,.22); }
-.context-overlay-grid .context-rail { border-left:1px solid rgba(198,157,79,.22); }
 .context-overlay .context-tabs { position:sticky; top:0; z-index:2; }
 .context-overlay .player-map__canvas { min-height:220px; }
 @media (max-width:760px) {
   .skald-center { padding:12px; }
   .world-stage { min-height:calc(100vh - 250px); }
-  .context-overlay-grid { grid-template-columns:1fr; padding:12px; }
-  .context-overlay-grid .world-sidebar,.context-overlay-grid .context-rail { max-height:none; }
 }
 
 /* UX-7.1 — Chat Core: chronicle-first game surface. */

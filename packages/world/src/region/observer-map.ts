@@ -1,9 +1,10 @@
 import type { DomainEvent } from "@skald/event-bus";
-import type { ObserverMapDTO, ObserverMapLandmark, ObserverMapLocation, ObserverMapRoute, ObserverMapRouteGeometry, ObserverMapPoint, ObserverMapTerrainPatch, ObserverMapWaterBody, ObserverMapWatercourse, ObserverMapRevealZone, SpatialKnowledge, SpatialObservationPayload, SpatialWorldProjection } from "./types.js";
+import type { ObserverMapApproximation, ObserverMapDTO, ObserverMapLandmark, ObserverMapLocation, ObserverMapRoute, ObserverMapRouteGeometry, ObserverMapPoint, ObserverMapTerrainPatch, ObserverMapWaterBody, ObserverMapWatercourse, ObserverMapRevealZone, SpatialKnowledge, SpatialObservationPayload, SpatialWorldProjection } from "./types.js";
 import type { ObserverPosition, VisibilityResult } from "../visibility/types.js";
 import { computeVisibility, terrainElevationAt } from "../visibility/visibility-engine.js";
 import { buildObserverSpatialKnowledge, spatialKnowledgeRank } from "./observer-knowledge.js";
 import { buildAvailableObserverMapDetails } from "./map-details.js";
+import { buildObserverTerrainRegions, stableObserverSeed } from "./observer-map-geometry.js";
 
 function ref(prefix: string, id: string): string {
   let hash = 0x811c9dc5;
@@ -16,10 +17,34 @@ function freshness(observedAt: number, worldTime: number): number {
   return Math.max(0, Math.min(1, 1 - Math.max(0, worldTime - observedAt) / 20));
 }
 
+function approximationFor(
+  knowledge: SpatialKnowledge,
+  bearing: string | null | undefined,
+  shape: ObserverMapApproximation["shape"],
+  confidence: number,
+): ObserverMapApproximation | null {
+  if (knowledge !== "glimpsed" || !bearing) return null;
+  const distanceBand: ObserverMapApproximation["distanceBand"] = confidence >= 0.7
+    ? "near"
+    : confidence >= 0.45
+      ? "middle"
+      : "far";
+  return { shape, bearing, distanceBand, angularSpan: distanceBand === "far" ? 42 : distanceBand === "middle" ? 30 : 20 };
+}
+
 function currentLocation(events: readonly DomainEvent[]): string | null {
   let id: string | null = null;
   for (const event of events) if (event.type === "PlayerLocationChanged") id = (event.payload as { locationId: string }).locationId;
   return id;
+}
+
+function distanceToSegment(point: ObserverMapPoint, from: ObserverMapPoint, to: ObserverMapPoint): number {
+  const dx = to.xMetres - from.xMetres;
+  const dy = to.yMetres - from.yMetres;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared <= 0) return Math.hypot(point.xMetres - from.xMetres, point.yMetres - from.yMetres);
+  const t = Math.max(0, Math.min(1, ((point.xMetres - from.xMetres) * dx + (point.yMetres - from.yMetres) * dy) / lengthSquared));
+  return Math.hypot(point.xMetres - (from.xMetres + t * dx), point.yMetres - (from.yMetres + t * dy));
 }
 
 /**
@@ -65,6 +90,15 @@ export function buildObserverMap(
   const worldTime = events.reduce((max, event) => Math.max(max, event.timestamp), 0);
   const locationId = currentLocation(events);
   const observerKnowledge = buildObserverSpatialKnowledge(events);
+  const revealedLocationRefs = new Set(events
+    .filter((event) => event.type === "PlayerLocationChanged")
+    .map((event) => ref("loc", (event.payload as { locationId: string }).locationId)));
+  for (const observation of observerKnowledge.locations.values()) {
+    if (observation.observedAt <= 0) continue;
+    if (observation.knowledge === "observed" || observation.knowledge === "traversed") {
+      revealedLocationRefs.add(ref("loc", observation.subjectId));
+    }
+  }
   const observations = [
     ...observerKnowledge.locations.values(),
     ...observerKnowledge.landmarks.values(),
@@ -92,7 +126,18 @@ export function buildObserverMap(
     const location = spatial.locations.get(observation.subjectId);
     if (!location) continue;
     const exact = observation.knowledge === "observed" || observation.knowledge === "traversed";
-    locations.push({ ref: ref("loc", location.id), name: location.name, aliases: spatial.toponymIndex?.subjects.find((subject) => subject.id === location.id)?.aliases ?? [], knowledge: observation.knowledge, confidence: observation.confidence, freshness: freshness(observation.observedAt, worldTime), xMetres: exact ? location.anchor.xMetres : null, yMetres: exact ? location.anchor.yMetres : null, bearing: observation.bearing ?? null });
+    locations.push({
+      ref: ref("loc", location.id),
+      name: location.name,
+      aliases: spatial.toponymIndex?.subjects.find((subject) => subject.id === location.id)?.aliases ?? [],
+      knowledge: observation.knowledge,
+      confidence: observation.confidence,
+      freshness: freshness(observation.observedAt, worldTime),
+      xMetres: exact ? location.anchor.xMetres : null,
+      yMetres: exact ? location.anchor.yMetres : null,
+      bearing: observation.bearing ?? null,
+      approximation: approximationFor(observation.knowledge, observation.bearing, "haze", observation.confidence),
+    });
     void key;
   }
 
@@ -116,6 +161,7 @@ export function buildObserverMap(
             xMetres: visResult.exactPositionAllowed ? location.anchor.xMetres : null,
             yMetres: visResult.exactPositionAllowed ? location.anchor.yMetres : null,
             bearing: visResult.bearing,
+            approximation: approximationFor(visResult.knowledge, visResult.bearing, "haze", visResult.confidence),
           });
         }
       }
@@ -128,7 +174,18 @@ export function buildObserverMap(
     const landmark = spatial.landmarks.get(observation.subjectId);
     if (!landmark) continue;
     const exact = observation.knowledge === "observed" || observation.knowledge === "traversed";
-    landmarks.push({ ref: ref("landmark", landmark.id), name: landmark.name, silhouette: landmark.silhouetteClass, knowledge: observation.knowledge, confidence: observation.confidence, freshness: freshness(observation.observedAt, worldTime), xMetres: exact ? landmark.anchor.xMetres : null, yMetres: exact ? landmark.anchor.yMetres : null, bearing: observation.bearing ?? null });
+    landmarks.push({
+      ref: ref("landmark", landmark.id),
+      name: landmark.name,
+      silhouette: landmark.silhouetteClass,
+      knowledge: observation.knowledge,
+      confidence: observation.confidence,
+      freshness: freshness(observation.observedAt, worldTime),
+      xMetres: exact ? landmark.anchor.xMetres : null,
+      yMetres: exact ? landmark.anchor.yMetres : null,
+      bearing: observation.bearing ?? null,
+      approximation: approximationFor(observation.knowledge, observation.bearing, "silhouette", observation.confidence),
+    });
   }
 
   // Merge visibility results for landmarks
@@ -151,6 +208,7 @@ export function buildObserverMap(
             xMetres: visResult.exactPositionAllowed ? landmark.anchor.xMetres : null,
             yMetres: visResult.exactPositionAllowed ? landmark.anchor.yMetres : null,
             bearing: visResult.bearing,
+            approximation: approximationFor(visResult.knowledge, visResult.bearing, "silhouette", visResult.confidence),
           });
         }
       }
@@ -167,7 +225,7 @@ export function buildObserverMap(
     const points = observation.fromLocationId === relation.toId && observation.toLocationId === relation.fromId
       ? [...relation.points].reverse()
       : relation.points;
-    const geometry = buildRouteGeometry(points, observation.knowledge, observation.progressFraction);
+    const geometry = observation.observedAt > 0 ? buildRouteGeometry(points, observation.knowledge, observation.progressFraction) : null;
 
     routes.push({
       ref: ref("route", relation.id),
@@ -220,6 +278,8 @@ export function buildObserverMap(
     .filter((entry) => entry.xMetres != null && entry.yMetres != null)
     .map((entry) => ({ x: entry.xMetres as number, y: entry.yMetres as number }));
   const knownArea = points.length === 0 ? null : { minXMetres: Math.max(0, Math.min(...points.map((p) => p.x)) - 1_000), minYMetres: Math.max(0, Math.min(...points.map((p) => p.y)) - 1_000), maxXMetres: Math.max(...points.map((p) => p.x)) + 1_000, maxYMetres: Math.max(...points.map((p) => p.y)) + 1_000 };
+  const current = locationId ? spatial.locations.get(locationId) : undefined;
+  const observerPosition = buildInterruptedPosition(events, spatial, locationId) ?? (current ? buildObserverPosition(locationId, spatial) : null);
   const knownTerrain: ObserverMapTerrainPatch[] = [];
   if (knownArea && spatial.region) {
     for (const tile of spatial.region.tiles) {
@@ -228,47 +288,77 @@ export function buildObserverMap(
     }
   }
 
-  const current = locationId ? spatial.locations.get(locationId) : undefined;
-  const observerPosition = buildInterruptedPosition(events, spatial, locationId) ?? (current ? buildObserverPosition(locationId, spatial) : null);
+  const terrainEvidence = knownTerrain.filter((patch) => {
+    if (!observerPosition) return false;
+    const center = {
+      xMetres: (patch.bounds.minXMetres + patch.bounds.maxXMetres) / 2,
+      yMetres: (patch.bounds.minYMetres + patch.bounds.maxYMetres) / 2,
+    };
+    if (Math.hypot(center.xMetres - observerPosition.xMetres, center.yMetres - observerPosition.yMetres) <= 3_000) return true;
+    for (const location of locations) {
+      if (location.xMetres == null || location.yMetres == null) continue;
+      if (!revealedLocationRefs.has(location.ref)) continue;
+      if (Math.hypot(center.xMetres - location.xMetres, center.yMetres - location.yMetres) <= 2_200) return true;
+    }
+    for (const route of routes) {
+      if (route.geometry?.kind !== "observed_path") continue;
+      for (let index = 1; index < route.geometry.points.length; index += 1) {
+        if (distanceToSegment(center, route.geometry.points[index - 1]!, route.geometry.points[index]!) <= 900) return true;
+      }
+    }
+    return false;
+  });
   const revealZones: ObserverMapRevealZone[] = [];
   if (observerPosition) {
     revealZones.push({
       kind: "vicinity",
+      profile: "organic",
+      seed: stableObserverSeed(spatial.region?.id ?? "region", locationId ?? "observer", "vicinity"),
+      edgeVariance: 0.18,
       center: { xMetres: observerPosition.xMetres, yMetres: observerPosition.yMetres },
       radiusMetres: 2_500,
       strength: 1,
-    } as ObserverMapRevealZone);
+    });
   }
   for (const location of locations) {
-    if (location.xMetres == null || location.yMetres == null) continue;
-    const radiusMetres = location.knowledge === "traversed" ? 2_000 : location.knowledge === "observed" ? 1_500 : 800;
+    if (location.xMetres == null || location.yMetres == null || location.ref === (current ? ref("loc", current.id) : null)) continue;
+    if (!revealedLocationRefs.has(location.ref)) continue;
+    if (location.knowledge !== "observed" && location.knowledge !== "traversed") continue;
     revealZones.push({
       kind: "vicinity",
+      profile: "organic",
+      seed: stableObserverSeed(spatial.region?.id ?? "region", location.ref, "location"),
+      edgeVariance: location.knowledge === "traversed" ? 0.24 : 0.3,
       center: { xMetres: location.xMetres, yMetres: location.yMetres },
-      radiusMetres,
-      strength: location.knowledge === "glimpsed" ? 0.48 : 1,
-    } as ObserverMapRevealZone);
+      radiusMetres: location.knowledge === "traversed" ? 2_000 : 1_500,
+      strength: 1,
+    });
   }
   for (const route of routes) {
     if (route.geometry?.kind !== "observed_path") continue;
     revealZones.push({
       kind: "route",
+      profile: "memory_trace",
+      seed: stableObserverSeed(spatial.region?.id ?? "region", route.ref, "route"),
+      edgeVariance: route.knowledge === "traversed" ? 0.22 : 0.35,
       path: route.geometry.points,
       widthMetres: route.knowledge === "traversed" ? 1_200 : 800,
-      strength: route.knowledge === "glimpsed" ? 0.48 : 1,
-    } as ObserverMapRevealZone);
+      strength: route.knowledge === "traversed" ? 1 : 0.78,
+    });
   }
+  const terrainRegions = buildObserverTerrainRegions(terrainEvidence);
   const regionRef = spatial.region ? ref("region", spatial.region.id) : null;
   const region = spatial.region ? { ref: regionRef as string, name: spatial.region.name } : null;
   return Object.freeze({
-    schemaVersion: 3,
+    schemaVersion: 4,
     revision: { worldTime, eventNumber: events.length },
     region,
     observer: { locationRef: current ? ref("loc", current.id) : null, xMetres: observerPosition?.xMetres ?? null, yMetres: observerPosition?.yMetres ?? null },
     knownArea,
     revealZones: Object.freeze(revealZones),
     availableDetails: buildAvailableObserverMapDetails(spatial.region?.id ?? null, observerKnowledge),
-    knownTerrain: Object.freeze(knownTerrain),
+    knownTerrain: Object.freeze(terrainEvidence),
+    terrainRegions,
     locations: Object.freeze(locations),
     landmarks: Object.freeze(landmarks),
     routes: Object.freeze(routes),

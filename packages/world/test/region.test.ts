@@ -12,6 +12,8 @@ import {
   buildPilotRegionToponymIndex,
   buildPilotRegionSimulationDefinitions,
   buildPilotRegionContentDefinitions,
+  buildObserverTerrainRegions,
+  stableObserverSeed,
 } from "@skald/world";
 
 describe("first living region", () => {
@@ -23,6 +25,20 @@ describe("first living region", () => {
     expect(region.cells).toHaveLength(400);
     expect(region.contentDigest).toMatch(/^[0-9a-f]{8}$/);
     expect(buildPilotRegionDefinition().contentDigest).toBe(region.contentDigest);
+  });
+
+  it("merges adjacent observer terrain patches into deterministic seam-free polygons", () => {
+    const patches = [
+      { bounds: { minXMetres: 0, minYMetres: 0, maxXMetres: 10, maxYMetres: 10 }, surface: "forest" as const, elevationBand: 1, slopeBand: 1 },
+      { bounds: { minXMetres: 10, minYMetres: 0, maxXMetres: 20, maxYMetres: 10 }, surface: "forest" as const, elevationBand: 1, slopeBand: 1 },
+      { bounds: { minXMetres: 0, minYMetres: 10, maxXMetres: 10, maxYMetres: 20 }, surface: "forest" as const, elevationBand: 1, slopeBand: 1 },
+    ];
+    const first = buildObserverTerrainRegions(patches);
+    const second = buildObserverTerrainRegions(patches);
+    expect(first).toEqual(second);
+    expect(first).toHaveLength(1);
+    expect(first[0]?.polygon).toHaveLength(6);
+    expect(stableObserverSeed("region", 4, "vicinity")).toBe(stableObserverSeed("region", 4, "vicinity"));
   });
 
   it("contains the authored crossing, city, river and monolith relations", () => {
@@ -119,13 +135,29 @@ describe("first living region", () => {
     expect(JSON.stringify(map)).not.toContain("tile-31-38");
     expect(JSON.stringify(map)).not.toContain("suspended_monolith");
     expect(map.knownTerrain?.length).toBeGreaterThan(0);
+    expect(map.terrainRegions?.length).toBeGreaterThan(0);
+    expect(JSON.stringify(map.terrainRegions)).not.toContain("tile-");
     expect(JSON.stringify(map.knownTerrain)).not.toContain("tile-");
-    expect(map.schemaVersion).toBe(3);
+    expect(map.schemaVersion).toBe(4);
     expect(map.availableDetails?.map((detail) => detail.id)).toEqual([
       "overview",
       "central-valley",
       "blackwood-crater",
     ]);
+    expect(map.revealZones).toHaveLength(1);
+    expect(map.revealZones?.[0]).toMatchObject({ kind: "vicinity", profile: "organic" });
+    expect(map.routes.every((route) => route.geometry === null)).toBe(true);
+    const later = buildObserverMap([...events, {
+      eventId: "later-tick",
+      type: "TickPassed",
+      schemaVersion: 1,
+      payload: { delta: 1 },
+      timestamp: 9,
+      correlationId: "stable-fog",
+      causationId: null,
+    } as DomainEvent], buildSpatialWorldProjection(events));
+    expect(later.revealZones?.[0]?.seed).toBe(map.revealZones?.[0]?.seed);
+    expect(map.locations.filter((location) => location.knowledge === "glimpsed").every((location) => location.xMetres === null && location.yMetres === null)).toBe(true);
     expect(map.availableDetails?.find((detail) => detail.id === "central-valley")?.coverageBounds).toEqual({
       minXMetres: 5_000,
       minYMetres: 7_000,
@@ -155,6 +187,7 @@ describe("first living region", () => {
     };
     const events = [...bootstrap, observation];
     const direct = buildObserverMap(events, buildSpatialWorldProjection(events), true);
+    expect(direct.routes.every((route) => route.geometry === null)).toBe(true);
     const replayedWorld = rebuildProjection(events).getSnapshot();
     expect(replayedWorld.spatial).toBeTruthy();
     const replayed = buildObserverMap(events, replayedWorld.spatial as SpatialWorldProjection, true);
@@ -175,6 +208,7 @@ describe("first living region", () => {
       timestamp: 20, correlationId: "journey", causationId: null,
     } as DomainEvent];
     const map = buildObserverMap(events, spatial);
+    expect(map.revealZones?.some((zone) => zone.profile === "memory_trace")).toBe(true);
     const route = map.routes.find((entry) => entry.geometry?.kind === "observed_path" && entry.geometry.points.length < relation!.points.length);
     if (!route || route.geometry?.kind !== "observed_path") throw new Error("partial route geometry missing");
     expect(route.geometry.points.length).toBeLessThan(relation!.points.length);

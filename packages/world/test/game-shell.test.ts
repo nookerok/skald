@@ -27,6 +27,7 @@ const profile = {
   wound: "Боится забыть дорогу домой",
   promise: "Вернуться до зимы",
   principle: "Не оставлять следов",
+  background_id: "keeper",
 };
 
 describe("Game Shell read model", () => {
@@ -58,6 +59,62 @@ describe("Game Shell read model", () => {
     expect(result.character.wound).toBe(profile.wound);
     expect(result.character.consequences).toHaveLength(1);
     expect(result.character.relations).toContainEqual({ targetLabel: "Местная община", relationLabel: "Уважение", value: 3 });
+  });
+
+  it("projects the authored background, carried items, contacts and current conditions", () => {
+    const events = [
+      event("WorldObjectPlaced", "kit", 0, {
+        id: "keeper-writing-kit",
+        name: "Письменные принадлежности архивиста",
+        aliases: [],
+        description: "Уцелевшие принадлежности.",
+        material: "wood",
+        locationId: "river_waystation",
+        integrity: 100,
+        temperature: 20,
+        state: {},
+        mass: 1,
+        portable: true,
+        affordances: ["shape"],
+      }),
+      event("ItemMoved", "kit-moved", 0, {
+        itemId: "keeper-writing-kit",
+        from: { kind: "location", locationId: "river_waystation" },
+        to: { kind: "carried", holderId: "player" },
+      }),
+      event("ItemPossessionChanged", "kit-owned", 0, {
+        itemId: "keeper-writing-kit",
+        ownerId: "player",
+      }),
+      event("ObjectPlaced", "archivist", 0, {
+        entityId: "contact:riverwatch-archivist",
+        x: 0,
+        y: 0,
+        name: "Архивист Речного Стража",
+        aliases: [],
+        description: "Знакомый архивист.",
+        components: { contact: { locationId: "riverwatch_city", backgroundId: "keeper" } },
+      }),
+      event("RelationChanged", "knows", 0, {
+        from: "player", to: "contact:riverwatch-archivist", kind: "knows", delta: 1,
+      }),
+      event("ConditionApplied", "injury", 1, {
+        conditionId: "injury-1",
+        subjectId: "player",
+        kind: "injured-hand",
+        blockedAffordances: ["shape"],
+        unavailableTechniques: [],
+      }),
+    ];
+    const character = buildGameShellSnapshot(events, world(events), profile, "profile-world").character;
+
+    expect(character.backgroundTitle).toBe("Последний ученик сгоревшего архива");
+    expect(character.origin).toContain("Ты переписывал каталоги");
+    expect(character.loss).toContain("Архив сгорел");
+    expect(character.obligation).toContain("Восстановить исчезнувшую запись");
+    expect(character.items).toEqual([{ label: "Письменные принадлежности архивиста" }]);
+    expect(character.conditions).toEqual([{ label: "Травмированная рука" }]);
+    expect(character.relations).toContainEqual({ targetLabel: "Архивист Речного Стража", relationLabel: "Знакомство", value: 1 });
   });
 
   it.each([

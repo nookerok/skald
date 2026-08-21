@@ -5,6 +5,7 @@ export { buildPilotRegionDefinition, PILOT_REGION_ID, PILOT_REGION_SIZE_METRES, 
 export { buildPilotRegionBootstrapEvents, buildPilotRegionHydrographyDefinition, buildPilotRegionElevationDefinition, buildPilotRegionToponymIndex, buildPilotRegionSimulationDefinitions, buildPilotRegionContentDefinitions } from "./compiler.js";
 export { SpatialProjector, buildSpatialWorldProjection } from "./spatial-projector.js";
 export { buildObserverMap } from "./observer-map.js";
+export { buildObserverTerrainRegions, stableObserverSeed } from "./observer-map-geometry.js";
 export { buildObserverSpatialKnowledge, createObserverSpatialKnowledge, freezeObserverSpatialKnowledge, mergeSpatialObservation, spatialKnowledgeRank } from "./observer-knowledge.js";
 export { buildAvailableObserverMapDetails, RIVERWATCH_DETAIL_POLICIES } from "./map-details.js";
 export type { ObserverMapDetailDescriptor } from "./map-details.js";

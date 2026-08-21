@@ -21,6 +21,7 @@ interface CharacterProfileRecord {
   wound: string;
   promise: string;
   principle: string;
+  background_id?: string | null;
 }
 
 const ACTIVITY_ORIGIN: Record<string, ActivityOrigin> = {

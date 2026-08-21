@@ -1,3 +1,36 @@
+# Current work (2026-08-21 — player atlas and context space)
+
+- Blocks 6–7 are implemented in the working tree. ObserverMapDTO schema v4
+  exposes only observer-safe presentation geometry: adjacent known terrain is
+  merged into seamless polygons, fog/reveal geometry is deterministic and
+  stable across world-time changes, exact rumours remain hidden, glimpses are
+  approximate, and routes appear only after their own spatial observation.
+- The former nested Context administration rail is now one full-screen player
+  space with exactly three tabs: Карта, Ты, Знания. The map dominates its
+  surface; character data is written as background, loss, obligation,
+  relations, accessible items and conditions; knowledge is grouped by source
+  (seen, told, inferred, doubted) from BeliefModelDTO.
+- Keyboard tab navigation supports ArrowLeft/ArrowRight/Home/End with roving
+  tabindex. Escape closes the space and restores focus. Canonical contact ids
+  are sanitized in all rendered belief text while structural DTO identity stays
+  intact.
+- This slice adds no Domain Events, Rules or persistence state. It consumes the
+  existing Event Log projections through GameShellSnapshot, BeliefModelDTO and
+  ObserverMapDTO.
+- Full `bash scripts/validate.sh` PASS: 131 test files, 1596 passed,
+  1 skipped; Canon, Simulation, 10 eval scenarios, 46-step Adventure acceptance
+  and diff checks PASS.
+- Real NTFS browser QA against a temporary local SQLite world PASS on desktop
+  and 390x844 mobile: map/fog/current position, Карта/Ты/Знания, natural contact
+  labels, keyboard/focus behavior, no horizontal overflow and zero console
+  errors/warnings. Mutation ledger: one temporary world creation, two Presence
+  acknowledgements (the second restored the lease after server restart), zero
+  gameplay/inquiry/retry actions; world time remained T0.
+- Commit, push, deployment and production verification were not authorized and
+  were not run. The independent timed 30–60 minute human experiential gate
+  remains OPEN; do not call the product release-complete until that record and
+  release operations are complete.
+
 # Current work (2026-08-16 — ADR-0034 FirstEntryDTO and entry modes)
 
 - First launch and return Presence are now checkpoint-driven: authored

@@ -135,6 +135,25 @@ describe("Observation/Belief Boundary (PR-6.4)", () => {
     expect(parsed.schemaVersion).toBe(2);
   });
 
+  it("replaces canonical contact ids before the BeliefModel crosses the player boundary", () => {
+    const events = [
+      evt("PlayerSpawned", 0, { x: 0, y: 0 }),
+      evt("RelationChanged", 1, {
+        from: "player",
+        to: "contact:riverwatch-archivist",
+        kind: "knows",
+        delta: 1,
+      }),
+    ];
+    const serialized = serializeBeliefModel(buildBeliefModel(events, { time: 1 } as any, "player"));
+    const relationBelief = serialized.beliefs.find((belief) => belief.patternId.startsWith("relation:"));
+
+    expect(relationBelief?.currentInterpretation).toContain("архивист Речного Стража");
+    expect(relationBelief?.currentInterpretation).not.toContain("contact:riverwatch-archivist");
+    expect(relationBelief?.supportingEvidence[0]?.description).toContain("архивист Речного Стража");
+    expect(relationBelief?.supportingEvidence[0]?.description).not.toContain("contact:riverwatch-archivist");
+  });
+
   it("BeliefModel does not contain raw Event Log data", () => {
     const events = [
       evt("PlayerSpawned", 0, { x: 0, y: 0 }),

@@ -60,24 +60,34 @@
         </main>
       </div>
       <section id="context-overlay" class="panel-overlay context-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" hidden aria-label="Пространство игрока">
-        <header><h2>Твоё пространство</h2><button data-close-overlay="context-overlay" aria-label="Закрыть">×</button></header>
-        <div class="context-overlay-grid">
-          <aside class="context-rail" aria-label="Контекст игрока">
-            <div class="context-tabs" role="tablist" aria-label="Контекст игрока">
-              <button id="context-tab-map" class="context-tab active" data-context="map" role="tab" aria-selected="true" aria-controls="context-map">Карта</button>
-              <button id="context-tab-character" class="context-tab" data-context="character" role="tab" aria-selected="false" aria-controls="context-character">Ты</button>
-              <button id="context-tab-knowledge" class="context-tab" data-context="knowledge" role="tab" aria-selected="false" aria-controls="context-knowledge">Знания</button>
+        <header class="context-space-header"><h2>Твоё пространство</h2><button data-close-overlay="context-overlay" aria-label="Закрыть">×</button></header>
+        <nav class="context-space-tabs context-tabs" role="tablist" aria-label="Пространство игрока">
+          <button id="context-tab-map" class="context-tab active" data-context="map" role="tab" aria-selected="true" aria-controls="context-map">Карта</button>
+          <button id="context-tab-character" class="context-tab" data-context="character" role="tab" aria-selected="false" aria-controls="context-character" tabindex="-1">Ты</button>
+          <button id="context-tab-knowledge" class="context-tab" data-context="knowledge" role="tab" aria-selected="false" aria-controls="context-knowledge" tabindex="-1">Знания</button>
+        </nav>
+        <div class="context-space">
+          <section id="context-map" class="context-space-panel context-space-panel--map context-panel active" role="tabpanel" aria-labelledby="context-tab-map">
+            <div class="player-map player-map--full" aria-labelledby="map-title">
+              <header class="player-map__header">
+                <div><span class="eyebrow">КАРТА ПУТЕШЕСТВЕННИКА</span><h3 id="map-title">Карта</h3><p id="map-current-location" class="map-current-location">Место уточняется…</p></div>
+                <span class="map-fog-key">Неизведанное скрыто</span>
+              </header>
+              <div id="player-map-canvas" class="player-map__canvas" role="img" aria-label="Карта известного пространства"></div>
+              <footer class="player-map__footer">
+                <p id="map-route-status" class="map-route-status" aria-live="polite">Ты пока не выбрал путь.</p>
+                <details class="map-legend-disclosure">
+                  <summary>Легенда</summary>
+                  <div id="player-map-legend" class="player-map__legend"></div>
+                </details>
+              </footer>
             </div>
-            <div id="context-map" class="context-panel context-map active" role="tabpanel" aria-labelledby="context-tab-map">
-              <section class="player-map player-map--full" aria-labelledby="map-title">
-                <header class="player-map__header"><div><span class="eyebrow">ИЗВЕСТНЫЙ РЕГИОН</span><h3 id="map-title">Карта</h3><p>Канонический рисунок — только визуальная опора. Туман, места и маршруты открываются по наблюдениям.</p></div><span class="map-fog-key">Неизведанное скрыто</span></header>
-                <div id="player-map-canvas" class="player-map__canvas" role="img" aria-label="Карта известного пространства"></div>
-                <div id="player-map-legend" class="player-map__legend"></div>
-              </section>
-            </div>
-            <div id="context-character" class="context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></div>
-            <div id="context-knowledge" class="context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden><section id="discovery-container" class="knowledge-discoveries" aria-label="Следы и открытия"></section></div>
-          </aside>
+          </section>
+          <section id="context-character" class="context-space-panel context-space-panel--character context-panel" role="tabpanel" aria-labelledby="context-tab-character" hidden></section>
+          <section id="context-knowledge" class="context-space-panel context-space-panel--knowledge context-panel" role="tabpanel" aria-labelledby="context-tab-knowledge" hidden>
+            <div id="knowledge-belief-surface"></div>
+            <section id="discovery-container" class="knowledge-discoveries" aria-label="Следы и открытия"></section>
+          </section>
         </div>
       </section>
       <div id="shell-loading" class="shell-overlay" role="dialog" aria-modal="true" aria-labelledby="loading-title" tabindex="-1" aria-hidden="true" hidden><div class="overlay-card"><strong id="loading-title">Мир загружается...</strong><span id="loading-stage">Читаем летопись</span><div class="loading-bar"></div></div></div>
