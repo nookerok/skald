@@ -1,6 +1,6 @@
 # Current work (2026-08-21 — player atlas and context space)
 
-- Blocks 6–7 are implemented in the working tree. ObserverMapDTO schema v4
+- Blocks 6–7 are implemented in code commit `8f85b57`. ObserverMapDTO schema v4
   exposes only observer-safe presentation geometry: adjacent known terrain is
   merged into seamless polygons, fog/reveal geometry is deterministic and
   stable across world-time changes, exact rumours remain hidden, glimpses are
@@ -26,10 +26,26 @@
   errors/warnings. Mutation ledger: one temporary world creation, two Presence
   acknowledgements (the second restored the lease after server restart), zero
   gameplay/inquiry/retry actions; world time remained T0.
-- Commit, push, deployment and production verification were not authorized and
-  were not run. The independent timed 30–60 minute human experiential gate
-  remains OPEN; do not call the product release-complete until that record and
-  release operations are complete.
+- Code commit `8f85b576fb3034e2adafa911434bbf90a705d4f0` is pushed to
+  `origin/main` and deployed to Orange Pi. The updater verified backup
+  `/home/nooker/skald-data/backups/backup-10c51be28da191a702fb35386b5b999897e3f1a3-pre-update-20260821-212745.sqlite`,
+  fast-forwarded cleanly, ran all 1596 tests on-device and recovered health.
+- Post-deploy service evidence: `skald.service`, healthcheck timer and backup
+  timer active; `/api/health` reports SQLite/multiWorld healthy. The required
+  ten-turn production API smoke returned ten HTTP 200 responses with state and
+  primary presentation, advanced T91->T101 exactly, matched final event 656,
+  and the duplicate idempotency key returned HTTP 409.
+- Production NTFS browser QA at `#/world/riverwatch-main` PASS for desktop and
+  390x844 mobile: Map/You/Knowledge, fog/current position, source-grouped
+  knowledge, no raw contact ids, keyboard/focus behavior, reload persistence,
+  no overflow and zero console warnings/errors. One Presence acknowledgement
+  restored the lease; no gameplay/inquiry/retry actions; T101->T101. Screenshot
+  capture is BLOCKED by the browser runtime timeout
+  `Page.captureScreenshot`; this is an evidence-tool limitation, not an
+  observed application defect.
+- Dependency installation reports 6 audit findings (3 moderate, 2 high,
+  1 critical); no automatic breaking `npm audit fix --force` was applied.
+  The independent timed 30–60 minute human experiential gate remains OPEN.
 
 # Current work (2026-08-16 — ADR-0034 FirstEntryDTO and entry modes)
 
