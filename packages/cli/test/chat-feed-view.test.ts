@@ -47,6 +47,10 @@ function turn(t, text) {
   };
 }
 
+function conversation(key, inputClass, playerText, responseText, time, createdAt, turnSeq = 1) {
+  return { turnSeq, worldId: "world", correlationId: "conversation:" + key, idempotencyKey: key, playerText, inputClass, worldTimeBefore: time, worldTimeAfter: time, responseKind: inputClass === "inquiry" ? "inquiry_answer" : inputClass === "clarification" ? "clarification" : "action_outcome", responseText, createdAt };
+}
+
 describe("Chronicle Feed (ADR-0024) — chat core", () => {
   let doc;
   beforeEach(() => {
@@ -112,6 +116,37 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     const rendered = doc.feed.children.map(allText).join(" ");
     expect(rendered).not.toMatch(/TickPassed|RiverLevel|state\.|ev\.|eventId/);
     expect(rendered).toContain("Река поднялась.");
+  });
+
+  it("hydrates a persisted action pair without duplicating its deterministic response", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([turn(8, "Действие принято.")], [conversation("a-1", "action", "осматриваюсь", "Действие принято.", 8, 100)], [], null);
+    const rendered = allText(doc.feed);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(rendered).toContain("осматриваюсь");
+    expect(rendered.match(/Действие принято\./g)).toHaveLength(1);
+  });
+
+  it("renders inquiry and clarification turns without a journal turn", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([], [
+      conversation("q-1", "inquiry", "где я?", "Ты у переправы.", 2, 20, 1),
+      conversation("c-1", "clarification", "сделай это", "Уточни действие.", 2, 21, 2),
+    ], [], null);
+    expect(doc.feed.children).toHaveLength(4);
+    expect(allText(doc.feed)).toContain("где я?");
+    expect(allText(doc.feed)).toContain("Уточни действие.");
+  });
+
+  it("keeps autonomous journal turns visible and orders equal world time by createdAt", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([turn(3, "Автономный мир")], [
+      conversation("late", "inquiry", "поздний вопрос", "Поздний ответ", 3, 30, 2),
+      conversation("early", "inquiry", "ранний вопрос", "Ранний ответ", 3, 10, 1),
+    ], [], null);
+    const rendered = allText(doc.feed);
+    expect(rendered.indexOf("Ранний ответ")).toBeLessThan(rendered.indexOf("Поздний ответ"));
+    expect(rendered).toContain("Автономный мир");
   });
 
   it("UX-7.3 separates the two voices: player 'ТЫ' and master 'МАСТЕР'", async () => {

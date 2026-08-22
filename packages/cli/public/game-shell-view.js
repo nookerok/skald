@@ -4,14 +4,14 @@ import { initActivityView } from "./activity-view.js";
 const overlayOpeners = new Map();
 let currentSnapshot = null;
 let currentJournal = null;
-export function renderGameShell(snapshot) { currentSnapshot = snapshot || null; renderLivingWorld(snapshot); if (currentJournal) renderChatFeedModel(currentJournal.turns, getLocalIntents(), currentSnapshot); }
+export function renderGameShell(snapshot) { currentSnapshot = snapshot || null; renderLivingWorld(snapshot); if (currentJournal) renderChatFeedModel(currentJournal.turns, currentJournal.conversationTurns, getLocalIntents(), currentSnapshot); }
 export function humanizeLatestResponse(text) {
   const value = typeof text === "string" ? text.trim() : "";
   if (!value) return "";
   const cleaned = value.replace(/^Ты находишься в точке\s*\(-?\d+\s*,\s*-?\d+\)\.\s*/u, "").replace(/^Ты пытаешься:\s*/u, "").trim();
   return cleaned || value;
 }
-export function renderChatFeed(journal) { currentJournal = journal || null; renderChatFeedModel(journal?.turns, getLocalIntents(), currentSnapshot); }
+export function renderChatFeed(journal) { currentJournal = journal || null; renderChatFeedModel(journal?.turns, journal?.conversationTurns, getLocalIntents(), currentSnapshot); }
 export function addLocalIntent(...args) { return addLocalIntentModel(...args); }
 export function addLocalInquiry(...args) { return addLocalInquiryModel(...args); }
 export function removeLocalIntent(...args) { return removeLocalIntentModel(...args); }

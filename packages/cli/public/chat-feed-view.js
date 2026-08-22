@@ -3,9 +3,9 @@ import { byId, makeNode } from "./dom-helpers.js";
 /**
  * Chronicle Feed (ADR-0024): the main Game Screen surface. Renders a vertical
  * dialogue between the player and the master from the journal DTO plus
- * session-scoped intent bubbles. DTO-only: no event types, no source IDs, no
- * command controls. PlayerCommand text is not a Domain Event, so intent
- * bubbles live only in this browser session (ADR-0024 point 5).
+ * temporary pending intent bubbles. DTO-only: no event types, no source IDs,
+ * no command controls. Persisted ConversationTurns are the source for the
+ * durable player/master exchange; local intents disappear after hydration.
  */
 
 const MAX_TURNS = 12;
@@ -135,7 +135,17 @@ function worldStateNode(snapshot) {
   return node;
 }
 
-function turnNode(turn) {
+function conversationPlayerNode(turn) {
+  const player = makeNode("article", { className: "chat-intent" });
+  player.append(
+    makeNode("span", { className: "chat-intent-label", text: "ТЫ" }),
+    makeNode("p", { className: "chat-intent-text", text: turn.playerText }),
+    makeNode("span", { className: "chat-intent-status", text: turn.inputClass === "inquiry" ? "Вопрос мастеру" : turn.inputClass === "clarification" ? "Уточнение" : "Твоё действие" }),
+  );
+  return player;
+}
+
+function turnNode(turn, conversationTurn = null) {
   const presentation = turn.presentation || {};
   const node = makeNode("article", { className: "chat-turn" });
   const header = makeNode("div", { className: "chat-turn-header" });
@@ -145,7 +155,7 @@ function turnNode(turn) {
   );
   node.appendChild(header);
   const narrative = turn.narrativeLLM;
-  const response = presentation.response || null;
+  const response = conversationTurn ? { text: conversationTurn.responseText, kind: conversationTurn.responseKind } : presentation.response || null;
   const primary = presentation.primary || null;
   const responseText = response?.text || (!response && primary?.sourceEventIds?.length ? primary.text : "");
   if (responseText) {
@@ -167,26 +177,87 @@ function turnNode(turn) {
   return node;
 }
 
-export function renderChatFeed(turns, intents = [], snapshot = null) {
+function conversationOnlyMasterNode(turn) {
+  const node = makeNode("article", { className: "chat-turn chat-turn--" + turn.inputClass });
+  node.append(
+    makeNode("div", { className: "chat-turn-header", text: "МАСТЕР" }),
+    makeNode("p", { className: "chat-world-primary", text: turn.responseText }),
+  );
+  return node;
+}
+
+function isConversationTurn(value) {
+  return Boolean(value && typeof value === "object" && typeof value.playerText === "string" && typeof value.responseText === "string");
+}
+
+function sortKey(item) {
+  const time = item.kind === "conversation" ? item.turn.worldTimeAfter : item.turn.worldTime;
+  const createdAt = item.kind === "conversation" ? item.turn.createdAt : 0;
+  const turnSeq = item.kind === "conversation" ? item.turn.turnSeq : 0;
+  return [Number.isFinite(time) ? time : 0, Number.isFinite(createdAt) ? createdAt : 0, Number.isFinite(turnSeq) ? turnSeq : 0];
+}
+
+export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOrSnapshot = null, snapshotArg = null) {
   const feed = byId("chat-feed");
   if (!feed) return;
   feed.replaceChildren();
-  // Journal HTTP pages are newest-first; keep the newest window and render it oldest-to-newest.
-  const turnList = (Array.isArray(turns) ? turns : []).slice(0, MAX_TURNS).reverse();
-  const intentList = Array.isArray(intents) ? intents : [];
+  // The four-argument form is the durable renderer contract. Keep the old
+  // three-argument form for existing callers/tests while the browser hydrates.
+  const newContract = arguments.length >= 4 || (Array.isArray(conversationTurnsOrIntents) && conversationTurnsOrIntents.some(isConversationTurn));
+  const conversationTurns = newContract && Array.isArray(conversationTurnsOrIntents) ? conversationTurnsOrIntents.filter(isConversationTurn) : [];
+  const intentList = newContract ? (Array.isArray(pendingOrSnapshot) ? pendingOrSnapshot : []) : (Array.isArray(conversationTurnsOrIntents) ? conversationTurnsOrIntents : []);
+  const snapshot = newContract ? snapshotArg : (pendingOrSnapshot && !Array.isArray(pendingOrSnapshot) ? pendingOrSnapshot : null);
+  const turnList = Array.isArray(turns) ? turns : [];
+  const seenKeys = new Set();
+  const uniqueConversationTurns = conversationTurns.filter((turn) => {
+    if (seenKeys.has(turn.idempotencyKey)) return false;
+    seenKeys.add(turn.idempotencyKey);
+    return true;
+  });
+  const journalItems = turnList.map((turn) => ({ kind: "journal", turn }));
+  const items = [];
+  const matchedConversationKeys = new Set();
+  for (const item of journalItems) {
+    const conversation = uniqueConversationTurns.find((candidate) => candidate.inputClass === "action" && candidate.worldTimeAfter === item.turn.worldTime);
+    if (conversation) {
+      matchedConversationKeys.add(conversation.idempotencyKey);
+      items.push({ kind: "pair", turn: item.turn, conversation });
+    } else {
+      items.push(item);
+    }
+  }
+  for (const conversation of uniqueConversationTurns) {
+    if (!matchedConversationKeys.has(conversation.idempotencyKey)) items.push({ kind: "conversation", turn: conversation });
+  }
+  items.sort((a, b) => {
+    const ka = a.kind === "pair" ? [a.turn.worldTime, a.conversation.createdAt, a.conversation.turnSeq] : sortKey(a);
+    const kb = b.kind === "pair" ? [b.turn.worldTime, b.conversation.createdAt, b.conversation.turnSeq] : sortKey(b);
+    return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2];
+  });
+  const visibleItems = items.slice(-MAX_TURNS);
   const children = [];
-  for (const turn of turnList) {
-    for (const intent of intentList.filter((item) => item.worldTime === turn.worldTime)) {
+  for (const item of visibleItems) {
+    const turn = item.kind === "pair" || item.kind === "journal" ? item.turn : null;
+    const worldTime = item.kind === "conversation" ? item.turn.worldTimeAfter : turn?.worldTime;
+    for (const intent of intentList.filter((candidate) => !candidate.requestKey || !seenKeys.has(candidate.requestKey) && candidate.worldTime === worldTime)) {
       children.push(intentNode(intent, false));
     }
-    children.push(turnNode(turn));
+    if (item.kind === "pair") children.push(conversationPlayerNode(item.conversation), turnNode(item.turn, item.conversation));
+    else if (item.kind === "conversation") children.push(conversationPlayerNode(item.turn), conversationOnlyMasterNode(item.turn));
+    else children.push(turnNode(item.turn));
   }
   for (const inquiry of localInquiries) children.push(...inquiryNodes(inquiry));
   const stateNode = worldStateNode(snapshot);
   if (stateNode) children.push(stateNode);
   // Intents without a journal turn yet (pending answer, rejected command or a
   // turn outside the visible window) stay visible at the end of the feed.
-  for (const intent of intentList.filter((item) => !turnList.some((turn) => turn.worldTime === item.worldTime))) {
+  for (const intent of intentList.filter((item) => {
+    if (item.requestKey && seenKeys.has(item.requestKey)) return false;
+    return !visibleItems.some((candidate) => {
+      const candidateTime = candidate.kind === "conversation" ? candidate.turn.worldTimeAfter : candidate.turn?.worldTime;
+      return candidateTime === item.worldTime;
+    });
+  })) {
     children.push(intentNode(intent, true));
     const clarification = localClarifications.find((entry) => entry.intent === intent);
     if (clarification) children.push(clarificationNode(clarification));

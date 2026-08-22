@@ -1,6 +1,6 @@
 import { sendCommand, fetchState, fetchGameShell, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, addLocalInquiry, removeLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
+import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, removeLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
 import { createNarrationPoll } from "./narration-poll.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -83,8 +83,7 @@ async function flushOfflineQueue() {
     done.push(envelope.idempotencyKey);
     if (resolution === "inquiry") {
       removeLocalIntent(sessionIntent);
-      addLocalInquiry(envelope.input, result.body.inquiry?.answer || "Мастер ответил на вопрос.");
-      renderChatFeed(latestJournal);
+      await refreshJournal();
       renderOfflineBanner(null);
       continue;
     }
@@ -182,18 +181,18 @@ async function handle(input, overrideKey) {
     const result = await sendCommand(input, key);
     if (result.body?.ok && result.body?.status === "inquiry") {
       removeLocalIntent(sessionIntent);
-      addLocalInquiry(input, result.body.inquiry?.answer || "Мастер пока не может ответить на этот вопрос.");
       const inputElement = document.getElementById("command-input");
       if (inputElement) inputElement.value = "";
       dispatch("COMMAND_SUCCESS");
-      renderChatFeed(latestJournal);
+      await refreshJournal();
       renderShellConnection("ready", "Мастер отвечает");
       return;
     }
     if (result.body?.ok && result.body?.status === "clarification") {
       await keepPendingVisible(pendingStartedAt);
       dispatch("COMMAND_REJECTED");
-      renderIntentClarification(sessionIntent, result.body);
+      removeLocalIntent(sessionIntent);
+      await refreshJournal();
       renderShellConnection("ready", "Мастер уточняет действие");
       return;
     }
@@ -208,6 +207,7 @@ async function handle(input, overrideKey) {
       if (inputElement) inputElement.value = "";
       dispatch("COMMAND_SUCCESS");
       renderShellConnection("ready", "Ход записан");
+      removeLocalIntent(sessionIntent);
       await refreshJournal();
       await refreshShell();
       await refreshDiscoveries();
@@ -217,6 +217,7 @@ async function handle(input, overrideKey) {
       // Reconcile all authoritative read models before hiding retry.
       dispatch("COMMAND_DUPLICATE");
       setRetryVisible(false);
+      removeLocalIntent(sessionIntent);
       await refreshShell();
       await refreshJournal();
       await refreshDiscoveries();

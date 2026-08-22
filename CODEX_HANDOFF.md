@@ -1,3 +1,20 @@
+# Current work (2026-08-22 — durable ConversationTurn transcript)
+
+- ConversationTurn is now a read-side persistence contract. SQLite schema v9
+  stores player text, deterministic response metadata and infrastructure
+  createdAt; old databases migrate without backfill.
+- Action commits use the RuleEngine read-side prepare hook so Events,
+  processed_requests, conversation_turns and last_played_at commit atomically.
+  Inquiry and clarification paths persist without Events or world-time changes.
+- Journal DTOs expose player-facing conversationTurns without requestHash;
+  command responses return the persisted turn and the chat feed hydrates
+  `ТЫ → МАСТЕР` pairs after reload while keeping LLM narration separate.
+- `npm run validate` PASS. Three local commits cover persistence, integration
+  and UI hydration.
+- Fixed NTFS browser QA is BLOCKED in this session: thread
+  `019fa52b-1610-7b23-9567-37891d24c782` was unavailable
+  (`RECEIVER_NOT_FOUND`). No deployment or production SQLite mutation was run.
+
 # Current work (2026-08-21 — player atlas and context space)
 
 - Blocks 6–7 are implemented in code commit `8f85b57`. ObserverMapDTO schema v4
