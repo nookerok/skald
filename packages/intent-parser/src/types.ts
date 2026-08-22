@@ -6,6 +6,13 @@
  * to the Command Handler, which converts it into a Domain Event.
  */
 
+/**
+ * Whether a verb requires, allows, or forbids a direct object (target).
+ * Used by the structural validator to reject malformed proposals before
+ * world resolution.
+ */
+export type TargetRequirement = "forbidden" | "optional" | "required";
+
 export type IntentMode =
   | "perceive"
   | "relocate"
@@ -144,5 +151,24 @@ export type IntentResult =
   | JourneyIntent
   | ClarificationRequest
   | UnsupportedIntent;
+
+/**
+ * Structural validation result for an ActionProposal.
+ * Shared between deterministic and LLM proposal paths.
+ */
+export type ProposalValidationReason =
+  | "malformed_target"
+  | "missing_target"
+  | "unexpected_target"
+  | "multiple_actions"
+  | "unsupported_structure";
+
+export type ProposalValidation =
+  | { readonly ok: true; readonly proposal: ActionIntentCommand | InteractionCommand | JourneyIntent }
+  | {
+      readonly ok: false;
+      readonly reason: ProposalValidationReason;
+      readonly clarification: string;
+    };
 
 export type { ActionIntentCommand as PlayerCommand };

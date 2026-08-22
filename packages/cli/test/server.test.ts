@@ -127,6 +127,29 @@ describe("HTTP Server", () => {
     expect(body.state.player).toBeDefined();
   });
 
+  it("clarifies malformed and observer-invisible targets without advancing the world", async () => {
+    const before = await api("/api/state");
+    const malformed = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "осмотреть ...", idempotencyKey: "preflight-malformed-1" }),
+    });
+    expect(malformed.status).toBe(200);
+    expect(malformed.body.ok).toBe(true);
+    expect(malformed.body.status).toBe("clarification");
+
+    const unknown = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "осмотреть невидимую башню", idempotencyKey: "preflight-unknown-1" }),
+    });
+    expect(unknown.status).toBe(200);
+    expect(unknown.body.ok).toBe(true);
+    expect(unknown.body.status).toBe("clarification");
+
+    const after = await api("/api/state");
+    expect(after.body.state.worldTime).toBe(before.body.state.worldTime);
+    expect(after.body.state.eventNumber).toBe(before.body.state.eventNumber);
+  });
+
   it("GET /api/beliefs returns a JSON-safe belief model", async () => {
     const { status, body } = await api("/api/beliefs");
     expect(status).toBe(200);

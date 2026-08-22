@@ -3,6 +3,7 @@ import {
   INTENT_CAPABILITIES,
   classifyPlayerInput,
   parseIntent,
+  validateActionProposal,
   validateInquiryProposal,
   validateIntentProposal,
   type ExecutableIntent,
@@ -68,6 +69,16 @@ export async function interpretPlayerInput(
         { optionId: "events", label: "О событиях" },
       ],
     };
+  }
+  if (deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent") {
+    const structural = validateActionProposal(deterministic);
+    if (!structural.ok) {
+      return {
+        status: "clarification",
+        question: structural.clarification,
+        options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
+      };
+    }
   }
   if (isSafeDeterministic(deterministic) && !needsLLMForNaturalPhrase(input, deterministic)) return { status: "accepted", intent: deterministic, source: "deterministic" };
   if (deterministic.type === "ClarificationRequired") {

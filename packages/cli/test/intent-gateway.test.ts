@@ -90,4 +90,49 @@ describe("intent gateway", () => {
     expect((result as any).source).toBe("deterministic");
     expect(router.chat).not.toHaveBeenCalled();
   });
+
+  it("returns clarification for compound phrases without creating events", async () => {
+    const result = await interpretPlayerInput("осматриваюсь и иду к реке", routerReturning("{}"));
+
+    expect(result.status).toBe("clarification");
+    // Compound phrases should return clarification, not accepted
+    expect((result as any).status).not.toBe("accepted");
+  });
+
+  it("returns clarification for unknown verbs without creating events", async () => {
+    const result = await interpretPlayerInput("лететь к башне", routerReturning("{}"));
+
+    // Unknown verb returns unavailable when LLM is off, or clarification with LLM
+    expect(["clarification", "unavailable"]).toContain(result.status);
+  });
+
+  it("returns clarification for missing required target", async () => {
+    const result = await interpretPlayerInput("тронуть", routerReturning("{}"));
+
+    // Missing required target returns unavailable when LLM is off
+    expect(["clarification", "unavailable"]).toContain(result.status);
+  });
+
+  it("clarifies observe with punctuation-only target", async () => {
+    const result = await interpretPlayerInput("осмотреть ...", routerReturning("{}"));
+
+    expect(result.status).toBe("clarification");
+  });
+
+  it("accepts valid observe without target (ambient action)", async () => {
+    const result = await interpretPlayerInput("осматриваюсь", routerReturning("{}"));
+
+    expect(result.status).toBe("accepted");
+    expect((result as any).intent.type).toBe("InteractionCommand");
+    expect((result as any).intent.verb).toBe("observe");
+  });
+
+  it("accepts valid observe with target", async () => {
+    const result = await interpretPlayerInput("осмотреть реку", routerReturning("{}"));
+
+    expect(result.status).toBe("accepted");
+    expect((result as any).intent.type).toBe("InteractionCommand");
+    expect((result as any).intent.verb).toBe("observe");
+    expect((result as any).intent.target.raw).toBe("реку");
+  });
 });

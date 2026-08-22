@@ -3,6 +3,7 @@ import {
   parseIntent,
   interpretIntent,
   type ActionIntentCommand,
+  type JourneyIntent,
   type InteractionCommand,
 } from "@skald/intent-parser";
 
@@ -556,12 +557,7 @@ describe("interpretIntent — Interaction Model v1 (ADR-0013)", () => {
 
   it("rejects a compound intent (one intent per command)", () => {
     const result = interpretIntent("открыть дверь и взять ключ");
-    expect(result.type).toBe("UnsupportedButUnderstood");
-    if (result.type !== "UnsupportedButUnderstood") throw new Error("unreachable");
-    expect(result.message).toBe("Одна команда — одно намерение.");
-    expect(result.intent.type).toBe("InteractionCommand");
-    const cmd = result.intent as InteractionCommand;
-    expect(cmd.verb).toBe("open");
+    expect(result.type).toBe("ClarificationRequired");
   });
 
   it("keeps an unknown verb on the legacy unknown path", () => {
@@ -622,11 +618,7 @@ describe("interpretIntent — Interaction Model v1 (ADR-0013)", () => {
 
   it("rejects a compound observe intent", () => {
     const result = interpretIntent("осмотреть дверь и взять пепел");
-    expect(result.type).toBe("UnsupportedButUnderstood");
-    if (result.type !== "UnsupportedButUnderstood") throw new Error("unreachable");
-    expect(result.intent.type).toBe("InteractionCommand");
-    const cmd = result.intent as InteractionCommand;
-    expect(cmd.verb).toBe("observe");
+    expect(result.type).toBe("ClarificationRequired");
   });
 
   it("normalizes «прислушаться у окна» to canonical listen with a target", () => {
@@ -717,5 +709,95 @@ describe("interpretIntent — place/use structural parsing (ADR-0032)", () => {
     expect(cmd.verb).toBe("use");
     expect(cmd.instrument?.raw).toBe("нож");
     expect(cmd.goal).toBe("разрезать веревку");
+  });
+});
+
+describe("interpretIntent — verb token consumed entirely (P0 morphology fix)", () => {
+  it.each([
+    ["осматриваюсь", "observe"],
+    ["я осматриваюсь", "observe"],
+    ["медленно осматриваюсь", "observe"],
+    ["оглядываюсь", "observe"],
+    ["оглянусь вокруг", "observe"],
+    ["прислушиваюсь", "listen"],
+    ["я внимательно прислушиваюсь", "listen"],
+  ])("parses '%j' as %s with NO target from verb remainder", (input, expectedVerb) => {
+    const result = interpretIntent(input);
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe(expectedVerb);
+    expect(cmd.target).toBeUndefined();
+    expect(cmd.rawText).toBe(input);
+  });
+});
+
+describe("interpretIntent — verb with explicit target (P0 morphology)", () => {
+  it.each([
+    ["осматриваю двор", "observe", "двор"],
+    ["внимательно осматриваю двор", "observe", "двор"],
+    ["смотрю на реку", "observe", "реку"],
+    ["посмотрю на старую кладку", "observe", "старую кладку"],
+    ["прислушиваюсь к шуму воды", "listen", "шуму воды"],
+    ["слушаю перевозчика", "listen", "перевозчика"],
+  ])("parses '%j' as %s with target '%s'", (input, expectedVerb, expectedTarget) => {
+    const result = interpretIntent(input);
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe(expectedVerb);
+    expect(cmd.target?.raw).toContain(expectedTarget);
+  });
+});
+
+describe("interpretIntent — conversational forms (P0)", () => {
+  it.each([
+    ["осматриваюсь", "observe"],
+    ["оглядываюсь", "observe"],
+    ["прислушиваюсь", "listen"],
+  ])("parses %j without a synthetic target", (input, expectedVerb) => {
+    const result = interpretIntent(input);
+    expect(result.type).toBe("InteractionCommand");
+    const command = result as InteractionCommand;
+    expect(command.verb).toBe(expectedVerb);
+    expect(command.target).toBeUndefined();
+  });
+
+  it("rejects a known stem when it is embedded in a junk word", () => {
+    const result = interpretIntent("опосмотреть дверь");
+    expect(result.type).toBe("ActionIntentCommand");
+    expect((result as ActionIntentCommand).operation).toBe("unknown");
+  });
+});
+
+describe("interpretIntent — normal words are not stripped (P0 protection)", () => {
+  it("preserves inflected observation targets", () => {
+    for (const [input, target] of [["посмотреть на карася", "карася"], ["осматриваю ремень", "ремень"]] as const) {
+      const result = interpretIntent(input);
+      expect(result.type).toBe("InteractionCommand");
+      expect((result as InteractionCommand).target?.raw).toBe(target);
+    }
+  });
+
+  it("preserves a journey destination", () => {
+    const result = interpretIntent("иду за лосем");
+    expect(result.type).toBe("JourneyIntent");
+    expect((result as JourneyIntent).destination.raw).toBe("лосем");
+  });
+
+  it("preserves a communication target", () => {
+    const result = interpretIntent("говорю им");
+    expect(result.type).toBe("ActionIntentCommand");
+    expect((result as ActionIntentCommand).operation).toBe("speak");
+    expect((result as ActionIntentCommand).utterance).toBe("им");
+  });
+});
+
+describe("interpretIntent — compound phrases return clarification (P0)", () => {
+  it.each([
+    "осматриваюсь и иду к реке",
+    "слушаю перевозчика, потом перехожу мост",
+    "сначала смотрю на воду, затем зову лодочника",
+  ])("returns clarification for compound phrase: %j", (input) => {
+    const result = interpretIntent(input);
+    expect(result.type).toBe("ClarificationRequired");
   });
 });

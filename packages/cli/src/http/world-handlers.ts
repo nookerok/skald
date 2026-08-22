@@ -26,12 +26,13 @@ import {
   buildInquiryAnswer,
   getCharacterBackground,
   getRegionEntrypoint,
+  resolveInteractionTarget,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { interpretPlayerInput } from "../runtime/intent-gateway.js";
-import { classifyPlayerInput, parseIntent } from "@skald/intent-parser";
+import { classifyPlayerInput, parseIntent, validateActionProposal } from "@skald/intent-parser";
 import type { ExecutableIntent } from "@skald/intent-parser";
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { getMapDetailAsset } from "./map-detail-catalog.js";
@@ -317,10 +318,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
-      // runCommandCycleForRuntime returns a JsonResponse with 409 for duplicates
-      if ("statusCode" in r && (r as JsonResponse).statusCode === 409)
-        return r as JsonResponse;
-      if ("statusCode" in r && (r as JsonResponse).statusCode !== 200)
+      if ("statusCode" in r)
         return r as JsonResponse;
       if ("type" in r && (r as any).type === "ParseError")
         return error("parse_error", (r as any).reason ?? "parse error", 400);
@@ -768,6 +766,48 @@ function resolveResourceExtractionIntent(runtime: WorldRuntime, intent: Executab
   return null;
 }
 
+const PREFLIGHT_TARGET_OPERATIONS = new Set([
+  "observe",
+  "inspect",
+  "listen",
+  "touch",
+  "take",
+  "open",
+  "close",
+  "apply_force",
+  "give",
+  "place",
+  "use",
+]);
+
+function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent): JsonResponse | null {
+  if (intent.type === "JourneyIntent") return null;
+  const verb = intent.type === "InteractionCommand" ? intent.verb : intent.operation;
+  if (!PREFLIGHT_TARGET_OPERATIONS.has(verb)) return null;
+  const target = intent.target?.raw?.trim() ?? "";
+  // Optional ambient perception is resolved by the domain interaction rule.
+  if (target.length === 0) return null;
+
+  const resolution = resolveInteractionTarget(runtime.projection.getSnapshot(), verb, target);
+  if (resolution.kind === "resolved" || resolution.kind === "environment") return null;
+  if (resolution.kind === "ambiguous") {
+    return json({
+      ok: true,
+      status: "clarification",
+      question: "Уточни, какой объект ты имеешь в виду.",
+      options: resolution.candidates.slice(0, 3).map((candidate, index) => ({
+        optionId: "target-" + (index + 1),
+        label: candidate.name,
+      })),
+    });
+  }
+  return json({
+    ok: true,
+    status: "clarification",
+    question: "Я не нахожу «" + target + "» среди того, что тебе доступно сейчас. Что именно ты хочешь сделать?",
+    options: [{ optionId: "rephrase", label: "Уточнить цель" }],
+  });
+}
 export async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
@@ -780,7 +820,21 @@ export async function runCommandCycleForRuntime(
 
   const parsed = resolvedIntent ?? parseIntent(input);
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return error("parse_error", "Could not understand input", 400);
-  const commandIntent = resolveResourceExtractionIntent(runtime, parsed) ?? parsed;
+  const structural = validateActionProposal(parsed);
+  if (!structural.ok) {
+    return json({
+      ok: true,
+      status: "clarification",
+      question: structural.clarification,
+      options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
+    });
+  }
+  const resourceIntent = resolveResourceExtractionIntent(runtime, parsed);
+  if (!resourceIntent) {
+    const preflight = preflightIntentTarget(runtime, parsed);
+    if (preflight) return preflight;
+  }
+  const commandIntent = resourceIntent ?? parsed;
 
   const ts = runtime.projection.getSnapshot().time + 1;
   const correlationId = `cmd-${ts}`;

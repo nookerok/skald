@@ -13,6 +13,7 @@ import type {
   ClarificationRequest,
   InteractionCommand,
   InteractionVerb,
+  TargetRequirement,
   UnsupportedIntent,
 } from "./types.js";
 
@@ -26,257 +27,265 @@ interface VerbEntry {
    * ActionIntentCommand path and migrate per vertical slice.
    */
   readonly canonical?: InteractionVerb | undefined;
+  /** Whether this verb requires, allows, or forbids a direct object. */
+  readonly target: TargetRequirement;
+  /** Prepositions that introduce the target (e.g., "на" for "посмотреть на"). */
+  readonly targetPrepositions?: readonly string[];
 }
 
 const VERBS: readonly VerbEntry[] = [
   // observe (canonical v1, Slice 1 — ADR-0013 §2)
-  { verb: "осмотреть", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "осматрива", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "рассмотреть", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "оглядеть", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "оглянуть", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "посмотреть", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "взглянуть", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "проверить", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "осмотр", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "рассматрив", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "посмотр", mode: "perceive", operation: "observe", canonical: "observe" },
-  { verb: "взгляд", mode: "perceive", operation: "observe", canonical: "observe" },
+  { verb: "осмотреть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "осматрива", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "рассмотреть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "оглядеть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "оглянуть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "посмотреть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "взглянуть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "проверить", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "осмотр", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "рассматрив", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "посмотр", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "взгляд", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "оглядыва", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "оглянусь", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "оглян", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "смотр", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
   // inspect (canonical v1, Slice 1)
-  { verb: "изучить", mode: "perceive", operation: "observe", canonical: "inspect" },
-  { verb: "изуч", mode: "perceive", operation: "observe", canonical: "inspect" },
-  { verb: "роздать", mode: "perceive", operation: "observe" },
+  { verb: "изучить", mode: "perceive", operation: "observe", canonical: "inspect", target: "optional" },
+  { verb: "изуч", mode: "perceive", operation: "observe", canonical: "inspect", target: "optional" },
+  { verb: "роздать", mode: "perceive", operation: "observe", target: "optional" },
   // listen (canonical v1, Slice 2 — ADR-0013 §2)
-  { verb: "слушать", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "прислушаться", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "прислушать", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "подслушать", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "вслушаться", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "вслушать", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "прислушива", mode: "perceive", operation: "listen", canonical: "listen" },
-  { verb: "слуш", mode: "perceive", operation: "listen", canonical: "listen" },
+  { verb: "слушать", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "прислушаться", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "прислушать", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "подслушать", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "вслушаться", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "вслушать", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "прислушива", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
+  { verb: "слуш", mode: "perceive", operation: "listen", canonical: "listen", target: "optional", targetPrepositions: ["к"] },
   // touch
-  { verb: "тронуть", mode: "perceive", operation: "touch" },
-  { verb: "трогать", mode: "perceive", operation: "touch" },
-  { verb: "прикоснуться", mode: "perceive", operation: "touch" },
-  { verb: "прикоснуть", mode: "perceive", operation: "touch" },
-  { verb: "пощупать", mode: "perceive", operation: "touch" },
-  { verb: "пощупа", mode: "perceive", operation: "touch" },
-  { verb: "ладонь", mode: "perceive", operation: "touch" },
-  { verb: "рукой", mode: "perceive", operation: "touch" },
-  { verb: "потрогать", mode: "perceive", operation: "touch" },
+  { verb: "тронуть", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "трогать", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "прикоснуться", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "прикоснуть", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "пощупать", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "пощупа", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "ладонь", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "рукой", mode: "perceive", operation: "touch", target: "required" },
+  { verb: "потрогать", mode: "perceive", operation: "touch", target: "required" },
   // approach / relocate
-  { verb: "подойти", mode: "relocate", operation: "approach" },
-  { verb: "приблизиться", mode: "relocate", operation: "approach" },
-  { verb: "приблизить", mode: "relocate", operation: "approach" },
-  { verb: "направиться", mode: "relocate", operation: "approach" },
-  { verb: "подобраться", mode: "relocate", operation: "approach" },
-  { verb: "подобрать", mode: "relocate", operation: "approach" },
-  { verb: "обойти", mode: "relocate", operation: "approach" },
-  { verb: "обхожу", mode: "relocate", operation: "approach" },
-  { verb: "подход", mode: "relocate", operation: "approach" },
+  { verb: "подойти", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "приблизиться", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "приблизить", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "направиться", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подобраться", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подобрать", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "обойти", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "обхожу", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подход", mode: "relocate", operation: "approach", target: "required" },
   // enter
-  { verb: "войти", mode: "relocate", operation: "enter" },
-  { verb: "входить", mode: "relocate", operation: "enter" },
-  { verb: "проникнуть", mode: "relocate", operation: "enter" },
-  { verb: "проникать", mode: "relocate", operation: "enter" },
-  { verb: "залезть", mode: "relocate", operation: "enter" },
-  { verb: "влезть", mode: "relocate", operation: "enter" },
-  { verb: "пролезть", mode: "relocate", operation: "enter" },
-  { verb: "попасть", mode: "relocate", operation: "enter" },
-  { verb: "лезу", mode: "relocate", operation: "enter" },
-  { verb: "влеза", mode: "relocate", operation: "enter" },
-  { verb: "забира", mode: "relocate", operation: "enter" },
+  { verb: "войти", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "входить", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "проникнуть", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "проникать", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "залезть", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "влезть", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "пролезть", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "попасть", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "лезу", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "влеза", mode: "relocate", operation: "enter", target: "optional" },
+  { verb: "забира", mode: "relocate", operation: "enter", target: "optional" },
   // apply_force
-  { verb: "толкнуть", mode: "interact", operation: "apply_force" },
-  { verb: "толкать", mode: "interact", operation: "apply_force" },
-  { verb: "ударить", mode: "interact", operation: "apply_force" },
-  { verb: "ударять", mode: "interact", operation: "apply_force" },
-  { verb: "навалиться", mode: "interact", operation: "apply_force" },
-  { verb: "наваливать", mode: "interact", operation: "apply_force" },
-  { verb: "наваливаю", mode: "interact", operation: "apply_force" },
-  { verb: "наваливаешь", mode: "interact", operation: "apply_force" },
-  { verb: "наваливает", mode: "interact", operation: "apply_force" },
-  { verb: "наваливаем", mode: "interact", operation: "apply_force" },
-  { verb: "наваливаете", mode: "interact", operation: "apply_force" },
-  { verb: "выбить", mode: "interact", operation: "apply_force" },
-  { verb: "сломать", mode: "interact", operation: "apply_force" },
-  { verb: "вдавить", mode: "interact", operation: "apply_force" },
-  { verb: "пнуть", mode: "interact", operation: "apply_force" },
-  { verb: "бросить", mode: "interact", operation: "apply_force" },
-  { verb: "броса", mode: "interact", operation: "apply_force" },
-  { verb: "пина", mode: "interact", operation: "apply_force" },
-  { verb: "вбить", mode: "interact", operation: "apply_force" },
-  { verb: "вбива", mode: "interact", operation: "apply_force" },
-  { verb: "вырвать", mode: "interact", operation: "apply_force" },
-  { verb: "вырыва", mode: "interact", operation: "apply_force" },
-  { verb: "отодвинуть", mode: "interact", operation: "apply_force" },
-  { verb: "поддеть", mode: "interact", operation: "apply_force" },
-  { verb: "поддева", mode: "interact", operation: "apply_force" },
-  { verb: "тяну", mode: "interact", operation: "apply_force" },
-  { verb: "дёрнуть", mode: "interact", operation: "apply_force" },
-  { verb: "дёрга", mode: "interact", operation: "apply_force" },
+  { verb: "толкнуть", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "толкать", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "ударить", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "ударять", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "навалиться", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "наваливать", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "наваливаю", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "наваливаешь", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "наваливает", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "наваливаем", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "наваливаете", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "выбить", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "сломать", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "вдавить", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "пнуть", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "бросить", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "броса", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "пина", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "вбить", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "вбива", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "вырвать", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "вырыва", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "отодвинуть", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "поддеть", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "поддева", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "тяну", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "дёрнуть", mode: "interact", operation: "apply_force", target: "required" },
+  { verb: "дёрга", mode: "interact", operation: "apply_force", target: "required" },
   // heat
-  { verb: "нагреть", mode: "interact", operation: "heat" },
-  { verb: "греть", mode: "interact", operation: "heat" },
-  { verb: "поджечь", mode: "interact", operation: "heat" },
-  { verb: "поджиг", mode: "interact", operation: "heat" },
-  { verb: "поднести огонь", mode: "interact", operation: "heat" },
-  { verb: "оплавить", mode: "interact", operation: "heat" },
-  { verb: "расплавить", mode: "interact", operation: "heat" },
-  { verb: "расплавл", mode: "interact", operation: "heat" },
-  { verb: "раскалить", mode: "interact", operation: "heat" },
-  { verb: "нагрева", mode: "interact", operation: "heat" },
-  { verb: "грею", mode: "interact", operation: "heat" },
-  { verb: "греешь", mode: "interact", operation: "heat" },
-  { verb: "греет", mode: "interact", operation: "heat" },
-  { verb: "греем", mode: "interact", operation: "heat" },
-  { verb: "греете", mode: "interact", operation: "heat" },
-  { verb: "греете", mode: "interact", operation: "heat" },
-  { verb: "подношу огонь", mode: "interact", operation: "heat" },
-  { verb: "подношу огонь", mode: "interact", operation: "heat" },
-  { verb: "поднес", mode: "interact", operation: "heat" },
+  { verb: "нагреть", mode: "interact", operation: "heat", target: "required" },
+  { verb: "греть", mode: "interact", operation: "heat", target: "required" },
+  { verb: "поджечь", mode: "interact", operation: "heat", target: "required" },
+  { verb: "поджиг", mode: "interact", operation: "heat", target: "required" },
+  { verb: "поднести огонь", mode: "interact", operation: "heat", target: "required" },
+  { verb: "оплавить", mode: "interact", operation: "heat", target: "required" },
+  { verb: "расплавить", mode: "interact", operation: "heat", target: "required" },
+  { verb: "расплавл", mode: "interact", operation: "heat", target: "required" },
+  { verb: "раскалить", mode: "interact", operation: "heat", target: "required" },
+  { verb: "нагрева", mode: "interact", operation: "heat", target: "required" },
+  { verb: "грею", mode: "interact", operation: "heat", target: "required" },
+  { verb: "греешь", mode: "interact", operation: "heat", target: "required" },
+  { verb: "греет", mode: "interact", operation: "heat", target: "required" },
+  { verb: "греем", mode: "interact", operation: "heat", target: "required" },
+  { verb: "греете", mode: "interact", operation: "heat", target: "required" },
+  { verb: "греете", mode: "interact", operation: "heat", target: "required" },
+  { verb: "подношу огонь", mode: "interact", operation: "heat", target: "required" },
+  { verb: "подношу огонь", mode: "interact", operation: "heat", target: "required" },
+  { verb: "поднес", mode: "interact", operation: "heat", target: "required" },
   // cool
-  { verb: "остудить", mode: "interact", operation: "cool" },
-  { verb: "охладить", mode: "interact", operation: "cool" },
-  { verb: "залить", mode: "interact", operation: "cool" },
-  { verb: "накрыть", mode: "interact", operation: "cool" },
+  { verb: "остудить", mode: "interact", operation: "cool", target: "required" },
+  { verb: "охладить", mode: "interact", operation: "cool", target: "required" },
+  { verb: "залить", mode: "interact", operation: "cool", target: "required" },
+  { verb: "накрыть", mode: "interact", operation: "cool", target: "required" },
   // take (canonical v1)
-  { verb: "взять", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "поднять", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "забрать", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "достать", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "собрать", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "взял", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "беру", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "берешь", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "берет", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "берем", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "берете", mode: "interact", operation: "take", canonical: "take" },
-  { verb: "собира", mode: "interact", operation: "take", canonical: "take" },
+  { verb: "взять", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "поднять", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "забрать", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "достать", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "собрать", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "взял", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "беру", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "берешь", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "берет", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "берем", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "берете", mode: "interact", operation: "take", canonical: "take", target: "required" },
+  { verb: "собира", mode: "interact", operation: "take", canonical: "take", target: "required" },
   // open (canonical v1)
-  { verb: "открыть", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "открыва", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "открою", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "открой", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "открыл", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "приоткрыть", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "приоткрыва", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "распахнуть", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "распахива", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "раскрыть", mode: "interact", operation: "open", canonical: "open" },
-  { verb: "раскрыва", mode: "interact", operation: "open", canonical: "open" },
+  { verb: "открыть", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "открыва", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "открою", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "открой", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "открыл", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "приоткрыть", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "приоткрыва", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "распахнуть", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "распахива", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "раскрыть", mode: "interact", operation: "open", canonical: "open", target: "required" },
+  { verb: "раскрыва", mode: "interact", operation: "open", canonical: "open", target: "required" },
   // close (canonical v1)
-  { verb: "закрыть", mode: "interact", operation: "close", canonical: "close" },
-  { verb: "закрыва", mode: "interact", operation: "close", canonical: "close" },
-  { verb: "закрой", mode: "interact", operation: "close", canonical: "close" },
-  { verb: "закрыл", mode: "interact", operation: "close", canonical: "close" },
+  { verb: "закрыть", mode: "interact", operation: "close", canonical: "close", target: "required" },
+  { verb: "закрыва", mode: "interact", operation: "close", canonical: "close", target: "required" },
+  { verb: "закрой", mode: "interact", operation: "close", canonical: "close", target: "required" },
+  { verb: "закрыл", mode: "interact", operation: "close", canonical: "close", target: "required" },
   // give (canonical v1)
-  { verb: "отдать", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "отдам", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "отдай", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "отдаю", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "отдава", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "отдает", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "отдаешь", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "передать", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "передам", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "передай", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "передаю", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "передава", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "передает", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "вручить", mode: "interact", operation: "give", canonical: "give" },
-  { verb: "вруча", mode: "interact", operation: "give", canonical: "give" },
+  { verb: "отдать", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "отдам", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "отдай", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "отдаю", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "отдава", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "отдает", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "отдаешь", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "передать", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "передам", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "передай", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "передаю", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "передава", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "передает", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "вручить", mode: "interact", operation: "give", canonical: "give", target: "required" },
+  { verb: "вруча", mode: "interact", operation: "give", canonical: "give", target: "required" },
   // place (canonical v1)
-  { verb: "положить", mode: "interact", operation: "place", canonical: "place" },
-  { verb: "поставить", mode: "interact", operation: "place", canonical: "place" },
-  { verb: "разместить", mode: "interact", operation: "place", canonical: "place" },
-  { verb: "оставить", mode: "interact", operation: "place", canonical: "place" },
-  { verb: "класть", mode: "interact", operation: "place", canonical: "place" },
-  { verb: "положу", mode: "interact", operation: "place", canonical: "place" },
-  { verb: "ставлю", mode: "interact", operation: "place", canonical: "place" },
+  { verb: "положить", mode: "interact", operation: "place", canonical: "place", target: "required" },
+  { verb: "поставить", mode: "interact", operation: "place", canonical: "place", target: "required" },
+  { verb: "разместить", mode: "interact", operation: "place", canonical: "place", target: "required" },
+  { verb: "оставить", mode: "interact", operation: "place", canonical: "place", target: "required" },
+  { verb: "класть", mode: "interact", operation: "place", canonical: "place", target: "required" },
+  { verb: "положу", mode: "interact", operation: "place", canonical: "place", target: "required" },
+  { verb: "ставлю", mode: "interact", operation: "place", canonical: "place", target: "required" },
   // use (canonical v1)
-  { verb: "использовать", mode: "interact", operation: "use", canonical: "use" },
-  { verb: "применить", mode: "interact", operation: "use", canonical: "use" },
-  { verb: "воспользоваться", mode: "interact", operation: "use", canonical: "use" },
-  { verb: "использу", mode: "interact", operation: "use", canonical: "use" },
-  { verb: "применя", mode: "interact", operation: "use", canonical: "use" },
+  { verb: "использовать", mode: "interact", operation: "use", canonical: "use", target: "required" },
+  { verb: "применить", mode: "interact", operation: "use", canonical: "use", target: "required" },
+  { verb: "воспользоваться", mode: "interact", operation: "use", canonical: "use", target: "required" },
+  { verb: "использу", mode: "interact", operation: "use", canonical: "use", target: "required" },
+  { verb: "применя", mode: "interact", operation: "use", canonical: "use", target: "required" },
   // create_mark
-  { verb: "нарисовать", mode: "interact", operation: "create_mark" },
-  { verb: "наметить", mode: "interact", operation: "create_mark" },
-  { verb: "оставить знак", mode: "interact", operation: "create_mark" },
-  { verb: "написать", mode: "interact", operation: "create_mark" },
-  { verb: "нацарапать", mode: "interact", operation: "create_mark" },
-  { verb: "чертануть", mode: "interact", operation: "create_mark" },
-  { verb: "рису", mode: "interact", operation: "create_mark" },
-  { verb: "пишу", mode: "interact", operation: "create_mark" },
-  { verb: "пишешь", mode: "interact", operation: "create_mark" },
-  { verb: "пишет", mode: "interact", operation: "create_mark" },
-  { verb: "пишем", mode: "interact", operation: "create_mark" },
-  { verb: "пишете", mode: "interact", operation: "create_mark" },
+  { verb: "нарисовать", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "наметить", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "оставить знак", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "написать", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "нацарапать", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "чертануть", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "рису", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "пишу", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "пишешь", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "пишет", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "пишем", mode: "interact", operation: "create_mark", target: "optional" },
+  { verb: "пишете", mode: "interact", operation: "create_mark", target: "optional" },
   // speak
-  { verb: "сказать", mode: "communicate", operation: "speak" },
-  { verb: "спросить", mode: "communicate", operation: "speak" },
-  { verb: "прошептать", mode: "communicate", operation: "speak" },
-  { verb: "произнести", mode: "communicate", operation: "speak" },
-  { verb: "обратиться", mode: "communicate", operation: "speak" },
-  { verb: "сказать", mode: "communicate", operation: "speak" },
-  { verb: "говорю", mode: "communicate", operation: "speak" },
-  { verb: "говоришь", mode: "communicate", operation: "speak" },
-  { verb: "говорит", mode: "communicate", operation: "speak" },
-  { verb: "говорим", mode: "communicate", operation: "speak" },
-  { verb: "говорите", mode: "communicate", operation: "speak" },
-  { verb: "спрашива", mode: "communicate", operation: "speak" },
-  { verb: "шепчу", mode: "communicate", operation: "speak" },
-  { verb: "шепчешь", mode: "communicate", operation: "speak" },
-  { verb: "шепчет", mode: "communicate", operation: "speak" },
-  { verb: "шепчем", mode: "communicate", operation: "speak" },
-  { verb: "шепчете", mode: "communicate", operation: "speak" },
+  { verb: "сказать", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спросить", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "прошептать", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "произнести", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "обратиться", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "сказать", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "говорю", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "говоришь", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "говорит", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "говорим", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "говорите", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спрашива", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "шепчу", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "шепчешь", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "шепчет", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "шепчем", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "шепчете", mode: "communicate", operation: "speak", target: "optional" },
   // call
-  { verb: "позвать", mode: "communicate", operation: "call" },
-  { verb: "крикнуть", mode: "communicate", operation: "call" },
-  { verb: "окликнуть", mode: "communicate", operation: "call" },
-  { verb: "позыва", mode: "communicate", operation: "call" },
-  { verb: "кричу", mode: "communicate", operation: "call" },
-  { verb: "кричишь", mode: "communicate", operation: "call" },
-  { verb: "кричит", mode: "communicate", operation: "call" },
-  { verb: "кричим", mode: "communicate", operation: "call" },
-  { verb: "кричите", mode: "communicate", operation: "call" },
-  { verb: "зыва", mode: "communicate", operation: "call" },
+  { verb: "позвать", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "крикнуть", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "окликнуть", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "позыва", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "кричу", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "кричишь", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "кричит", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "кричим", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "кричите", mode: "communicate", operation: "call", target: "optional" },
+  { verb: "зыва", mode: "communicate", operation: "call", target: "optional" },
   // wait
-  { verb: "ждать", mode: "wait", operation: "wait" },
-  { verb: "выждать", mode: "wait", operation: "wait" },
-  { verb: "подождать", mode: "wait", operation: "wait" },
-  { verb: "остановиться", mode: "travel", operation: "interrupt" },
-  { verb: "жду", mode: "wait", operation: "wait" },
-  { verb: "жди", mode: "wait", operation: "wait" },
-  { verb: "ждем", mode: "wait", operation: "wait" },
-  { verb: "ждете", mode: "wait", operation: "wait" },
-  { verb: "ждёшь", mode: "wait", operation: "wait" },
-  { verb: "ждёт", mode: "wait", operation: "wait" },
-  { verb: "ждём", mode: "wait", operation: "wait" },
-  { verb: "ждёте", mode: "wait", operation: "wait" },
-  { verb: "подожд", mode: "wait", operation: "wait" },
-  { verb: "погод", mode: "wait", operation: "wait" },
+  { verb: "ждать", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "выждать", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "подождать", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "остановиться", mode: "travel", operation: "interrupt", target: "forbidden" },
+  { verb: "жду", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "жди", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "ждем", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "ждете", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "ждёшь", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "ждёт", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "ждём", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "ждёте", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "подожд", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "погод", mode: "wait", operation: "wait", target: "forbidden" },
   // travel (ADR-0015 — Spatial Movement)
-  { verb: "идти", mode: "travel", operation: "travel" },
-  { verb: "пойти", mode: "travel", operation: "travel" },
-  { verb: "направиться", mode: "travel", operation: "travel" },
-  { verb: "добраться", mode: "travel", operation: "travel" },
-  { verb: "перейти", mode: "travel", operation: "travel" },
-  { verb: "двигаться", mode: "travel", operation: "travel" },
-  { verb: "отправиться", mode: "travel", operation: "travel" },
-  { verb: "выбраться", mode: "travel", operation: "travel" },
-  { verb: "идём", mode: "travel", operation: "travel" },
-  { verb: "идёшь", mode: "travel", operation: "travel" },
-  { verb: "идёт", mode: "travel", operation: "travel" },
-  { verb: "идете", mode: "travel", operation: "travel" },
-  { verb: "иду", mode: "travel", operation: "travel" },
-  { verb: "go", mode: "travel", operation: "travel" },
-  { verb: "walk", mode: "travel", operation: "travel" },
-  { verb: "travel", mode: "travel", operation: "travel" },
-  { verb: "head", mode: "travel", operation: "travel" },
-  { verb: "move to", mode: "travel", operation: "travel" },
+  { verb: "идти", mode: "travel", operation: "travel", target: "required" },
+  { verb: "пойти", mode: "travel", operation: "travel", target: "required" },
+  { verb: "направиться", mode: "travel", operation: "travel", target: "required" },
+  { verb: "добраться", mode: "travel", operation: "travel", target: "required" },
+  { verb: "перейти", mode: "travel", operation: "travel", target: "required" },
+  { verb: "двигаться", mode: "travel", operation: "travel", target: "required" },
+  { verb: "отправиться", mode: "travel", operation: "travel", target: "required" },
+  { verb: "выбраться", mode: "travel", operation: "travel", target: "required" },
+  { verb: "идём", mode: "travel", operation: "travel", target: "required" },
+  { verb: "идёшь", mode: "travel", operation: "travel", target: "required" },
+  { verb: "идёт", mode: "travel", operation: "travel", target: "required" },
+  { verb: "идете", mode: "travel", operation: "travel", target: "required" },
+  { verb: "иду", mode: "travel", operation: "travel", target: "required" },
+  { verb: "go", mode: "travel", operation: "travel", target: "required" },
+  { verb: "walk", mode: "travel", operation: "travel", target: "required" },
+  { verb: "travel", mode: "travel", operation: "travel", target: "required" },
+  { verb: "head", mode: "travel", operation: "travel", target: "required" },
+  { verb: "move to", mode: "travel", operation: "travel", target: "required" },
 ] as const;
 
 /**
@@ -292,18 +301,6 @@ const NORMALIZED_VERBS: readonly VerbEntry[] = [...VERBS]
   .map((entry) => ({ ...entry, verb: normalizeForMatch(entry.verb) }))
   .sort((a, b) => b.verb.length - a.verb.length);
 
-/** Canonical-only stem index for compound-intent rejection (ADR-0013 §8). */
-const CANONICAL_VERBS: readonly VerbEntry[] = NORMALIZED_VERBS.filter(
-  (entry) => entry.canonical !== undefined,
-);
-
-function findCanonicalStem(text: string): VerbEntry | undefined {
-  const lower = normalizeForMatch(text);
-  for (const entry of CANONICAL_VERBS) {
-    if (lower.includes(entry.verb)) return entry;
-  }
-  return undefined;
-}
 
 /** Leading softener words («попытаться открыть сундук») are stripped before verb matching. */
 const SOFTENER_PREFIX = /^(?:попытаться|попытаюсь|попытайтесь|попробовать|попробую|попробуй|попробуйте|пытаюсь|пытался)\s+/i;
@@ -501,31 +498,6 @@ function extractTarget(text: string): IntentReference | undefined {
   return { raw: cleaned };
 }
 
-function findBestVerb(text: string): VerbEntry | undefined {
-  const lower = normalizeForMatch(text);
-  for (const entry of NORMALIZED_VERBS) {
-    if (lower.includes(entry.verb)) {
-      return entry;
-    }
-  }
-  return undefined;
-}
-
-function removeVerb(text: string, verb: string): string {
-  const lower = text.toLowerCase();
-  const idx = lower.indexOf(verb);
-  if (idx < 0) return text;
-
-  const before = text.slice(0, idx).trim();
-  const after = text.slice(idx + verb.length).trim();
-
-  const combined = (before + " " + after).trim();
-  return combined
-    .replace(/^(?:и|а|но|или|то|же|бы|ли)\s+/i, "")
-    .replace(/\s+(?:и|а|но|или|то|же|бы|ли)$/i, "")
-    .trim();
-}
-
 function hasDirectionWords(text: string): boolean {
   const lower = text.toLowerCase();
   const directions = [
@@ -576,6 +548,15 @@ function buildClarification(
     question: "Что именно ты хочешь сделать?",
     interpretations: candidates.map((c) => c.label),
   };
+}
+
+/**
+ * Detect compound phrases: "осматриваюсь и иду к реке", "слушать, потом перехожу мост".
+ * A single-action parser cannot silently execute only the first part.
+ */
+function hasCompoundConjunction(text: string): boolean {
+  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|рассмотр|огля|посмотр|взгляд|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп)/iu.test(text)
+    || /(?:^|\s)(?:потом|затем|после|одновременно)\s+/iu.test(text);
 }
 
 const ROUTE_HINT_PATTERNS = [
@@ -636,15 +617,18 @@ function splitGiveTargets(afterVerb: string): CanonicalParts {
 
 /** Concrete-target extraction with trailing punctuation and leading preposition stripped. */
 function canonicalTarget(afterVerb: string): IntentReference | undefined {
-  const cleaned = afterVerb.trim().replace(/[?!.,;:]+$/u, "");
-  if (cleaned.length === 0) return undefined;
+  const original = afterVerb.trim();
+  const cleaned = original.replace(/[?!.,;:]+$/u, "");
+  // Preserve punctuation-only input as malformed target; do not silently
+  // reinterpret a concrete command as an ambient observation.
+  if (cleaned.length === 0) return original.length > 0 ? { raw: original } : undefined;
   const withoutPrep = cleaned
     .replace(/^(?:к|в|на|у|из|от|до|по|про|для|между|перед|над|под|за|через)\s+/i, "")
     .trim();
   if (withoutPrep.length > 0 && withoutPrep !== cleaned) return { raw: withoutPrep };
   return { raw: cleaned };
 }
-function isAmbientListenTarget(target: IntentReference | undefined): boolean {
+function isAmbientModifier(target: IntentReference | undefined): boolean {
   if (!target) return false;
   const value = target.raw.trim().toLowerCase();
   return ["звук", "звуки", "звуков", "шум", "шумы", "окружение", "окрестности", "вокруг", "тишина"].includes(value);
@@ -656,24 +640,104 @@ function isAmbientListenTarget(target: IntentReference | undefined): boolean {
  * «изуч» → «аю петли»). Deterministic v1: strip one leading verb ending
  * (longest first) when the remnant starts a target phrase. Never applied to
  * the raw text, only to the derived target fields.
+ *
+ * This list is also used to validate that a token remainder after a verb
+ * stem is a legitimate conjugation ending (not a separate word that should
+ * become a target).
  */
 const VERB_ENDINGS = [
   "ешься", "етесь", "ите", "ешь", "ется", "аете", "ают", "ять",
   "аем", "ает", "аю", "емся", "ит", "им", "ат", "ют", "ить",
   "ать", "ила", "или", "ил", "ал", "ала", "али", "ло", "ял",
+  // Reflexive endings (must precede shorter "ся"/"сь"/"ю")
+  "юсь", "усь", "ишься", "ится", "имся", "итесь", "ятся",
   "ся", "сь", "ю", "л",
 ] as const;
 
-function stripConjugationRemnant(afterVerb: string): string {
-  const trimmed = afterVerb.trim();
-  if (trimmed.length === 0) return trimmed;
+/**
+ * Check whether `remainder` is a valid verb conjugation ending.
+ * Used to validate that a word token is entirely a verb form
+ * (stem + known ending) and not stem + random text.
+ */
+function isValidVerbEnding(remainder: string): boolean {
   for (const ending of VERB_ENDINGS) {
-    const pattern = new RegExp(`^${ending}(?=\\s|$)`, "i");
-    if (pattern.test(trimmed)) {
-      return trimmed.slice(ending.length).trim();
+    if (remainder === ending) return true;
+  }
+  return false;
+}
+
+/** Returns the single source of truth for canonical interaction valency. */
+export function targetRequirementForInteraction(verb: InteractionVerb): TargetRequirement | undefined {
+  return VERBS.find((entry) => entry.canonical === verb || entry.operation === verb)?.target;
+}
+
+/** Returns valency metadata for a legacy operation when one is registered. */
+export function targetRequirementForOperation(operation: IntentOperation): TargetRequirement | undefined {
+  return VERBS.find((entry) => entry.operation === operation)?.target;
+}
+
+/** Word boundary regex for tokenization — matches Cyrillic letters, Latin, digits. */
+const WORD_CHAR = /[\p{L}\p{N}_]/u;
+
+/**
+
+ * Find the start index of the word containing position `pos` in `text`.
+ */
+function wordStart(text: string, pos: number): number {
+  let i = pos;
+  while (i > 0 && WORD_CHAR.test(text[i - 1])) i--;
+  return i;
+}
+
+/**
+ * Find the end index (exclusive) of the word containing position `pos` in `text`.
+ */
+function wordEnd(text: string, pos: number): number {
+  let i = pos;
+  while (i < text.length && WORD_CHAR.test(text[i])) i++;
+  return i;
+}
+
+/**
+ * Match result with word boundaries so the caller can consume the entire
+ * word token instead of just the matched stem prefix.
+ */
+interface VerbMatch {
+  readonly entry: VerbEntry;
+  /** Start of the matched word in the normalized text. */
+  readonly wordStart: number;
+  /** End (exclusive) of the matched word in the normalized text. */
+  readonly wordEnd: number;
+}
+
+/**
+ * Find the best verb match in `text`.
+ *
+ * Priority: longest stem first. The entire word token containing the stem
+ * must be a valid verb form (stem + known ending, or exact stem match).
+ * This prevents "осматриваюсь" from being split into stem "осматрива" + target "юсь".
+ */
+function findBestVerb(text: string): VerbMatch | undefined {
+  const lower = normalizeForMatch(text);
+  for (const entry of NORMALIZED_VERBS) {
+    const idx = lower.indexOf(entry.verb);
+    if (idx < 0) continue;
+
+    const wStart = wordStart(lower, idx);
+    const wEnd = wordEnd(lower, idx + entry.verb.length);
+    const word = lower.slice(wStart, wEnd);
+    const matchOffset = idx - wStart;
+    if (matchOffset !== 0) continue;
+    const afterStem = word.slice(matchOffset + entry.verb.length);
+
+    // The entire word must be a valid verb form:
+    //   - exact stem match (afterStem is empty), or
+    //   - stem + known conjugation ending.
+    if (afterStem.length === 0 || isValidVerbEnding(afterStem)) {
+      return { entry, wordStart: wStart, wordEnd: wEnd };
     }
   }
-  return trimmed;
+  return undefined;
 }
 
 function buildInteractionCommand(
@@ -714,9 +778,9 @@ function buildCanonical(
   verb: InteractionVerb,
   afterVerb: string,
   context: { instrument: IntentReference | undefined; goal: string | undefined; rawText: string },
-): InteractionCommand | UnsupportedIntent {
-  const compound = findCanonicalStem(afterVerb);
-  const remainder = stripConjugationRemnant(afterVerb);
+): InteractionCommand | UnsupportedIntent | ClarificationRequest {
+  const remainder = afterVerb.trim();
+  const compound = false;
 
   let parts: CanonicalParts;
   let instrument = context.instrument;
@@ -740,7 +804,7 @@ function buildCanonical(
     }
   } else {
     const target = canonicalTarget(remainder);
-    parts = verb === "listen" && isAmbientListenTarget(target) ? {} : target ? { target } : {};
+    parts = (verb === "listen" || verb === "observe" || verb === "inspect") && isAmbientModifier(target) ? {} : target ? { target } : {};
   }
 
   const ambiguities: string[] = [];
@@ -754,11 +818,11 @@ function buildCanonical(
   const command = buildInteractionCommand(verb, parts, instrument, goal, context.rawText, ambiguities);
 
   if (compound) {
-    return {
-      type: "UnsupportedButUnderstood",
-      intent: command,
-      message: "Одна команда — одно намерение.",
-    };
+    return buildClarification(
+      context.rawText,
+      [{ mode: "perceive", operation: "observe", label: `${verb} — ${afterVerb || "окружение"}` }],
+      `compound-${Date.now()}`,
+    );
   }
   return command;
 }
@@ -788,9 +852,9 @@ export function interpretIntent(
   const { utterance, cleaned: afterUtterance } = extractUtterance(text);
   text = afterUtterance.replace(SOFTENER_PREFIX, "").trim();
 
-  const verb = findBestVerb(text);
+  const verbMatch = findBestVerb(text);
 
-  if (!verb) {
+  if (!verbMatch) {
     if (hasDirectionWords(text)) {
       const dir = extractDirectionFromText(text);
       return {
@@ -823,7 +887,24 @@ export function interpretIntent(
     };
   }
 
-  const afterVerb = removeVerb(text, verb.verb);
+  const verb = verbMatch.entry;
+  const afterVerbRaw = text.slice(verbMatch.wordEnd).trim();
+
+  // Compound phrase detection: "осматриваюсь и иду к реке", "слушать перевозчика, потом перейти мост".
+  // Check BEFORE stripping conjunctions so "и иду" is still visible.
+  if (verb.canonical && hasCompoundConjunction(afterVerbRaw)) {
+    return buildClarification(
+      rawText,
+      [{ mode: "perceive", operation: "observe", label: `${verb.canonical} — ${afterVerbRaw || "окружение"}` }],
+      `compound-${Date.now()}`,
+    );
+  }
+
+  // Consume the entire word token, not just the matched stem prefix.
+  // This prevents "осматриваюсь" from producing "юсь" as a target.
+  const afterVerb = afterVerbRaw
+    .replace(/^(?:и|а|но|или|то|же|бы|ли)\s+/i, "")
+    .trim();
 
   if (verb.operation === "approach" || verb.operation === "enter") {
     // «обойти башню с запада» names a target plus an approach direction;
@@ -903,6 +984,17 @@ export function interpretIntent(
 
   if (verb.canonical) {
     return buildCanonical(verb.canonical, afterVerb, { instrument, goal, rawText });
+  }
+
+  // Compound phrase detection for non-canonical verbs:
+  // "наваливаюсь плечом и толкаю дверь" — single-action parser cannot
+  // silently execute only the first part.
+  if (hasCompoundConjunction(afterVerb)) {
+    return buildClarification(
+      rawText,
+      [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${afterVerb || "окружение"}` }],
+      `compound-${Date.now()}`,
+    );
   }
 
   // place/use carry a tool + acted-on + canonical goal. The catch-all target

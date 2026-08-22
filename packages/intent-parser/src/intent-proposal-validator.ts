@@ -1,4 +1,5 @@
-import type { ActionIntentCommand, InteractionCommand, JourneyIntent } from "./types.js";
+import type { ActionIntentCommand, InteractionCommand, IntentOperation, InteractionVerb, JourneyIntent, ProposalValidation, TargetRequirement } from "./types.js";
+import { targetRequirementForInteraction, targetRequirementForOperation } from "./deterministic-interpreter.js";
 import {
   INTENT_CAPABILITIES,
   parseInquiryProposal,
@@ -26,6 +27,10 @@ export function validateIntentProposal(raw: unknown, rawText: string): IntentPro
   if (proposal.modelConfidence !== undefined && proposal.modelConfidence < 0.7) return clarificationFor(proposal);
   const intent = mapPrimary(proposal, rawText);
   if (!intent) return { status: "invalid", reason: "proposal primary intent is incomplete or unsupported" };
+  const structural = validateActionProposal(intent);
+  if (!structural.ok) {
+    return { status: "clarification", question: structural.clarification, options: [{ optionId: "rephrase", label: "Переформулировать действие" }] };
+  }
   return { status: "accepted", intent };
 }
 
@@ -113,4 +118,142 @@ function clarificationFor(proposal: IntentProposalV1): IntentProposalValidation 
       { optionId: "rephrase", label: "Нет, я переформулирую действие" },
     ],
   };
+}
+
+// ── Unified Structural Validator ─────────────────────────────────────
+
+/** Matches punctuation-only strings, which are not usable referents. */
+const PUNCTUATION_ONLY = /^[\s\p{P}\p{S}\p{N}]+$/u;
+
+/**
+ * A second verb after a conjunction means the parser/LLM proposed more than
+ * one executable action. Ordinary coordinated targets such as "река и берег"
+ * remain valid because they do not contain a second verb.
+ */
+const SECOND_ACTION = /\s+(?:и|а|но|потом|затем|сначала)\s+(?:я\s+)?(?:иду|идти|пойти|направ(?:иться|ляюсь)|обхожу|обойти|войти|открыть|закрыть|взять|достать|положить|использовать|осмотреть|осматрива|рассмотр|огляд|посмотр|слуш|прислуш|трон|прикосн|сказать|спросить|позвать)/iu;
+
+/**
+ * Shared structural validation for deterministic and LLM proposals.
+ *
+ * This layer checks only syntax/valency. It never resolves a target against
+ * the world and never emits events.
+ */
+export function validateActionProposal(
+  proposal: ActionIntentCommand | InteractionCommand | JourneyIntent,
+): ProposalValidation {
+  if (proposal.type === "JourneyIntent") {
+    const destination = proposal.destination.raw.trim();
+    if (!destination || PUNCTUATION_ONLY.test(destination)) {
+      return {
+        ok: false,
+        reason: "missing_target",
+        clarification: "Куда ты хочешь направиться? Назови место или направление.",
+      };
+    }
+    if (SECOND_ACTION.test(proposal.rawText)) {
+      return {
+        ok: false,
+        reason: "multiple_actions",
+        clarification: "Я услышал несколько действий. Сначала выбери одно направление.",
+      };
+    }
+    return { ok: true, proposal };
+  }
+
+  if (proposal.type === "InteractionCommand") {
+    const valency = targetRequirementForInteraction(proposal.verb);
+    if (valency === undefined) {
+      return {
+        ok: false,
+        reason: "unsupported_structure",
+        clarification: "Я не знаю, какое действие ты имеешь в виду. Попробуй переформулировать.",
+      };
+    }
+    return validateTarget(proposal, valency);
+  }
+
+  if (proposal.operation === "unknown") {
+    return {
+      ok: false,
+      reason: "unsupported_structure",
+      clarification: "Я не знаю, какое действие ты имеешь в виду. Попробуй переформулировать.",
+    };
+  }
+
+  // Legacy operations without canonical valency remain compatible. When a
+  // canonical operation has metadata, apply that same requirement here too.
+  const valency = targetRequirementForOperation(proposal.operation);
+  if (valency === undefined) return { ok: true, proposal };
+  return validateTarget(proposal, valency);
+}
+
+function validateTarget(
+  proposal: InteractionCommand | ActionIntentCommand,
+  valency: TargetRequirement,
+): ProposalValidation {
+  const target = proposal.target?.raw?.trim();
+  const action = proposal.type === "InteractionCommand" ? proposal.verb : proposal.operation;
+
+  if (valency === "forbidden" && target) {
+    return {
+      ok: false,
+      reason: "unexpected_target",
+      clarification: "Действие «" + action + "» не требует указания предмета.",
+    };
+  }
+
+  if (valency === "required" && !target) {
+    return {
+      ok: false,
+      reason: "missing_target",
+      clarification: "Что именно ты хочешь " + getInfinitive(action) + "? Укажи предмет.",
+    };
+  }
+
+  if (target) {
+    if (PUNCTUATION_ONLY.test(target)) {
+      return {
+        ok: false,
+        reason: "malformed_target",
+        clarification: "Я не понял, на что ты хочешь " + getInfinitive(action) + ". Попробуй назвать предмет.",
+      };
+    }
+    if (target.length <= 1 && !/^[а-яёА-ЯЁa-zA-Z]$/u.test(target)) {
+      return {
+        ok: false,
+        reason: "malformed_target",
+        clarification: "Я не понял, на что ты хочешь " + getInfinitive(action) + ". Попробуй назвать предмет.",
+      };
+    }
+  }
+
+  if (SECOND_ACTION.test(proposal.rawText)) {
+    return {
+      ok: false,
+      reason: "multiple_actions",
+      clarification: "Я услышал несколько действий. Сначала выбери одно.",
+    };
+  }
+
+  return { ok: true, proposal };
+}
+
+/** Human-readable action labels used only in clarification text. */
+function getInfinitive(action: InteractionVerb | IntentOperation): string {
+  switch (action) {
+    case "observe": return "осмотреться";
+    case "inspect": return "изучить";
+    case "listen": return "прислушаться";
+    case "touch": return "тронуть";
+    case "take": return "взять";
+    case "open": return "открыть";
+    case "close": return "закрыть";
+    case "apply_force": return "приложить силу";
+    case "give": return "дать";
+    case "place": return "положить";
+    case "use": return "использовать";
+    case "approach": return "подойти";
+    case "enter": return "войти";
+    default: return "выполнить действие";
+  }
 }
