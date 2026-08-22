@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -138,9 +138,10 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 5) return "migrateV6";
   if (v === 6) return "migrateV7";
   if (v === 7) return "migrateV8";
-  if (v === 8) return "open";
+  if (v === 8) return "migrateV9";
+  if (v === 9) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-8.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-9.`);
 }
 
 export function migrateV6ToV7(db: SqliteHandle): void {
@@ -290,6 +291,39 @@ export function migrateV7ToV8(db: SqliteHandle): void {
     const columns = db.prepare("PRAGMA table_info(character_profiles)").all() as { name?: string }[];
     if (!columns.some((column) => column.name === "background_id")) db.exec("ALTER TABLE character_profiles ADD COLUMN background_id TEXT");
     db.exec("PRAGMA user_version = 8");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  verifyIntegrity(db);
+}
+
+export function migrateV8ToV9(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS conversation_turns (
+      turn_seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id        TEXT NOT NULL,
+      correlation_id  TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash    TEXT NOT NULL,
+      player_text     TEXT NOT NULL,
+      input_class     TEXT NOT NULL
+          CHECK (input_class IN ('action', 'inquiry', 'clarification')),
+      world_time_before INTEGER NOT NULL,
+      world_time_after  INTEGER NOT NULL,
+      response_kind   TEXT NOT NULL
+          CHECK (response_kind IN ('action_outcome', 'action_rejection', 'inquiry_answer', 'clarification')),
+      response_text   TEXT NOT NULL,
+      created_at      INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      UNIQUE (world_id, idempotency_key)
+    ) STRICT`);
+    db.exec("CREATE INDEX IF NOT EXISTS conversation_turns_world_seq ON conversation_turns(world_id, turn_seq)");
+    db.exec("CREATE INDEX IF NOT EXISTS conversation_turns_world_time ON conversation_turns(world_id, created_at)");
+    db.exec("PRAGMA user_version = 9");
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

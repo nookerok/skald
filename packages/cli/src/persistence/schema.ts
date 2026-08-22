@@ -1,4 +1,4 @@
-export const USER_VERSION = 8;
+export const USER_VERSION = 9;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
@@ -141,18 +141,52 @@ export function execSchemaV6(db: { exec(sql: string): void }): void {
   ) STRICT`);
 }
 
-/** Latest schema for fresh databases. Entrypoint metadata is additive and is
- * not a source of current world truth; the Event Log remains authoritative. */
-export function execSchemaV7(db: { exec(sql: string): void }): void {
+/** Additive migration: entrypoint metadata. Idempotent — safe when column exists. */
+export function execSchemaV7(db: { exec(sql: string): void; prepare?(sql: string): { all(...a: unknown[]): unknown[] } }): void {
   execSchemaV6(db);
-  db.exec("ALTER TABLE worlds ADD COLUMN entrypoint_id TEXT");
+  if (db.prepare) {
+    const cols = db.prepare("PRAGMA table_info(worlds)").all() as { name?: string }[];
+    if (!cols.some((c) => c.name === "entrypoint_id")) db.exec("ALTER TABLE worlds ADD COLUMN entrypoint_id TEXT");
+  } else {
+    try { db.exec("ALTER TABLE worlds ADD COLUMN entrypoint_id TEXT"); } catch { /* column exists */ }
+  }
   db.exec("PRAGMA user_version = 7");
 }
 
-
-/** Latest additive migration: persist the selected background identity. */
-export function execSchemaV8(db: { exec(sql: string): void }): void {
+/** Additive migration: persist the selected background identity. Idempotent. */
+export function execSchemaV8(db: { exec(sql: string): void; prepare?(sql: string): { all(...a: unknown[]): unknown[] } }): void {
   execSchemaV7(db);
-  db.exec("ALTER TABLE character_profiles ADD COLUMN background_id TEXT");
+  if (db.prepare) {
+    const cols = db.prepare("PRAGMA table_info(character_profiles)").all() as { name?: string }[];
+    if (!cols.some((c) => c.name === "background_id")) db.exec("ALTER TABLE character_profiles ADD COLUMN background_id TEXT");
+  } else {
+    try { db.exec("ALTER TABLE character_profiles ADD COLUMN background_id TEXT"); } catch { /* column exists */ }
+  }
   db.exec("PRAGMA user_version = 8");
+}
+
+/** Conversation turns: durable read-side log of player input and system response per turn. */
+export function execSchemaV9(db: { exec(sql: string): void; prepare?(sql: string): { all(...a: unknown[]): unknown[] } }): void {
+  execSchemaV8(db);
+  db.exec(`CREATE TABLE IF NOT EXISTS conversation_turns (
+    turn_seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id        TEXT NOT NULL,
+    correlation_id  TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash    TEXT NOT NULL,
+    player_text     TEXT NOT NULL,
+    input_class     TEXT NOT NULL
+        CHECK (input_class IN ('action', 'inquiry', 'clarification')),
+    world_time_before INTEGER NOT NULL,
+    world_time_after  INTEGER NOT NULL,
+    response_kind   TEXT NOT NULL
+        CHECK (response_kind IN ('action_outcome', 'action_rejection', 'inquiry_answer', 'clarification')),
+    response_text   TEXT NOT NULL,
+    created_at      INTEGER NOT NULL,
+    FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+    UNIQUE (world_id, idempotency_key)
+  ) STRICT`);
+  db.exec("CREATE INDEX IF NOT EXISTS conversation_turns_world_seq ON conversation_turns(world_id, turn_seq)");
+  db.exec("CREATE INDEX IF NOT EXISTS conversation_turns_world_time ON conversation_turns(world_id, created_at)");
+  db.exec("PRAGMA user_version = 9");
 }

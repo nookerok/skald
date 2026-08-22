@@ -4,14 +4,18 @@ import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
-import { configureDatabase, execSchemaV8 } from "./schema.js";
-import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, validateUserVersion, verifyIntegrity } from "./migrations.js";
+import { configureDatabase, execSchemaV9 } from "./schema.js";
+import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, migrateV8ToV9, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
+import type { ConversationTurn, ConversationTurnDraft, ConversationTurnRecord } from "../conversation/types.js";
+
+export type { ConversationTurn, ConversationTurnDraft, ConversationTurnRecord };
 
 export interface CommitOptions {
   readonly idempotencyKey: string | undefined;
   readonly requestKind: "command" | "wait" | undefined;
   readonly correlationId: string | undefined;
+  readonly conversationTurn?: ConversationTurnDraft | undefined;
 }
 
 export interface CharacterProfileRecord {
@@ -50,6 +54,16 @@ export interface MultiWorldStore {
   saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration): void;
   /** All stored narrations for a world, keyed by turn worldTime. Idempotent. */
   getTurnNarrations(worldId: WorldId): Map<number, TurnNarration>;
+  /** Record a conversation turn (idempotent by world_id + idempotency_key). */
+  recordConversationTurn(turn: ConversationTurnDraft): ConversationTurnRecord;
+  /** Replay-safe lookup: returns the original turn + requestHash for a given idempotency key. */
+  getConversationTurnReplay(worldId: WorldId, idempotencyKey: string): { requestHash: string; turn: ConversationTurnRecord } | null;
+  /** Get a single conversation turn by idempotency key. */
+  getConversationTurn(worldId: WorldId, idempotencyKey: string): ConversationTurnRecord | null;
+  /** Get a single conversation turn by its stable sequence. */
+  getConversationTurnBySeq(worldId: WorldId, turnSeq: number): ConversationTurnRecord | null;
+  /** List conversation turns for a world, ordered by turn_seq ASC. */
+  listConversationTurns(worldId: WorldId, opts?: { limit?: number; beforeTurnSeq?: number }): ConversationTurnRecord[];
   close(): void;
 }
 
@@ -150,7 +164,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   const versionAction = validateUserVersion(db);
 
   if (versionAction === "fresh") {
-    execSchemaV8(db);
+    execSchemaV9(db);
     // Create legacy world record so FK constraints are satisfied
     db.prepare(
       "INSERT OR IGNORE INTO worlds (world_id, save_label, template_id, entrypoint_id, character_id, character_name_snapshot, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -171,7 +185,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v6->v7->v8->v9: conversation_turns table added");
   } else if (versionAction === "migrateV3") {
     verifyIntegrity(db);
     migrateV2ToV3(db);
@@ -184,7 +199,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v6->v7->v8->v9: conversation_turns table added");
   } else if (versionAction === "migrateV4") {
     verifyIntegrity(db);
     migrateV3ToV4(db);
@@ -195,7 +211,8 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v6->v7->v8->v9: conversation_turns table added");
   } else if (versionAction === "migrateV5") {
     verifyIntegrity(db);
     migrateV4ToV5(db);
@@ -204,23 +221,30 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v6->v7->v8->v9: conversation_turns table added");
   } else if (versionAction === "migrateV6") {
     verifyIntegrity(db);
     migrateV5ToV6(db);
     console.log(`[persistence] migrated v5→v6: world entrypoints and successions added`);
     migrateV6ToV7(db);
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v6->v7->v8->v9: conversation_turns table added");
   } else if (versionAction === "migrateV7") {
     migrateV6ToV7(db);
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v6->v7->v8: onboarding metadata and character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v6->v7->v8->v9: conversation_turns table added");
   } else if (versionAction === "migrateV8") {
     migrateV7ToV8(db);
-    console.log("[persistence] migrated v7->v8: character background added");
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v7->v8->v9: conversation_turns table added");
+  } else if (versionAction === "migrateV9") {
+    migrateV8ToV9(db);
+    console.log("[persistence] migrated v8->v9: conversation_turns table added");
   } else {
-    // Already v8 — verify
+    // Already v9 — verify
     verifyIntegrity(db);
   }
 
@@ -262,6 +286,19 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   );
   const listTurnNarrations = db.prepare(
     "SELECT world_time, text, model, used_fallback, latency_ms FROM turn_narrations WHERE world_id = ?",
+  );
+
+  const insertConversationTurn = db.prepare(
+    "INSERT INTO conversation_turns (world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const getConversationTurnBySeq = db.prepare(
+    "SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns WHERE world_id = ? AND turn_seq = ?",
+  );
+  const getConversationTurnByIdempotency = db.prepare(
+    "SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns WHERE world_id = ? AND idempotency_key = ?",
+  );
+  const latestConversationCreatedAt = db.prepare(
+    "SELECT created_at FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq DESC LIMIT 1",
   );
 
   function mapAcknowledgeReplay(r: Record<string, unknown>): {
@@ -328,6 +365,43 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     return true;
   }
 
+  function mapConversationTurn(r: Record<string, unknown>): ConversationTurnRecord {
+    return {
+      turnSeq: r["turn_seq"] as number,
+      worldId: r["world_id"] as string,
+      correlationId: r["correlation_id"] as string,
+      idempotencyKey: r["idempotency_key"] as string,
+      requestHash: r["request_hash"] as string,
+      playerText: r["player_text"] as string,
+      inputClass: r["input_class"] as ConversationTurnRecord["inputClass"],
+      worldTimeBefore: r["world_time_before"] as number,
+      worldTimeAfter: r["world_time_after"] as number,
+      responseKind: r["response_kind"] as ConversationTurnRecord["responseKind"],
+      responseText: r["response_text"] as string,
+      createdAt: r["created_at"] as number,
+    };
+  }
+
+  function insertConversationTurnLocked(turn: ConversationTurnDraft): ConversationTurnRecord {
+    const existing = getConversationTurnByIdempotency.get(turn.worldId, turn.idempotencyKey) as Record<string, unknown> | undefined;
+    if (existing) throw new DuplicateRequestError(turn.idempotencyKey);
+    const latest = latestConversationCreatedAt.get(turn.worldId) as { created_at?: number } | undefined;
+    const createdAt = Math.max(Date.now(), (latest?.created_at ?? 0) + 1);
+    try {
+      insertConversationTurn.run(
+        turn.worldId, turn.correlationId, turn.idempotencyKey, turn.requestHash,
+        turn.playerText, turn.inputClass, turn.worldTimeBefore, turn.worldTimeAfter,
+        turn.responseKind, turn.responseText, createdAt,
+      );
+    } catch (insErr: unknown) {
+      const msg = String(insErr);
+      if (msg.includes("UNIQUE constraint")) throw new DuplicateRequestError(turn.idempotencyKey);
+      throw insErr;
+    }
+    const row = getConversationTurnByIdempotency.get(turn.worldId, turn.idempotencyKey) as Record<string, unknown>;
+    return mapConversationTurn(row);
+  }
+
   return {
     loadEvents(worldId: WorldId): DomainEvent[] {
       const rows = loadEvents.all(worldId) as Record<string, unknown>[];
@@ -345,7 +419,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     },
 
     commitBatch(worldId: WorldId, events: readonly DomainEvent[], options?: CommitOptions): void {
-      if (events.length === 0 && !options?.idempotencyKey) return;
+      if (events.length === 0 && !options?.idempotencyKey && !options?.conversationTurn) return;
 
       db.exec("BEGIN IMMEDIATE");
       try {
@@ -376,6 +450,14 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
             if (msg.includes("UNIQUE constraint")) {
               throw new DuplicateRequestError(options.idempotencyKey);
             }
+            throw insErr;
+          }
+        }
+        if (options?.conversationTurn) {
+          const t = options.conversationTurn;
+          try {
+            insertConversationTurnLocked(t);
+          } catch (insErr: unknown) {
             throw insErr;
           }
         }
@@ -683,6 +765,61 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         });
       }
       return map;
+    },
+
+    recordConversationTurn(turn: ConversationTurnDraft): ConversationTurnRecord {
+      // Idempotent: if the idempotency_key already exists, replay the original.
+      const existing = getConversationTurnByIdempotency.get(turn.worldId, turn.idempotencyKey) as Record<string, unknown> | undefined;
+      if (existing) {
+        if (existing["request_hash"] !== turn.requestHash) {
+          throw new DuplicateRequestError(turn.idempotencyKey);
+        }
+        return mapConversationTurn(existing);
+      }
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        const recorded = insertConversationTurnLocked(turn);
+        db.exec("COMMIT");
+        return recorded;
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+    },
+
+    getConversationTurnReplay(
+      worldId: WorldId,
+      idempotencyKey: string,
+    ): { requestHash: string; turn: ConversationTurnRecord } | null {
+      const row = getConversationTurnByIdempotency.get(worldId, idempotencyKey) as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return { requestHash: row["request_hash"] as string, turn: mapConversationTurn(row) };
+    },
+
+    getConversationTurn(worldId: WorldId, idempotencyKey: string): ConversationTurnRecord | null {
+      const row = getConversationTurnByIdempotency.get(worldId, idempotencyKey) as Record<string, unknown> | undefined;
+      return row ? mapConversationTurn(row) : null;
+    },
+
+    getConversationTurnBySeq(worldId: WorldId, turnSeq: number): ConversationTurnRecord | null {
+      const row = getConversationTurnBySeq.get(worldId, turnSeq) as Record<string, unknown> | undefined;
+      return row ? mapConversationTurn(row) : null;
+    },
+
+    listConversationTurns(worldId: WorldId, opts?: { limit?: number; beforeTurnSeq?: number }): ConversationTurnRecord[] {
+      let sql = "SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns WHERE world_id = ?";
+      const params: unknown[] = [worldId];
+      if (opts?.beforeTurnSeq !== undefined) {
+        sql += " AND turn_seq < ?";
+        params.push(opts.beforeTurnSeq);
+      }
+      sql += " ORDER BY turn_seq ASC";
+      if (opts?.limit !== undefined) {
+        sql += " LIMIT ?";
+        params.push(opts.limit);
+      }
+      const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
+      return rows.map(mapConversationTurn);
     },
 
     close(): void {
