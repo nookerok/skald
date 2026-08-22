@@ -78,6 +78,11 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
       ...(entry.threadLabel ? { threadLabel: sanitizePlayerFacingText(entry.threadLabel) } : {}),
     });
     const presentation = {
+      response: rawPresentation.response ? {
+        kind: rawPresentation.response.kind,
+        text: sanitizePlayerFacingText(rawPresentation.response.text),
+        sourceEventIds: rawPresentation.response.sourceEventIds,
+      } : null,
       primary: rawPresentation.primary ? sanitizeEntry(rawPresentation.primary) : null,
       notable: rawPresentation.notable.map(sanitizeEntry),
       background: rawPresentation.background.map(sanitizeEntry),

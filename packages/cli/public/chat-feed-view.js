@@ -2,7 +2,7 @@ import { byId, makeNode } from "./dom-helpers.js";
 
 /**
  * Chronicle Feed (ADR-0024): the main Game Screen surface. Renders a vertical
- * dialogue between the player and the world from the journal DTO plus
+ * dialogue between the player and the master from the journal DTO plus
  * session-scoped intent bubbles. DTO-only: no event types, no source IDs, no
  * command controls. PlayerCommand text is not a Domain Event, so intent
  * bubbles live only in this browser session (ADR-0024 point 5).
@@ -140,19 +140,23 @@ function turnNode(turn) {
   const node = makeNode("article", { className: "chat-turn" });
   const header = makeNode("div", { className: "chat-turn-header" });
   header.append(
-    makeNode("span", { className: "chat-turn-speaker", text: "МИР" }),
+    makeNode("span", { className: "chat-turn-speaker", text: "МАСТЕР" }),
     makeNode("span", { className: "chat-turn-meta", text: "Ход " + turn.worldTime }),
   );
   node.appendChild(header);
   const narrative = turn.narrativeLLM;
+  const response = presentation.response || null;
+  const primary = presentation.primary || null;
+  const responseText = response?.text || (!response && primary?.sourceEventIds?.length ? primary.text : "");
+  if (responseText) {
+    const primaryRow = makeNode("p", { className: "chat-world-primary", text: responseText });
+    const label = markLabel(primary?.discoveryMark);
+    if (label) primaryRow.appendChild(makeNode("span", { className: "chat-mark", text: label }));
+    node.appendChild(primaryRow);
+  }
   if (narrative && !narrative.usedFallback && narrative.text) {
     node.appendChild(makeNode("p", { className: "chat-world-narrated", text: narrative.text }));
   }
-  const primary = presentation.primary;
-  const primaryRow = makeNode("p", { className: "chat-world-primary", text: primary?.text || "Мир продолжил жить." });
-  const label = markLabel(primary?.discoveryMark);
-  if (label) primaryRow.appendChild(makeNode("span", { className: "chat-mark", text: label }));
-  node.appendChild(primaryRow);
   for (const entry of (presentation.notable || []).slice(0, 2)) {
     node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
   }
@@ -188,7 +192,7 @@ export function renderChatFeed(turns, intents = [], snapshot = null) {
     if (clarification) children.push(clarificationNode(clarification));
   }
   if (!children.length) {
-    feed.appendChild(makeNode("p", { className: "chat-empty", text: "Мир ждёт твоего действия." }));
+    feed.appendChild(makeNode("p", { className: "chat-empty", text: "МАСТЕР ждёт твоего решения." }));
     return;
   }
   feed.append(...children);

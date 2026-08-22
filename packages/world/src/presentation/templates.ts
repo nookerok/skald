@@ -2,7 +2,46 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { PresentationTemplate, PresentationCandidate } from "./types.js";
 import type { EpistemicClass } from "./types.js";
 import { WORLD_WIDTH, WORLD_HEIGHT } from "../map.js";
-import { relationTargetLabel, relationKindLabel, situationLabel, operationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
+import { relationTargetLabel, relationKindLabel, situationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
+
+const ACTION_REJECTION_TEXT: Readonly<Record<string, string>> = {
+  no_such_target: "Ты не находишь здесь такого объекта.",
+  target_not_accessible: "К этому сейчас нельзя добраться.",
+  insufficient_time: "Ты пытаешься действовать слишком поздно — момент уже ушёл.",
+  missing_affordance: "У тебя нет подходящего способа это сделать.",
+  container_closed: "Контейнер закрыт. Сначала нужно найти способ его открыть.",
+  not_carrying: "У тебя нет этого предмета с собой.",
+  blocked: "Путь или действие преграждено.",
+};
+
+function actionRejectionText(payload: { reason?: string; targetName?: string; objectName?: string; playerText?: string }): string {
+  const reason = typeof payload.reason === "string" ? payload.reason : "";
+  if (reason === "no_such_target" && payload.targetName) return "Ты не находишь здесь " + payload.targetName + ".";
+  if (reason === "target_not_accessible" && payload.targetName) return "К " + payload.targetName + " сейчас нельзя добраться.";
+  if (payload.playerText && reason === "player_facing") return payload.playerText;
+  return ACTION_REJECTION_TEXT[reason] ?? "Это действие сейчас не удаётся. Мир не даёт ему совершиться.";
+}
+
+function commandRejectionText(payload: { reason?: string }): string {
+  const reason = typeof payload.reason === "string" ? payload.reason : "";
+  if (reason === "missing_journey_destination") return "Куда ты хочешь направиться? Назови место или направление.";
+  if (reason === "missing_interaction_object") return "Что именно ты хочешь сделать?";
+  if (reason === "unknown_interaction_verb") return "Я не понял, какое действие ты хочешь совершить. Опиши его иначе.";
+  if (reason === "missing_interaction_mode" || reason === "missing_operation") return "В этом действии не хватает цели.";
+  if (reason === "invalid_command_type") return "Я не понял, что ты хочешь сделать. Скажи это иначе.";
+  return "Я не понял, какое действие ты хочешь совершить. Опиши его иначе.";
+}
+
+function describeActionAttempt(payload: { operation: string; target?: { raw: string } | null }): string {
+  const operation = payload.operation;
+  const target = payload.target?.raw ? relationTargetLabelOrRaw(payload.target.raw) : "";
+  if (operation === "observe" || operation === "inspect") return target ? "Ты внимательно осматриваешь " + target + "." : "Ты оглядываешься вокруг.";
+  if (operation === "listen") return target ? "Ты прислушиваешься к " + target + "." : "Ты прислушиваешься к окружающим звукам.";
+  if (operation === "open") return target ? "Ты пытаешься открыть " + target + "." : "Ты ищешь, что можно открыть.";
+  if (operation === "move" || operation === "travel" || operation === "journey") return target ? "Ты направляешься к " + target + "." : "Ты выбираешь направление.";
+  if (operation === "wait") return "Ты даёшь времени пройти и наблюдаешь за изменениями.";
+  return "Ты пытаешься совершить действие" + (target ? " " + target : "") + ".";
+}
 
 const OBSERVATION_TEXTS: Record<string, string> = {
   risk_taken: "Твой рискованный поступок не остался незамеченным.",
@@ -37,24 +76,24 @@ export const MOVEMENT_BLOCKED_WALL: PresentationTemplate = {
     const r = (event.payload as { reason: string }).reason;
     if (r === "wall") return cand("movement_blocked_wall", "action", "primary", 100, "Путь преграждает стена.", event);
     if (r === "boundary") return cand("movement_blocked_boundary", "action", "primary", 100, "Ты достиг края мира — дальше пути нет.", event);
-    return null;
+    return cand("movement_blocked_unknown", "action", "primary", 100, "Ты не можешь пройти дальше.", event);
   },
 };
 
 export const ACTION_REJECTED: PresentationTemplate = {
   id: "action_rejected", listens: ["ActionRejected"],
   present: (event, _world) => {
-    const r = (event.payload as { reason: string }).reason;
-    if (r === "insufficient_time") {
-      return cand("action_rejected_time", "action", "primary", 100, "Ты уже сделал всё, что можно было успеть в это мгновение. Придётся подождать.", event);
-    }
-    return null;
+    const p = event.payload as { reason?: string; targetName?: string; objectName?: string; playerText?: string };
+    return cand("action_rejected", "action", "primary", 120, actionRejectionText(p), event);
   },
 };
 
 export const COMMAND_REJECTED: PresentationTemplate = {
   id: "command_rejected", listens: ["CommandRejected"],
-  present: (event, _world) => cand("command_rejected", "action", "primary", 100, "Мир не понял этого намерения.", event),
+  present: (event, _world) => {
+    const p = event.payload as { reason?: string };
+    return cand("command_rejected", "action", "primary", 120, commandRejectionText(p), event);
+  },
 };
 
 export const RELATION_CHANGED: PresentationTemplate = {
@@ -64,7 +103,7 @@ export const RELATION_CHANGED: PresentationTemplate = {
     const dir = delta > 0 ? "укрепились" : "ослабли";
     const target = relationTargetLabel(to);
     const kindLabel = relationKindLabel(kind);
-    return cand("relation_changed", "relation", "primary", 90, `Твои связи с «${target}» ${dir}: ${kindLabel}.`, event, undefined, `relation:${to}:${kind}`, `Отношение: ${target}`);
+    return cand("relation_changed", "relation", "primary", 90, "Ты решаешься обратиться к «" + target + "». Ваши связи " + dir + ": " + kindLabel + ".", event, undefined, "relation:" + to + ":" + kind, "Отношение: " + target);
   },
 };
 
@@ -171,17 +210,16 @@ export const ACTION_ATTEMPTED: PresentationTemplate = {
         const destination = world.locations.get(journey.toLocationId)?.name ?? "следующей стоянке";
         const elapsed = Math.min(journey.elapsedTicks, journey.plannedTicks);
         const progress = journey.plannedTicks > 0
-          ? `Пройдено ${elapsed} из ${journey.plannedTicks} этапов.`
+          ? "Пройдено " + elapsed + " из " + journey.plannedTicks + " этапов."
           : "Путь почти завершён.";
         return cand("journey_waited", "action", "primary", 106,
-          `Ты выдерживаешь ещё один этап пути к «${destination}». ${progress}`,
-          event, `journey:progress:${journey.journeyId}`);
+          "Ты выдерживаешь ещё один этап пути к «" + destination + "». " + progress,
+          event, "journey:progress:" + journey.journeyId);
       }
       return cand("action_waited", "action", "primary", 100,
         "Ты даёшь времени пройти и внимательно следишь за тем, что меняется вокруг.", event);
     }
-    const target = p.target?.raw ? ` → ${relationTargetLabelOrRaw(p.target.raw)}` : "";
-    return cand("action_attempted", "action", "primary", 100, `Ты формулируешь: ${operationLabel(p.operation)}${target}.`, event);
+    return cand("action_attempted", "action", "primary", 100, describeActionAttempt(p), event);
   },
 };
 
@@ -189,7 +227,7 @@ export const ACTION_RESOLVED: PresentationTemplate = {
   id: "action_resolved", listens: ["ActionResolved"],
   present: (event, _world) => {
     const p = event.payload as { result: string; description: string };
-    const text = p.description || `Результат: ${p.result}.`;
+    const text = p.description || "Действие завершено, но подробностей пока не видно.";
     return cand("action_resolved", "action", "primary", 95, text, event);
   },
 };
@@ -197,11 +235,11 @@ export const ACTION_RESOLVED: PresentationTemplate = {
 export const ACTION_BLOCKED: PresentationTemplate = {
   id: "action_blocked", listens: ["ActionBlocked"],
   present: (event, _world) => {
-    const p = event.payload as { reason: string; objectName?: string };
-    if (p.objectName) {
-      return cand("action_blocked_object", "action", "primary", 100, `${p.objectName} преграждает путь.`, event);
-    }
-    return cand("action_blocked", "action", "primary", 100, "Действие невозможно.", event);
+    const p = event.payload as { reason?: string; objectName?: string };
+    const objectName = p.objectName || "Путь";
+    if (p.reason === "locked") return cand("action_blocked_locked", "action", "primary", 115, objectName + " заперт и не поддаётся.", event);
+    if (p.reason === "wall" || p.reason === "blocked" || p.objectName) return cand("action_blocked_object", "action", "primary", 115, objectName + " преграждает путь.", event);
+    return cand("action_blocked", "action", "primary", 115, "Перед тобой нет свободного прохода.", event);
   },
 };
 
@@ -250,8 +288,15 @@ export const ACTION_HAD_NO_OBSERVABLE_EFFECT: PresentationTemplate = {
       return cand("action_had_no_observable_effect", "observation", "background", 60,
         "Тихо. Слышно только собственное дыхание.", event);
     }
-    return cand("action_had_no_observable_effect", "observation", "background", 60,
-      "Ничего особенного не происходит.", event);
+    const operation = (p as { operation?: string }).operation;
+    const text = operation === "observe" || operation === "inspect"
+      ? "Ты осматриваешься, но ничего нового не замечаешь."
+      : operation === "listen"
+        ? "Ты прислушиваешься, но кроме собственного дыхания ничего не слышишь."
+        : operation === "touch"
+          ? "Ты прикасаешься к предмету. Он не отвечает."
+          : "Попытка не меняет ситуацию.";
+    return cand("action_had_no_observable_effect", "observation", "background", 60, text, event);
   },
 };
 

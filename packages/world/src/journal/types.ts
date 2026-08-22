@@ -8,7 +8,7 @@ export interface JournalTurn {
   readonly sourceEventIds: readonly string[];
   /**
    * Optional non-authoritative literary narration for this turn (ADR-0024
-   * "МИР" voice). Persisted as a read-side journal decoration; absent when the
+   * "МАСТЕР" voice). Persisted as a read-side journal decoration; absent when the
    * LLM was unavailable or fell back to the deterministic template.
    */
   readonly narrativeLLM?: TurnNarration | undefined;

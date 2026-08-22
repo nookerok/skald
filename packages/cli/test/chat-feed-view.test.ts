@@ -36,7 +36,15 @@ function allText(node) {
 }
 
 function turn(t, text) {
-  return { worldTime: t, presentation: { primary: { text, discoveryMark: null }, notable: [], background: [] } };
+  return {
+    worldTime: t,
+    presentation: {
+      response: { kind: "action_outcome", text, sourceEventIds: ["event-" + t] },
+      primary: { text, discoveryMark: null, sourceEventIds: ["event-" + t] },
+      notable: [],
+      background: [],
+    },
+  };
 }
 
 describe("Chronicle Feed (ADR-0024) — chat core", () => {
@@ -57,6 +65,17 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(allText(feed.children[0])).toContain("идти к Переправе");
     expect(feed.children[1].className).toBe("chat-turn");
     expect(allText(feed.children[1])).toContain("Ты перемещаешься: Переправа.");
+  });
+
+  it("renders the deterministic master response before optional narrative prose", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const item = turn(5, "Ты осматриваешь двор.");
+    item.narrativeLLM = { text: "Пыльный двор раскрывается в вечернем свете.", usedFallback: false };
+    renderChatFeed([item], []);
+    const children = doc.feed.children[0].children;
+    expect(children[1].className).toBe("chat-world-primary");
+    expect(children[1].textContent).toContain("Ты осматриваешь двор.");
+    expect(children[2].className).toBe("chat-world-narrated");
   });
 
   it("keeps the newest journal window and renders it chronologically", async () => {
@@ -84,7 +103,7 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     const feed = doc.feed;
     expect(feed.children).toHaveLength(1);
     expect(feed.children[0].className).toBe("chat-empty");
-    expect(feed.children[0].textContent).toBe("Мир ждёт твоего действия.");
+    expect(feed.children[0].textContent).toBe("МАСТЕР ждёт твоего решения.");
   });
 
   it("is DTO-only: emits the world's primary text without leaking event types", async () => {
@@ -95,13 +114,13 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(rendered).toContain("Река поднялась.");
   });
 
-  it("UX-7.3 separates the two voices: player 'ТЫ' and world 'МИР'", async () => {
+  it("UX-7.3 separates the two voices: player 'ТЫ' and master 'МАСТЕР'", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const intents = [{ worldTime: 3, text: "Ждать" }];
     renderChatFeed([turn(3, "Туман сгустился.")], intents);
     const feed = doc.feed;
     expect(allText(feed.children[0])).toContain("ТЫ");
-    expect(allText(feed.children[1])).toContain("МИР");
+    expect(allText(feed.children[1])).toContain("МАСТЕР");
     expect(feed.children[1].children[0].className).toBe("chat-turn-header");
   });
 });

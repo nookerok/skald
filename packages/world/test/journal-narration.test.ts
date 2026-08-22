@@ -9,6 +9,7 @@ function turn(worldTime: number): JournalTurn {
     worldTime,
     sourceEventIds: [],
     presentation: {
+      response: null,
       primary: null, notable: [], background: [], suppressedEventCount: 0,
       worldTime, playerPosition: { x: 0, y: 0 },
     },

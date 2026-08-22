@@ -5,6 +5,7 @@ const PRIMARY_TEXT = "Ты шагнул на тропу, и лес настор�
 
 function pres(primary: boolean, notable: readonly string[] = []): TurnPresentation {
   return {
+    response: null,
     primary: primary
       ? { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: PRIMARY_TEXT, timestamp: 7, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null }
       : null,
@@ -85,6 +86,7 @@ describe("narrateTurnLLM", () => {
     const chatSpy = vi.spyOn(router, "chat");
     const { narrateTurnLLM } = await import("../src/narrative-llm.js");
     const presentation: TurnPresentation = {
+      response: null,
       primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: "шаг", timestamp: 7, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
       notable: [{ kind: "consequence", importance: "notable", discoveryMark: null, epistemicClass: "observed_fact", text: "последствие дерзости", timestamp: 7, sourceEventIds: ["e-2"], threadKey: null, threadLabel: null }],
       background: [{ kind: "world", importance: "background", discoveryMark: null, epistemicClass: "observed_fact", text: "фон", timestamp: 7, sourceEventIds: [], threadKey: null, threadLabel: null }],
@@ -124,6 +126,7 @@ describe("narrateTurnLLM", () => {
     const router = await mockRouter(narrationJson("Старец подтвердил, что это правда.", [testimony]));
     const { narrateTurnLLM } = await import("../src/narrative-llm.js");
     const presentation: TurnPresentation = {
+      response: null,
       primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: PRIMARY_TEXT, timestamp: 7, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
       notable: [{ kind: "observation", importance: "notable", discoveryMark: null, epistemicClass: "testimony", text: "слух от старца", timestamp: 7, sourceEventIds: ["e-2"], threadKey: null, threadLabel: null }],
       background: [], suppressedEventCount: 0, worldTime: 7, playerPosition: { x: 1, y: 2 },
@@ -139,6 +142,7 @@ describe("narrateTurnLLM", () => {
     const router = await mockRouter(narrationJson("Точно известно, что это знак.", [interpretation]));
     const { narrateTurnLLM } = await import("../src/narrative-llm.js");
     const presentation: TurnPresentation = {
+      response: null,
       primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: PRIMARY_TEXT, timestamp: 7, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
       notable: [{ kind: "observation", importance: "notable", discoveryMark: null, epistemicClass: "interpretation", text: "это может быть знаком", timestamp: 7, sourceEventIds: ["e-2"], threadKey: null, threadLabel: null }],
       background: [], suppressedEventCount: 0, worldTime: 7, playerPosition: { x: 1, y: 2 },

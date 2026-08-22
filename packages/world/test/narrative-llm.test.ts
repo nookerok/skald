@@ -27,6 +27,7 @@ function emptySnapshot(): NarrativeSnapshot {
       { kind: "world", timestamp: 5, text: "Ты находишься на позиции (0, 0).", sourceEventIds: [], importance: "background", discoveryMark: null },
     ],
     presentation: {
+      response: null,
       primary: null, notable: [], background: [], suppressedEventCount: 0,
       worldTime: 5, playerPosition: { x: 0, y: 0 },
     },
@@ -61,6 +62,7 @@ describe("narrateLLM", () => {
     const snapshot: NarrativeSnapshot = {
       entries: [{ kind: "world", timestamp: 5, text: "Ты на позиции.", sourceEventIds: [], importance: "background", discoveryMark: null }],
       presentation: {
+        response: null,
         primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: "ты шагнул", timestamp: 5, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
         notable: [{ kind: "observation", importance: "notable", discoveryMark: null, epistemicClass: "testimony", text: "старец говорил", timestamp: 5, sourceEventIds: ["e-9"], threadKey: null, threadLabel: null }],
         background: [], suppressedEventCount: 0, worldTime: 5, playerPosition: { x: 0, y: 0 },
@@ -111,6 +113,7 @@ describe("narrateLLM", () => {
         { kind: "world", timestamp: 5, text: "background entry", sourceEventIds: [], importance: "background", discoveryMark: null },
       ],
       presentation: {
+        response: null,
         primary: { kind: "action", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact", text: "primary text", timestamp: 5, sourceEventIds: ["e-1"], threadKey: null, threadLabel: null },
         notable: [{ kind: "observation", importance: "notable", discoveryMark: null, epistemicClass: "observed_fact", text: "notable text", timestamp: 5, sourceEventIds: ["e-2"], threadKey: null, threadLabel: null }],
         background: [{ kind: "world", importance: "background", discoveryMark: null, epistemicClass: "observed_fact", text: "bg", timestamp: 5, sourceEventIds: [], threadKey: null, threadLabel: null }],

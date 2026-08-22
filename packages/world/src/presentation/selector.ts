@@ -1,7 +1,53 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "../projection.js";
 import { ALL_TEMPLATES } from "./templates.js";
-import type { PresentationCandidate, PresentationEntry, TurnPresentation } from "./types.js";
+import type { PresentationCandidate, PresentationEntry, PresentationImportance, TurnPresentation, TurnResponse, TurnResponseKind } from "./types.js";
+
+export interface PresentationSelectionOptions {
+  readonly allowEmptyStateFallback?: boolean;
+}
+
+type BatchKind = "player_command" | "offline_tick" | "autonomous_world" | "empty_initial_state";
+
+const TERMINAL_REJECTION_EVENTS = new Set(["ActionRejected", "CommandRejected", "ActionBlocked", "MovementBlocked", "JourneyBlocked"]);
+const TERMINAL_OUTCOME_EVENTS = new Set(["ActionResolved", "MovementSucceeded", "JourneyStarted", "JourneyCompleted", "ObjectObserved", "EntityExamined", "SoundObserved", "ActionHadNoObservableEffect", "CriticalCheckResolved", "RelationChanged", "RumorHeard", "TestimonyReceived"]);
+const PLAYER_COMMAND_EVENTS = new Set(["ActionAttempted", "ActionResolved", "ActionRejected", "CommandRejected", "ActionBlocked", "MovementSucceeded", "MovementBlocked", "JourneyRequested", "JourneyStarted", "JourneyBlocked", "JourneyCompleted", "ObjectObserved", "EntityExamined", "SoundObserved", "ActionHadNoObservableEffect", "RelationChanged", "RumorHeard", "TestimonyReceived"]);
+
+function classifyBatch(events: readonly DomainEvent[]): BatchKind {
+  if (events.length === 0) return "empty_initial_state";
+  if (events.some((event) => PLAYER_COMMAND_EVENTS.has(event.type))) return "player_command";
+  if (events.some((event) => event.type === "TickPassed" && (event.payload as { playerOffline?: boolean }).playerOffline === true)) return "offline_tick";
+  return "autonomous_world";
+}
+
+function eventTypesFor(candidate: PresentationCandidate, byId: ReadonlyMap<string, string>): readonly string[] {
+  return candidate.sourceEventIds.map((id) => byId.get(id)).filter((type): type is string => type !== undefined);
+}
+
+function isOneOf(candidate: PresentationCandidate, byId: ReadonlyMap<string, string>, types: ReadonlySet<string>): boolean {
+  return eventTypesFor(candidate, byId).some((type) => types.has(type));
+}
+
+function toEntry(candidate: PresentationCandidate, importance: PresentationImportance): PresentationEntry {
+  return {
+    kind: candidate.kind, importance, discoveryMark: candidate.discoveryMark,
+    epistemicClass: candidate.epistemicClass, text: candidate.text, timestamp: candidate.timestamp,
+    sourceEventIds: candidate.sourceEventIds, threadKey: candidate.threadKey, threadLabel: candidate.threadLabel,
+  };
+}
+
+function emptyStateEntry(world: ReadonlyWorld): PresentationEntry {
+  const location = world.currentLocationId ? world.locations.get(world.currentLocationId) : undefined;
+  return {
+    kind: "world", importance: "primary", discoveryMark: null, epistemicClass: "observed_fact",
+    text: location ? location.description : "Ты находишься в точке (" + world.player.x + ", " + world.player.y + ").",
+    timestamp: world.time, sourceEventIds: [], threadKey: null, threadLabel: null,
+  };
+}
+
+function responseFor(candidate: PresentationCandidate, kind: TurnResponseKind): TurnResponse {
+  return { kind, text: candidate.text, sourceEventIds: candidate.sourceEventIds };
+}
 
 const SUPPRESSED_EVENT_TYPES = new Set([
   "PlayerSpawned", "WallPlaced", "HeatSourcePlaced", "StrategySet",
@@ -20,6 +66,7 @@ function isSuppressed(event: DomainEvent): boolean {
 export function selectTurnPresentation(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
+  options: PresentationSelectionOptions = {},
 ): TurnPresentation {
   const candidates: PresentationCandidate[] = [];
   let suppressed = 0;
@@ -71,47 +118,54 @@ export function selectTurnPresentation(
   primaryCandidates.sort((a, b) => b.rank - a.rank || a.timestamp - b.timestamp);
   nonPrimaryCandidates.sort((a, b) => b.rank - a.rank || a.timestamp - b.timestamp);
 
-  // Pick primary: first among primary-importance candidates
-  let primary: PresentationEntry | null = null;
-  const remaining: PresentationCandidate[] = [];
+  const batchKind = classifyBatch(events);
+  const eventTypesById = new Map(events.map((event) => [event.eventId, event.type]));
+  const rejectionCandidates = merged.filter((candidate) => isOneOf(candidate, eventTypesById, TERMINAL_REJECTION_EVENTS)).sort((a, b) => b.rank - a.rank || a.timestamp - b.timestamp);
+  const outcomeCandidates = merged
+    .filter((candidate) => isOneOf(candidate, eventTypesById, TERMINAL_OUTCOME_EVENTS) || candidate.templateId === "journey_waited")
+    .sort((a, b) => b.rank - a.rank || a.timestamp - b.timestamp);
 
-  if (primaryCandidates.length > 0) {
-    const top = primaryCandidates[0]!;
-    primary = {
-      kind: top.kind,
-      importance: "primary",
-      discoveryMark: top.discoveryMark,
-      epistemicClass: top.epistemicClass,
-      text: top.text,
-      timestamp: top.timestamp,
-      sourceEventIds: top.sourceEventIds,
-      threadKey: top.threadKey,
-      threadLabel: top.threadLabel,
-    };
-    // Rest of primaryCandidates go to remaining (will be demoted)
-    for (let i = 1; i < primaryCandidates.length; i++) remaining.push(primaryCandidates[i]!);
+  let response: TurnResponse | null = null;
+  let responseCandidate: PresentationCandidate | null = null;
+  if (batchKind === "player_command") {
+    responseCandidate = rejectionCandidates[0] ?? outcomeCandidates[0] ?? null;
+    if (!responseCandidate) {
+      const attempted = merged.find((candidate) => candidate.templateId === "action_attempted");
+      responseCandidate = attempted
+        ? { ...attempted, templateId: "command_neutral_outcome", text: "Ты начинаешь действовать, но пока не видишь заметного результата." }
+        : {
+            templateId: "command_neutral_outcome", kind: "action", defaultImportance: "primary", rank: 1,
+            discoveryMark: null, epistemicClass: "established_fact",
+            text: "Ты начинаешь действовать, но пока не видишь заметного результата.",
+            timestamp: events[0]?.timestamp ?? world.time,
+            sourceEventIds: events.filter((event) => PLAYER_COMMAND_EVENTS.has(event.type)).map((event) => event.eventId),
+            groupKey: null, threadKey: null, threadLabel: null,
+          };
+    }
+    const rejection = rejectionCandidates.includes(responseCandidate)
+      || rejectionCandidates.some((candidate) => candidate.sourceEventIds.some((id) => responseCandidate!.sourceEventIds.includes(id)));
+    response = responseFor(responseCandidate, rejection ? "action_rejection" : "action_outcome");
+  } else if (batchKind === "empty_initial_state" && options.allowEmptyStateFallback === true) {
+    const empty = emptyStateEntry(world);
+    response = { kind: "empty_state", text: empty.text, sourceEventIds: [] };
   }
-  // All non-primary candidates go to remaining
-  for (const c of nonPrimaryCandidates) remaining.push(c);
 
-  // No primary candidates → fallback projection-derived entry
-  if (!primary) {
-    const locationId = world.currentLocationId;
-    const location = locationId ? world.locations.get(locationId) : undefined;
-    const text = location
-      ? location.description
-      : `Ты находишься в точке (${world.player.x}, ${world.player.y}). Мир вокруг продолжает меняться.`;
-    primary = {
-      kind: "world",
-      importance: "primary",
-      discoveryMark: null,
-      epistemicClass: "observed_fact",
-      text,
-      timestamp: world.time,
-      sourceEventIds: [],
-      threadKey: null,
-      threadLabel: null,
-    };
+  let primary: PresentationEntry | null = null;
+  let selectedPrimary: PresentationCandidate | null = responseCandidate;
+  if (responseCandidate) {
+    primary = toEntry(responseCandidate, "primary");
+  } else if (primaryCandidates.length > 0) {
+    selectedPrimary = primaryCandidates[0]!;
+    primary = toEntry(selectedPrimary, "primary");
+  } else if (batchKind === "empty_initial_state" && options.allowEmptyStateFallback === true) {
+    primary = emptyStateEntry(world);
+  }
+
+  const remaining: PresentationCandidate[] = [];
+  for (const candidate of [...primaryCandidates, ...nonPrimaryCandidates]) {
+    if (selectedPrimary === candidate) continue;
+    if (batchKind === "player_command" && responseCandidate && candidate.templateId === "action_attempted") continue;
+    remaining.push(candidate);
   }
 
   // Classify remaining
@@ -145,6 +199,7 @@ export function selectTurnPresentation(
   }
 
   return {
+    response,
     primary,
     notable,
     background,

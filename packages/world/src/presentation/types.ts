@@ -6,6 +6,14 @@ export interface EpistemicNarrativeFact {
   readonly sourceEventIds: readonly string[];
 }
 
+export type TurnResponseKind = "action_outcome" | "action_rejection" | "empty_state";
+
+export interface TurnResponse {
+  readonly kind: TurnResponseKind;
+  readonly text: string;
+  readonly sourceEventIds: readonly string[];
+}
+
 import type { DomainEvent } from "@skald/event-bus";
 
 export type PresentationImportance = "primary" | "notable" | "background";
@@ -45,6 +53,7 @@ export interface PresentationEntry {
 }
 
 export interface TurnPresentation {
+  readonly response: TurnResponse | null;
   readonly primary: PresentationEntry | null;
   readonly notable: readonly PresentationEntry[];
   readonly background: readonly PresentationEntry[];

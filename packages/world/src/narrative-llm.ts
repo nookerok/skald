@@ -268,7 +268,12 @@ export async function narrateLLM(
     const id = i === 0 ? "primary" : `notable-${i - 1}`;
     return { id, text: entry.text, epistemicClass: entry.epistemicClass, sourceEventIds: entry.sourceEventIds };
   });
-  const userContent = JSON.stringify({ entries: facts, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  const userContent = JSON.stringify({
+    response: snapshot.presentation.response,
+    entries: facts,
+    worldTime: snapshot.worldTime,
+    playerPosition: snapshot.playerPosition,
+  });
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -325,13 +330,13 @@ export interface TurnNarration {
 const EPISTEMIC_PROMPT = "Сохраняй классы epistemic: established_fact утверждай прямо; observed_fact подавай как увиденное; testimony привязывай к источнику; inference и interpretation оформляй как предположение. Никогда не повышай класс и не превращай testimony, belief или interpretation в установленный факт.";
 const DND_SYSTEM_PROMPT =
   "Ты — рассказчик тёмного мира в духе D&D. Опиши этот ход художественно, по-русски, 2-4 предложения, в прошедшем времени, с атмосферой. " +
-  "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции. " +
+  "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции. response.kind обязателен и неизменяем: action_rejection нельзя превращать в успех. " +
   "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-4 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из turnFacts>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." +
   EPISTEMIC_PROMPT;
 
 function fallbackNarration(presentation: TurnPresentation, reason: string): TurnNarration {
   return {
-    text: presentation.primary?.text ?? "Мир продолжал дышать вокруг тебя.",
+    text: presentation.response?.text ?? presentation.primary?.text ?? "Мир продолжал дышать вокруг тебя.",
     model: "",
     usedFallback: true,
     fallbackReason: reason,
@@ -355,6 +360,7 @@ export async function narrateTurnLLM(
 
   const userContent = JSON.stringify({
     playerAction,
+    response: presentation.response,
     turnFacts: facts.map((f) => ({ id: f.id, role: f.role, text: f.text, epistemicClass: f.epistemicClass, sourceEventIds: f.sourceEventIds })),
     worldTime: presentation.worldTime,
     playerPosition: presentation.playerPosition,

@@ -31,9 +31,8 @@ describe("selectTurnPresentation", () => {
     // Only a TickPassed with playerOffline (background) — no primary-importance event
     const events = [evt("TickPassed", "t-1", { delta: 1, playerOffline: true }, 5)];
     const pres = selectTurnPresentation(events, emptyWorld());
-    // Primary should be the projection fallback, not the TickPassed
-    expect(pres.primary).not.toBeNull();
-    expect(pres.primary!.text).toContain("находишься");
+    expect(pres.primary).toBeNull();
+    expect(pres.response).toBeNull();
   });
 
   it("primary-importance event becomes primary", () => {
@@ -47,8 +46,8 @@ describe("selectTurnPresentation", () => {
   it("notable events remain notable, not primary", () => {
     const events = [evt("ObservationUpdated", "o-1", { key: "risk_taken", delta: 1 }, 5)];
     const pres = selectTurnPresentation(events, emptyWorld());
-    expect(pres.primary).not.toBeNull();
-    expect(pres.primary!.text).toContain("находишься"); // projection fallback
+    expect(pres.primary).toBeNull();
+    expect(pres.response).toBeNull();
     expect(pres.notable.length).toBeGreaterThan(0);
     expect(pres.notable[0]!.text).toContain("рискованный");
   });
@@ -112,9 +111,51 @@ describe("selectTurnPresentation", () => {
     expect(observation.primary?.epistemicClass).toBe("observed_fact");
   });
 
-  it("marks projection fallback as observer-scoped fact", () => {
-    const pres = selectTurnPresentation([], emptyWorld());
-    expect(pres.primary?.epistemicClass).toBe("observed_fact");
+  it("only allows projection fallback when explicitly requested for the empty state", () => {
+    const noFallback = selectTurnPresentation([], emptyWorld());
+    expect(noFallback.primary).toBeNull();
+    expect(noFallback.response).toBeNull();
+
+    const withFallback = selectTurnPresentation([], emptyWorld(), { allowEmptyStateFallback: true });
+    expect(withFallback.primary?.epistemicClass).toBe("observed_fact");
+    expect(withFallback.response?.kind).toBe("empty_state");
+  });
+
+  it("makes rejection the response instead of ActionAttempted", () => {
+    const pres = selectTurnPresentation([
+      evt("ActionAttempted", "a-1", { operation: "observe", target: null }, 5),
+      evt("ActionRejected", "r-1", { reason: "no_such_target" }, 5),
+    ], emptyWorld());
+    expect(pres.response?.kind).toBe("action_rejection");
+    expect(pres.response?.sourceEventIds).toContain("r-1");
+    expect(pres.response?.text).not.toContain("no_such_target");
+    expect(pres.primary?.text).toBe(pres.response?.text);
+  });
+
+  it("returns a natural outcome for an ActionResolved batch", () => {
+    const pres = selectTurnPresentation([
+      evt("ActionAttempted", "a-2", { operation: "observe", target: null }, 5),
+      evt("ActionResolved", "r-2", { result: "observed", description: "Ты видишь реку." }, 5),
+    ], emptyWorld());
+    expect(pres.response?.kind).toBe("action_outcome");
+    expect(pres.response?.text).toBe("Ты видишь реку.");
+  });
+
+  it("does not expose technical rejection reasons", () => {
+    const pres = selectTurnPresentation([
+      evt("ActionRejected", "r-3", { reason: "unknown_internal_rule" }, 5),
+    ], emptyWorld());
+    expect(pres.response?.kind).toBe("action_rejection");
+    expect(pres.response?.text).not.toMatch(/unknown_internal_rule|confidence|schema/);
+  });
+
+  it("gives an explicit neutral response for an incomplete command batch", () => {
+    const pres = selectTurnPresentation([
+      evt("ActionAttempted", "a-4", { operation: "observe", target: null }, 5),
+    ], emptyWorld());
+    expect(pres.response?.kind).toBe("action_outcome");
+    expect(pres.response?.text).toContain("начинаешь действовать");
+    expect(pres.primary?.text).toBe(pres.response?.text);
   });
 
   it("does not let a grouped candidate lose its epistemic class", () => {

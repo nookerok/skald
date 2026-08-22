@@ -67,9 +67,10 @@ describe("listen HTTP and SQLite integration", () => {
     expect(JSON.stringify(response.body)).not.toContain("sourceId");
     expect(JSON.stringify(response.body)).not.toContain("old_brazier");
     expect(JSON.stringify(response.body)).not.toContain("SoundObserved");
-    expect(response.body.presentation.background).toEqual(expect.arrayContaining([
-      expect.objectContaining({ text: "Тихо. Слышно только собственное дыхание." }),
-    ]));
+    expect(response.body.presentation.response).toEqual(expect.objectContaining({
+      kind: "action_outcome",
+      text: "Тихо. Слышно только собственное дыхание.",
+    }));
     expect(response.body.state.eventNumber).toBeGreaterThan(before.body.state.eventNumber);
 
     const log = await events();
