@@ -46,7 +46,10 @@ describe("read-only inquiry HTTP path", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ ok: true, status: "inquiry", inquiry: { queryId: "current_location" } });
     expect(response.body.inquiry.answer).toContain("Переправа");
+    expect(response.body.conversationTurn).toMatchObject({ playerText: "где я?", inputClass: "inquiry", responseKind: "inquiry_answer" });
     expect(after.body.state).toMatchObject({ worldTime: before.body.state.worldTime, eventNumber: before.body.state.eventNumber, lastActionTick: before.body.state.lastActionTick });
     expect(afterEvents.body.count).toBe(beforeEvents.body.count);
+    const journal = await api(`/api/worlds/${worldId}/journal`);
+    expect(journal.body.conversationTurns).toHaveLength(1);
   });
 });

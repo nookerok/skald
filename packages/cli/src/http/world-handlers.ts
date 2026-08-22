@@ -36,6 +36,12 @@ import { classifyPlayerInput, parseIntent, validateActionProposal } from "@skald
 import type { ExecutableIntent } from "@skald/intent-parser";
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { getMapDetailAsset } from "./map-detail-catalog.js";
+import {
+  buildActionConversationTurn,
+  buildReadSideConversationTurn,
+  conversationRequestHash,
+  toConversationTurnDTO,
+} from "../conversation/builder.js";
 
 /** Deterministic canonical hash of the acknowledge request body. */
 function acknowledgeRequestHash(worldTime: number, eventNumber: number): string {
@@ -70,6 +76,49 @@ function safeError(err: unknown): string {
     if (err.name === "MaxIterationsExceededError") return "processing limit exceeded";
   }
   return "internal error";
+}
+
+function persistReadSideTurn(
+  runtime: WorldRuntime,
+  input: string,
+  idempotencyKey: string,
+  inputClass: "inquiry" | "clarification",
+  responseKind: "inquiry_answer" | "clarification",
+  responseText: string,
+): ReturnType<typeof toConversationTurnDTO> {
+  const worldTime = runtime.projection.getSnapshot().time;
+  return toConversationTurnDTO(runtime.store.recordConversationTurn(buildReadSideConversationTurn({
+    worldId: runtime.worldId,
+    idempotencyKey,
+    playerText: input,
+    inputClass,
+    responseKind,
+    responseText,
+    worldTime,
+  })));
+}
+
+function duplicateConversationResponse(runtime: WorldRuntime, input: string, idempotencyKey: string): JsonResponse | null {
+  const existing = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+  if (!existing) return null;
+  if (existing.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+  const conversationTurn = toConversationTurnDTO(existing);
+  if (existing.inputClass === "action") {
+    return json({ ok: false, error: { code: "duplicate_request", message: "duplicate idempotencyKey" }, conversationTurn }, 409);
+  }
+  return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn });
+}
+
+function withClarificationConversation(
+  runtime: WorldRuntime,
+  input: string,
+  idempotencyKey: string,
+  response: JsonResponse,
+): JsonResponse {
+  const payload = JSON.parse(response.body) as Record<string, unknown>;
+  const question = typeof payload.question === "string" ? payload.question : "Уточни намерение.";
+  const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", question);
+  return json({ ...payload, conversationTurn }, response.statusCode);
 }
 
 export function serializeWorldStateFromRuntime(r: WorldRuntime) {
@@ -260,6 +309,9 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   if (typeof input !== "string" || input.length === 0)
     return error("invalid_request", "input required", 400);
 
+  const replay = duplicateConversationResponse(runtime, input, idempotencyKey);
+  if (replay) return replay;
+
   let narrationTurn: NarrationTurn | null = null;
   let advanceNarrationTicks: DomainEvent[] | null = null;
   let resolvedIntent: ExecutableIntent | undefined;
@@ -267,21 +319,23 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   if (input !== "wait" && !input.startsWith("advance ")) {
     const interpretation = await interpretPlayerInput(input, runtime.router);
     if (interpretation.status === "inquiry") {
-      const events = runtime.bus.query();
-      const world = runtime.projection.getSnapshot();
-      const record = runtime.store.getWorldRecord(runtime.worldId);
-      const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
-      const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
-      const background = buildBackgroundNarrativeContext(events, world, profile);
-      const inquiry = buildInquiryAnswer(interpretation.inquiry, { shell, background });
-      return json({ ok: true, status: "inquiry", inquiry });
+      return runtime.queue.enqueue(async () => {
+        const events = runtime.bus.query();
+        const world = runtime.projection.getSnapshot();
+        const record = runtime.store.getWorldRecord(runtime.worldId);
+        const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+        const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
+        const background = buildBackgroundNarrativeContext(events, world, profile);
+        const inquiry = buildInquiryAnswer(interpretation.inquiry, { shell, background });
+        const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
+        return json({ ok: true, status: "inquiry", inquiry, conversationTurn });
+      });
     }
-    if (runtime.processedKeys.has(idempotencyKey)) return error("duplicate_request", "duplicate idempotencyKey", 409);
     if (interpretation.status === "clarification") {
-      return json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options });
+      return runtime.queue.enqueue(async () => withClarificationConversation(runtime, input, idempotencyKey, json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options })));
     }
     if (interpretation.status === "unsupported" || interpretation.status === "unavailable") {
-      return json({ ok: true, status: "clarification", question: interpretation.message, options: [{ optionId: "rephrase", label: "Уточнить намерение" }] });
+      return runtime.queue.enqueue(async () => withClarificationConversation(runtime, input, idempotencyKey, json({ ok: true, status: "clarification", question: interpretation.message, options: [{ optionId: "rephrase", label: "Уточнить намерение" }] })));
     }
     resolvedIntent = interpretation.intent;
   }
@@ -289,7 +343,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   const response = await runtime.queue.enqueue(async () => {
     try {
       if (input === "wait") {
-        const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false });
+        const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false }, { playerText: input });
         if ("type" in r && (r as any).type === "IdempotencyReject")
           return error("duplicate_request", "duplicate idempotencyKey", 409);
         const tickResult = r as { tickEvents: DomainEvent[] };
@@ -298,7 +352,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         narrationTurn = { input, pres };
-        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+        const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
       }
       if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
@@ -318,8 +373,12 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
-      if ("statusCode" in r)
-        return r as JsonResponse;
+      if ("statusCode" in r) {
+        const response = r as JsonResponse;
+        return response.statusCode === 200 && JSON.parse(response.body).status === "clarification"
+          ? withClarificationConversation(runtime, input, idempotencyKey, response)
+          : response;
+      }
       if ("type" in r && (r as any).type === "ParseError")
         return error("parse_error", (r as any).reason ?? "parse error", 400);
       const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
@@ -328,6 +387,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
       narrationTurn = { input, pres };
       return json({
         ok: true,
@@ -339,6 +399,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         shellDelta: serializeShellDelta(shellDelta),
         observerThreads,
         observerThreadDelta,
+        ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}),
       });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
@@ -365,6 +426,18 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   if (typeof baseRevision !== "number" || !Number.isSafeInteger(baseRevision) || baseRevision < 0)
     return error("invalid_request", "baseRevision must be a non-negative integer", 400);
 
+  const existingConversation = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+  if (existingConversation) {
+    if (existingConversation.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+    return json({
+      ok: true,
+      resolution: existingConversation.inputClass === "action" ? "already_processed" : existingConversation.inputClass,
+      message: existingConversation.inputClass === "action" ? "Это намерение уже было обработано." : null,
+      reason: null,
+      conversationTurn: toConversationTurnDTO(existingConversation),
+    });
+  }
+
   let narrationTurn: NarrationTurn | null = null;
 
   const response = await runtime.queue.enqueue(async () => {
@@ -384,11 +457,14 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background });
-        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry });
+        const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
+        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn });
       }
       const parsed = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
       if (parsed.type !== "InteractionCommand") {
-        return json({ ok: true, resolution: "rejected", message: "Сейчас без связи можно отправить только «осмотреть <объект>».", reason: "unsupported_offline_intent" });
+        const message = "Сейчас без связи можно отправить только «осмотреть <объект>».";
+        const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", message);
+        return json({ ok: true, resolution: "rejected", message, reason: "unsupported_offline_intent", conversationTurn });
       }
 
       const dto = resolveOfflineIntent(
@@ -405,7 +481,12 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       // (ts = time + 1 > lastActionTick by construction).
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
-      if ("statusCode" in r) return r as JsonResponse;
+      if ("statusCode" in r) {
+        const response = r as JsonResponse;
+        return response.statusCode === 200 && JSON.parse(response.body).status === "clarification"
+          ? withClarificationConversation(runtime, input, idempotencyKey, response)
+          : response;
+      }
       const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
       const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
       const pres = selectTurnPresentation(allCycleEvents, runtime.projection.getSnapshot());
@@ -425,6 +506,9 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         shellDelta: serializeShellDelta(shellDelta),
         observerThreads,
         observerThreadDelta,
+        ...(runtime.store.getConversationTurn(runtime.worldId, idempotencyKey)
+          ? { conversationTurn: toConversationTurnDTO(runtime.store.getConversationTurn(runtime.worldId, idempotencyKey)!) }
+          : {}),
       });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
@@ -476,8 +560,25 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
       ),
     };
   });
+  const conversationLimitRaw = url.searchParams.get("conversationLimit") ?? "500";
+  const conversationLimitP = parseStrictInt(conversationLimitRaw, 500, 1, 500);
+  if (!conversationLimitP.ok) return error("invalid_request", "conversationLimit must be integer 1-500", 400);
+  const conversationBeforeRaw = url.searchParams.get("conversationBefore");
+  let conversationBefore: number | undefined;
+  if (conversationBeforeRaw !== null) {
+    const beforeP = parseStrictInt(conversationBeforeRaw, 0, 1, Number.MAX_SAFE_INTEGER);
+    if (!beforeP.ok) return error("invalid_request", "conversationBefore must be a positive integer", 400);
+    conversationBefore = beforeP.value;
+  }
+  const conversationRows = runtime.store.listConversationTurns(runtime.worldId, {
+    limit: conversationLimitP.value,
+    ...(conversationBefore !== undefined ? { beforeTurnSeq: conversationBefore } : {}),
+  });
+  const conversationTurns = conversationRows.map(toConversationTurnDTO);
+  const conversationHasMore = conversationRows.length === conversationLimitP.value;
+  const conversationNextBefore = conversationHasMore ? conversationRows[0]?.turnSeq ?? null : null;
 
-  return json({ ok: true, turns, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
+  return json({ ok: true, turns, conversationTurns, conversationNextBefore, conversationHasMore, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
@@ -836,7 +937,8 @@ export async function runCommandCycleForRuntime(
   }
   const commandIntent = resourceIntent ?? parsed;
 
-  const ts = runtime.projection.getSnapshot().time + 1;
+  const worldTimeBefore = runtime.projection.getSnapshot().time;
+  const ts = worldTimeBefore + 1;
   const correlationId = `cmd-${ts}`;
   const firstEvent = worldHandleCommand(commandIntent, correlationId, ts);
   const tickEvent: DomainEvent = {
@@ -849,8 +951,21 @@ export async function runCommandCycleForRuntime(
     causationId: null,
   };
 
-  const options: ProcessOptions = {
-    commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
+  const options: ProcessOptions<ReturnType<WorldRuntime["projection"]["getSnapshot"]>> = {
+    prepareCommitContext: (stagedEvents, projectedWorld) => ({
+      idempotencyKey,
+      requestKind: "command",
+      correlationId,
+      conversationTurn: buildActionConversationTurn({
+        worldId: runtime.worldId,
+        correlationId,
+        idempotencyKey,
+        playerText: input,
+        worldTimeBefore,
+        stagedEvents,
+        projectedWorld,
+      }),
+    }),
   };
 
   const activeJourney = runtime.projection.getSnapshot().activeJourneyId;
@@ -881,6 +996,7 @@ async function runTicksForRuntime(
   count: number,
   idempotencyKey: string,
   options: { playerOffline: boolean },
+  conversation?: { playerText: string },
 ): Promise<{ tickEvents: DomainEvent[] } | IdempotencyReject> {
   if (!Number.isSafeInteger(count) || count < 1 || count > 100) {
     throw new Error("count must be an integer between 1 and 100");
@@ -904,9 +1020,25 @@ async function runTicksForRuntime(
     });
   }
 
-  const options2: ProcessOptions = {
-    commitContext: { idempotencyKey, requestKind: "wait", correlationId: `wait-${startTs + 1}` } as CommitContext,
-  };
+  const correlationId = `wait-${startTs + 1}`;
+  const options2: ProcessOptions<ReturnType<WorldRuntime["projection"]["getSnapshot"]>> = conversation
+    ? {
+        prepareCommitContext: (stagedEvents, projectedWorld) => ({
+          idempotencyKey,
+          requestKind: "wait",
+          correlationId,
+          conversationTurn: buildActionConversationTurn({
+            worldId: runtime.worldId,
+            correlationId,
+            idempotencyKey,
+            playerText: conversation.playerText,
+            worldTimeBefore: startTs,
+            stagedEvents,
+            projectedWorld,
+          }),
+        }),
+      }
+    : { commitContext: { idempotencyKey, requestKind: "wait", correlationId } as CommitContext };
 
   try {
     const { committed } = runtime.engine.processSequence(rootEvents, options2);

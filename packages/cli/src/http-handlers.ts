@@ -3,6 +3,7 @@ import { runCommandCycle, runOfflineTicks } from "./index.js";
 import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
+import { conversationRequestHash, toConversationTurnDTO } from "./conversation/builder.js";
 
 export interface JsonResponse {
   statusCode: number;
@@ -56,15 +57,25 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
   if (typeof input !== "string" || input.length === 0)
     return error("invalid_request", "input required", 400);
 
+  const existing = app.store?.getConversationTurn(app.worldId, idempotencyKey);
+  if (existing) {
+    if (existing.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+    const conversationTurn = toConversationTurnDTO(existing);
+    return existing.inputClass === "action"
+      ? json({ ok: false, error: { code: "duplicate_request", message: "duplicate idempotencyKey" }, conversationTurn }, 409)
+      : json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn });
+  }
+
   try {
     if (input === "wait") {
-      const r = runOfflineTicks(app, 1, idempotencyKey);
+      const r = runOfflineTicks(app, 1, idempotencyKey, input);
       if ("type" in r && (r as IdempotencyReject).type === "IdempotencyReject")
         return error("duplicate_request", "duplicate idempotencyKey", 409);
       const tickResult = r as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
+      const conversationTurn = app.store?.getConversationTurn(app.worldId, idempotencyKey);
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
     }
     if (input.startsWith("advance ")) {
       const raw = input.slice(8).trim();
@@ -111,6 +122,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
     const allEvents = app.bus.query();
     const spatial = buildSpatialWorldProjection(allEvents);
     const observerMap = buildObserverMap(allEvents, spatial, true);
+    const conversationTurn = app.store?.getConversationTurn(app.worldId, idempotencyKey);
 
     // Check for CriticalCheckRequested events
     const criticalCheck = cmdResult.events.find((e) => e.type === "CriticalCheckRequested");
@@ -134,6 +146,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       guidance,
       criticalCheck: criticalCheckPresentation,
       observerMap,
+      ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}),
     });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
@@ -238,6 +251,9 @@ export function handleJournal(app: App, url: URL): JsonResponse {
   return json({
     ok: true,
     turns: page,
+    conversationTurns: app.store
+      ? app.store.listConversationTurns(app.worldId, { limit: 500 }).map(toConversationTurnDTO)
+      : [],
     threads: journal.threads,
     worldTime: journal.worldTime,
     nextBefore,

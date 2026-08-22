@@ -147,6 +147,32 @@ describe("RuleEngine — durable committer", () => {
     expect(seen).toHaveLength(1);
   });
 
+  it("prepares read-side commit metadata from the final immutable batch and snapshot", () => {
+    let prepared: { ids: string[]; count: number } | undefined;
+    let committedContext: unknown;
+    const committer: DurableCommitter = (_events, context) => { committedContext = context; };
+    const bus = new EventBus();
+    const projection = new CountStore({ count: 0, eventNumber: 0 });
+    const registry = new RuleRegistry<TestWorld>();
+    registry.register({
+      id: "test.r", phase: "physics", listens: ["Start"], produces: ["Count"],
+      handle: (event) => [evt("Count", "prepared-count", { amount: 2 }, event.eventId)],
+    });
+    const engine = new RuleEngine(registry, projection, bus, committer);
+
+    engine.process(evt("Start", "prepared-start"), {
+      prepareCommitContext: (staged, world) => {
+        expect(Object.isFrozen(staged)).toBe(true);
+        expect(Object.isFrozen(staged[0])).toBe(true);
+        prepared = { ids: staged.map((event) => event.eventId), count: world.count };
+        return prepared;
+      },
+    });
+
+    expect(prepared).toEqual({ ids: ["prepared-start", "prepared-count"], count: 2 });
+    expect(committedContext).toEqual(prepared);
+  });
+
   it("processSequence drains multiple roots atomically", () => {
     let committed: DomainEvent[] = [];
     const committer: DurableCommitter = (events) => { committed = [...events]; };

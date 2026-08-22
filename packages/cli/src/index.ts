@@ -16,6 +16,7 @@ import {
 import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore, LEGACY_WORLD_ID, type WorldId } from "./persistence.js";
 import { rollCriticalCheck, rollPendingCheck } from "./dice-roller.js";
+import { buildActionConversationTurn } from "./conversation/builder.js";
 
 export type { IntentResult } from "@skald/intent-parser";
 export interface IdempotencyReject {
@@ -80,11 +81,12 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
 
   const registry = createRules();
   const committer: (events: readonly DomainEvent[], ctx: CommitContext) => void = (events, ctx) => {
-    const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string };
+    const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string; conversationTurn?: import("./conversation/types.js").ConversationTurnDraft };
     store.commitBatch(worldId, events, {
       idempotencyKey: opts?.idempotencyKey ?? undefined,
       requestKind: (opts?.requestKind as "command" | "wait" | undefined) ?? undefined,
       correlationId: opts?.correlationId ?? undefined,
+      conversationTurn: opts?.conversationTurn,
     });
   };
   const onSubErr = (err: unknown, eventType: string) => {
@@ -140,9 +142,20 @@ export function runCommand(
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return parsed;
 
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
-  const options: ProcessOptions = app.store
+  const options: ProcessOptions<ReturnType<App["projection"]["getSnapshot"]>> = app.store
     ? {
-        commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
+        prepareCommitContext: (stagedEvents, projectedWorld) => ({
+          idempotencyKey, requestKind: "command", correlationId,
+          conversationTurn: buildActionConversationTurn({
+            worldId: app.worldId,
+            correlationId,
+            idempotencyKey,
+            playerText: input,
+            worldTimeBefore: timestamp - 1,
+            stagedEvents,
+            projectedWorld,
+          }),
+        }),
         deriveEvents: (staged) => staged
           .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
           .map((event) => rollCriticalCheck(event)),
@@ -204,6 +217,7 @@ export function runCommandCycle(
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return parsed;
 
   const ts = app.projection.getSnapshot().time + 1;
+  const worldTimeBefore = ts - 1;
   const correlationId = `cmd-${ts}`;
   const firstEvent = handleCommand(parsed, correlationId, ts);
   const tickEvent: DomainEvent = {
@@ -225,9 +239,20 @@ export function runCommandCycle(
   const suppressTick = parsed.type === "JourneyIntent" || interrupt || (!!activeJourney && !wait);
   const rootEvents = suppressTick ? [firstEvent] : [firstEvent, tickEvent];
 
-  const options: ProcessOptions = app.store
+  const options: ProcessOptions<ReturnType<App["projection"]["getSnapshot"]>> = app.store
     ? {
-        commitContext: { idempotencyKey, requestKind: "command", correlationId } as CommitContext,
+        prepareCommitContext: (stagedEvents, projectedWorld) => ({
+          idempotencyKey, requestKind: "command", correlationId,
+          conversationTurn: buildActionConversationTurn({
+            worldId: app.worldId,
+            correlationId,
+            idempotencyKey,
+            playerText: input,
+            worldTimeBefore,
+            stagedEvents,
+            projectedWorld,
+          }),
+        }),
         deriveEvents: (staged) => staged
           .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
           .map((event) => rollCriticalCheck(event)),
@@ -256,6 +281,7 @@ export function runOfflineTicks(
   app: App,
   count: number,
   idempotencyKey: string,
+  conversationText?: string,
 ): { tickEvents: DomainEvent[] } | IdempotencyReject {
   if (!Number.isSafeInteger(count) || count < 1 || count > 100) {
     throw new Error("count must be an integer between 1 and 100");
@@ -279,8 +305,24 @@ export function runOfflineTicks(
     });
   }
 
-  const options: ProcessOptions = app.store
-    ? { commitContext: { idempotencyKey, requestKind: "wait", correlationId: `wait-${startTs + 1}` } as CommitContext }
+  const correlationId = `wait-${startTs + 1}`;
+  const options: ProcessOptions<ReturnType<App["projection"]["getSnapshot"]>> = app.store && conversationText
+    ? {
+        prepareCommitContext: (stagedEvents, projectedWorld) => ({
+          idempotencyKey, requestKind: "wait", correlationId,
+          conversationTurn: buildActionConversationTurn({
+            worldId: app.worldId,
+            correlationId,
+            idempotencyKey,
+            playerText: conversationText,
+            worldTimeBefore: startTs,
+            stagedEvents,
+            projectedWorld,
+          }),
+        }),
+      }
+    : app.store
+    ? { commitContext: { idempotencyKey, requestKind: "wait", correlationId } as CommitContext }
     : {};
 
   try {

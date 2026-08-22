@@ -105,8 +105,18 @@ export type DurableCommitter = (
   context: CommitContext,
 ) => void;
 
-export interface ProcessOptions {
+export interface ProcessOptions<W = unknown> {
   readonly commitContext?: CommitContext;
+  /**
+   * Build read-side metadata for the same durable commit as the staged batch.
+   * The callback runs only after all rules and continuation roots have drained,
+   * receives immutable Events plus the projected working snapshot, and must
+   * not emit Events or mutate the Projection.
+   */
+  readonly prepareCommitContext?: (
+    staged: readonly DomainEvent[],
+    projectedWorld: Readonly<W>,
+  ) => CommitContext;
   /** Derive continuation roots from staged events before one durable commit. */
   readonly deriveEvents?: (staged: readonly DomainEvent[]) => readonly DomainEvent[];
 }
@@ -157,13 +167,13 @@ export class RuleEngine<W> {
     }
   }
 
-  process(firstEvent: DomainEvent, options?: ProcessOptions): ProcessResult {
+  process(firstEvent: DomainEvent, options?: ProcessOptions<W>): ProcessResult {
     return this.processSequence([firstEvent], options);
   }
 
   processSequence(
     firstEvents: readonly DomainEvent[],
-    options?: ProcessOptions,
+    options?: ProcessOptions<W>,
   ): ProcessResult {
     if (this.poisoned) {
       throw new PostCommitConsistencyError(0, new Error("engine is poisoned after previous post-commit failure"));
@@ -236,7 +246,10 @@ export class RuleEngine<W> {
 
     // 1. Durable commit — always for non-empty batch
     if (this.durableCommitter && staged.length > 0) {
-      this.durableCommitter(staged, options?.commitContext);
+      const commitContext = options?.prepareCommitContext
+        ? options.prepareCommitContext(immutableEventBatch(staged), working.getSnapshot())
+        : options?.commitContext;
+      this.durableCommitter(staged, commitContext);
     }
 
     // 2. Memory commit

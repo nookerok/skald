@@ -102,11 +102,12 @@ export class WorldRuntimeManager {
       ? createRules(spatial, () => buildObserverMap(bus.query(), spatial, true))
       : createRules();
     const committer: (events: readonly DomainEvent[], ctx: CommitContext) => void = (events, ctx) => {
-      const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string };
+      const opts = ctx as { idempotencyKey?: string; requestKind?: string; correlationId?: string; conversationTurn?: import("../conversation/types.js").ConversationTurnDraft };
       this.store.commitBatch(worldId, events, {
         idempotencyKey: opts?.idempotencyKey ?? undefined,
         requestKind: (opts?.requestKind as "command" | "wait" | undefined) ?? undefined,
         correlationId: opts?.correlationId ?? undefined,
+        conversationTurn: opts?.conversationTurn,
       });
     };
     const onSubErr = (err: unknown, eventType: string) => {
