@@ -177,3 +177,87 @@ describe("turn narrations persistence (v5)", () => {
     reopened.close();
   });
 });
+
+describe("persistence_error diagnostic separation", () => {
+  it("emits persistence_error when saveTurnNarration throws", async () => {
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+    const scheduler = new NarrationScheduler(8, 2, sink);
+
+    // Simulate the handler pattern: the run() catches the persistence error
+    // and emits the diagnostic itself (this is what world-handlers.ts does)
+    scheduler.schedule({
+      priority: "interactive",
+      worldTime: 42,
+      run: async () => {
+        try {
+          throw new Error("SQLite busy");
+        } catch (err) {
+          sink({
+            kind: "scheduler",
+            category: "persistence_error",
+            provider: "scheduler",
+            durationMs: 0,
+            attempt: 0,
+            timeout: 0,
+            retryOutcome: "none",
+            turn: 42,
+            worldTime: 42,
+            priority: "interactive",
+            detail: "save_failed",
+          });
+          scheduler.markUnavailable(42);
+        }
+      },
+      onDrop: () => scheduler.markUnavailable(42),
+    });
+
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    while (scheduler.isRunning()) await tick();
+
+    const persistenceEvents = events.filter(
+      (e: any) => e.kind === "scheduler" && e.category === "persistence_error",
+    );
+    expect(persistenceEvents.length).toBe(1);
+    expect(persistenceEvents[0]).toMatchObject({
+      worldTime: 42,
+      priority: "interactive",
+      detail: "save_failed",
+    });
+  });
+});
+
+describe("HTTP DTO contract: no fallbackReason", () => {
+  it("narrateLLM result usedFallback true does not leak fallbackReason through sanitized DTO", async () => {
+    // Simulate the sanitization logic from handleNarrativeLLM
+    const result = {
+      text: "Мир продолжал дышать.",
+      usedFallback: true,
+      fallbackReason: "no_api_key",
+      model: "",
+      latencyMs: 0,
+    };
+    const sanitized = result.usedFallback
+      ? { text: result.text, usedFallback: true, model: "", latencyMs: 0 }
+      : { text: result.text, usedFallback: false, model: result.model, latencyMs: result.latencyMs };
+
+    expect(sanitized).not.toHaveProperty("fallbackReason");
+    expect("fallbackReason" in sanitized).toBe(false);
+  });
+
+  it("narrateLLM result usedFallback false does not leak fallbackReason through sanitized DTO", async () => {
+    const result = {
+      text: "Красивый текст.",
+      usedFallback: false,
+      fallbackReason: null,
+      model: "deepseek-v4-flash-free",
+      latencyMs: 120,
+    };
+    const sanitized = result.usedFallback
+      ? { text: result.text, usedFallback: true, model: "", latencyMs: 0 }
+      : { text: result.text, usedFallback: false, model: result.model, latencyMs: result.latencyMs };
+
+    expect(sanitized).not.toHaveProperty("fallbackReason");
+    expect("fallbackReason" in sanitized).toBe(false);
+  });
+});

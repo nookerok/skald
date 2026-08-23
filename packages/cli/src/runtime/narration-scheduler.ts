@@ -22,6 +22,7 @@
  * These statuses live only in WorldRuntime process memory: no Domain Events,
  * no Rules, no Projection state.
  */
+import type { NarrationDiagnosticSink } from "@skald/world";
 export type NarrationPriority = "interactive" | "batch";
 
 export type NarrationJob = {
@@ -63,6 +64,7 @@ export class NarrationScheduler {
   constructor(
     private readonly interactiveLimit = DEFAULT_INTERACTIVE_LIMIT,
     private readonly batchLimit = DEFAULT_BATCH_LIMIT,
+    private readonly diagnostics?: NarrationDiagnosticSink,
   ) {}
 
   schedule(job: NarrationJob): void {
@@ -71,6 +73,18 @@ export class NarrationScheduler {
     if (queue.length >= limit) {
       // Oldest evicted first; the caller's onDrop settles the turn.
       const dropped = queue.shift()!;
+      this.diagnostics?.({
+        kind: "scheduler",
+        category: "queue_eviction",
+        provider: "scheduler",
+        durationMs: 0,
+        attempt: 0,
+        timeout: 0,
+        retryOutcome: "none",
+        turn: dropped.worldTime,
+        worldTime: dropped.worldTime,
+        priority: dropped.priority,
+      });
       dropped.onDrop();
     }
     this.statuses.set(job.worldTime, "pending");
@@ -114,6 +128,18 @@ export class NarrationScheduler {
         } catch {
           // Narration is best-effort decoration; a runner-level failure means
           // the turn will never get prose.
+          this.diagnostics?.({
+            kind: "scheduler",
+            category: "runner_failure",
+            provider: "scheduler",
+            durationMs: 0,
+            attempt: 0,
+            timeout: 0,
+            retryOutcome: "none",
+            turn: job.worldTime,
+            worldTime: job.worldTime,
+            priority: job.priority,
+          });
           this.statuses.set(job.worldTime, "unavailable");
         }
       }

@@ -79,6 +79,19 @@ export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel
 export { narrateLLM, narrateTurnLLM } from "./narrative-llm.js";
 export type { TurnNarration } from "./narrative-llm.js";
 export type { NarrativeLLMResult } from "./narrative-llm.js";
+export {
+  classifyNarrationError,
+  isTransientNarrationError,
+} from "./narration-diagnostics.js";
+export type {
+  NarrationErrorCategory,
+  RetryOutcome,
+  NarrationLLMDiagnosticEvent,
+  NarrationSchedulerDiagnosticEvent,
+  NarrationDiagnosticEvent,
+  NarrationDiagnosticSink,
+  NarrationOptions,
+} from "./narration-diagnostics.js";
 export { ModelRouter } from "./llm/router.js";
 export { chatOnce, shouldFallback } from "./llm/http.js";
 export { classifyPayload, scanForSecrets, enforceDataPolicy } from "./llm/data-policy.js";

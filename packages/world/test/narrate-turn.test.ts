@@ -339,3 +339,164 @@ describe("verifyEpistemicNarration", () => {
     expect(assertedEpistemicStrength("Старец предположил.", "interpretation")).toBe(epistemicStrength("interpretation"));
   });
 });
+
+describe("narrateTurnLLM retry and diagnostics", () => {
+  it("retries on transient network error and succeeds on second attempt", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({ apiKey: "test-key" });
+    const goodResult = {
+      text: narrationJson("Тьма отступила на мгновение."),
+      model: "deepseek-v4-flash-free",
+      configuredModel: "deepseek-v4-flash-free",
+      responseModel: "deepseek-v4-flash-free",
+      usedFallback: false,
+      latencyMs: 100,
+      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+      provider: "opencode_zen" as const,
+    };
+    const chatSpy = vi.spyOn(router, "chat")
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockResolvedValueOnce(goodResult);
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 2, retryBaseMs: 1 });
+    expect(result.usedFallback).toBe(false);
+    expect(result.text).toBe("Тьма отступила на мгновение.");
+    expect(chatSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("exhausts retries on persistent transient errors and returns fallback", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({ apiKey: "test-key" });
+    vi.spyOn(router, "chat").mockRejectedValue(new Error("HTTP 503: Service Unavailable"));
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 2, retryBaseMs: 1 });
+    expect(result.usedFallback).toBe(true);
+    expect(result.fallbackReason).toBe("chat_error");
+    // 1 initial + 2 retries = 3 calls
+    expect(router.chat).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry on non-transient errors (empty_response)", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({ apiKey: "test-key" });
+    vi.spyOn(router, "chat").mockRejectedValue(new Error("empty response"));
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 2, retryBaseMs: 1 });
+    expect(result.usedFallback).toBe(true);
+    expect(result.fallbackReason).toBe("chat_error");
+    // No retry for non-transient
+    expect(router.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry on schema rejection (epistemic violation)", async () => {
+    const badClaim = { text: "точно", sourceFactId: "primary", epistemicClass: "established_fact" };
+    const router = await mockRouter(narrationJson("Точно.", [badClaim]));
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 2, retryBaseMs: 1 });
+    expect(result.usedFallback).toBe(true);
+    expect(result.fallbackReason).toMatch("epistemic_violation:");
+    // Schema rejection is deterministic — no retry
+    expect(router.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits diagnostic events through the sink", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({ apiKey: "test-key" });
+    vi.spyOn(router, "chat").mockRejectedValue(new Error("fetch failed"));
+
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 2, retryBaseMs: 1, diagnostics: sink });
+
+    // 3 attempts, no separate exhaustion event
+    const llmEvents = events.filter((e: any) => e.kind === "llm");
+    expect(llmEvents.length).toBe(3);
+    for (const evt of llmEvents) {
+      expect(evt).toHaveProperty("category");
+      expect(evt).toHaveProperty("provider");
+      expect(evt).toHaveProperty("durationMs");
+      expect(evt).toHaveProperty("worldTime", 7);
+      expect(evt).toHaveProperty("attempt");
+      expect(evt).toHaveProperty("priority", "interactive");
+      expect(evt).toHaveProperty("timeout");
+      expect(evt).toHaveProperty("retryOutcome");
+    }
+    // All three are per-attempt; last one is exhausted
+    expect((llmEvents[0] as any).retryOutcome).toBe("none");
+    expect((llmEvents[1] as any).retryOutcome).toBe("none");
+    expect((llmEvents[2] as any).retryOutcome).toBe("exhausted");
+  });
+
+  it("emits succeeded_on_retry when retry recovers", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({ apiKey: "test-key" });
+    const goodResult = {
+      text: narrationJson("Лес затих."),
+      model: "deepseek-v4-flash-free",
+      configuredModel: "deepseek-v4-flash-free",
+      responseModel: "deepseek-v4-flash-free",
+      usedFallback: false,
+      latencyMs: 80,
+      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+      provider: "opencode_zen" as const,
+    };
+    vi.spyOn(router, "chat")
+      .mockRejectedValueOnce(new Error("HTTP 429: Too Many Requests"))
+      .mockResolvedValueOnce(goodResult);
+
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 2, retryBaseMs: 1, diagnostics: sink });
+    expect(result.usedFallback).toBe(false);
+
+    const llmEvents = events.filter((e: any) => e.kind === "llm");
+    expect(llmEvents.length).toBe(2);
+    expect((llmEvents[0] as any).retryOutcome).toBe("none");
+    expect((llmEvents[1] as any).retryOutcome).toBe("succeeded_on_retry");
+  });
+
+  it("no diagnostic events emitted when sink is not provided", async () => {
+    const router = await mockRouter();
+    vi.spyOn(router, "chat").mockRejectedValue(new Error("fetch failed"));
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    // No sink — should not throw
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { maxRetries: 1, retryBaseMs: 1 });
+    expect(result.usedFallback).toBe(true);
+  });
+
+  it("no_api_key does not retry", async () => {
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+    const result = await narrateTurnLLM("идти на восток", pres(true), null, { maxRetries: 2, retryBaseMs: 1, diagnostics: sink });
+    expect(result.usedFallback).toBe(true);
+    expect(result.fallbackReason).toBe("no_api_key");
+    const llmEvents = events.filter((e: any) => e.kind === "llm");
+    expect(llmEvents.length).toBe(1);
+    expect((llmEvents[0] as any).category).toBe("no_api_key");
+  });
+
+  it("emits success category on successful LLM call", async () => {
+    const router = await mockRouter(narrationJson("Тихий вечер."));
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const result = await narrateTurnLLM("идти на восток", pres(true), router, { diagnostics: sink });
+    expect(result.usedFallback).toBe(false);
+    const llmEvents = events.filter((e: any) => e.kind === "llm");
+    expect(llmEvents.length).toBe(1);
+    expect((llmEvents[0] as any).category).toBe("success");
+    expect((llmEvents[0] as any).provider).toBe("opencode_zen");
+    expect((llmEvents[0] as any).timeout).toBeGreaterThan(0);
+  });
+});

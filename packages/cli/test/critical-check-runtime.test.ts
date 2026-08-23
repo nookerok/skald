@@ -40,6 +40,8 @@ describe("production critical-check command cycle", () => {
     try {
       const manager = new WorldRuntimeManager(store);
       const runtime = await manager.get("critical-test");
+      expect(typeof runtime.diagnostics).toBe("function");
+      expect(manager.narrationDiagnostics()).toEqual([]);
       const enter = await runCommandCycleForRuntime(runtime, enterInput, "enter-key");
       expect("statusCode" in enter).toBe(false);
 

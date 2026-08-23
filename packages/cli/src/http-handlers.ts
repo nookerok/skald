@@ -203,10 +203,10 @@ export async function handleNarrativeLLM(app: App, url: URL): Promise<JsonRespon
   const opts = sinceP.value > 0 ? { sinceTick: sinceP.value } : undefined;
   const snapshot = buildNarrative(events, world, opts);
   const result = await narrateLLM(snapshot, app.router);
-  // Sanitize: never expose internal error details to client
+  // Sanitize: never expose internal error details or fallbackReason to client
   const sanitized = result.usedFallback
-    ? { text: result.text, usedFallback: true, fallbackReason: result.fallbackReason, model: "", latencyMs: 0 }
-    : { text: result.text, usedFallback: false, fallbackReason: null, model: result.model, latencyMs: result.latencyMs };
+    ? { text: result.text, usedFallback: true, model: "", latencyMs: 0 }
+    : { text: result.text, usedFallback: false, model: result.model, latencyMs: result.latencyMs };
   return json({ ok: true, ...sanitized });
 }
 

@@ -366,7 +366,7 @@ export async function printNarrativeLLM(app: App, sinceTick?: number): Promise<s
   const result = await narrateLLM(snapshot, app.router);
   let header = `--- Narrative LLM (world.time=${snapshot.worldTime}) ---\n`;
   if (result.usedFallback) {
-    header += `[fallback: ${result.fallbackReason}]\n`;
+    header += `[fallback]\n`;
   }
   return header + result.text + "\n";
 }

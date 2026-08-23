@@ -35,7 +35,7 @@ import {
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
 import { getMapDetailAsset } from "./http/map-detail-catalog.js";
-import type { ModelRouter } from "@skald/world";
+import type { ModelRouter, NarrationDiagnosticSink } from "@skald/world";
 
 const __dirname = resolve(fileURLToPath(import.meta.url), "..");
 const PUBLIC_DIR = resolve(__dirname, "../public");
@@ -147,10 +147,12 @@ export async function startServer(options?: {
   router?: ModelRouter | null;
   /** Enable legacy world-template creation only for tests/eval/admin harnesses. */
   allowLegacyWorldCreation?: boolean;
+  /** Optional trusted sink for structured narration diagnostics. */
+  diagnostics?: NarrationDiagnosticSink;
 }): Promise<StartedServer> {
   const dbPath = options?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
   const store = createMultiWorldStore(dbPath);
-  const runtimes = new WorldRuntimeManager(store, options?.router);
+  const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics);
   const serverApp: ServerApp = { store, runtimes };
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
   const allowLegacyWorldCreation = options?.allowLegacyWorldCreation ?? process.env.NODE_ENV === "test";

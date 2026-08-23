@@ -22,7 +22,13 @@ describe("attachTurnNarrations", () => {
   it("attaches a stored non-fallback narration by worldTime", () => {
     const narrations = new Map<number, TurnNarration>([[3, narration]]);
     const out = attachTurnNarrations([turn(3), turn(4)], narrations);
-    expect(out[0]!.narrativeLLM).toEqual(narration);
+    expect(out[0]!.narrativeLLM).toEqual({
+      text: narration.text,
+      model: narration.model,
+      usedFallback: false,
+      latencyMs: narration.latencyMs,
+    });
+    expect("fallbackReason" in (out[0]!.narrativeLLM ?? {})).toBe(false);
     expect(out[1]!.narrativeLLM).toBeUndefined();
   });
 

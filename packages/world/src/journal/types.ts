@@ -1,5 +1,18 @@
 import type { TurnPresentation, PresentationImportance, DiscoveryMark } from "../presentation/types.js";
-import type { TurnNarration } from "../narrative-llm.js";
+
+/**
+ * Player-facing literary narration attached to a journal turn.
+ *
+ * This is deliberately narrower than the persistence/internal TurnNarration
+ * type: fallback reasons are operational metadata and must not cross the
+ * journal HTTP boundary.
+ */
+export interface JournalNarration {
+  readonly text: string;
+  readonly model: string;
+  readonly usedFallback: false;
+  readonly latencyMs: number;
+}
 
 export interface JournalTurn {
   readonly turnId: string;
@@ -17,7 +30,7 @@ export interface JournalTurn {
    * "МАСТЕР" voice). Persisted as a read-side journal decoration; absent when the
    * LLM was unavailable or fell back to the deterministic template.
    */
-  readonly narrativeLLM?: TurnNarration | undefined;
+  readonly narrativeLLM?: JournalNarration | undefined;
 }
 
 export interface PresentationThreadEntry {

@@ -14,6 +14,8 @@ import type { WorldId } from "../persistence/types.js";
 import { WorldCommandQueue } from "./world-command-queue.js";
 import { NarrationScheduler } from "./narration-scheduler.js";
 import { rollPendingCheck } from "../dice-roller.js";
+import type { NarrationDiagnosticEvent, NarrationDiagnosticSink } from "@skald/world";
+import { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 
 export interface WorldRuntime {
   worldId: WorldId;
@@ -26,6 +28,8 @@ export interface WorldRuntime {
   store: MultiWorldStore;
   queue: WorldCommandQueue;
   narration: NarrationScheduler;
+  /** Operational diagnostic sink for LLM narration telemetry. */
+  diagnostics: NarrationDiagnosticSink;
 }
 
 function createRouter(): ModelRouter | null {
@@ -38,11 +42,23 @@ function createRouter(): ModelRouter | null {
 export class WorldRuntimeManager {
   private runtimes = new Map<WorldId, WorldRuntime>();
   private initializing = new Map<WorldId, Promise<WorldRuntime>>();
+  private readonly diagnosticLog = new NarrationDiagnosticLog();
+  private readonly diagnosticSink: NarrationDiagnosticSink;
 
   constructor(
     private readonly store: MultiWorldStore,
     private readonly configuredRouter?: ModelRouter | null,
-  ) {}
+    diagnostics?: NarrationDiagnosticSink,
+  ) {
+    this.diagnosticSink = diagnostics
+      ? (event) => { this.diagnosticLog.record(event); diagnostics(event); }
+      : this.diagnosticLog.sink();
+  }
+
+  /** Read-only operational diagnostics for trusted diagnostics surfaces/tests. */
+  narrationDiagnostics(): readonly NarrationDiagnosticEvent[] {
+    return this.diagnosticLog.snapshot();
+  }
 
   async get(worldId: WorldId): Promise<WorldRuntime> {
     const record = this.store.getWorldRecord(worldId);
@@ -121,7 +137,8 @@ export class WorldRuntimeManager {
 
     const runtime: WorldRuntime = {
       worldId, bus, registry, engine, projection, processedKeys, router,
-      store: this.store, queue, narration: new NarrationScheduler(),
+      store: this.store, queue, narration: new NarrationScheduler(8, 2, this.diagnosticSink),
+      diagnostics: this.diagnosticSink,
     };
 
     // Crash recovery: roll any pending critical checks

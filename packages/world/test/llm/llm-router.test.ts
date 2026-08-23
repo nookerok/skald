@@ -82,6 +82,32 @@ describe("ModelRouter", () => {
     }
   });
 
+  it("preserves the provider of the final failed candidate", async () => {
+    const previousKey = process.env.SKALD_OLLAMA_CLOUD_API_KEY;
+    process.env.SKALD_OLLAMA_CLOUD_API_KEY = "ollama-key";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Unavailable",
+    }));
+
+    try {
+      const router = new ModelRouter({
+        apiKey: "zen-key",
+        providerId: "opencode_zen",
+        availableProviders: ["opencode_zen", "ollama_cloud"],
+      });
+      await expect(router.chat("narrate", msg("hello"))).rejects.toMatchObject({
+        provider: "ollama_cloud",
+        model: "gemma4:31b",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousKey === undefined) delete process.env.SKALD_OLLAMA_CLOUD_API_KEY;
+      else process.env.SKALD_OLLAMA_CLOUD_API_KEY = previousKey;
+    }
+  });
+
   it("supports Ollama-only routing without selecting Zen models", () => {
     const router = new ModelRouter({ apiKey: "ollama-key", providerId: "ollama_cloud" });
     const decision = router.decideModel("narrate", msg("hello"));

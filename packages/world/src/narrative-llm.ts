@@ -2,6 +2,8 @@ import type { NarrativeSnapshot, NarrativeEntry } from "./narrative.js";
 import type { EpistemicClass, EpistemicNarrativeFact, TurnPresentation } from "./presentation/types.js";
 import { ModelRouter } from "./llm/router.js";
 import type { ChatMessage, ChatResult } from "./llm/types.js";
+import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, RetryOutcome } from "./narration-diagnostics.js";
+import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
 
 export interface NarrativeLLMResult {
   readonly text: string;
@@ -219,6 +221,26 @@ function renderSafeNarration(parsed: StructuredNarration, facts: ReadonlyMap<str
   }).join(" ");
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_BASE_MS = 1000;
+
+function retryCount(raw: number | undefined): number {
+  if (raw === undefined || !Number.isFinite(raw)) return DEFAULT_MAX_RETRIES;
+  return Math.min(DEFAULT_MAX_RETRIES, Math.max(0, Math.floor(raw)));
+}
+
+/**
+ * Emit a diagnostic event through the sink if provided. No-op when sink is
+ * undefined, so callers never need to guard.
+ */
+function emitDiagnostic(sink: NarrationDiagnosticSink | undefined, event: Parameters<NarrationDiagnosticSink>[0]): void {
+  sink?.(event);
+}
+
 function templateText(entries: readonly NarrativeEntry[]): string {
   const lines: string[] = [];
   for (const e of entries) {
@@ -235,6 +257,13 @@ function templateText(entries: readonly NarrativeEntry[]): string {
   return lines.join("\n");
 }
 
+function diagnosticProvider(router: ModelRouter, error: unknown): string {
+  const provider = error && typeof error === "object"
+    ? (error as { provider?: unknown }).provider
+    : undefined;
+  return typeof provider === "string" && provider.length > 0 ? provider : router.providerId;
+}
+
 /**
  * §6 Authority Hierarchy: этот адаптер — самый нижний уровень иерархии.
  * Он НЕ имеет доступа к EventBus, Projection (кроме read-only snapshot'а на входе),
@@ -245,9 +274,27 @@ function templateText(entries: readonly NarrativeEntry[]): string {
 export async function narrateLLM(
   snapshot: NarrativeSnapshot,
   router: ModelRouter | null,
-  _opts?: { locale?: "ru" | "en" },
+  opts?: NarrationOptions,
 ): Promise<NarrativeLLMResult> {
+  const sink = opts?.diagnostics;
+  const maxAttempts = 1 + retryCount(opts?.maxRetries);
+  const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+  const priority = opts?.priority ?? "interactive";
+
+  // Fast path: no router / no API key — never retry
   if (!router || !router.apiKey) {
+    emitDiagnostic(sink, {
+      kind: "llm",
+      category: "no_api_key",
+      provider: router?.providerId ?? "",
+      durationMs: 0,
+      turn: snapshot.worldTime,
+      worldTime: snapshot.worldTime,
+      attempt: 1,
+      priority,
+      timeout: 0,
+      retryOutcome: "none",
+    });
     return {
       text: templateText(snapshot.entries),
       usedFallback: true,
@@ -280,34 +327,100 @@ export async function narrateLLM(
     { role: "user", content: userContent },
   ];
 
-  try {
-    const result: ChatResult = await router.chat("narrate", messages);
-    const guard = verifyEpistemicNarration(result.text, facts);
-    if (!guard.ok) {
+  let lastCategory: NarrationErrorCategory = "unknown_provider_error";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const start = performance.now();
+    try {
+      const result: ChatResult = await router.chat("narrate", messages);
+      const durationMs = Math.round(performance.now() - start);
+      const guard = verifyEpistemicNarration(result.text, facts);
+      if (!guard.ok) {
+        const category: NarrationErrorCategory = "schema_rejection";
+        emitDiagnostic(sink, {
+          kind: "llm",
+          category,
+          provider: result.provider,
+          durationMs,
+          turn: snapshot.worldTime,
+          worldTime: snapshot.worldTime,
+          attempt,
+          priority,
+          timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+          retryOutcome: "none",
+        });
+        // Schema rejection is deterministic — no retry
+        return {
+          text: templateText(snapshot.entries),
+          usedFallback: true,
+          fallbackReason: `epistemic_violation:${guard.reason}`,
+          model: "",
+          latencyMs: 0,
+        };
+      }
+      const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category: "success",
+        provider: result.provider,
+        durationMs,
+        turn: snapshot.worldTime,
+        worldTime: snapshot.worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome,
+      });
       return {
-        text: templateText(snapshot.entries),
-        usedFallback: true,
-        fallbackReason: `epistemic_violation:${guard.reason}`,
-        model: "",
-        latencyMs: 0,
+        text: guard.narration,
+        usedFallback: false,
+        fallbackReason: null,
+        model: result.model,
+        latencyMs: result.latencyMs,
       };
+    } catch (err) {
+      const durationMs = Math.round(performance.now() - start);
+      lastCategory = classifyNarrationError(err, null);
+
+      const isTransient = isTransientNarrationError(lastCategory);
+      const isLastAttempt = attempt >= maxAttempts;
+      const retryOutcome: RetryOutcome = isLastAttempt && isTransient ? "exhausted" : "none";
+
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category: lastCategory,
+        provider: diagnosticProvider(router, err),
+        durationMs,
+        turn: snapshot.worldTime,
+        worldTime: snapshot.worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome,
+      });
+
+      if (!isTransient || isLastAttempt) {
+        return {
+          text: templateText(snapshot.entries),
+          usedFallback: true,
+          fallbackReason: "chat_error",
+          model: "",
+          latencyMs: 0,
+        };
+      }
+
+      await sleep(retryBaseMs * Math.pow(2, attempt - 1));
     }
-    return {
-      text: guard.narration,
-      usedFallback: false,
-      fallbackReason: null,
-      model: result.model,
-      latencyMs: result.latencyMs,
-    };
-  } catch (err) {
-    return {
-      text: templateText(snapshot.entries),
-      usedFallback: true,
-      fallbackReason: "chat_error",
-      model: "",
-      latencyMs: 0,
-    };
   }
+
+  // Unreachable — satisfies TS exhaustiveness
+  return {
+    text: templateText(snapshot.entries),
+    usedFallback: true,
+    fallbackReason: "chat_error",
+    model: "",
+    latencyMs: 0,
+  };
 }
 
 /**
@@ -348,8 +461,26 @@ export async function narrateTurnLLM(
   playerAction: string,
   presentation: TurnPresentation,
   router: ModelRouter | null,
+  opts?: NarrationOptions,
 ): Promise<TurnNarration> {
+  const sink = opts?.diagnostics;
+  const maxAttempts = 1 + retryCount(opts?.maxRetries);
+  const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+  const priority = opts?.priority ?? "interactive";
+
   if (!router || !router.apiKey) {
+    emitDiagnostic(sink, {
+      kind: "llm",
+      category: "no_api_key",
+      provider: router?.providerId ?? "",
+      durationMs: 0,
+      turn: presentation.worldTime,
+      worldTime: presentation.worldTime,
+      attempt: 1,
+      priority,
+      timeout: 0,
+      retryOutcome: "none",
+    });
     return fallbackNarration(presentation, "no_api_key");
   }
 
@@ -371,20 +502,80 @@ export async function narrateTurnLLM(
     { role: "user", content: userContent },
   ];
 
-  try {
-    const result: ChatResult = await router.chat("narrate", messages);
-    const guard = verifyEpistemicNarration(result.text, facts);
-    if (!guard.ok) {
-      return fallbackNarration(presentation, `epistemic_violation:${guard.reason}`);
+  let lastCategory: NarrationErrorCategory = "unknown_provider_error";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const start = performance.now();
+    try {
+      const result: ChatResult = await router.chat("narrate", messages);
+      const durationMs = Math.round(performance.now() - start);
+      const guard = verifyEpistemicNarration(result.text, facts);
+      if (!guard.ok) {
+        const category: NarrationErrorCategory = "schema_rejection";
+        emitDiagnostic(sink, {
+          kind: "llm",
+          category,
+          provider: result.provider,
+          durationMs,
+          turn: presentation.worldTime,
+          worldTime: presentation.worldTime,
+          attempt,
+          priority,
+          timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+          retryOutcome: "none",
+        });
+        // Schema rejection is deterministic — no retry
+        return fallbackNarration(presentation, `epistemic_violation:${guard.reason}`);
+      }
+      const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category: "success",
+        provider: result.provider,
+        durationMs,
+        turn: presentation.worldTime,
+        worldTime: presentation.worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome,
+      });
+      return {
+        text: guard.narration.trim(),
+        model: result.model,
+        usedFallback: false,
+        fallbackReason: null,
+        latencyMs: result.latencyMs,
+      };
+    } catch (err) {
+      const durationMs = Math.round(performance.now() - start);
+      lastCategory = classifyNarrationError(err, null);
+
+      const isTransient = isTransientNarrationError(lastCategory);
+      const isLastAttempt = attempt >= maxAttempts;
+      const retryOutcome: RetryOutcome = isLastAttempt && isTransient ? "exhausted" : "none";
+
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category: lastCategory,
+        provider: diagnosticProvider(router, err),
+        durationMs,
+        turn: presentation.worldTime,
+        worldTime: presentation.worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome,
+      });
+
+      if (!isTransient || isLastAttempt) {
+        return fallbackNarration(presentation, "chat_error");
+      }
+
+      await sleep(retryBaseMs * Math.pow(2, attempt - 1));
     }
-    return {
-      text: guard.narration.trim(),
-      model: result.model,
-      usedFallback: false,
-      fallbackReason: null,
-      latencyMs: result.latencyMs,
-    };
-  } catch (err) {
-    return fallbackNarration(presentation, "chat_error");
   }
+
+  // Unreachable — satisfies TS exhaustiveness
+  return fallbackNarration(presentation, "chat_error");
 }

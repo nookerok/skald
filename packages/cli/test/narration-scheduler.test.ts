@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { NarrationScheduler, resolveNarrationState } from "../src/runtime/narration-scheduler.js";
 import type { NarrationJob } from "../src/runtime/narration-scheduler.js";
+import { NarrationDiagnosticLog } from "../src/runtime/narration-diagnostic-log.js";
 
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
@@ -184,5 +185,62 @@ describe("resolveNarrationState", () => {
     // Post-restart the scheduler has no in-memory status; the persisted row is
     // still authoritative for `ready`.
     expect(resolveNarrationState({ hasNonFallback: true }, undefined)).toBe("ready");
+  });
+});
+
+describe("NarrationScheduler diagnostics", () => {
+  it("keeps a bounded structured diagnostic log", () => {
+    const log = new NarrationDiagnosticLog(2);
+    const sink = log.sink();
+    const base = { kind: "scheduler" as const, category: "runner_failure" as const, provider: "scheduler" as const, durationMs: 0 as const, attempt: 0 as const, timeout: 0 as const, retryOutcome: "none" as const, turn: 1, worldTime: 1, priority: "interactive" as const };
+    sink(base);
+    sink({ ...base, worldTime: 2 });
+    sink({ ...base, worldTime: 3 });
+    expect(log.snapshot().map((event) => event.worldTime)).toEqual([2, 3]);
+  });
+
+  it("emits runner_failure diagnostic when a job throws", async () => {
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+    const scheduler = new NarrationScheduler(8, 2, sink);
+    scheduler.schedule(job(async () => { throw new Error("llm down"); }, 1));
+    await flush(scheduler);
+    const runnerEvents = events.filter((e: any) => e.kind === "scheduler" && e.category === "runner_failure");
+    expect(runnerEvents.length).toBe(1);
+    expect(runnerEvents[0]).toMatchObject({ worldTime: 1, priority: "interactive" });
+  });
+
+  it("emits queue_eviction diagnostic when a job is evicted", async () => {
+    const events: unknown[] = [];
+    const sink = (e: unknown) => events.push(e);
+    const dropped: number[] = [];
+    // Batch limit = 2
+    const scheduler = new NarrationScheduler(8, 2, sink);
+    const gate = deferred();
+
+    // Schedule a blocking interactive job first to occupy the drain
+    scheduler.schedule(job(async () => { await gate.promise; }, 0));
+
+    // Now schedule 3 batch jobs: first two fill the batch queue (limit=2),
+    // third triggers eviction of the oldest (worldTime=10).
+    scheduler.schedule({ priority: "batch", worldTime: 10, run: async () => {}, onDrop: () => dropped.push(10) });
+    scheduler.schedule({ priority: "batch", worldTime: 20, run: async () => {}, onDrop: () => dropped.push(20) });
+    scheduler.schedule({ priority: "batch", worldTime: 30, run: async () => {}, onDrop: () => dropped.push(30) });
+
+    gate.release();
+    await flush(scheduler);
+
+    const evictionEvents = events.filter((e: any) => e.kind === "scheduler" && e.category === "queue_eviction");
+    expect(evictionEvents.length).toBe(1);
+    expect(evictionEvents[0]).toMatchObject({ worldTime: 10, priority: "batch" });
+    expect(dropped).toEqual([10]);
+  });
+
+  it("no diagnostics emitted when sink is not provided", async () => {
+    const scheduler = new NarrationScheduler();
+    scheduler.schedule(job(async () => { throw new Error("fail"); }, 1));
+    await flush(scheduler);
+    // Should not throw — no sink means no diagnostic emission
+    expect(scheduler.statusOf(1)).toBe("unavailable");
   });
 });

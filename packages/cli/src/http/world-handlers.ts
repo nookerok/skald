@@ -235,16 +235,35 @@ function scheduleNarration(runtime: WorldRuntime, input: string, pres: ReturnTyp
     priority: "interactive",
     worldTime,
     run: async () => {
+      // 1. LLM call (with retry — diagnostics flow through the sink if provided)
+      const narration = await narrateTurnLLM(input, pres, router, {
+        diagnostics: runtime.diagnostics,
+        priority: "interactive",
+        timeoutMs: router.timeoutSeconds * 1000,
+      });
+      // 2. Classify LLM result
+      if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
+      // 3. Persist (separate try/catch for persistence diagnostics)
       try {
-        const narration = await narrateTurnLLM(input, pres, router);
-        // `markReady` only after a successful non-empty persist: an empty
-        // successful response or a fallback is a terminal failure, and the
-        // journal must recompose the turn as `unavailable`, never the
-        // `not_requested` a bare status removal would produce.
-        if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
         runtime.store.saveTurnNarration(worldId, worldTime, narration);
-        runtime.narration.markReady(worldTime);
-      } catch { runtime.narration.markUnavailable(worldTime); }
+      } catch {
+        runtime.diagnostics({
+            kind: "scheduler",
+            category: "persistence_error",
+            provider: "scheduler",
+            durationMs: 0,
+            attempt: 0,
+            timeout: 0,
+            retryOutcome: "none",
+            turn: worldTime,
+            worldTime,
+            priority: "interactive",
+            detail: "save_failed",
+        });
+        runtime.narration.markUnavailable(worldTime);
+        return;
+      }
+      runtime.narration.markReady(worldTime);
     },
     onDrop: () => runtime.narration.markUnavailable(worldTime),
   });
@@ -285,15 +304,35 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
       priority: "batch",
       worldTime,
       run: async () => {
+        // 1. LLM call (with retry — diagnostics flow through the sink if provided)
+        const narration = await narrateTurnLLM(input, presentation, router, {
+          diagnostics: runtime.diagnostics,
+          priority: "batch",
+          timeoutMs: router.timeoutSeconds * 1000,
+        });
+        // 2. Classify LLM result
+        if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
+        // 3. Persist (separate try/catch for persistence diagnostics)
         try {
-          const narration = await narrateTurnLLM(input, presentation, router);
-          // Same terminal-failure rule as the interactive branch: an empty
-          // successful response must recompose as `unavailable`, never
-          // `ready`, because nothing was persisted for this batch turn.
-          if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
           runtime.store.saveTurnNarration(worldId, worldTime, narration);
-          runtime.narration.markReady(worldTime);
-        } catch { runtime.narration.markUnavailable(worldTime); }
+        } catch {
+          runtime.diagnostics({
+            kind: "scheduler",
+            category: "persistence_error",
+            provider: "scheduler",
+            durationMs: 0,
+            attempt: 0,
+            timeout: 0,
+            retryOutcome: "none",
+            turn: worldTime,
+            worldTime,
+            priority: "batch",
+            detail: "save_failed",
+          });
+          runtime.narration.markUnavailable(worldTime);
+          return;
+        }
+        runtime.narration.markReady(worldTime);
       },
       onDrop: () => runtime.narration.markUnavailable(worldTime),
     });

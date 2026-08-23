@@ -3,7 +3,7 @@ import { WorldProjector } from "../projection.js";
 import { selectTurnPresentation } from "../presentation/selector.js";
 import type { PresentationEntry } from "../presentation/types.js";
 import { sanitizePlayerFacingText } from "../game-shell/player-facing.js";
-import type { JournalTurn, PresentationThread, PresentationThreadEntry, TurnJournal } from "./types.js";
+import type { JournalNarration, JournalTurn, PresentationThread, PresentationThreadEntry, TurnJournal } from "./types.js";
 import type { TurnNarration } from "../narrative-llm.js";
 
 function deepFreeze<T>(obj: T): T {
@@ -43,7 +43,17 @@ export function attachTurnNarrations(
 ): JournalTurn[] {
   return turns.map((t) => {
     const narration = narrations.get(t.worldTime);
-    return narration && !narration.usedFallback ? { ...t, narrativeLLM: narration } : t;
+    if (!narration || narration.usedFallback) return t;
+
+    // Keep persistence/operational fields out of the player-facing journal
+    // DTO. In particular, fallbackReason must never be serialized here.
+    const journalNarration: JournalNarration = {
+      text: narration.text,
+      model: narration.model,
+      usedFallback: false,
+      latencyMs: narration.latencyMs,
+    };
+    return { ...t, narrativeLLM: journalNarration };
   });
 }
 

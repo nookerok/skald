@@ -129,8 +129,8 @@ export class ModelRouter {
     }
 
     for (const model of tryOrder) {
+      const provider = providerForModel(model);
       try {
-        const provider = providerForModel(model);
         const result = await this.chatOnce(model, messages, { provider, maxTokens: route.maxTokens, ...(route.timeoutMs !== undefined ? { timeoutMs: route.timeoutMs } : {}) });
         return {
           model,
@@ -144,6 +144,9 @@ export class ModelRouter {
         };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
+        // Preserve the candidate that actually failed. The configured router
+        // provider may differ when the model list crosses providers.
+        Object.assign(lastError, { provider, model });
         if (!shouldFallback(lastError)) throw lastError;
       }
     }
