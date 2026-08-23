@@ -91,10 +91,19 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
       playerPosition: rawPresentation.playerPosition,
     };
 
+    const responseEventIds = new Set(presentation.response?.sourceEventIds ?? []);
+    const responseCorrelations = [...new Set(
+      currentTurnEvents
+        .filter((event) => responseEventIds.has(event.eventId))
+        .map((event) => event.correlationId),
+    )];
+    const correlationId = responseCorrelations.length === 1 ? responseCorrelations[0] : undefined;
+
     const turnId = `turn:${ts}`;
     turns.push({
       turnId,
       worldTime: ts,
+      ...(correlationId ? { correlationId } : {}),
       presentation,
       sourceEventIds: currentTurnEvents.map((e) => e.eventId),
     });

@@ -26,25 +26,43 @@ export function handleCommand(
   if (command.type === "ResourceConsumeCommand") return handleResourceConsumeCommand(command, correlationId, timestamp);
   if (command.type === "ResourceProcessCommand") return handleResourceProcessCommand(command, correlationId, timestamp);
 
+  const reference = (value: { raw: string; normalized?: string } | undefined): { normalized: string } | null => {
+    const normalized = value?.normalized?.trim() || value?.raw.trim() || "";
+    return normalized.length > 0 ? { normalized } : null;
+  };
+  const referenceText = (value: { raw: string; normalized?: string } | undefined): string | null => {
+    const normalized = value?.normalized?.trim() || value?.raw.trim() || "";
+    return normalized.length > 0 ? normalized : null;
+  };
+
   if (command.type === "ActionIntentCommand" && command.mode === "travel" && command.operation === "interrupt") {
-    return { ...base, eventId: commandEventId(correlationId, "JourneyInterruptRequested"), type: "JourneyInterruptRequested", payload: { rawText: command.rawText } };
+    return { ...base, eventId: commandEventId(correlationId, "JourneyInterruptRequested"), type: "JourneyInterruptRequested", payload: {} };
   }
 
   if (command.type === "JourneyIntent") {
-    const destination = command.destination?.raw.trim() ?? "";
+    const destination = command.destination?.normalized?.trim() || command.destination?.raw.trim() || "";
     if (destination.length === 0) return { ...base, eventId: commandEventId(correlationId, "CommandRejected"), type: "CommandRejected", payload: { reason: "missing journey destination" } };
-    return { ...base, eventId: commandEventId(correlationId, "JourneyRequested"), type: "JourneyRequested", payload: { destination, routeHint: command.routeHint?.raw ?? null, rawText: command.rawText } };
+    return { ...base, eventId: commandEventId(correlationId, "JourneyRequested"), type: "JourneyRequested", payload: { destination, routeHint: referenceText(command.routeHint) } };
   }
 
   if (command.type === "InteractionCommand") {
     if (!isKnownInteractionVerb(command.verb)) return { ...base, eventId: commandEventId(correlationId, "CommandRejected"), type: "CommandRejected", payload: { reason: `unknown interaction verb: ${command.verb}` } };
-    const object = command.target?.raw.trim() ?? "";
+    const object = command.target?.normalized?.trim() || command.target?.raw.trim() || "";
     const allowsNoTarget = command.verb === "observe" || command.verb === "listen";
     if (object.length === 0 && !allowsNoTarget) return { ...base, eventId: commandEventId(correlationId, "CommandRejected"), type: "CommandRejected", payload: { reason: "missing interaction object" } };
-    return { ...base, eventId: commandEventId(correlationId, 'InteractionRequested'), type: 'InteractionRequested', payload: { verb: command.verb, object, secondaryTarget: command.secondaryTarget?.raw ?? null, instrument: command.instrument?.raw ?? null, goal: command.goal ?? null, manner: command.manner ?? null, location: null, modifiers: [] } };
+    return { ...base, eventId: commandEventId(correlationId, 'InteractionRequested'), type: 'InteractionRequested', payload: { verb: command.verb, object, secondaryTarget: referenceText(command.secondaryTarget), instrument: referenceText(command.instrument), goal: command.goal ?? null, manner: command.manner ?? null, location: null, modifiers: [] } };
   }
 
   if (!command.mode || !command.operation) return { ...base, eventId: commandEventId(correlationId, "CommandRejected"), type: "CommandRejected", payload: { reason: "missing mode or operation" } };
+  const speech = command.operation === "speak" && command.utterance
+    ? (() => {
+        const match = command.utterance.match(/^(\S+)\s+to\s+(.+)$/);
+        return match ? { relation: match[1]!, target: match[2]!.trim() } : null;
+      })()
+    : null;
+  const actionTarget = command.mode === "relocate"
+    ? reference(command.target)
+    : referenceText(command.target);
   return {
     ...base,
     eventId: commandEventId(correlationId, "ActionAttempted"),
@@ -52,13 +70,12 @@ export function handleCommand(
     payload: {
       mode: command.mode,
       operation: command.operation,
-      target: command.target ?? null,
-      secondaryTarget: command.secondaryTarget ?? null,
-      instrument: command.instrument ?? null,
+      target: actionTarget,
+      secondaryTarget: reference(command.secondaryTarget),
+      instrument: reference(command.instrument),
       manner: command.manner ?? null,
       goal: command.goal ?? null,
-      utterance: command.utterance ?? null,
-      rawText: command.rawText,
+      ...(speech ? { speech } : {}),
       interpretation: command.interpretation,
     },
   };

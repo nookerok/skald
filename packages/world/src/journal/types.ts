@@ -4,6 +4,12 @@ import type { TurnNarration } from "../narrative-llm.js";
 export interface JournalTurn {
   readonly turnId: string;
   readonly worldTime: number;
+  /**
+   * Correlation of the player command that produced this turn's selected
+   * deterministic response. It is absent for autonomous turns and for a
+   * timestamp batch whose response spans multiple correlations.
+   */
+  readonly correlationId?: string | undefined;
   readonly presentation: TurnPresentation;
   readonly sourceEventIds: readonly string[];
   /**

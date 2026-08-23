@@ -4,6 +4,15 @@ import type { ReadonlyWorld } from "../projection.js";
 import { ruleEventId } from "../ids.js";
 import { TEMPERATURE_HOT, TEMPERATURE_DANGEROUS } from "../objects/types.js";
 
+function referenceText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object") return "";
+  const reference = value as { normalized?: unknown; raw?: unknown };
+  return typeof reference.normalized === "string"
+    ? reference.normalized.trim()
+    : typeof reference.raw === "string" ? reference.raw.trim() : "";
+}
+
 /**
  * Observe rule — handles perceive/observe and perceive/listen actions.
  * Produces ObjectObserved events for objects in the current location.
@@ -16,7 +25,7 @@ export const interactionObserve: Rule<ReadonlyWorld> = {
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
     const payload = (event.payload as { originalPayload: Record<string, unknown> }).originalPayload;
     const operation = payload["operation"] as string | undefined;
-    const target = payload["target"] as { raw: string; normalized?: string } | undefined;
+    const target = payload["target"];
 
     if (operation !== "observe" && operation !== "listen" && operation !== "touch") {
       return [];
@@ -51,7 +60,7 @@ export const interactionObserve: Rule<ReadonlyWorld> = {
     }
 
     // Find matching objects
-    const targetRaw = target?.raw?.toLowerCase() ?? "";
+    const targetRaw = referenceText(target).toLowerCase();
     const matchedObjects = location!.objectIds
       .map((id) => world.objects.get(id))
       .filter((obj): obj is NonNullable<typeof obj> => obj !== undefined)
@@ -124,7 +133,7 @@ export const interactionHeat: Rule<ReadonlyWorld> = {
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
     const payload = (event.payload as { originalPayload: Record<string, unknown> }).originalPayload;
     const operation = payload["operation"] as string | undefined;
-    const target = payload["target"] as { raw: string; normalized?: string } | undefined;
+    const target = payload["target"];
 
     if (operation !== "heat") {
       return [];
@@ -158,7 +167,7 @@ export const interactionHeat: Rule<ReadonlyWorld> = {
     }
 
     // Find matching objects
-    const targetRaw = target?.raw?.toLowerCase() ?? "";
+    const targetRaw = referenceText(target).toLowerCase();
     const matchedObjects = location!.objectIds
       .map((id) => world.objects.get(id))
       .filter((obj): obj is NonNullable<typeof obj> => obj !== undefined)
@@ -257,7 +266,7 @@ export const interactionForce: Rule<ReadonlyWorld> = {
   handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
     const payload = (event.payload as { originalPayload: Record<string, unknown> }).originalPayload;
     const operation = payload["operation"] as string | undefined;
-    const target = payload["target"] as { raw: string; normalized?: string } | undefined;
+    const target = payload["target"];
 
     if (operation !== "apply_force") {
       return [];
@@ -282,7 +291,7 @@ export const interactionForce: Rule<ReadonlyWorld> = {
 
     // Find target object
     const location = world.locations.get(locationId);
-    const targetRaw = target?.raw?.toLowerCase() ?? "";
+    const targetRaw = referenceText(target).toLowerCase();
 
     const matchedObject = location?.objectIds
       .map((id) => world.objects.get(id))
@@ -547,8 +556,8 @@ export const interactionMovement: Rule<ReadonlyWorld> = {
     }
 
     // Check connections
-    const target = payload["target"] as { raw: string; normalized?: string } | undefined;
-    const targetRaw = target?.raw?.toLowerCase() ?? "";
+    const target = payload["target"];
+    const targetRaw = referenceText(target).toLowerCase();
 
     // Try to find a matching connection
     let destinationId: string | undefined;

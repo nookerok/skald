@@ -32,9 +32,10 @@ function commandRejectionText(payload: { reason?: string }): string {
   return "Я не понял, какое действие ты хочешь совершить. Опиши его иначе.";
 }
 
-function describeActionAttempt(payload: { operation: string; target?: { raw: string } | null }): string {
+function describeActionAttempt(payload: { operation: string; target?: { raw?: string; normalized?: string } | string | null }): string {
   const operation = payload.operation;
-  const target = payload.target?.raw ? relationTargetLabelOrRaw(payload.target.raw) : "";
+  const targetValue = typeof payload.target === "string" ? payload.target : payload.target?.normalized ?? payload.target?.raw;
+  const target = targetValue ? relationTargetLabelOrRaw(targetValue) : "";
   if (operation === "observe" || operation === "inspect") return target ? "Ты внимательно осматриваешь " + target + "." : "Ты оглядываешься вокруг.";
   if (operation === "listen") return target ? "Ты прислушиваешься к " + target + "." : "Ты прислушиваешься к окружающим звукам.";
   if (operation === "open") return target ? "Ты пытаешься открыть " + target + "." : "Ты ищешь, что можно открыть.";
@@ -203,7 +204,7 @@ export const TICK_PASSED: PresentationTemplate = {
 export const ACTION_ATTEMPTED: PresentationTemplate = {
   id: "action_attempted", listens: ["ActionAttempted"],
   present: (event, world) => {
-    const p = event.payload as { operation: string; target?: { raw: string } | null };
+    const p = event.payload as { operation: string; target?: { raw?: string; normalized?: string } | string | null };
     if (p.operation === "wait") {
       const journey = world.activeJourneyId ? world.journeys.get(world.activeJourneyId) : undefined;
       if (journey?.status === "active") {

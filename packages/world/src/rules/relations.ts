@@ -28,15 +28,15 @@ export const giveRule: Rule<ReadonlyWorld> = {
       ];
     }
 
-    // New format: ActionValidated from ActionAttempted with speak operation
-    // The give command is parsed as mode=communicate, operation=speak, utterance="relation to target"
-    const opPayload = originalPayload as { operation?: string; mode?: string; utterance?: string; target?: { raw?: string } };
-    if (opPayload.operation === "speak" && opPayload.mode === "communicate" && opPayload.utterance) {
-      const utterance = opPayload.utterance;
-      const match = utterance.match(/^(\S+)\s+to\s+(.+)$/);
-      if (match) {
-        const relation = match[1]!;
-        const target = match[2]!.trim();
+    // New format: ActionValidated from ActionAttempted with semantic speech
+    // metadata. The original player utterance is intentionally not persisted.
+    const opPayload = originalPayload as { operation?: string; mode?: string; speech?: { relation?: string; target?: string }; utterance?: string };
+    if (opPayload.operation === "speak" && opPayload.mode === "communicate") {
+      const semanticSpeech = opPayload.speech;
+      const legacyMatch = typeof opPayload.utterance === "string" ? opPayload.utterance.match(/^(\S+)\s+to\s+(.+)$/) : null;
+      const relation = semanticSpeech?.relation ?? legacyMatch?.[1];
+      const target = semanticSpeech?.target?.trim() || legacyMatch?.[2]?.trim();
+      if (relation && target) {
         return [
           {
             eventId: ruleEventId(event.eventId, "RelationChanged", 0),

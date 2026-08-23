@@ -53,8 +53,10 @@ function objectById(world: ReadonlyWorld, id: string | undefined): WorldObject |
 }
 
 function namedObject(world: ReadonlyWorld, raw: unknown, subjectId = PLAYER_ID): WorldObject | undefined {
-  if (typeof raw !== "object" || raw === null) return undefined;
-  const query = String((raw as { raw?: string }).raw ?? "").trim().toLowerCase();
+  const reference = typeof raw === "string" ? raw : raw && typeof raw === "object"
+    ? ((raw as { normalized?: unknown; raw?: unknown }).normalized ?? (raw as { raw?: unknown }).raw)
+    : "";
+  const query = typeof reference === "string" ? reference.trim().toLowerCase() : "";
   if (!query) return undefined;
   return [...world.objects.values()].find((item) => {
     const visible = objectVisible(world, item, subjectId);

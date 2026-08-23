@@ -15,6 +15,7 @@ describe("buildTurnJournal", () => {
     const journal = buildTurnJournal(events);
     expect(journal.turns).toHaveLength(1);
     expect(journal.turns[0]!.worldTime).toBe(1);
+    expect(journal.turns[0]!.correlationId).toBe("cmd-1");
     expect(journal.turns[0]!.sourceEventIds).toEqual(["m-1", "t-1"]);
   });
 

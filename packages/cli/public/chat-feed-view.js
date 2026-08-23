@@ -197,6 +197,14 @@ function sortKey(item) {
   return [Number.isFinite(time) ? time : 0, Number.isFinite(createdAt) ? createdAt : 0, Number.isFinite(turnSeq) ? turnSeq : 0];
 }
 
+function actionConversationMatches(candidate, journalTurn) {
+  if (candidate.inputClass !== "action") return false;
+  if (typeof candidate.correlationId === "string" && typeof journalTurn.correlationId === "string") {
+    return candidate.correlationId === journalTurn.correlationId;
+  }
+  return candidate.worldTimeAfter === journalTurn.worldTime;
+}
+
 export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOrSnapshot = null, snapshotArg = null) {
   const feed = byId("chat-feed");
   if (!feed) return;
@@ -218,7 +226,7 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
   const items = [];
   const matchedConversationKeys = new Set();
   for (const item of journalItems) {
-    const conversation = uniqueConversationTurns.find((candidate) => candidate.inputClass === "action" && candidate.worldTimeAfter === item.turn.worldTime);
+    const conversation = uniqueConversationTurns.find((candidate) => actionConversationMatches(candidate, item.turn));
     if (conversation) {
       matchedConversationKeys.add(conversation.idempotencyKey);
       items.push({ kind: "pair", turn: item.turn, conversation });

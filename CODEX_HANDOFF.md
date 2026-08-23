@@ -1,3 +1,21 @@
+# Current work (2026-08-23 — ConversationTurn review fixes)
+
+- Player input is no longer copied into newly emitted Domain Event payloads:
+  `rawText`, nested parser `raw` references and `utterance` are removed at the
+  command boundary; relation handling consumes semantic speech metadata while
+  retaining a read-only legacy fallback for old events.
+- Journal turns expose the selected response correlation when unambiguous;
+  Chat Feed pairs action turns by `correlationId` first and only falls back to
+  world time. Legacy command transcript timing now reads the projection
+  snapshot directly instead of deriving `timestamp - 1`.
+- Regression coverage includes serialized Domain Event payloads, equal-time
+  action pairing, and journal correlation propagation.
+- `npm run validate` PASS: 135 test files, 1654 passed, 1 skipped; typecheck,
+  Canon, simulation/eval, adventure acceptance and diff checks PASS.
+- Fixed NTFS browser QA remains BLOCKED in this session: thread
+  `019fa52b-1610-7b23-9567-37891d24c782` was unavailable
+  (`RECEIVER_NOT_FOUND`). No deployment or production SQLite mutation was run.
+
 # Current work (2026-08-22 — durable ConversationTurn transcript)
 
 - ConversationTurn is now a read-side persistence contract. SQLite schema v9
@@ -9,8 +27,8 @@
 - Journal DTOs expose player-facing conversationTurns without requestHash;
   command responses return the persisted turn and the chat feed hydrates
   `ТЫ → МАСТЕР` pairs after reload while keeping LLM narration separate.
-- `npm run validate` PASS. Three local commits cover persistence, integration
-  and UI hydration.
+- `npm run validate` PASS. The initial three local commits cover persistence,
+  integration and UI hydration; the review fixes are tracked above.
 - Fixed NTFS browser QA is BLOCKED in this session: thread
   `019fa52b-1610-7b23-9567-37891d24c782` was unavailable
   (`RECEIVER_NOT_FOUND`). No deployment or production SQLite mutation was run.

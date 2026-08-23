@@ -141,6 +141,7 @@ export function runCommand(
   const parsed = parseIntent(input);
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return parsed;
 
+  const worldTimeBefore = app.projection.getSnapshot().time;
   const firstEvent = handleCommand(parsed, correlationId, timestamp);
   const options: ProcessOptions<ReturnType<App["projection"]["getSnapshot"]>> = app.store
     ? {
@@ -151,7 +152,7 @@ export function runCommand(
             correlationId,
             idempotencyKey,
             playerText: input,
-            worldTimeBefore: timestamp - 1,
+            worldTimeBefore,
             stagedEvents,
             projectedWorld,
           }),
@@ -216,8 +217,8 @@ export function runCommandCycle(
   const parsed = parseIntent(input);
   if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return parsed;
 
-  const ts = app.projection.getSnapshot().time + 1;
-  const worldTimeBefore = ts - 1;
+  const worldTimeBefore = app.projection.getSnapshot().time;
+  const ts = worldTimeBefore + 1;
   const correlationId = `cmd-${ts}`;
   const firstEvent = handleCommand(parsed, correlationId, ts);
   const tickEvent: DomainEvent = {

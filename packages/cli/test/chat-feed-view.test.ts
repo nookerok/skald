@@ -35,9 +35,10 @@ function allText(node) {
   return node.textContent + " " + (node.children || []).map(allText).join(" ");
 }
 
-function turn(t, text) {
+function turn(t, text, correlationId) {
   return {
     worldTime: t,
+    ...(correlationId ? { correlationId } : {}),
     presentation: {
       response: { kind: "action_outcome", text, sourceEventIds: ["event-" + t] },
       primary: { text, discoveryMark: null, sourceEventIds: ["event-" + t] },
@@ -47,8 +48,8 @@ function turn(t, text) {
   };
 }
 
-function conversation(key, inputClass, playerText, responseText, time, createdAt, turnSeq = 1) {
-  return { turnSeq, worldId: "world", correlationId: "conversation:" + key, idempotencyKey: key, playerText, inputClass, worldTimeBefore: time, worldTimeAfter: time, responseKind: inputClass === "inquiry" ? "inquiry_answer" : inputClass === "clarification" ? "clarification" : "action_outcome", responseText, createdAt };
+function conversation(key, inputClass, playerText, responseText, time, createdAt, turnSeq = 1, correlationId = "conversation:" + key) {
+  return { turnSeq, worldId: "world", correlationId, idempotencyKey: key, playerText, inputClass, worldTimeBefore: time, worldTimeAfter: time, responseKind: inputClass === "inquiry" ? "inquiry_answer" : inputClass === "clarification" ? "clarification" : "action_outcome", responseText, createdAt };
 }
 
 describe("Chronicle Feed (ADR-0024) — chat core", () => {
@@ -125,6 +126,21 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(doc.feed.children).toHaveLength(2);
     expect(rendered).toContain("осматриваюсь");
     expect(rendered.match(/Действие принято\./g)).toHaveLength(1);
+  });
+
+  it("pairs equal-time action turns by correlationId before falling back to world time", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const first = conversation("a-1", "action", "первое действие", "Ответ первому", 5, 10, 1, "cmd-a");
+    const second = conversation("a-2", "action", "второе действие", "Ответ второму", 5, 20, 2, "cmd-b");
+    renderChatFeed([
+      turn(5, "Ответ первому", "cmd-a"),
+      turn(5, "Ответ второму", "cmd-b"),
+    ], [first, second], [], null);
+    const rendered = allText(doc.feed);
+    expect(doc.feed.children).toHaveLength(4);
+    expect(rendered.indexOf("первое действие")).toBeLessThan(rendered.indexOf("Ответ первому"));
+    expect(rendered.indexOf("второе действие")).toBeLessThan(rendered.indexOf("Ответ второму"));
+    expect(rendered).not.toContain("Ответ первому Ответ второму");
   });
 
   it("renders inquiry and clarification turns without a journal turn", async () => {
