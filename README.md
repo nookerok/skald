@@ -8,12 +8,16 @@ RPG-систему — он открывает законы мира, а мир 
 Исполняемая выжимка для агента/разработчика — в [`AGENTS.md`](AGENTS.md).
 Если код противоречит `AGENTS.md`, код неправ.
 
-> **Статус:** v2 архитектура завершена. 16 рабочих правил, 301 тест (+1 opt-in skip),
-> все сознательно отложенные v2-блоки (§5 ARCHITECTURE.md) реализованы.
-> Iteration 9: Narrative Adapter v0 (шаблонный). Iteration 10: Narrative Adapter v1 (LLM).
-> Iteration 11: HTTP сервер + SQLite persistence + systemd deployment.
-> v3+ направления (Runtime Rule Synthesis, распределённый RuleEngine,
-> Biography pruning) сознательно отложены (§11).
+> **Текущее состояние (2026-08-23):** Event-Sourcing core расширен текущим
+> runtime: multi-world HTTP API, SQLite schema v9, observer-scoped read models,
+> Intent Gateway, optional LLM adapters и durable read-side `ConversationTurn`
+> transcript. Последний `npm run validate`: 135 test files, 1654 passed,
+> 1 skipped; typecheck, Canon, simulation/eval, Adventure acceptance и diff
+> checks проходят. Runtime Rule Synthesis, распределённая обработка,
+> Biography pruning и persisted Projection snapshots сознательно отложены.
+>
+> Таблица Iteration 0–8 ниже — исторический снимок раннего v2 baseline, а не
+> описание текущего числа правил, тестов или API.
 
 ---
 
@@ -40,26 +44,33 @@ RPG-систему — он открывает законы мира, а мир 
 
 - **TypeScript** strict mode, ESM, Node.js
 - **npm workspaces** monorepo
-- **vitest** — тест-раннер (зафиксирован в Iteration 0)
-- Никаких баз данных, внешних сервисов, LLM в runtime v2 — всё in-memory,
-  детерминировано, воспроизводимо из Event Log
+- **vitest** — тест-раннер
+- **SQLite (`node:sqlite`)** — durable Event Log, idempotency и read-side
+  persistence; Projection по-прежнему полностью восстанавливается replay-ом
+- **LLM adapters** — optional, bounded и неавторитетные: Intent Gateway
+  интерпретирует ввод, Narrative только переизлагает уже выбранные факты
+- Authoritative simulation остаётся детерминированной и воспроизводимой из
+  Event Log; системное время используется инфраструктурой для `createdAt` и
+  metadata, а также для transient parser IDs, но не как вход WorldState
 
 ---
 
 ## Архитектура
 
 ```
-Player
-  → PlayerCommand (не сохраняется; например MoveCommand)
-  → Command Handler (infra, НЕ Rule; без доступа к World;
-     только структурная валидация)
-      ├─ невалидна → CommandRejected (Domain Event)
-      └─ валидна   → <Action>Requested (первый Domain Event)
-  → RuleEngine (очередь: dequeue → run rules по фазам → enqueue → repeat)
-  → Rules по фазам: Validation → Physics → Consequence → Notification
-  → новые Domain Events (MovementSucceeded / MovementBlocked / ...)
-  → World Projection (атомарный snapshot-update после всего батча)
-  → Narrative (только описывает, не влияет на мир — будущий v3+)
+Player input
+  → Intent Gateway (deterministic parser или validated LLM proposal)
+      ├─ inquiry / clarification
+      │    → read-side response → ConversationTurn
+      │      (без Domain Events и изменения WorldState)
+      ├─ action / wait / accepted offline-command
+      │    → Command Handler → RuleEngine
+      │    → atomic commit (Events + idempotency + transcript)
+      └─ advance N / autonomous offline ticks
+           → RuleEngine → Events + idempotency (без player transcript)
+  → Event Log + World Projection (для веток с Events)
+  → Presentation / Journal / optional Narrative LLM
+  → HTTP DTO → browser Chat Feed (ТЫ → МАСТЕР)
 ```
 
 ### Инварианты (AGENTS.md, нарушать нельзя)
@@ -92,13 +103,19 @@ Player
 
 ```
 packages/
+  patterns/         Pattern Ontology
+  observation/      Observation Contract, schemas и pipeline skeleton
+  lenses/           pure observer-scoped lens layer
+  belief/           observer-scoped belief model
+  explain/          observer-scoped explanations
+  trace/            observer-scoped trace data
+  events/           non-canonical reactive notifications
   event-bus/        DomainEvent + EventBus (append-only log + pub/sub)
-  intent-parser/    parseCommand → PlayerCommand | ParseError (move / give)
-  rule-engine/      RuleRegistry + RuleEngine (phased queue, staged commit,
-                    MAX_ITERATIONS, snapshot-consistency)
-  world/            WorldProjector, ReadonlyWorld, rules, biography,
-                    strategy-registry
-  cli/              createApp (composition root), runCommand, runTick, REPL
+  intent-parser/    syntax/semantic parsing без world decisions
+  rule-engine/      phased queue, staged commit, snapshot-consistency
+  world/            Projection, Rules, Narrative, Presentation, region,
+                    journeys, resources, observer read models
+  cli/              HTTP/REPL composition roots, SQLite, browser UI, deploy
 ```
 
 Новые top-level пакеты не создаются (AGENTS.md "Workspace boundary").
@@ -106,7 +123,13 @@ packages/
 
 ---
 
-## Domain Events (v2)
+## Domain Events (исторический v2 baseline)
+
+Ниже сохранён ранний набор Iteration 0–8. Текущий каталог событий шире и
+включает Interaction Model, critical checks, journeys, living-region spatial
+events, hydrology, weather, heat, settlement, resources и action capabilities;
+его source of truth — `packages/world/src/event-types.ts` и зарегистрированные
+Rules в `packages/world/src/rules/registry.ts`.
 
 | Категория | Типы |
 |---|---|
@@ -126,7 +149,10 @@ packages/
 
 ---
 
-## Rules (18 рабочих)
+## Rules (18 рабочих в историческом v2 baseline)
+
+Следующий список описывает ранний Iteration 8. В текущем runtime полный набор
+собирается функцией `createRules()` и существенно шире этого baseline.
 
 ### Validation (1)
 
@@ -178,8 +204,10 @@ packages/
 ```bash
 source ~/.nvm/nvm.sh && nvm use 22    # WSL Ubuntu (или любой Node >= 22)
 npm install
-npm test          # vitest run, 215 тестов
+npm test          # полный Vitest suite
 npm run typecheck # tsc --noEmit, strict
+npm run validate  # shell syntax + typecheck + tests + Canon + simulation +
+                  # eval + acceptance + diff-check
 
 # REPL (интерактивный):
 node --import tsx packages/cli/src/repl.ts
@@ -217,7 +245,8 @@ Situation launch → spread → end. Полный цикл адаптации м
 
 ## Testing
 
-- **215 тестов, 16 файлов** — все зелёные.
+- Текущий repository gate: `npm run validate`.
+- На момент последней проверки: **135 test files, 1654 passed, 1 skipped**.
 - Каждое правило — отдельный unit-тест по шаблону `Given Event + ReadonlyWorld
   → Rule → Expected Events` (AGENTS §Testing), БЕЗ RuleEngine.
 - **Projection Purity CI-тест** — обязателен: удалить Projection → replay
@@ -226,14 +255,15 @@ Situation launch → spread → end. Полный цикл адаптации м
 - Интеграционные тесты (с Iteration 1, когда ≥5 правил) — в
   `packages/cli/test/integration.test.ts`, доказывают связку end-to-end.
 
-### Известное отклонение (зафиксировано в AGENTS.md)
+### Известное архитектурное решение (AGENTS.md, инварианты 2 и 9)
 
 `WorldProjector` обновляется **прямым синхронным вызовом** из `RuleEngine`
-как часть atomic commit, **НЕ через `EventBus.subscribe()`**. AGENTS §12.2
-требует атомарного обновления Projection вместе с log commit — generic pub/sub
-этого не гарантирует. `EventBus.subscribe()` остаётся для неавторитетных
-read-only потребителей (Narrative Adapter будущего, CLI-printer). Введение
-`subscribeAll()` для wildcard-подписки зарезервировано для будущих read models.
+как часть atomic commit, **НЕ через `EventBus.subscribe()`**. AGENTS требует
+атомарного обновления Projection вместе с log commit — generic pub/sub
+этого не гарантирует. `EventBus.subscribe()` допустим для неавторитетных
+read-only потребителей (Narrative/LLM, CLI-printer). Текущий EventBus не
+предоставляет `subscribeAll()`; wildcard-подписка остаётся отдельным будущим
+контрактом, а не частью текущего runtime.
 Это отклонение невидимо для Projection Purity тестов.
 
 ---
@@ -253,23 +283,24 @@ read-only потребителей (Narrative Adapter будущего, CLI-prin
 | 5 | **Biography graph** — флагман №2 завершён (read-side utility) | 12 | 147 | `iteration-5` |
 | 6 | Heat law + Relations (§5.6 Magic → World Law, §5.11 Social Graph) | 15 | 177 | `iteration-6` |
 | 7 | Time budget + Idempotency (§5.12, §9.5 — продакшн-готовность) | 16 | 186 | `iteration-7` |
-| 8 | **Player Strategy** (§5.8 — мир без игрока) — v2 final | 18 | 215 | `iteration-8` |
+| 8 | **Player Strategy** (§5.8 — мир без игрока) — v2 baseline | 18 | 215 | `iteration-8` |
 
 `main` содержит все коммиты (fast-forward merge).
 
 ---
 
-## Что сознательно НЕ реализовано (v3+, §11 ARCHITECTURE.md)
+## Что сознательно НЕ реализовано (текущие deferred направления)
 
 - **Runtime Rule Synthesis** — генерация новых правил миром в ответ на
   накопленное поведение игрока. Требует проработки безопасности (валидация,
   песочница). Запрещено в v1/v2.
-- **Narrative Adapter с LLM** — read-side слой для описания событий и
-  генерации диалогов. Никогда не авторитетен (§6 Authority Hierarchy).
 - **Distributed / Parallel RuleEngine** — сейчас последователен и однопотен.
 - **Biography pruning policy** — граф `causationId`-связей при миллионах
   событий. Решается по факту реального объёма.
 - **Snapshot persistence** — кэш Projection. Оптимизация, не источник истины.
+
+Narrative LLM и Intent Gateway уже реализованы как optional read-side/
+interpretation adapters; они не входят в authoritative simulation.
 
 ---
 
@@ -288,11 +319,18 @@ read-only потребителей (Narrative Adapter будущего, CLI-prin
 - [`packages/world/src/biography.ts`](packages/world/src/biography.ts) —
   read-side utility: `buildBiographyGraph`, `findCausalChain`,
   `findCrossReference` (решает cross-tick causation gap).
-- [`packages/cli/src/index.ts`](packages/cli/src/index.ts) — composition root
-  (`createApp`, `createPersistentApp`), `runCommand`, `runTick`, `runCommandCycle`,
-  `runOfflineTicks`.
-- [`packages/cli/src/persistence.ts`](packages/cli/src/persistence.ts) — SQLite
-  persistence (`createSqliteStore`).
+- [`packages/cli/src/index.ts`](packages/cli/src/index.ts) — legacy and
+  persistent composition roots, command/tick cycles.
+- [`packages/cli/src/runtime/world-runtime-manager.ts`](packages/cli/src/runtime/world-runtime-manager.ts) —
+  production multi-world runtime, replay, RuleRegistry and durable committer.
+- [`packages/cli/src/http/world-handlers.ts`](packages/cli/src/http/world-handlers.ts) —
+  scoped command, inquiry, clarification, journal and offline paths.
+- [`packages/cli/src/persistence/schema.ts`](packages/cli/src/persistence/schema.ts) —
+  SQLite schema v9, including `conversation_turns`.
+- [`packages/cli/src/persistence/sqlite-store.ts`](packages/cli/src/persistence/sqlite-store.ts) —
+  SQLite persistence and atomic Event/idempotency/transcript commits.
+- [`packages/cli/src/conversation/types.ts`](packages/cli/src/conversation/types.ts) —
+  read-side `ConversationTurn` contract.
 - [`packages/cli/src/http-server.ts`](packages/cli/src/http-server.ts) — HTTP
   server factory (`startServer`).
 - [`packages/cli/deploy/skald.service`](packages/cli/deploy/skald.service) —
@@ -312,8 +350,11 @@ npm run start:server
 SKALD_HOST=0.0.0.0 SKALD_PORT=3000 SKALD_DB_PATH=/tmp/skald.sqlite npm run start:server
 ```
 
-HTTP API: `GET /api/state`, `POST /api/command`, `POST /api/wait`,
-`GET /api/narrative`, `GET /api/narrative-llm`, `GET /api/events`, `GET /api/health`.
+HTTP API includes catalog/new-game routes plus scoped world routes for
+`state`, `command`, `wait`, `offline-command`, `journal`, `discoveries`,
+`guidance`, `narrative`, `events`, `game-shell`, `beliefs`, observer
+session/presence, map and observer threads. Unscoped legacy paths map to the
+primary world for compatibility.
 
 Browser UI: `http://localhost:3000`.
 

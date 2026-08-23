@@ -1,11 +1,18 @@
 # Living World — Architecture
 
-Сводный документ всех решений, согласованных в ходе обсуждения. Версия: после
-уточнений по Consequences / Situations / Observations / Authority Hierarchy /
-детерминированности / Projection Purity + backfill решений Iterations 4-8
-(situations.end, heat law, relations, player strategy, validation gate,
-idempotency). **Статус (по итогам Iteration 8):** v2 архитектура завершена,
-18 рабочих правил, 215 тестов.
+Сводный документ архитектурных решений и исторических baseline-срезов. Версия:
+актуализация текущего runtime (2026-08-23) поверх решений Iterations 0-8.
+
+> **Как читать документ.** Разделы MVP-0 и таблица Iteration 0–8 сохраняют
+> историческое состояние ранней v2 и её числа. Текущий код уже включает
+> multi-world HTTP runtime, SQLite schema v9, Intent Gateway, living-region
+> projection, observer-scoped DTOs, optional LLM adapters и read-side
+> `ConversationTurn` transcript. Последний repository gate: 135 test files,
+> 1654 passed, 1 skipped.
+
+Authoritative invariants остаются прежними: Event Log — единственный источник
+истины; Projection replay-pure; Rules детерминированы; Narrative/LLM и
+ConversationTurn не являются authoritative state.
 
 ## Инварианты конституции (не подлежат нарушению)
 
@@ -184,7 +191,7 @@ Then: Expected Events
 
 ---
 
-## 5. Расширенная архитектура (v2, согласована, ещё не реализована)
+## 5. Архитектурные решения v2 (исторический baseline; реализованные вертикальные срезы отмечены ниже)
 
 ### 5.1 Consequences — последствия как долгоживущие данные
 
@@ -207,7 +214,12 @@ TickPassed → revengeRule → if hatred > 80 → RaidStarted
 
 Отдельного `ConsequenceScheduler` не существует.
 
-**Открытый вопрос (не решён, требует решения до реализации):** как истёкшие Consequences (`expiresAt` в прошлом) удаляются из Projection? Поскольку выделенного scheduler'а нет, предлагаемый механизм: правило `consequences.expire`, слушающее `TickPassed`, сравнивает `expiresAt` с текущим временем мира и эмитит `ConsequenceExpired`, который Projector использует для удаления записи. Это нужно зафиксировать в AGENTS.md явно, иначе Codex либо будет мутировать Projection в обход событий, либо не реализует очистку вовсе.
+**Решение реализовано:** выделенного scheduler'а нет; правило
+`consequences.expire` слушает `TickPassed`, сравнивает `expiresAt` с игровым
+временем и эмитит `ConsequenceExpired`, который Projector использует для
+удаления записи. Реализация находится в
+`packages/world/src/rules/consequences.ts`; Rule/Projection тесты в
+`packages/world/test/` покрывают это решение.
 
 ### 5.2 Прогресс — активация, а не генерация правил
 
@@ -332,9 +344,12 @@ reconstructs a disposable `SpatialWorldProjection`. The normal browser never
 receives this truth projection. It receives only an `ObserverMapDTO` derived
 through Observation and Belief, with uncertainty and freshness preserved.
 
-This is an architecture proposal, not a runtime claim. Region Events, Rules,
-Projection fields, map DTOs, streaming and UI require explicit vertical slices
-and replay/non-disclosure tests before they may be reported as implemented.
+The first living-region vertical slice is now present in runtime: compiled
+region bootstrap events, `SpatialWorldProjection`, journey Rules, progressive
+observer knowledge, `ObserverMapDTO`, scoped map HTTP routes and browser DTO
+renderers. Authoring proposals/images remain design-time only; runtime reads
+the generated compiled bundle and Event Log. Further region expansion still
+requires explicit vertical slices and replay/non-disclosure tests.
 
 ### 5.4 Situations — долгоживущие правила во времени
 
@@ -477,9 +492,13 @@ architectural regression:NEGMLY штамма tick-события зависим�
 replay-детерминизм (tick мог бы идти с другим `causationId` при replay, если
 log изменился). Композитная биография — это и есть правильное решение.
 
-### 5.10 Временная шкала — представление, не данные
+### 5.10 Временная шкала — представление, не authoritative данные
 
-Timeline не хранится отдельно. Строится запросом к Event Log по диапазону времени и представляется Narrative/LLM-слоем в читаемом виде. Данные не дублируются.
+World timeline/journal строится запросом к Event Log по диапазону времени и
+представляется Presentation/Narrative-слоем. Player input и deterministic
+response дополнительно сохраняются в read-side `conversation_turns` как
+`ConversationTurn`; эта таблица не является Projection, не создаёт Domain
+Events и не влияет на WorldState.
 
 ### 5.11 Социальный граф — Relation Edges
 
@@ -510,7 +529,18 @@ validation gate → `GiveValidated` → правило `relations.give` →
 
 ### 5.13 Контекст персонажа для Narrative (вместо отдельного "Character Engine")
 
-Идея "персонаж — это развивающаяся личность, а не просто набор чисел" реализуется не как новое хранилище состояния, а как расширенный запрос Narrative Adapter к уже существующим проекциям: Observations (§5.3) + Relation Edges (§5.11) + активные Consequences (§5.1) + Biography-граф (§5.9). Narrative Adapter собирает эти данные в контекст для LLM при генерации описания или диалога. Никакая новая сущность в World не появляется — иначе Narrative стал бы источником фактов, что запрещено Authority Hierarchy (§6).
+Идея "персонаж — это развивающаяся личность, а не просто набор чисел" не
+создаёт отдельное authoritative хранилище. Deterministic Narrative строит
+presentation и world-state entries из Events и Projection, включая
+Observations (§5.3), активные Consequences (§5.1) и Relation Edges (§5.11).
+`buildBackgroundNarrativeContext` отдельно формирует read-side context из
+профиля, знаний, testimony, spatial refs, relations и доступных предметов;
+Biography-граф остаётся отдельной read-side utility (§5.9). Текущий
+`narrateLLM` получает только выбранные `primary`/`notable` facts, deterministic
+response, worldTime и playerPosition; Biography и background context не входят
+в его prompt. Intent Gateway отдельно использует bounded LLM proposal только
+для интерпретации пользовательского текста. Ни Narrative, ни Gateway не
+выбирают факты, исходы или состояние мира.
 
 ---
 
@@ -532,6 +562,10 @@ Narrative / LLM   — интерпретирует происходящее, н�
 3. Rules никогда не изменяют World напрямую, а только создают новые события.
 4. Narrative никогда не изменяет мир. Только интерпретирует события для игрока.
 5. LLM не является источником истины. Он объясняет происходящее, но не определяет состояние мира.
+
+`ConversationTurn`, `turn_narrations`, Observer/Belief DTOs и другие
+read-side таблицы/представления могут хранить или переизлагать наблюдаемую
+информацию, но не входят в authoritative WorldState и не заменяют Event Log.
 
 ---
 
@@ -559,7 +593,11 @@ Narrative / LLM   — интерпретирует происходящее, н�
 - `CLI`: простой REPL, выводящий события и текущую позицию игрока.
 - Тесты: publish/subscribe, intent parser, command handler (structural validation), wall blocks/succeeds, projection обновление, очередь событий до опустошения.
 
-**Явно не реализуется на этом шаге:** магия, NPC, discovery, Consequences, Situations, Observations, Biography, Economy, LLM-интеграция.
+**Историческая оговорка:** перечисление выше описывает только первый MVP-0
+срез. В текущем runtime Consequences, Situations, Observations, Biography,
+settlement/relations world laws, Intent Gateway и optional LLM read-side
+adapters уже имеют отдельные вертикальные срезы; эти строки не являются
+текущим статусом.
 
 ---
 
@@ -615,7 +653,7 @@ TimeAdvanced / TickPassed / DayEnded / SeasonChanged
 
 Replay Event Log идемпотентен по построению — при детерминированных Rules (см. §9.1) одинаковый лог всегда даёт одинаковую Projection, повторных применений одного и того же Event в рамках нормального потока не происходит.
 
-Проблема идемпотентности актуальна на **входе**, а не при replay: если внешний клиент (сеть, повторный клик, retry) дважды отправит один и тот же `PlayerCommand`, RuleEngine не должен дважды обработать его и породить дублирующиеся Domain Events. Решение: каждая внешняя команда несёт клиентский `idempotencyKey`; входная граница (CLI/API) проверяет наличие ключа перед обработкой и игнорирует дубликат.
+Проблема идемпотентности актуальна на **входе**, а не при replay: если внешний клиент (сеть, повторный клик, retry) дважды отправит один и тот же `PlayerCommand`, RuleEngine не должен дважды обработать его и породить дублирующиеся Domain Events. Решение: каждая внешняя команда несёт клиентский `idempotencyKey`; входная граница (CLI/API) проверяет наличие ключа перед обработкой и игнорирует дубликат. Для `ConversationTurn` store-level replay возвращает исходную запись при том же `request_hash`, а другой текст под тем же ключом даёт conflict. На обычной command HTTP-границе inquiry/clarification replay возвращает `200` с `replayed: true`; duplicate action возвращает совместимый `409` с исходным `conversationTurn`. `/offline-command` сохраняет свой совместимый `200` replay с `resolution: "already_processed"` для принятого action. Hash mismatch на этих границах возвращает `409`; второй turn не создаётся.
 
 ### 9.6 Projection Purity Rule (инвариант конституции)
 
@@ -690,7 +728,11 @@ Domain Event описывает факт, который уже произошё
 Это не пробелы и не забытые задачи — это темы, по которым решение осознанно не принимается сейчас, потому что любое решение сегодня было бы гаданием без реального опыта разработки. Явная фиксация здесь защищает от двух крайностей: (а) кто-то реализует это "по-своему" без обсуждения, (б) появляется ощущение незавершённости архитектуры.
 
 - **Tick granularity** — ~~точная единица игрового времени (ход/минута/час) и правило "сколько Tick проходит за одно действие игрока". Решается до реализации первой Tick-based Situation (см. §9.2).~~ **Зафиксировано в Iteration 2 (§9.2):** 1 ход = 1 тик. Открытых вопросов по гранулярности tick'а нет; при необходимости batch-продвижения времени в `PlayerOffline` (напр. `advance N` несколькими `TickPassed` подряд) — никакой новой политики не требуется, каждый `TickPassed` обновляет `world.time` на `delta`.
-- **Biography pruning policy** — граф `causationId`-связей (§9.8, §5.9) при миллионах событий: хранить полностью или только "значимые" события, и кто определяет значимость (обязательно детерминированный Rule, не LLM). Решается по факту, когда Biography реально начнёт реализовываться.
+- **Biography pruning policy** — уже реализованный read-side граф
+  `causationId`-связей (§9.8, §5.9) при миллионах событий: хранить полностью
+  или только "значимые" события, и кто определяет значимость (обязательно
+  детерминированный Rule, не LLM). Решается по факту, когда появится реальный
+  объём данных.
 - **Runtime Rule Synthesis (v3+)** — генерация новых правил миром в ответ на накопленное поведение игрока, требует отдельной проработки безопасности (валидация, песочница). Явно запрещено в v1 (см. §5.2).
 - **Distributed / Parallel RuleEngine** — сейчас RuleEngine последователен и однопоточен, вопрос параллельной обработки не имеет предмета, пока не появится реальная потребность в масштабировании.
 - **Aggregate boundaries** (Player/Village/Guild/Kingdom как границы согласованности) — актуально только при появлении распределённой обработки или шардинга Projection; сейчас всё выражается через Entity без разделения на агрегаты.
@@ -715,7 +757,7 @@ Domain Event описывает факт, который уже произошё
 
 Canonical (единственная авторитетная) Projection обновляется один раз — атомарно, вместе с коммитом staged Event Log — после успешного завершения всей обработки очереди, порождённой этой командой. Если где-либо в цепочке Rule бросает исключение (см. §9.4), откатывается вся цепочка целиком: staged Event Log отбрасывается, canonical Projection не изменяется вовсе, как если бы команда не поступала.
 
-**Уточнение по итогам реализации MVP-0 (Iteration 0):** механизм обновления Projection — прямой синхронный вызов `WorldProjector` со стороны `RuleEngine` как часть атомарного коммита батча, а не подписка через generic `EventBus.subscribe()`. Причина: pub/sub с произвольными подписчиками не гарантирует, что Projection обновится синхронно и ровно один раз сразу после коммита canonical Event Log — а именно эта гарантия и есть содержание §12.1–12.2. `EventBus.subscribe()` остаётся корректным каналом для неавторитетных read-only-потребителей (Narrative Adapter, CLI-printer, отладочные логи), которым синхронность с коммитом не требуется; для них вводится `subscribeAll()` (wildcard-подписка). `WorldProjector` в эту категорию не входит и не должен туда переводиться.
+**Уточнение по итогам реализации MVP-0 (Iteration 0):** механизм обновления Projection — прямой синхронный вызов `WorldProjector` со стороны `RuleEngine` как часть атомарного коммита батча, а не подписка через generic `EventBus.subscribe()`. Причина: pub/sub с произвольными подписчиками не гарантирует, что Projection обновится синхронно и ровно один раз сразу после коммита canonical Event Log — а именно эта гарантия и есть содержание §12.1–12.2. `EventBus.subscribe()` допустим как канал для неавторитетных read-only-потребителей (Narrative/LLM, CLI-printer, отладочные логи), которым синхронность с коммитом не требуется. Текущий EventBus не содержит `subscribeAll()`; wildcard-подписка остаётся deferred-контрактом для будущих read models. `WorldProjector` в эту категорию не входит и не должен туда переводиться.
 
 ### 12.3 Политика конфликтов
 
@@ -760,7 +802,13 @@ Projection несёт `eventNumber` (порядковый номер после�
 
 > Parser выполняет только синтаксическую и семантическую интерпретацию пользовательского ввода. Он никогда не принимает игровые решения и не разрешает неоднозначность, если для это требует знание мира. Любая неоднозначность должна быть разрешена либо пользователем (уточняющий вопрос на уровне интерфейса), либо Rules после появления Domain Event.
 
-Это распространяется и на будущий NLP/LLM-парсер: даже когда `move north` превратится в свободный текст, Parser переводит текст в `PlayerCommand` и не более того. Если для интерпретации неоднозначной фразы требуется знание текущего состояния мира ("а что значит 'ударить' в данной ситуации") — это уже задача Rules, читающих World Projection, а не Parser'а. Иначе LLM в парсере постепенно начнёт "догадываться", что игрок хотел, и станет скрытым источником игровых решений в обход Rules — прямое нарушение Authority Hierarchy (§6).
+Это распространяется и на текущий Intent Gateway: deterministic parser или
+LLM proposal переводит свободный текст в существующий transient intent.
+Schema/capability validation и world-aware preflight выполняются до
+authoritative command path; LLM не выбирает исход, target identity, route или
+world facts. Если для интерпретации неоднозначной фразы требуется знание мира,
+она завершается clarification либо передаётся в Rules после появления Domain
+Event.
 
 ### 12.9 Политика удаления событий
 
@@ -768,11 +816,14 @@ Projection несёт `eventNumber` (порядковый номер после�
 
 ---
 
-*Документ отражает состояние v2 архитектуры (по итогам Iteration 8). Все
-сознательно отложенные v2-блоки (§5) реализованы, инварианты держатся на 215
-тестах. v3+ направления (Runtime Rule Synthesis, Distribution, Narrative
-Adapter с LLM, Biography pruning) зафиксированы в §11 как
-исследовательские — не задачи для кода без отдельного architects' ревью.*
+*Документ объединяет исторические решения v2 и текущие runtime-уточнения.
+Числа Iteration 0–8 не являются текущей статистикой. На 2026-08-23 полный
+repository gate проходит с 135 test files, 1654 passed и 1 skipped. Runtime
+Rule Synthesis, Distribution/Parallel RuleEngine, Biography pruning и
+persisted Projection snapshots остаются исследовательскими направлениями.
+Narrative LLM и Intent Gateway реализованы как неавторитетные adapters;
+ConversationTurn — read-side transcript. Living-region slice включает
+authoritative Events/Rules/Projection и observer read models.*
 
 ### 5.3.6 Image reference -> Canon region pipeline
 
