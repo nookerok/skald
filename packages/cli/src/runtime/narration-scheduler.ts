@@ -29,6 +29,8 @@ export type NarrationJob = {
   priority: NarrationPriority;
   /** Chronicle worldTime this job narrates; used for status bookkeeping. */
   worldTime: number;
+  /** Optional originating command correlation for operational diagnostics. */
+  readonly correlationId?: string | undefined;
   run(): Promise<void>;
   /**
    * Called when the job is evicted from a capped queue before it runs. The
@@ -55,6 +57,17 @@ export type NarrationState = "not_requested" | "pending" | "ready" | "unavailabl
 const DEFAULT_INTERACTIVE_LIMIT = 8;
 const DEFAULT_BATCH_LIMIT = 2;
 
+function emitSchedulerDiagnostic(
+  sink: NarrationDiagnosticSink | undefined,
+  event: Parameters<NarrationDiagnosticSink>[0],
+): void {
+  try {
+    sink?.(event);
+  } catch {
+    // A telemetry sink is never allowed to break scheduling or command flow.
+  }
+}
+
 export class NarrationScheduler {
   private running = false;
   private interactiveQueue: NarrationJob[] = [];
@@ -65,6 +78,7 @@ export class NarrationScheduler {
     private readonly interactiveLimit = DEFAULT_INTERACTIVE_LIMIT,
     private readonly batchLimit = DEFAULT_BATCH_LIMIT,
     private readonly diagnostics?: NarrationDiagnosticSink,
+    private readonly worldId?: string,
   ) {}
 
   schedule(job: NarrationJob): void {
@@ -73,9 +87,10 @@ export class NarrationScheduler {
     if (queue.length >= limit) {
       // Oldest evicted first; the caller's onDrop settles the turn.
       const dropped = queue.shift()!;
-      this.diagnostics?.({
+      emitSchedulerDiagnostic(this.diagnostics, {
         kind: "scheduler",
         category: "queue_eviction",
+        outcome: "queue_eviction",
         provider: "scheduler",
         durationMs: 0,
         attempt: 0,
@@ -84,6 +99,9 @@ export class NarrationScheduler {
         turn: dropped.worldTime,
         worldTime: dropped.worldTime,
         priority: dropped.priority,
+        worldId: this.worldId,
+        recordedAt: new Date().toISOString(),
+        ...(dropped.correlationId ? { correlationId: dropped.correlationId } : {}),
       });
       dropped.onDrop();
     }
@@ -128,9 +146,10 @@ export class NarrationScheduler {
         } catch {
           // Narration is best-effort decoration; a runner-level failure means
           // the turn will never get prose.
-          this.diagnostics?.({
+          emitSchedulerDiagnostic(this.diagnostics, {
             kind: "scheduler",
             category: "runner_failure",
+            outcome: "runner_failure",
             provider: "scheduler",
             durationMs: 0,
             attempt: 0,
@@ -139,6 +158,9 @@ export class NarrationScheduler {
             turn: job.worldTime,
             worldTime: job.worldTime,
             priority: job.priority,
+            worldId: this.worldId,
+            recordedAt: new Date().toISOString(),
+            ...(job.correlationId ? { correlationId: job.correlationId } : {}),
           });
           this.statuses.set(job.worldTime, "unavailable");
         }

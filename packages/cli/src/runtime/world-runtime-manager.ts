@@ -16,6 +16,7 @@ import { NarrationScheduler } from "./narration-scheduler.js";
 import { rollPendingCheck } from "../dice-roller.js";
 import type { NarrationDiagnosticEvent, NarrationDiagnosticSink } from "@skald/world";
 import { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
+import { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
 
 export interface WorldRuntime {
   worldId: WorldId;
@@ -50,9 +51,15 @@ export class WorldRuntimeManager {
     private readonly configuredRouter?: ModelRouter | null,
     diagnostics?: NarrationDiagnosticSink,
   ) {
-    this.diagnosticSink = diagnostics
-      ? (event) => { this.diagnosticLog.record(event); diagnostics(event); }
-      : this.diagnosticLog.sink();
+    const externalSink = diagnostics ?? createProductionDiagnosticSink();
+    this.diagnosticSink = (event) => {
+      this.diagnosticLog.record(event);
+      try {
+        externalSink(event);
+      } catch {
+        // Best-effort: external sink errors must not affect narration.
+      }
+    };
   }
 
   /** Read-only operational diagnostics for trusted diagnostics surfaces/tests. */
@@ -137,7 +144,7 @@ export class WorldRuntimeManager {
 
     const runtime: WorldRuntime = {
       worldId, bus, registry, engine, projection, processedKeys, router,
-      store: this.store, queue, narration: new NarrationScheduler(8, 2, this.diagnosticSink),
+      store: this.store, queue, narration: new NarrationScheduler(8, 2, this.diagnosticSink, worldId),
       diagnostics: this.diagnosticSink,
     };
 

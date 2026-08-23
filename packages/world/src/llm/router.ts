@@ -135,6 +135,7 @@ export class ModelRouter {
         return {
           model,
           configuredModel: decision.selectedModel,
+          configuredProvider: providerForModel(decision.selectedModel),
           responseModel: result.responseModel,
           usedFallback: model !== decision.selectedModel,
           text: result.text,
@@ -146,7 +147,12 @@ export class ModelRouter {
         lastError = err instanceof Error ? err : new Error(String(err));
         // Preserve the candidate that actually failed. The configured router
         // provider may differ when the model list crosses providers.
-        Object.assign(lastError, { provider, model });
+        Object.assign(lastError, {
+          provider,
+          model,
+          configuredModel: decision.selectedModel,
+          configuredProvider: providerForModel(decision.selectedModel),
+        });
         if (!shouldFallback(lastError)) throw lastError;
       }
     }

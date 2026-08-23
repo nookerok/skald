@@ -213,7 +213,11 @@ export function handleWorldState(runtime: WorldRuntime): JsonResponse {
  * generation for the same turn. A transient `chat_error` therefore never
  * permanently deprives a turn of its literary narration.
  */
-type NarrationTurn = { input: string; pres: ReturnType<typeof selectTurnPresentation> };
+type NarrationTurn = {
+  input: string;
+  pres: ReturnType<typeof selectTurnPresentation>;
+  correlationId?: string | undefined;
+};
 
 /**
  * Whether a narration result earns a persisted row and the `ready` state.
@@ -226,7 +230,12 @@ export function shouldPersistNarration(narration: { usedFallback: boolean; text:
   return !narration.usedFallback && narration.text.trim().length > 0;
 }
 
-function scheduleNarration(runtime: WorldRuntime, input: string, pres: ReturnType<typeof selectTurnPresentation>): void {
+function scheduleNarration(
+  runtime: WorldRuntime,
+  input: string,
+  pres: ReturnType<typeof selectTurnPresentation>,
+  correlationId?: string,
+): void {
   const router = runtime.router;
   if (!router || input.trim().length === 0) return;
   const worldId = runtime.worldId;
@@ -240,6 +249,8 @@ function scheduleNarration(runtime: WorldRuntime, input: string, pres: ReturnTyp
         diagnostics: runtime.diagnostics,
         priority: "interactive",
         timeoutMs: router.timeoutSeconds * 1000,
+        worldId,
+        ...(correlationId ? { correlationId } : {}),
       });
       // 2. Classify LLM result
       if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
@@ -247,9 +258,10 @@ function scheduleNarration(runtime: WorldRuntime, input: string, pres: ReturnTyp
       try {
         runtime.store.saveTurnNarration(worldId, worldTime, narration);
       } catch {
-        runtime.diagnostics({
+        try { runtime.diagnostics({
             kind: "scheduler",
             category: "persistence_error",
+            outcome: "persistence_error",
             provider: "scheduler",
             durationMs: 0,
             attempt: 0,
@@ -259,12 +271,16 @@ function scheduleNarration(runtime: WorldRuntime, input: string, pres: ReturnTyp
             worldTime,
             priority: "interactive",
             detail: "save_failed",
-        });
+            worldId,
+            recordedAt: new Date().toISOString(),
+            ...(correlationId ? { correlationId } : {}),
+        }); } catch { /* diagnostics are best-effort */ }
         runtime.narration.markUnavailable(worldTime);
         return;
       }
       runtime.narration.markReady(worldTime);
     },
+    ...(correlationId ? { correlationId } : {}),
     onDrop: () => runtime.narration.markUnavailable(worldTime),
   });
 }
@@ -293,13 +309,21 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
   // capture it once instead of replaying the log inside every job.
   const journal = buildTurnJournal(runtime.bus.query());
   const targets = [...new Set(tickEvents.map((e) => e.timestamp))]
-    .map((worldTime) => ({
-      worldTime,
-      presentation: journal.turns.find((t) => t.worldTime === worldTime)?.presentation ?? null,
-    }))
-    .filter((t): t is { worldTime: number; presentation: NonNullable<typeof t.presentation> } => t.presentation !== null);
+    .map((worldTime) => {
+      const source = tickEvents.find((event) => event.timestamp === worldTime);
+      return {
+        worldTime,
+        presentation: journal.turns.find((t) => t.worldTime === worldTime)?.presentation ?? null,
+        ...(source?.correlationId ? { correlationId: source.correlationId } : {}),
+      };
+    })
+    .filter((t): t is {
+      worldTime: number;
+      presentation: NonNullable<typeof t.presentation>;
+      correlationId?: string;
+    } => t.presentation !== null);
   for (const target of targets) {
-    const { worldTime, presentation } = target;
+    const { worldTime, presentation, correlationId } = target;
     runtime.narration.schedule({
       priority: "batch",
       worldTime,
@@ -309,6 +333,8 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
           diagnostics: runtime.diagnostics,
           priority: "batch",
           timeoutMs: router.timeoutSeconds * 1000,
+          worldId,
+          ...(correlationId ? { correlationId } : {}),
         });
         // 2. Classify LLM result
         if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
@@ -316,9 +342,10 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
         try {
           runtime.store.saveTurnNarration(worldId, worldTime, narration);
         } catch {
-          runtime.diagnostics({
+          try { runtime.diagnostics({
             kind: "scheduler",
             category: "persistence_error",
+            outcome: "persistence_error",
             provider: "scheduler",
             durationMs: 0,
             attempt: 0,
@@ -328,12 +355,16 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
             worldTime,
             priority: "batch",
             detail: "save_failed",
-          });
+            worldId,
+            recordedAt: new Date().toISOString(),
+            ...(correlationId ? { correlationId } : {}),
+          }); } catch { /* diagnostics are best-effort */ }
           runtime.narration.markUnavailable(worldTime);
           return;
         }
         runtime.narration.markReady(worldTime);
       },
+      ...(correlationId ? { correlationId } : {}),
       onDrop: () => runtime.narration.markUnavailable(worldTime),
     });
   }
@@ -390,7 +421,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const guidance = buildGuidance(runtime);
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-        narrationTurn = { input, pres };
+        const correlationId = tickResult.tickEvents[0]?.correlationId;
+        narrationTurn = { input, pres, ...(correlationId ? { correlationId } : {}) };
         const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
         return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
       }
@@ -427,7 +459,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
-      narrationTurn = { input, pres };
+      const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
+      narrationTurn = { input, pres, ...(correlationId ? { correlationId } : {}) };
       return json({
         ok: true,
         state: serializeWorldStateFromRuntime(runtime),
@@ -446,7 +479,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   });
 
   const pendingNarration = narrationTurn as NarrationTurn | null;
-  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres);
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId);
   const pendingTicks = advanceNarrationTicks as DomainEvent[] | null;
   if (pendingTicks && pendingTicks.length > 0) scheduleNarrationForTicks(runtime, input, pendingTicks);
   return response;
@@ -532,7 +565,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-      narrationTurn = { input, pres };
+      const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
+      narrationTurn = { input, pres, ...(correlationId ? { correlationId } : {}) };
       return json({
         ok: true,
         resolution: "accepted",
@@ -555,7 +589,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   });
 
   const pendingNarration = narrationTurn as NarrationTurn | null;
-  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres);
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId);
   return response;
 }
 
@@ -685,6 +719,11 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+      // The legacy /wait endpoint commits one or more player-visible ticks
+      // directly. Keep its narration lifecycle identical to /command: the
+      // durable tick commit is complete before detached read-side narration
+      // is scheduled, and each tick retains its correlation metadata.
+      scheduleNarrationForTicks(runtime, "wait", tickResult.tickEvents);
       return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
     } catch (err) {
       return error("internal_error", safeError(err), 500);

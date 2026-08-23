@@ -26,6 +26,8 @@ export interface RouterDecision {
 export interface ChatResult {
   readonly model: string;
   readonly configuredModel: string;
+  /** Provider selected by the router before any model/provider failover. */
+  readonly configuredProvider?: ProviderId | undefined;
   readonly responseModel: string;
   readonly usedFallback: boolean;
   readonly text: string;

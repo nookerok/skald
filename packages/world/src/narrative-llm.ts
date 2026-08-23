@@ -2,7 +2,7 @@ import type { NarrativeSnapshot, NarrativeEntry } from "./narrative.js";
 import type { EpistemicClass, EpistemicNarrativeFact, TurnPresentation } from "./presentation/types.js";
 import { ModelRouter } from "./llm/router.js";
 import type { ChatMessage, ChatResult } from "./llm/types.js";
-import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, RetryOutcome } from "./narration-diagnostics.js";
+import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, NarrationOutcome, RetryOutcome } from "./narration-diagnostics.js";
 import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
 
 export interface NarrativeLLMResult {
@@ -238,7 +238,12 @@ function retryCount(raw: number | undefined): number {
  * undefined, so callers never need to guard.
  */
 function emitDiagnostic(sink: NarrationDiagnosticSink | undefined, event: Parameters<NarrationDiagnosticSink>[0]): void {
-  sink?.(event);
+  try {
+    sink?.(event);
+  } catch {
+    // Diagnostics are best-effort telemetry. A broken logger must never
+    // change narration outcome or enter the provider-error retry path.
+  }
 }
 
 function templateText(entries: readonly NarrativeEntry[]): string {
@@ -264,6 +269,13 @@ function diagnosticProvider(router: ModelRouter, error: unknown): string {
   return typeof provider === "string" && provider.length > 0 ? provider : router.providerId;
 }
 
+function diagnosticField(error: unknown, field: "model" | "configuredModel"): string | undefined {
+  const value = error && typeof error === "object"
+    ? (error as Record<string, unknown>)[field]
+    : undefined;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 /**
  * §6 Authority Hierarchy: этот адаптер — самый нижний уровень иерархии.
  * Он НЕ имеет доступа к EventBus, Projection (кроме read-only snapshot'а на входе),
@@ -286,6 +298,7 @@ export async function narrateLLM(
     emitDiagnostic(sink, {
       kind: "llm",
       category: "no_api_key",
+      outcome: "deterministic_fallback",
       provider: router?.providerId ?? "",
       durationMs: 0,
       turn: snapshot.worldTime,
@@ -294,6 +307,9 @@ export async function narrateLLM(
       priority,
       timeout: 0,
       retryOutcome: "none",
+      worldId: opts?.worldId,
+      recordedAt: new Date().toISOString(),
+      correlationId: opts?.correlationId,
     });
     return {
       text: templateText(snapshot.entries),
@@ -340,6 +356,7 @@ export async function narrateLLM(
         emitDiagnostic(sink, {
           kind: "llm",
           category,
+          outcome: "deterministic_fallback",
           provider: result.provider,
           durationMs,
           turn: snapshot.worldTime,
@@ -348,6 +365,11 @@ export async function narrateLLM(
           priority,
           timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
           retryOutcome: "none",
+          worldId: opts?.worldId,
+          recordedAt: new Date().toISOString(),
+          correlationId: opts?.correlationId,
+          model: result.model,
+          configuredModel: result.configuredModel,
         });
         // Schema rejection is deterministic — no retry
         return {
@@ -359,9 +381,14 @@ export async function narrateLLM(
         };
       }
       const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
+      const configuredProvider = result.configuredProvider ?? router.providerId;
+      const outcome: NarrationOutcome = result.usedFallback && result.provider !== configuredProvider
+        ? "provider_failover"
+        : "success";
       emitDiagnostic(sink, {
         kind: "llm",
         category: "success",
+        outcome,
         provider: result.provider,
         durationMs,
         turn: snapshot.worldTime,
@@ -370,6 +397,11 @@ export async function narrateLLM(
         priority,
         timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
         retryOutcome,
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: result.model,
+        configuredModel: result.configuredModel,
       });
       return {
         text: guard.narration,
@@ -385,10 +417,14 @@ export async function narrateLLM(
       const isTransient = isTransientNarrationError(lastCategory);
       const isLastAttempt = attempt >= maxAttempts;
       const retryOutcome: RetryOutcome = isLastAttempt && isTransient ? "exhausted" : "none";
+      const outcome: NarrationOutcome = isTransient
+        ? (isLastAttempt ? "retry_exhausted" : "retrying")
+        : "deterministic_fallback";
 
       emitDiagnostic(sink, {
         kind: "llm",
         category: lastCategory,
+        outcome,
         provider: diagnosticProvider(router, err),
         durationMs,
         turn: snapshot.worldTime,
@@ -397,6 +433,11 @@ export async function narrateLLM(
         priority,
         timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
         retryOutcome,
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: diagnosticField(err, "model"),
+        configuredModel: diagnosticField(err, "configuredModel"),
       });
 
       if (!isTransient || isLastAttempt) {
@@ -472,6 +513,7 @@ export async function narrateTurnLLM(
     emitDiagnostic(sink, {
       kind: "llm",
       category: "no_api_key",
+      outcome: "deterministic_fallback",
       provider: router?.providerId ?? "",
       durationMs: 0,
       turn: presentation.worldTime,
@@ -480,6 +522,9 @@ export async function narrateTurnLLM(
       priority,
       timeout: 0,
       retryOutcome: "none",
+      worldId: opts?.worldId,
+      recordedAt: new Date().toISOString(),
+      correlationId: opts?.correlationId,
     });
     return fallbackNarration(presentation, "no_api_key");
   }
@@ -515,6 +560,7 @@ export async function narrateTurnLLM(
         emitDiagnostic(sink, {
           kind: "llm",
           category,
+          outcome: "deterministic_fallback",
           provider: result.provider,
           durationMs,
           turn: presentation.worldTime,
@@ -523,14 +569,24 @@ export async function narrateTurnLLM(
           priority,
           timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
           retryOutcome: "none",
+          worldId: opts?.worldId,
+          recordedAt: new Date().toISOString(),
+          correlationId: opts?.correlationId,
+          model: result.model,
+          configuredModel: result.configuredModel,
         });
         // Schema rejection is deterministic — no retry
         return fallbackNarration(presentation, `epistemic_violation:${guard.reason}`);
       }
       const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
+      const configuredProvider = result.configuredProvider ?? router.providerId;
+      const outcome: NarrationOutcome = result.usedFallback && result.provider !== configuredProvider
+        ? "provider_failover"
+        : "success";
       emitDiagnostic(sink, {
         kind: "llm",
         category: "success",
+        outcome,
         provider: result.provider,
         durationMs,
         turn: presentation.worldTime,
@@ -539,6 +595,11 @@ export async function narrateTurnLLM(
         priority,
         timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
         retryOutcome,
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: result.model,
+        configuredModel: result.configuredModel,
       });
       return {
         text: guard.narration.trim(),
@@ -554,10 +615,14 @@ export async function narrateTurnLLM(
       const isTransient = isTransientNarrationError(lastCategory);
       const isLastAttempt = attempt >= maxAttempts;
       const retryOutcome: RetryOutcome = isLastAttempt && isTransient ? "exhausted" : "none";
+      const outcome: NarrationOutcome = isTransient
+        ? (isLastAttempt ? "retry_exhausted" : "retrying")
+        : "deterministic_fallback";
 
       emitDiagnostic(sink, {
         kind: "llm",
         category: lastCategory,
+        outcome,
         provider: diagnosticProvider(router, err),
         durationMs,
         turn: presentation.worldTime,
@@ -566,6 +631,11 @@ export async function narrateTurnLLM(
         priority,
         timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
         retryOutcome,
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: diagnosticField(err, "model"),
+        configuredModel: diagnosticField(err, "configuredModel"),
       });
 
       if (!isTransient || isLastAttempt) {

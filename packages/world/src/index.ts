@@ -86,6 +86,7 @@ export {
 export type {
   NarrationErrorCategory,
   RetryOutcome,
+  NarrationOutcome,
   NarrationLLMDiagnosticEvent,
   NarrationSchedulerDiagnosticEvent,
   NarrationDiagnosticEvent,

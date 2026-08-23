@@ -192,7 +192,7 @@ describe("NarrationScheduler diagnostics", () => {
   it("keeps a bounded structured diagnostic log", () => {
     const log = new NarrationDiagnosticLog(2);
     const sink = log.sink();
-    const base = { kind: "scheduler" as const, category: "runner_failure" as const, provider: "scheduler" as const, durationMs: 0 as const, attempt: 0 as const, timeout: 0 as const, retryOutcome: "none" as const, turn: 1, worldTime: 1, priority: "interactive" as const };
+    const base = { kind: "scheduler" as const, category: "runner_failure" as const, outcome: "runner_failure" as const, provider: "scheduler" as const, durationMs: 0 as const, attempt: 0 as const, timeout: 0 as const, retryOutcome: "none" as const, turn: 1, worldTime: 1, priority: "interactive" as const };
     sink(base);
     sink({ ...base, worldTime: 2 });
     sink({ ...base, worldTime: 3 });

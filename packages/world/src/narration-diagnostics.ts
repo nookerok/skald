@@ -29,6 +29,21 @@ export type NarrationErrorCategory =
 /** Whether a transient failure was retried and the outcome. */
 export type RetryOutcome = "none" | "succeeded_on_retry" | "exhausted";
 
+/**
+ * High-level outcome distinguishing provider-level failover (the LLM responded
+ * but on a non-configured model after a provider failure) from deterministic
+ * fallback (template/no-key/epistemic-violation — no LLM prose was produced).
+ */
+export type NarrationOutcome =
+  | "success"
+  | "provider_failover"
+  | "retrying"
+  | "deterministic_fallback"
+  | "retry_exhausted"
+  | "persistence_error"
+  | "queue_eviction"
+  | "runner_failure";
+
 // ---------------------------------------------------------------------------
 // Diagnostic events
 // ---------------------------------------------------------------------------
@@ -37,6 +52,8 @@ export type RetryOutcome = "none" | "succeeded_on_retry" | "exhausted";
 export interface NarrationLLMDiagnosticEvent {
   readonly kind: "llm";
   readonly category: NarrationErrorCategory;
+  /** High-level outcome: success, provider_failover, deterministic_fallback, etc. */
+  readonly outcome: NarrationOutcome;
   /** Model name or router providerId — never raw URL/key. */
   readonly provider: string;
   /** Wall-clock duration of this attempt in ms. */
@@ -49,12 +66,24 @@ export interface NarrationLLMDiagnosticEvent {
   /** Configured request timeout in ms for this route. */
   readonly timeout: number;
   readonly retryOutcome: RetryOutcome;
+  /** World this narration belongs to. */
+  readonly worldId?: string | undefined;
+  /** ISO-8601 wall-clock timestamp when the diagnostic was recorded. */
+  readonly recordedAt?: string | undefined;
+  /** Correlation identifier linking to the originating command/turn. */
+  readonly correlationId?: string | undefined;
+  /** Actual model used for the LLM call. */
+  readonly model?: string | undefined;
+  /** Configured (preferred) model before any failover. */
+  readonly configuredModel?: string | undefined;
 }
 
 /** Diagnostic event emitted by the scheduler on persistence/queue failures. */
 export interface NarrationSchedulerDiagnosticEvent {
   readonly kind: "scheduler";
   readonly category: "persistence_error" | "queue_eviction" | "runner_failure";
+  /** High-level outcome for scheduler events. */
+  readonly outcome: NarrationOutcome;
   readonly provider: "scheduler";
   readonly durationMs: 0;
   readonly attempt: 0;
@@ -65,6 +94,12 @@ export interface NarrationSchedulerDiagnosticEvent {
   readonly priority: "interactive" | "batch";
   /** Sanitized message — no raw error text, no stack, no provider URLs. */
   readonly detail?: string | undefined;
+  /** World this narration belongs to. */
+  readonly worldId?: string | undefined;
+  /** ISO-8601 wall-clock timestamp when the diagnostic was recorded. */
+  readonly recordedAt?: string | undefined;
+  /** Correlation identifier linking to the originating command/turn. */
+  readonly correlationId?: string | undefined;
 }
 
 /** Union of all narration diagnostic events. */
@@ -87,6 +122,10 @@ export interface NarrationOptions {
   readonly timeoutMs?: number;
   /** Queue priority associated with this narration attempt. */
   readonly priority?: "interactive" | "batch";
+  /** World this narration belongs to — threaded into diagnostic events. */
+  readonly worldId?: string;
+  /** Correlation identifier linking to the originating command/turn. */
+  readonly correlationId?: string;
 }
 
 // ---------------------------------------------------------------------------
