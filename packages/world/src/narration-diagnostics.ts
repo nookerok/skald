@@ -7,6 +7,8 @@
  * state, Event Log or Projection.
  */
 
+import { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE } from "./llm/errors.js";
+
 // ---------------------------------------------------------------------------
 // Error taxonomy
 // ---------------------------------------------------------------------------
@@ -19,6 +21,7 @@ export type NarrationErrorCategory =
   | "network"
   | "provider_429"
   | "provider_5xx"
+  | "provider_unavailable"
   | "empty_response"
   | "schema_rejection"
   | "persistence_error"
@@ -146,6 +149,13 @@ export function classifyNarrationError(
   if (fallbackReason === "no_api_key") return "no_api_key";
   if (fallbackReason?.startsWith("epistemic_violation:")) return "schema_rejection";
 
+  // Typed error: ProviderUnavailableError from ModelRouter.chat boundary
+  if (err instanceof ProviderUnavailableError) return "provider_unavailable";
+  if (
+    err && typeof err === "object"
+    && (err as { code?: unknown }).code === PROVIDER_UNAVAILABLE_CODE
+  ) return "provider_unavailable";
+
   if (err instanceof Error) {
     const msg = err.message.toLowerCase();
 
@@ -168,6 +178,9 @@ export function classifyNarrationError(
 
     // Empty response
     if (msg.includes("empty response")) return "empty_response";
+
+    // Explicit provider-level failure (deliberate refusal, unavailable, etc.)
+    if (msg.includes("deliberate") || msg.includes("provider_unavailable")) return "provider_unavailable";
   }
 
   return "unknown_provider_error";

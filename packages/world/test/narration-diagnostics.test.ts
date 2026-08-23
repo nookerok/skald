@@ -66,6 +66,16 @@ describe("classifyNarrationError", () => {
     expect(classifyNarrationError(err, null)).toBe("empty_response");
   });
 
+  it("returns provider_unavailable for explicit provider failure", () => {
+    const err = new Error("provider deliberately failed");
+    expect(classifyNarrationError(err, null)).toBe("provider_unavailable");
+  });
+
+  it("returns provider_unavailable for provider_unavailable message", () => {
+    const err = new Error("provider_unavailable: model offline");
+    expect(classifyNarrationError(err, null)).toBe("provider_unavailable");
+  });
+
   it("returns unknown_provider_error for unrecognized errors", () => {
     const err = new Error("something weird happened");
     expect(classifyNarrationError(err, null)).toBe("unknown_provider_error");
@@ -126,5 +136,9 @@ describe("isTransientNarrationError", () => {
 
   it("returns false for runner_failure", () => {
     expect(isTransientNarrationError("runner_failure")).toBe(false);
+  });
+
+  it("returns false for provider_unavailable", () => {
+    expect(isTransientNarrationError("provider_unavailable")).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ModelRouter } from "../../src/llm/router.js";
+import { ProviderUnavailableError } from "../../src/llm/errors.js";
 import type { ChatMessage } from "../../src/llm/types.js";
 
 function msg(content: string): ChatMessage[] {
@@ -113,6 +114,54 @@ describe("ModelRouter", () => {
     const decision = router.decideModel("narrate", msg("hello"));
     expect(decision.selectedModel).toBe("gemma4:31b");
     expect(decision.provider).toBe("ollama_cloud");
+  });
+
+  it("wraps non-transient provider errors as ProviderUnavailableError with metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: "Forbidden",
+    }));
+
+    try {
+      const router = new ModelRouter({ apiKey: "test-key", providerId: "opencode_zen" });
+      try {
+        await router.chat("narrate", msg("hello"));
+        throw new Error("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProviderUnavailableError);
+        const pue = err as ProviderUnavailableError;
+        expect(pue.code).toBe("PROVIDER_UNAVAILABLE");
+        expect(pue.provider).toBe("opencode_zen");
+        expect(pue.model).toBe("deepseek-v4-flash-free");
+        expect(pue.configuredModel).toBe("deepseek-v4-flash-free");
+        expect(pue.cause).toBeInstanceOf(Error);
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not wrap empty_response as ProviderUnavailableError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: "" } }], model: "deepseek-v4-flash-free" }),
+    }));
+
+    try {
+      const router = new ModelRouter({ apiKey: "test-key", providerId: "opencode_zen" });
+      try {
+        await router.chat("narrate", msg("hello"));
+        throw new Error("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(Error);
+        expect(err).not.toBeInstanceOf(ProviderUnavailableError);
+        expect((err as Error).message).toContain("empty response");
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
 });

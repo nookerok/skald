@@ -2,6 +2,7 @@ import { LLM_CONFIG } from "./config.js";
 import { loadHealth } from "./health.js";
 import { classifyPayload, enforceDataPolicy } from "./data-policy.js";
 import { chatOnce, shouldFallback } from "./http.js";
+import { ProviderUnavailableError } from "./errors.js";
 import type { ProviderId, Category, ChatMessage, ChatResult, RouterDecision, RouterDiagnostic } from "./types.js";
 
 const MODEL_PROVIDER: Record<string, ProviderId> = {
@@ -13,6 +14,20 @@ const MODEL_PROVIDER: Record<string, ProviderId> = {
 
 function providerForModel(model: string): ProviderId {
   return MODEL_PROVIDER[model] ?? "opencode_zen";
+}
+
+/**
+ * Whether a non-transient error is an explicit provider-level refusal
+ * (deliberate failure, 401/403 auth rejection, already typed) rather than
+ * an empty response or unknown provider error. Only these are normalized
+ * to ProviderUnavailableError; others stay raw for classifyNarrationError.
+ */
+function isExplicitProviderUnavailable(err: Error): boolean {
+  if (err instanceof ProviderUnavailableError) return true;
+  const msg = err.message.toLowerCase();
+  if (msg.includes("deliberate") || msg.includes("provider_unavailable")) return true;
+  if (msg.includes("http 401") || msg.includes("http 403")) return true;
+  return false;
 }
 
 export class ModelRouter {
@@ -153,7 +168,17 @@ export class ModelRouter {
           configuredModel: decision.selectedModel,
           configuredProvider: providerForModel(decision.selectedModel),
         });
-        if (!shouldFallback(lastError)) throw lastError;
+        if (!shouldFallback(lastError)) {
+          if (isExplicitProviderUnavailable(lastError)) {
+            throw new ProviderUnavailableError(lastError.message, {
+              provider,
+              model,
+              configuredModel: decision.selectedModel,
+              cause: lastError,
+            });
+          }
+          throw lastError;
+        }
       }
     }
 

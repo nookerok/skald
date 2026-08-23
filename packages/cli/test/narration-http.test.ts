@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { startServer } from "../src/http-server.js";
 import { FixedNarrationProvider } from "../src/acceptance/fixed-narration-provider.js";
 import type { ChatMessage, ChatResult } from "@skald/world";
+import { ProviderUnavailableError } from "@skald/world";
 
 const dbPath = join(mkdtempSync(join(tmpdir(), "skald-narration-http-")), "events.sqlite");
 let server: Awaited<ReturnType<typeof startServer>>;
@@ -199,7 +200,11 @@ describe("Narration HTTP integration: provider failure→unavailable", () => {
 
   class FailRouter extends FixedNarrationProvider {
     override async chat(_category: "narrate" | "analyze" | "interpret", _messages: readonly import("@skald/world").ChatMessage[]): Promise<import("@skald/world").ChatResult> {
-      throw new Error("provider deliberately failed");
+      throw new ProviderUnavailableError("provider deliberately failed", {
+        provider: "opencode_zen",
+        model: "deepseek-v4-flash-free",
+        configuredModel: "deepseek-v4-flash-free",
+      });
     }
   }
 
@@ -223,11 +228,11 @@ describe("Narration HTTP integration: provider failure→unavailable", () => {
 
   afterAll(async () => { await failServer.close(); });
 
-  it("command with failing provider: narration settles as unavailable", async () => {
+  it("command with failing provider: narration settles as unavailable with provider_unavailable category", async () => {
     const cmd = await fetch(`${failServer.url}/api/worlds/${failWorldId}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: "move east", idempotencyKey: "fail-narration-1" }),
+      body: JSON.stringify({ input: "move east", idempotencyKey: "fail-narration-2" }),
     });
     expect(cmd.status).toBe(200);
 
@@ -243,5 +248,16 @@ describe("Narration HTTP integration: provider failure→unavailable", () => {
     const narratedTurn = turns.find((t: any) => t.worldTime > 0);
     expect(narratedTurn).toBeDefined();
     expect(narratedTurn.narrationState).toBe("unavailable");
+
+    // Diagnostic event must classify the explicit provider failure as provider_unavailable
+    expect(failServer.app.runtimes.narrationDiagnostics()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "llm",
+          category: "provider_unavailable",
+          outcome: "deterministic_fallback",
+        }),
+      ]),
+    );
   });
 });

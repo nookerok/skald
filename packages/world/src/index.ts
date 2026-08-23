@@ -98,6 +98,7 @@ export { chatOnce, shouldFallback } from "./llm/http.js";
 export { classifyPayload, scanForSecrets, enforceDataPolicy } from "./llm/data-policy.js";
 export { loadHealth, saveHealth, checkModel, classifyModelError } from "./llm/health.js";
 export { LLM_CONFIG } from "./llm/config.js";
+export { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE } from "./llm/errors.js";
 export type * from "./llm/types.js";
 
 // Iteration 15 — Objects & Locations
