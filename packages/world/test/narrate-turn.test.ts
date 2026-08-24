@@ -104,7 +104,7 @@ describe("narrateTurnLLM", () => {
     expect(user.turnFacts.find((f: any) => f.text === "шаг")?.id).toBe("primary");
     expect(user.turnFacts.find((f: any) => f.text === "последствие дерзости")?.id).toBe("notable-0");
     expect(user.turnFacts.find((f: any) => f.text === "последствие дерзости")?.epistemicClass).toBe("observed_fact");
-    expect(user.turnFacts.find((f: any) => f.text === "последствие дерзости")?.sourceEventIds).toEqual(["e-2"]);
+    expect(user.turnFacts.find((f: any) => f.text === "последствие дерзости")?.sourceEventIds).toBeUndefined();
   });
 
   it("binds the LLM to facts and forbids deciding the outcome", async () => {
@@ -198,6 +198,12 @@ describe("verifyEpistemicNarration", () => {
     expect(verifyEpistemicNarration(response, facts)).toMatchObject({ ok: false, reason: "class_upgrade" });
   });
 
+  it("does not let acquired player knowledge become established world truth", async () => {
+    const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
+    const response = JSON.stringify({ narration: "Это установленная истина.", claims: [{ text: "Это установленная истина.", sourceFactId: "knowledge-0", epistemicClass: "established_fact" }] });
+    expect(verifyEpistemicNarration(response, [{ id: "knowledge-0", epistemicClass: "observed_fact", source: "knowledge", usableNow: true }])).toEqual({ ok: false, reason: "class_upgrade" });
+  });
+
   it("accepts a same-class claim", async () => {
     const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
     const response = JSON.stringify({ narration: "Старец сказал.", claims: [{ text: "Старец сказал.", sourceFactId: "notable-0", epistemicClass: "testimony" }] });
@@ -240,6 +246,20 @@ describe("verifyEpistemicNarration", () => {
     const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
     const response = JSON.stringify({ narration: "Мир дышит.", claims: [] });
     expect(verifyEpistemicNarration(response, [])).toEqual({ ok: true, narration: "Мир дышит." });
+  });
+
+  it("can require claims for an empty turn", async () => {
+    const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
+    const response = JSON.stringify({ narration: "Мир дышит.", claims: [] });
+    expect(verifyEpistemicNarration(response, [], { requireClaims: true })).toEqual({ ok: false, reason: "missing_claims" });
+  });
+
+  it("rejects internal identifiers and multi-sentence claim text", async () => {
+    const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
+    const idResponse = JSON.stringify({ narration: "Событие event:secret-1.", claims: [{ text: "Событие event:secret-1.", sourceFactId: "primary", epistemicClass: "observed_fact" }] });
+    expect(verifyEpistemicNarration(idResponse, facts)).toEqual({ ok: false, reason: "unsafe_text" });
+    const longResponse = JSON.stringify({ narration: "Два факта.", claims: [{ text: "Первый факт. Второй факт.", sourceFactId: "primary", epistemicClass: "observed_fact" }] });
+    expect(verifyEpistemicNarration(longResponse, facts)).toEqual({ ok: false, reason: "unsafe_text" });
   });
 
   it("extracts JSON from a response with surrounding prose", async () => {
@@ -337,6 +357,61 @@ describe("verifyEpistemicNarration", () => {
     const { assertedEpistemicStrength, epistemicStrength } = await import("../src/narrative-llm.js");
     expect(assertedEpistemicStrength("This is unquestionably true.", "testimony")).toBe(epistemicStrength("established_fact"));
     expect(assertedEpistemicStrength("Старец предположил.", "interpretation")).toBe(epistemicStrength("interpretation"));
+  });
+
+  it("requires an opening background link when requested", async () => {
+    const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
+    const response = narrationJson("Река течёт.");
+    expect(verifyEpistemicNarration(response, [
+      { id: "primary", epistemicClass: "observed_fact" },
+      { id: "background:obligation", epistemicClass: "established_fact" },
+    ], { requireBackgroundLink: true, backgroundFactIds: ["background:obligation"] })).toEqual({ ok: false, reason: "missing_background_link" });
+    expect(verifyEpistemicNarration(JSON.stringify({ narration: "Обет зовёт.", claims: [{ text: "Обет зовёт.", sourceFactId: "background:obligation", epistemicClass: "established_fact" }] }), [
+      { id: "primary", epistemicClass: "observed_fact" },
+      { id: "background:obligation", epistemicClass: "established_fact" },
+    ], { requireBackgroundLink: true, backgroundFactIds: ["background:obligation"] })).toEqual({ ok: true, narration: "Обет зовёт." });
+  });
+
+  it("rejects a source that is not usable in the current snapshot", async () => {
+    const { verifyEpistemicNarration } = await import("../src/narrative-llm.js");
+    const response = narrationJson("Скрытый след.", [{ text: "Скрытый след.", sourceFactId: "hidden", epistemicClass: "observed_fact" }]);
+    expect(verifyEpistemicNarration(response, [{ id: "hidden", epistemicClass: "observed_fact", usableNow: false }])).toEqual({ ok: false, reason: "unusable_source" });
+  });
+});
+
+describe("narrative adapter context in turn narration", () => {
+  it("sends separate context groups and uses them in deterministic fallback", async () => {
+    const context = {
+      character: { name: "Виктор", backgroundTitle: "Последний ученик архива", formerRole: "Ты переписывал каталоги.", rupture: "Архив сгорел.", obligation: "Восстановить запись." },
+      arrival: { reason: "След исчезнувшей записи привёл к переправе.", personalHook: "Переправа хранит следы архива.", startingLocation: "Переправа" },
+      visibleSituation: { facts: [], sensoryContext: [{ id: "situation:water", text: "Вода поднялась.", epistemicClass: "observed_fact" as const, source: "situation" as const, usableNow: true }] },
+      knowledge: { observed: [], testimony: [{ id: "testimony:record", text: "Источник сообщает об исчезнувшей записи.", epistemicClass: "testimony" as const, source: "testimony" as const, usableNow: true }], hypotheses: [] },
+      contacts: [{ id: "contact:archivist", text: "Ты знаком с архивистом Речного Стража.", epistemicClass: "established_fact" as const, source: "relation" as const, usableNow: true }],
+      accessibleItems: [{ id: "item:kit", text: "Среди твоих вещей: письменные принадлежности архивиста.", epistemicClass: "observed_fact" as const, source: "inventory" as const, usableNow: true }],
+      unresolvedSituation: [],
+      openingWindow: false,
+    };
+    let captured = "";
+    const router = await mockRouter();
+    vi.spyOn(router, "chat").mockImplementation(async (_category, messages) => {
+      captured = messages.find((message) => message.role === "user")?.content ?? "";
+      return {
+        text: narrationJson(PRIMARY_TEXT), model: "deepseek-v4-flash-free", configuredModel: "deepseek-v4-flash-free", responseModel: "deepseek-v4-flash-free", usedFallback: false, latencyMs: 1,
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 }, provider: "opencode_zen",
+      };
+    });
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    await narrateTurnLLM("осмотреться", pres(true), router, { narrativeContext: context });
+    const prompt = JSON.parse(captured) as Record<string, unknown>;
+    expect(prompt.backgroundFacts).toBeTruthy();
+    expect(prompt.visibleSituation).toBeTruthy();
+    expect(prompt.accessibleItems).toEqual(expect.arrayContaining([expect.objectContaining({ id: "item:kit" })]));
+    expect(prompt.knownContacts).toEqual(expect.arrayContaining([expect.objectContaining({ id: "contact:archivist" })]));
+
+    const fallback = await narrateTurnLLM("осмотреться", pres(true), null, { narrativeContext: context });
+    expect(fallback.usedFallback).toBe(true);
+    expect(fallback.text).toContain("письменные принадлежности");
+    expect(fallback.text).not.toContain("contact:archivist");
   });
 });
 

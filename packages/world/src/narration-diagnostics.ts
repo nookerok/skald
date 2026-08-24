@@ -8,6 +8,7 @@
  */
 
 import { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE } from "./llm/errors.js";
+import type { NarrativeAdapterContext } from "./setup/background-context.js";
 
 // ---------------------------------------------------------------------------
 // Error taxonomy
@@ -27,6 +28,7 @@ export type NarrationErrorCategory =
   | "persistence_error"
   | "queue_eviction"
   | "runner_failure"
+  | "context_error"
   | "unknown_provider_error";
 
 /** Whether a transient failure was retried and the outcome. */
@@ -45,7 +47,8 @@ export type NarrationOutcome =
   | "retry_exhausted"
   | "persistence_error"
   | "queue_eviction"
-  | "runner_failure";
+  | "runner_failure"
+  | "context_error";
 
 // ---------------------------------------------------------------------------
 // Diagnostic events
@@ -105,10 +108,30 @@ export interface NarrationSchedulerDiagnosticEvent {
   readonly correlationId?: string | undefined;
 }
 
+/** Read-side adapter diagnostic emitted when observer context cannot be built. */
+export interface NarrationContextDiagnosticEvent {
+  readonly kind: "context";
+  readonly category: "context_error";
+  readonly outcome: "context_error";
+  readonly provider: "adapter";
+  readonly durationMs: number;
+  readonly attempt: 0;
+  readonly timeout: 0;
+  readonly retryOutcome: "none";
+  readonly turn: number;
+  readonly worldTime: number;
+  readonly priority: "interactive" | "batch";
+  readonly detail?: string | undefined;
+  readonly worldId?: string | undefined;
+  readonly recordedAt?: string | undefined;
+  readonly correlationId?: string | undefined;
+}
+
 /** Union of all narration diagnostic events. */
 export type NarrationDiagnosticEvent =
   | NarrationLLMDiagnosticEvent
-  | NarrationSchedulerDiagnosticEvent;
+  | NarrationSchedulerDiagnosticEvent
+  | NarrationContextDiagnosticEvent;
 
 /** Callback type for receiving narration diagnostic events. */
 export type NarrationDiagnosticSink = (event: NarrationDiagnosticEvent) => void;
@@ -129,6 +152,8 @@ export interface NarrationOptions {
   readonly worldId?: string;
   /** Correlation identifier linking to the originating command/turn. */
   readonly correlationId?: string;
+  /** Bounded observer-safe facts for the non-authoritative narration adapter. */
+  readonly narrativeContext?: NarrativeAdapterContext;
 }
 
 // ---------------------------------------------------------------------------

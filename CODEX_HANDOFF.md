@@ -772,3 +772,23 @@ deterministic gate pipeline is accepted.
 - Added generic Canon loader/IR builder and compiled bundle v5 with region/content/discovery/simulation definitions, regionVersion, digests and per-object provenance. Runtime discovery now reads accepted definitions from the bundle.
 - Existing southern-borough and initial-observation bootstrap entries are recorded as already compiled; no duplicate events or image/runtime coupling were introduced.
 - Gate evidence 2026-08-09: `npm run validate` PASS (112 files, 1389 passed, 1 skipped; Canon, authoring, compile check, simulation, eval and diff checks PASS).
+
+## Current work (2026-08-24, Stage 5 narrative context hardening)
+
+- Stage 5 read-side narrative context is implemented for the production world
+  command, wait/batch and compatibility `narrative-llm` routes. The adapter
+  receives replayed observer-safe facts, per-tick historical snapshots and
+  character/entrypoint context; it never writes Events or Projection.
+- Opening-window accounting uses persisted ConversationTurn rows of all three
+  input classes (action, inquiry, clarification), with the first presence
+  checkpoint required. `KnowledgeAcquired` remains observer-scoped knowledge
+  and cannot be promoted to established world truth by the narration guard.
+- Context-builder failures are optional read-side failures: they emit a
+  structured `context_error` diagnostic and preserve deterministic gameplay.
+  The player-facing legacy LLM route uses the same adapter and strips internal
+  provenance. Bootstrap still contains testimony about an absent record and
+  writing supplies, not a physical letter or record item.
+- Evidence after hardening: full Vitest suite 140 files / 1753 passed / 1
+  skipped; typecheck, shell syntax, Canon, simulation, eval, adventure
+  acceptance and `git diff --check` pass. Fixed NTFS browser QA remains
+  externally blocked by the unavailable browser task; no deploy was performed.

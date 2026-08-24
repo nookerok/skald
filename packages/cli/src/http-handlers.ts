@@ -1,9 +1,11 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
+import { buildNarrative, buildNarrativeAdapterContext, getRegionEntrypoint, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
+import type { NarrativeAdapterContext, TurnPresentation } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 import { conversationRequestHash, toConversationTurnDTO } from "./conversation/builder.js";
+import { toPlayerFacingJournalTurns, toPlayerFacingNarrativeEntries, toPlayerFacingPresentation, toPlayerFacingThreads } from "./http/player-facing.js";
 
 export interface JsonResponse {
   statusCode: number;
@@ -48,6 +50,41 @@ function checkPoisoned(app: App): boolean {
   return (app.engine as any).isPoisoned?.() ?? false;
 }
 
+function buildLegacyNarrativeContext(app: App, presentation: TurnPresentation): NarrativeAdapterContext | undefined {
+  try {
+    const record = app.store?.getWorldRecord(app.worldId);
+    const profile = record?.characterId ? app.store?.getCharacterProfile(record.characterId) ?? null : null;
+    const entrypoint = record?.entrypointId ? getRegionEntrypoint(record.entrypointId) : null;
+    return buildNarrativeAdapterContext(app.bus.query(), app.projection.getSnapshot(), {
+      profile,
+      entrypoint,
+      presentation,
+      ...(record?.characterName !== undefined ? { characterName: record.characterName } : {}),
+    }) ?? undefined;
+  } catch {
+    try {
+      const worldTime = app.projection.getSnapshot().time;
+      app.diagnostics?.({
+        kind: "context",
+        category: "context_error",
+        outcome: "context_error",
+        provider: "adapter",
+        durationMs: 0,
+        attempt: 0,
+        timeout: 0,
+        retryOutcome: "none",
+        turn: worldTime,
+        worldTime,
+        priority: "interactive",
+        detail: "build_failed",
+        worldId: app.worldId,
+        recordedAt: new Date().toISOString(),
+      });
+    } catch { /* diagnostics are best-effort */ }
+    return undefined;
+  }
+}
+
 export async function handleCommand(app: App, body: unknown): Promise<JsonResponse> {
   if (checkPoisoned(app)) return error("internal_error", "server is in fatal state", 503);
   if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
@@ -75,7 +112,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
       const conversationTurn = app.store?.getConversationTurn(app.worldId, idempotencyKey);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
     }
     if (input.startsWith("advance ")) {
       const raw = input.slice(8).trim();
@@ -87,7 +124,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const tickResult = r as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance });
     }
 
     const r = runCommandCycle(app, input, idempotencyKey);
@@ -142,7 +179,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       tickEvents: cmdResult.tickEvents,
       position: cmdResult.position,
       state: serializeWorldState(app),
-      presentation: pres,
+      presentation: toPlayerFacingPresentation(pres),
       guidance,
       criticalCheck: criticalCheckPresentation,
       observerMap,
@@ -168,7 +205,7 @@ export async function handleWait(app: App, body: unknown): Promise<JsonResponse>
     const r = result as { tickEvents: DomainEvent[] };
     const pres = selectTurnPresentation(r.tickEvents, app.projection.getSnapshot());
     const guidance = buildGuidance(app);
-    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: pres, guidance });
+    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
   }
@@ -191,7 +228,7 @@ export function handleNarrative(app: App, url: URL): JsonResponse {
   const opts = sinceP.value > 0 ? { sinceTick: sinceP.value } : undefined;
   const snapshot = buildNarrative(events, world, opts);
   // Serialize safely — remove circular refs and non-serializable
-  return json({ ok: true, entries: snapshot.entries, presentation: snapshot.presentation, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  return json({ ok: true, entries: toPlayerFacingNarrativeEntries(snapshot.entries), presentation: toPlayerFacingPresentation(snapshot.presentation), worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
 }
 
 export async function handleNarrativeLLM(app: App, url: URL): Promise<JsonResponse> {
@@ -201,8 +238,17 @@ export async function handleNarrativeLLM(app: App, url: URL): Promise<JsonRespon
   const sinceP = parseStrictInt(sinceRaw, 0, 0, Number.MAX_SAFE_INTEGER);
   if (!sinceP.ok) return error("invalid_request", "since must be a non-negative integer", 400);
   const opts = sinceP.value > 0 ? { sinceTick: sinceP.value } : undefined;
-  const snapshot = buildNarrative(events, world, opts);
-  const result = await narrateLLM(snapshot, app.router);
+  const baseSnapshot = buildNarrative(events, world, opts);
+  const narrativeContext = buildLegacyNarrativeContext(app, baseSnapshot.presentation);
+  const snapshot = buildNarrative(events, world, {
+    ...opts,
+    ...(narrativeContext ? { narrativeContext } : {}),
+  });
+  const result = await narrateLLM(snapshot, app.router, {
+    ...(app.diagnostics ? { diagnostics: app.diagnostics } : {}),
+    worldId: app.worldId,
+    ...(narrativeContext ? { narrativeContext } : {}),
+  });
   // Sanitize: never expose internal error details or fallbackReason to client
   const sanitized = result.usedFallback
     ? { text: result.text, usedFallback: true, model: "", latencyMs: 0 }
@@ -250,11 +296,11 @@ export function handleJournal(app: App, url: URL): JsonResponse {
 
   return json({
     ok: true,
-    turns: page,
+    turns: toPlayerFacingJournalTurns(page),
     conversationTurns: app.store
       ? app.store.listConversationTurns(app.worldId, { limit: 500 }).map(toConversationTurnDTO)
       : [],
-    threads: journal.threads,
+    threads: toPlayerFacingThreads(journal.threads),
     worldTime: journal.worldTime,
     nextBefore,
     hasMore,

@@ -1,9 +1,11 @@
 import type { NarrativeSnapshot, NarrativeEntry } from "./narrative.js";
 import type { EpistemicClass, EpistemicNarrativeFact, TurnPresentation } from "./presentation/types.js";
+import { sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 import { ModelRouter } from "./llm/router.js";
 import type { ChatMessage, ChatResult } from "./llm/types.js";
 import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, NarrationOutcome, RetryOutcome } from "./narration-diagnostics.js";
 import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
+import type { NarrativeAdapterContext, NarrativeFact } from "./setup/background-context.js";
 
 export interface NarrativeLLMResult {
   readonly text: string;
@@ -34,6 +36,8 @@ export interface StructuredNarration {
 export interface GuardFact {
   readonly id: string;
   readonly epistemicClass: EpistemicClass;
+  readonly source?: string;
+  readonly usableNow?: boolean;
 }
 
 export type NarrationGuardResult =
@@ -169,11 +173,34 @@ export function parseStructuredNarration(raw: string): StructuredNarration | nul
  * requires a claim that genuinely asserts established truth. When no facts were
  * provided the model must not assert any epistemic claim at all.
  */
-export function verifyEpistemicNarration(response: string, inputFacts: readonly GuardFact[]): NarrationGuardResult {
+export interface NarrationGuardOptions {
+  readonly requireBackgroundLink?: boolean;
+  readonly backgroundFactIds?: readonly string[];
+  /** Require at least one validated claim, even when the caller has no facts. */
+  readonly requireClaims?: boolean;
+}
+
+const INTERNAL_REFERENCE_PATTERN = /(?:\b(?:contact|item|event|world|background|entrypoint|situation|hypothesis|knowledge|testimony):[A-Za-z0-9_.#:-]+|\bboot#[A-Za-z0-9_.#:-]+|\b(?:event|evt)-[A-Za-z0-9_-]+|\b(?:sourceEventIds?|eventId|canonicalRef)\s*[:=])/i;
+
+function isSafeClaimText(text: string): boolean {
+  if (INTERNAL_REFERENCE_PATTERN.test(text) || /[\r\n]/.test(text)) return false;
+  const sentenceStops = text.match(/[.!?](?=\s|$)/g)?.length ?? 0;
+  return sentenceStops <= 1;
+}
+
+export function verifyEpistemicNarration(
+  response: string,
+  inputFacts: readonly GuardFact[],
+  options?: NarrationGuardOptions,
+): NarrationGuardResult {
   const parsed = parseStructuredNarration(response);
   if (!parsed) return { ok: false, reason: "invalid_json" };
+  if (INTERNAL_REFERENCE_PATTERN.test(parsed.narration) || parsed.claims.some((claim) => !isSafeClaimText(claim.text))) {
+    return { ok: false, reason: "unsafe_text" };
+  }
   const byId = new Map(inputFacts.map((f) => [f.id, f]));
   if (inputFacts.length === 0) {
+    if (options?.requireClaims) return { ok: false, reason: "missing_claims" };
     if (parsed.claims.length > 0) return { ok: false, reason: "unexpected_claims" };
     if (hasAbsoluteCertaintyPhrasing(parsed.narration)) {
       return { ok: false, reason: "certainty_overclaim" };
@@ -185,6 +212,7 @@ export function verifyEpistemicNarration(response: string, inputFacts: readonly 
   for (const claim of parsed.claims) {
     const fact = byId.get(claim.sourceFactId);
     if (!fact) return { ok: false, reason: "unknown_source" };
+    if (fact.usableNow === false) return { ok: false, reason: "unusable_source" };
     if (!isEpistemicClass(claim.epistemicClass)) return { ok: false, reason: "invalid_class" };
     const declaredStrength = epistemicStrength(claim.epistemicClass);
     if (declaredStrength > epistemicStrength(fact.epistemicClass)) {
@@ -198,6 +226,12 @@ export function verifyEpistemicNarration(response: string, inputFacts: readonly 
   if (hasAbsoluteCertaintyPhrasing(parsed.narration) && strongestClaim < EPISTEMIC_STRENGTH.established_fact) {
     return { ok: false, reason: "certainty_overclaim" };
   }
+  if (options?.requireBackgroundLink) {
+    const allowed = new Set(options.backgroundFactIds ?? []);
+    if (!parsed.claims.some((claim) => allowed.has(claim.sourceFactId))) {
+      return { ok: false, reason: "missing_background_link" };
+    }
+  }
   return { ok: true, narration: renderSafeNarration(parsed, byId) };
 }
 
@@ -207,16 +241,16 @@ function renderSafeNarration(parsed: StructuredNarration, facts: ReadonlyMap<str
   // a second proposition past the epistemic checks.
   return parsed.claims.map((claim) => {
     const fact = facts.get(claim.sourceFactId);
-    if (!fact) return claim.text;
+    if (!fact) return sanitizePlayerFacingText(claim.text);
     switch (claim.epistemicClass) {
       case "testimony":
-        return "Источник сообщает: «" + claim.text + "»";
+        return "Источник сообщает: «" + sanitizePlayerFacingText(claim.text) + "»";
       case "inference":
-        return "Возможное объяснение: " + claim.text;
+        return "Возможное объяснение: " + sanitizePlayerFacingText(claim.text);
       case "interpretation":
-        return "Это лишь толкование: " + claim.text;
+        return "Это лишь толкование: " + sanitizePlayerFacingText(claim.text);
       default:
-        return claim.text;
+        return sanitizePlayerFacingText(claim.text);
     }
   }).join(" ");
 }
@@ -260,6 +294,89 @@ function templateText(entries: readonly NarrativeEntry[]): string {
     }
   }
   return lines.join("\n");
+}
+
+function contextFacts(context: NarrativeAdapterContext | undefined): {
+  backgroundFacts: NarrativeFact[];
+  visibleSituation: NarrativeFact[];
+  accessibleItems: NarrativeFact[];
+  knownContacts: NarrativeFact[];
+  testimony: NarrativeFact[];
+  hypotheses: NarrativeFact[];
+  observedKnowledge: NarrativeFact[];
+  unresolvedSituation: NarrativeFact[];
+} {
+  if (!context) return { backgroundFacts: [], visibleSituation: [], accessibleItems: [], knownContacts: [], testimony: [], hypotheses: [], observedKnowledge: [], unresolvedSituation: [] };
+  const backgroundFacts: NarrativeFact[] = [
+    { id: "background:name", text: `Твоё имя: ${context.character.name}.`, epistemicClass: "established_fact", source: "background", usableNow: true },
+    { id: "background:title", text: context.character.backgroundTitle, epistemicClass: "established_fact", source: "background", usableNow: true },
+    { id: "background:role", text: context.character.formerRole, epistemicClass: "established_fact", source: "background", usableNow: true },
+    { id: "background:rupture", text: context.character.rupture, epistemicClass: "established_fact", source: "background", usableNow: true },
+    { id: "background:obligation", text: context.character.obligation, epistemicClass: "established_fact", source: "background", usableNow: true },
+    { id: "arrival:reason", text: context.arrival.reason, epistemicClass: "established_fact", source: "background", usableNow: true },
+    { id: "arrival:hook", text: context.arrival.personalHook, epistemicClass: "established_fact", source: "entrypoint", usableNow: true },
+  ];
+  return {
+    backgroundFacts,
+    visibleSituation: [...context.visibleSituation.facts, ...context.visibleSituation.sensoryContext],
+    accessibleItems: [...context.accessibleItems],
+    knownContacts: [...context.contacts],
+    testimony: [...context.knowledge.testimony],
+    hypotheses: [...context.knowledge.hypotheses],
+    observedKnowledge: [...context.knowledge.observed],
+    unresolvedSituation: [...context.unresolvedSituation],
+  };
+}
+
+/** Only these read-side facts can bridge the opening window. Identity prose
+ * (name/title/role/rupture) is background context, but not an arrival bridge. */
+function openingBackgroundFactIds(groups: ReturnType<typeof contextFacts>): string[] {
+  return [
+    "background:obligation",
+    "arrival:reason",
+    "arrival:hook",
+    "situation:opening-problem",
+    ...groups.accessibleItems.map((item) => item.id),
+    ...groups.knownContacts.map((item) => item.id),
+    ...groups.testimony.map((item) => item.id),
+  ];
+}
+
+function asGuardFacts(groups: ReturnType<typeof contextFacts>, turnFacts: readonly GuardFact[]): GuardFact[] {
+  const all: GuardFact[] = [...turnFacts];
+  for (const group of Object.values(groups)) {
+    for (const item of group) all.push({ id: item.id, epistemicClass: item.epistemicClass, source: item.source, usableNow: item.usableNow });
+  }
+  return all;
+}
+
+function personalizedFallback(presentation: TurnPresentation, context: NarrativeAdapterContext | undefined): string {
+  const base = sanitizePlayerFacingText(presentation.response?.text ?? presentation.primary?.text ?? "Мир продолжал дышать вокруг тебя.");
+  if (!context) return base;
+  const additions: string[] = [];
+  if (context.openingWindow && !base.includes(context.arrival.reason)) {
+    additions.push(`Ты помнишь: ${sanitizePlayerFacingText(context.arrival.reason)}`);
+  }
+  const item = context.accessibleItems[0];
+  if (item && !base.includes(item.text)) additions.push(sanitizePlayerFacingText(item.text));
+  const testimony = context.knowledge.testimony[0];
+  if (testimony && !base.includes(testimony.text)) additions.push(`Источник сообщает: «${sanitizePlayerFacingText(testimony.text)}»`);
+  const visible = context.visibleSituation.sensoryContext[0] ?? context.visibleSituation.facts[0];
+  if (visible && !base.includes(visible.text)) additions.push(sanitizePlayerFacingText(visible.text));
+  if (additions.length === 0) {
+    additions.push(`Ты помнишь: ${sanitizePlayerFacingText(context.arrival.reason)}`);
+  }
+  return [base, ...additions.slice(0, 2)].join(" ");
+}
+
+function personalizedNarrativeText(snapshot: NarrativeSnapshot, context: NarrativeAdapterContext): string {
+  const base = sanitizePlayerFacingText(templateText(snapshot.entries));
+  const item = context.accessibleItems[0]?.text;
+  const testimony = context.knowledge.testimony[0]?.text;
+  const addition = context.openingWindow
+    ? `Ты помнишь: ${context.arrival.reason}`
+    : (item ?? (testimony ? `Источник сообщает: «${testimony}»` : `Ты помнишь: ${context.arrival.reason}`));
+  return addition && !base.includes(addition) ? `${base} ${sanitizePlayerFacingText(addition)}` : base;
 }
 
 function diagnosticProvider(router: ModelRouter, error: unknown): string {
@@ -312,7 +429,7 @@ export async function narrateLLM(
       correlationId: opts?.correlationId,
     });
     return {
-      text: templateText(snapshot.entries),
+      text: snapshot.narrativeContext ? personalizedNarrativeText(snapshot, snapshot.narrativeContext) : templateText(snapshot.entries),
       usedFallback: true,
       fallbackReason: "no_api_key",
       model: "",
@@ -320,10 +437,12 @@ export async function narrateLLM(
     };
   }
 
-  const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Переформулируй строго по переданным фактам — не добавляй новые события, не изменяй мир, не принимай решений, не описывай мысли или намерения игрока. " +
-    "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-3 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из entries>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." + EPISTEMIC_PROMPT;
+  const systemPrompt = "Skald — симуляция живого мира. Ты — повествователь. Описывай события мира в художественной форме, на русском, 2-3 предложения. Переформулируй строго по переданным фактам — не добавляй новые события, не изменяй мир, не принимай решений, не описывай мысли или намерения игрока. Используй отдельные группы turnFacts, backgroundFacts, visibleSituation, accessibleItems, knownContacts, testimony и hypotheses; не смешивай их эпистемические классы. observedKnowledge — это только то, что знает или помнит игрок, а не доказанная истина мира; не выдавай его как установленный мировой факт. " +
+    "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-3 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из переданных групп>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." + EPISTEMIC_PROMPT;
 
-  // Only primary and notable — no background, no world-state projection entries
+  // Primary/notable remain the deterministic turn facts; the adapter context
+  // is supplied in separate groups so historical/background facts cannot be
+  // confused with the current event result.
   const llmEntries = snapshot.presentation?.primary
     ? [snapshot.presentation.primary, ...snapshot.presentation.notable]
     : [];
@@ -331,9 +450,30 @@ export async function narrateLLM(
     const id = i === 0 ? "primary" : `notable-${i - 1}`;
     return { id, text: entry.text, epistemicClass: entry.epistemicClass, sourceEventIds: entry.sourceEventIds };
   });
+  if (facts.length === 0) {
+    facts.push({
+      id: "primary",
+      text: snapshot.presentation?.response?.text ?? "Мир продолжал дышать вокруг тебя.",
+      epistemicClass: "observed_fact",
+      sourceEventIds: [],
+    });
+  }
+  const groups = contextFacts(snapshot.narrativeContext);
+  const guardFacts = asGuardFacts(groups, facts);
+  const allowedOpeningFacts = openingBackgroundFactIds(groups);
   const userContent = JSON.stringify({
     response: snapshot.presentation.response,
-    entries: facts,
+    entries: facts.map((fact) => ({ id: fact.id, text: fact.text, epistemicClass: fact.epistemicClass })),
+    turnFacts: facts.map((fact) => ({ id: fact.id, text: fact.text, epistemicClass: fact.epistemicClass })),
+    backgroundFacts: groups.backgroundFacts,
+    visibleSituation: groups.visibleSituation,
+    accessibleItems: groups.accessibleItems,
+    knownContacts: groups.knownContacts,
+    testimony: groups.testimony,
+    hypotheses: groups.hypotheses,
+    observedKnowledge: groups.observedKnowledge,
+    unresolvedSituation: groups.unresolvedSituation,
+    openingWindow: snapshot.narrativeContext?.openingWindow === true,
     worldTime: snapshot.worldTime,
     playerPosition: snapshot.playerPosition,
   });
@@ -350,7 +490,10 @@ export async function narrateLLM(
     try {
       const result: ChatResult = await router.chat("narrate", messages);
       const durationMs = Math.round(performance.now() - start);
-      const guard = verifyEpistemicNarration(result.text, facts);
+      const guard = verifyEpistemicNarration(result.text, guardFacts, {
+        requireClaims: true,
+        ...(snapshot.narrativeContext?.openingWindow ? { requireBackgroundLink: true, backgroundFactIds: allowedOpeningFacts } : {}),
+      });
       if (!guard.ok) {
         const category: NarrationErrorCategory = "schema_rejection";
         emitDiagnostic(sink, {
@@ -373,7 +516,7 @@ export async function narrateLLM(
         });
         // Schema rejection is deterministic — no retry
         return {
-          text: templateText(snapshot.entries),
+          text: snapshot.narrativeContext ? personalizedNarrativeText(snapshot, snapshot.narrativeContext) : templateText(snapshot.entries),
           usedFallback: true,
           fallbackReason: `epistemic_violation:${guard.reason}`,
           model: "",
@@ -442,7 +585,7 @@ export async function narrateLLM(
 
       if (!isTransient || isLastAttempt) {
         return {
-          text: templateText(snapshot.entries),
+          text: snapshot.narrativeContext ? personalizedNarrativeText(snapshot, snapshot.narrativeContext) : templateText(snapshot.entries),
           usedFallback: true,
           fallbackReason: "chat_error",
           model: "",
@@ -456,7 +599,7 @@ export async function narrateLLM(
 
   // Unreachable — satisfies TS exhaustiveness
   return {
-    text: templateText(snapshot.entries),
+    text: snapshot.narrativeContext ? personalizedNarrativeText(snapshot, snapshot.narrativeContext) : templateText(snapshot.entries),
     usedFallback: true,
     fallbackReason: "chat_error",
     model: "",
@@ -484,13 +627,13 @@ export interface TurnNarration {
 const EPISTEMIC_PROMPT = "Сохраняй классы epistemic: established_fact утверждай прямо; observed_fact подавай как увиденное; testimony привязывай к источнику; inference и interpretation оформляй как предположение. Никогда не повышай класс и не превращай testimony, belief или interpretation в установленный факт.";
 const DND_SYSTEM_PROMPT =
   "Ты — рассказчик тёмного мира в духе D&D. Опиши этот ход художественно, по-русски, 2-4 предложения, в прошедшем времени, с атмосферой. " +
-  "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции. response.kind обязателен и неизменяем: action_rejection нельзя превращать в успех. " +
-  "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-4 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из turnFacts>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." +
+  "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции. response.kind обязателен и неизменяем: action_rejection нельзя превращать в успех. Используй только факты с usableNow=true. observedKnowledge описывает память/знание игрока и не является установленной истиной мира. Не превращай testimony, inference или observedKnowledge в established_fact, не создавай предметы, контакты, причины, письма или события. Не упоминай внутренние идентификаторы. " +
+  "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-4 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из переданных групп>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." +
   EPISTEMIC_PROMPT;
 
-function fallbackNarration(presentation: TurnPresentation, reason: string): TurnNarration {
+function fallbackNarration(presentation: TurnPresentation, reason: string, context?: NarrativeAdapterContext): TurnNarration {
   return {
-    text: presentation.response?.text ?? presentation.primary?.text ?? "Мир продолжал дышать вокруг тебя.",
+    text: personalizedFallback(presentation, context),
     model: "",
     usedFallback: true,
     fallbackReason: reason,
@@ -526,18 +669,30 @@ export async function narrateTurnLLM(
       recordedAt: new Date().toISOString(),
       correlationId: opts?.correlationId,
     });
-    return fallbackNarration(presentation, "no_api_key");
+    return fallbackNarration(presentation, "no_api_key", opts?.narrativeContext);
   }
 
+  const groups = contextFacts(opts?.narrativeContext);
   const facts = [
-    { id: "primary", role: "primary", text: presentation.primary?.text ?? null, epistemicClass: presentation.primary?.epistemicClass ?? "observed_fact", sourceEventIds: presentation.primary?.sourceEventIds ?? [] },
+    { id: "primary", role: "primary", text: presentation.primary?.text ?? presentation.response?.text ?? "Мир продолжал дышать вокруг тебя.", epistemicClass: presentation.primary?.epistemicClass ?? "observed_fact", sourceEventIds: presentation.primary?.sourceEventIds ?? [] },
     ...presentation.notable.slice(0, 3).map((e, i) => ({ id: `notable-${i}`, role: "notable", text: e.text, epistemicClass: e.epistemicClass, sourceEventIds: e.sourceEventIds })),
-  ].filter((f) => f.text !== null);
+  ];
+  const guardFacts = asGuardFacts(groups, facts);
+  const backgroundFactIds = openingBackgroundFactIds(groups);
 
   const userContent = JSON.stringify({
     playerAction,
     response: presentation.response,
-    turnFacts: facts.map((f) => ({ id: f.id, role: f.role, text: f.text, epistemicClass: f.epistemicClass, sourceEventIds: f.sourceEventIds })),
+    turnFacts: facts.map((f) => ({ id: f.id, role: f.role, text: f.text, epistemicClass: f.epistemicClass })),
+    backgroundFacts: groups.backgroundFacts,
+    visibleSituation: groups.visibleSituation,
+    accessibleItems: groups.accessibleItems,
+    knownContacts: groups.knownContacts,
+    testimony: groups.testimony,
+    hypotheses: groups.hypotheses,
+    observedKnowledge: groups.observedKnowledge,
+    unresolvedSituation: groups.unresolvedSituation,
+    openingWindow: opts?.narrativeContext?.openingWindow === true,
     worldTime: presentation.worldTime,
     playerPosition: presentation.playerPosition,
   });
@@ -554,7 +709,10 @@ export async function narrateTurnLLM(
     try {
       const result: ChatResult = await router.chat("narrate", messages);
       const durationMs = Math.round(performance.now() - start);
-      const guard = verifyEpistemicNarration(result.text, facts);
+      const guard = verifyEpistemicNarration(result.text, guardFacts, {
+        requireClaims: true,
+        ...(opts?.narrativeContext?.openingWindow ? { requireBackgroundLink: true, backgroundFactIds } : {}),
+      });
       if (!guard.ok) {
         const category: NarrationErrorCategory = "schema_rejection";
         emitDiagnostic(sink, {
@@ -576,7 +734,7 @@ export async function narrateTurnLLM(
           configuredModel: result.configuredModel,
         });
         // Schema rejection is deterministic — no retry
-        return fallbackNarration(presentation, `epistemic_violation:${guard.reason}`);
+        return fallbackNarration(presentation, `epistemic_violation:${guard.reason}`, opts?.narrativeContext);
       }
       const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
       const configuredProvider = result.configuredProvider ?? router.providerId;
@@ -639,7 +797,7 @@ export async function narrateTurnLLM(
       });
 
       if (!isTransient || isLastAttempt) {
-        return fallbackNarration(presentation, "chat_error");
+        return fallbackNarration(presentation, "chat_error", opts?.narrativeContext);
       }
 
       await sleep(retryBaseMs * Math.pow(2, attempt - 1));
@@ -647,5 +805,5 @@ export async function narrateTurnLLM(
   }
 
   // Unreachable — satisfies TS exhaustiveness
-  return fallbackNarration(presentation, "chat_error");
+  return fallbackNarration(presentation, "chat_error", opts?.narrativeContext);
 }

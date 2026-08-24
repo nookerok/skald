@@ -13,10 +13,12 @@ import {
   bootstrapWorldEvents,
   createRules,
 } from "@skald/world";
+import type { NarrationDiagnosticSink } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore, LEGACY_WORLD_ID, type WorldId } from "./persistence.js";
 import { rollCriticalCheck, rollPendingCheck } from "./dice-roller.js";
 import { buildActionConversationTurn } from "./conversation/builder.js";
+import { createProductionDiagnosticSink } from "./runtime/narration-diagnostic-prod-sink.js";
 
 export type { IntentResult } from "@skald/intent-parser";
 export interface IdempotencyReject {
@@ -34,6 +36,7 @@ export interface App {
   router: ModelRouter | null;
   store: ReturnType<typeof createMultiWorldStore> | null;
   worldId: WorldId;
+  diagnostics?: NarrationDiagnosticSink;
 }
 
 function createRouter(): ModelRouter | null {
@@ -53,7 +56,7 @@ export function createApp(): App {
   const engine = new RuleEngine(registry, projection, bus, undefined, onSubErr);
   commitBootstrap(bus, (e) => projection.apply(e));
   const router = createRouter();
-  return { bus, registry, engine, projection, processedKeys: new Set(), router, store: null, worldId: LEGACY_WORLD_ID };
+  return { bus, registry, engine, projection, processedKeys: new Set(), router, store: null, worldId: LEGACY_WORLD_ID, diagnostics: createProductionDiagnosticSink() };
 }
 
 export function createPersistentApp(opts?: { dbPath?: string | undefined }): App {
@@ -116,7 +119,7 @@ export function createPersistentApp(opts?: { dbPath?: string | undefined }): App
     }
   }
 
-  return { bus, registry, engine, projection, processedKeys, router, store, worldId };
+  return { bus, registry, engine, projection, processedKeys, router, store, worldId, diagnostics: createProductionDiagnosticSink() };
 }
 
 export interface CommandOutcome {

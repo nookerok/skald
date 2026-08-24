@@ -76,9 +76,16 @@ export type * from "./game-shell/types.js";
 export { buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } from "./inquiry/index.js";
 export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
-export { narrateLLM, narrateTurnLLM } from "./narrative-llm.js";
-export type { TurnNarration } from "./narrative-llm.js";
-export type { NarrativeLLMResult } from "./narrative-llm.js";
+export { narrateLLM, narrateTurnLLM, verifyEpistemicNarration } from "./narrative-llm.js";
+export type {
+  TurnNarration,
+  NarrativeLLMResult,
+  GuardFact,
+  NarrationClaim,
+  StructuredNarration,
+  NarrationGuardResult,
+  NarrationGuardOptions,
+} from "./narrative-llm.js";
 export {
   classifyNarrationError,
   isTransientNarrationError,
@@ -89,6 +96,7 @@ export type {
   NarrationOutcome,
   NarrationLLMDiagnosticEvent,
   NarrationSchedulerDiagnosticEvent,
+  NarrationContextDiagnosticEvent,
   NarrationDiagnosticEvent,
   NarrationDiagnosticSink,
   NarrationOptions,
@@ -209,5 +217,12 @@ export type { SettlementDefinition, SettlementState, SettlementReadView } from "
 export * from './action-capability/index.js';
 export { actionCapabilityRules, itemPossession, containerAccess, affordanceUse, phenomenonObservation } from './rules/interactions/action-capability.js';
 export * from "./region/index.js";
-export { buildBackgroundNarrativeContext } from "./setup/background-context.js";
-export type { BackgroundNarrativeContext } from "./setup/background-context.js";
+export { buildBackgroundNarrativeContext, buildNarrativeAdapterContext } from "./setup/background-context.js";
+export type {
+  BackgroundNarrativeContext,
+  NarrativeFact,
+  NarrativeFactEpistemicClass,
+  NarrativeFactSource,
+  NarrativeAdapterContext,
+  NarrativeAdapterContextOptions,
+} from "./setup/background-context.js";

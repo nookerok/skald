@@ -23,12 +23,15 @@ import {
   buildSpatialWorldProjection,
   narrateTurnLLM,
   buildBackgroundNarrativeContext,
+  buildNarrativeAdapterContext,
+  WorldProjector,
   buildInquiryAnswer,
   getCharacterBackground,
   getRegionEntrypoint,
   resolveInteractionTarget,
+  narrateLLM,
 } from "@skald/world";
-import type { ObserverThreadDelta, ObserverThreadJournalDTO } from "@skald/world";
+import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { interpretPlayerInput } from "../runtime/intent-gateway.js";
@@ -42,6 +45,12 @@ import {
   conversationRequestHash,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
+import {
+  toPlayerFacingJournalTurns,
+  toPlayerFacingNarrativeEntries,
+  toPlayerFacingPresentation,
+  toPlayerFacingThreads,
+} from "./player-facing.js";
 
 /** Deterministic canonical hash of the acknowledge request body. */
 function acknowledgeRequestHash(worldTime: number, eventNumber: number): string {
@@ -155,6 +164,73 @@ function buildGuidance(runtime: WorldRuntime) {
   return buildPlayerGuidance(events, world);
 }
 
+function buildNarrationContext(
+  runtime: WorldRuntime,
+  presentation: ReturnType<typeof selectTurnPresentation>,
+  events: readonly DomainEvent[] = runtime.bus.query(),
+  world: ReturnType<WorldRuntime["projection"]["getSnapshot"]> = runtime.projection.getSnapshot(),
+  openingWindow = false,
+  correlationId?: string,
+  priority: "interactive" | "batch" = "interactive",
+): NarrativeAdapterContext | undefined {
+  const startedAt = performance.now();
+  try {
+    const record = runtime.store.getWorldRecord(runtime.worldId);
+    const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+    const entrypoint = record?.entrypointId ? getRegionEntrypoint(record.entrypointId) : null;
+    const context = buildNarrativeAdapterContext(events, world, {
+      profile,
+      entrypoint,
+      presentation,
+      openingWindow,
+      ...(record?.characterName !== undefined ? { characterName: record.characterName } : {}),
+    });
+    return context ?? undefined;
+  } catch {
+    // Context is an optional read-side decoration; it must never turn a
+    // durable command commit into a failed player request.
+    try {
+      runtime.diagnostics({
+        kind: "context",
+        category: "context_error",
+        outcome: "context_error",
+        provider: "adapter",
+        durationMs: Math.round(performance.now() - startedAt),
+        attempt: 0,
+        timeout: 0,
+        retryOutcome: "none",
+        turn: world.time,
+        worldTime: world.time,
+        priority,
+        detail: "build_failed",
+        worldId: runtime.worldId,
+        recordedAt: new Date().toISOString(),
+        ...(correlationId ? { correlationId } : {}),
+      });
+    } catch { /* diagnostics are best-effort */ }
+    return undefined;
+  }
+}
+
+function isOpeningNarrationWindow(runtime: WorldRuntime, currentIdempotencyKey?: string): boolean {
+  try {
+    const checkpoint = runtime.store.getObserverCheckpoint(runtime.worldId, "player");
+    if (!checkpoint) return false;
+    const turns = runtime.store.listConversationTurns(runtime.worldId, { limit: 500 });
+    const priorTurns = turns.filter((turn) => turn.idempotencyKey !== currentIdempotencyKey).length;
+    return priorTurns < 3;
+  } catch {
+    return false;
+  }
+}
+
+function historicalWorldAt(events: readonly DomainEvent[], worldTime: number): { events: readonly DomainEvent[]; world: ReturnType<WorldRuntime["projection"]["getSnapshot"]> } {
+  const prefix = events.filter((event) => event.timestamp <= worldTime);
+  const projector = new WorldProjector();
+  for (const event of prefix) projector.apply(event);
+  return { events: prefix, world: projector.getSnapshot() };
+}
+
 function checkPoisoned(runtime: WorldRuntime): boolean {
   return (runtime.engine as any).isPoisoned?.() ?? false;
 }
@@ -217,6 +293,7 @@ type NarrationTurn = {
   input: string;
   pres: ReturnType<typeof selectTurnPresentation>;
   correlationId?: string | undefined;
+  narrativeContext?: NarrativeAdapterContext | undefined;
 };
 
 /**
@@ -235,6 +312,7 @@ function scheduleNarration(
   input: string,
   pres: ReturnType<typeof selectTurnPresentation>,
   correlationId?: string,
+  narrativeContext?: NarrativeAdapterContext,
 ): void {
   const router = runtime.router;
   if (!router || input.trim().length === 0) return;
@@ -251,6 +329,7 @@ function scheduleNarration(
         timeoutMs: router.timeoutSeconds * 1000,
         worldId,
         ...(correlationId ? { correlationId } : {}),
+        ...(narrativeContext ? { narrativeContext } : {}),
       });
       // 2. Classify LLM result
       if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
@@ -307,23 +386,24 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
   // The world command queue has already committed these ticks before this
   // helper runs, so the journal presentation per target worldTime is stable:
   // capture it once instead of replaying the log inside every job.
-  const journal = buildTurnJournal(runtime.bus.query());
+  const allEvents = runtime.bus.query();
+  const journal = buildTurnJournal(allEvents);
   const targets = [...new Set(tickEvents.map((e) => e.timestamp))]
     .map((worldTime) => {
       const source = tickEvents.find((event) => event.timestamp === worldTime);
+      const historical = historicalWorldAt(allEvents, worldTime);
+      const presentation = journal.turns.find((t) => t.worldTime === worldTime)?.presentation ?? null;
       return {
         worldTime,
-        presentation: journal.turns.find((t) => t.worldTime === worldTime)?.presentation ?? null,
+        presentation,
+        narrativeContext: presentation ? buildNarrationContext(runtime, presentation, historical.events, historical.world, false, source?.correlationId, "batch") : undefined,
         ...(source?.correlationId ? { correlationId: source.correlationId } : {}),
       };
     })
-    .filter((t): t is {
-      worldTime: number;
-      presentation: NonNullable<typeof t.presentation>;
-      correlationId?: string;
-    } => t.presentation !== null);
+    .filter((t) => t.presentation !== null);
   for (const target of targets) {
-    const { worldTime, presentation, correlationId } = target;
+    const { worldTime, presentation, correlationId, narrativeContext } = target;
+    if (!presentation) continue;
     runtime.narration.schedule({
       priority: "batch",
       worldTime,
@@ -335,6 +415,7 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
           timeoutMs: router.timeoutSeconds * 1000,
           worldId,
           ...(correlationId ? { correlationId } : {}),
+          ...(narrativeContext ? { narrativeContext } : {}),
         });
         // 2. Classify LLM result
         if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
@@ -422,9 +503,10 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         const correlationId = tickResult.tickEvents[0]?.correlationId;
-        narrationTurn = { input, pres, ...(correlationId ? { correlationId } : {}) };
+        const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
+        narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
         const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
-        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
       }
       if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
@@ -439,7 +521,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         advanceNarrationTicks = tickResult.tickEvents;
-        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
@@ -460,13 +542,14 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
       const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
-      narrationTurn = { input, pres, ...(correlationId ? { correlationId } : {}) };
+      const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
+      narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
       return json({
         ok: true,
         state: serializeWorldStateFromRuntime(runtime),
         position: cmdResult.position,
         // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
-        presentation: pres,
+        presentation: toPlayerFacingPresentation(pres),
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
         observerThreads,
@@ -479,7 +562,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   });
 
   const pendingNarration = narrationTurn as NarrationTurn | null;
-  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId);
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId, pendingNarration.narrativeContext);
   const pendingTicks = advanceNarrationTicks as DomainEvent[] | null;
   if (pendingTicks && pendingTicks.length > 0) scheduleNarrationForTicks(runtime, input, pendingTicks);
   return response;
@@ -566,7 +649,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
-      narrationTurn = { input, pres, ...(correlationId ? { correlationId } : {}) };
+      const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
+      narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
       return json({
         ok: true,
         resolution: "accepted",
@@ -574,7 +658,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         reason: null,
         state: serializeWorldStateFromRuntime(runtime),
         // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
-        presentation: pres,
+        presentation: toPlayerFacingPresentation(pres),
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
         observerThreads,
@@ -589,7 +673,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   });
 
   const pendingNarration = narrationTurn as NarrationTurn | null;
-  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId);
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId, pendingNarration.narrativeContext);
   return response;
 }
 
@@ -651,7 +735,7 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
   const conversationHasMore = conversationRows.length === conversationLimitP.value;
   const conversationNextBefore = conversationHasMore ? conversationRows[0]?.turnSeq ?? null : null;
 
-  return json({ ok: true, turns, conversationTurns, conversationNextBefore, conversationHasMore, threads: journal.threads, worldTime: journal.worldTime, nextBefore, hasMore });
+  return json({ ok: true, turns: toPlayerFacingJournalTurns(turns), conversationTurns, conversationNextBefore, conversationHasMore, threads: toPlayerFacingThreads(journal.threads), worldTime: journal.worldTime, nextBefore, hasMore });
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
@@ -696,8 +780,46 @@ export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
   const record = runtime.store.getWorldRecord(runtime.worldId);
   const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
   const backgroundContext = buildBackgroundNarrativeContext(events, world, profile);
-  const snapshot = buildNarrative(events, world, backgroundContext ? { backgroundContext } : undefined);
-  return json({ ok: true, entries: snapshot.entries, presentation: snapshot.presentation, worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition, ...(snapshot.backgroundContext ? { backgroundContext: snapshot.backgroundContext } : {}) });
+  const presentation = selectTurnPresentation(events, world);
+  const narrativeContext = buildNarrationContext(runtime, presentation);
+  const snapshot = buildNarrative(events, world, {
+    ...(backgroundContext ? { backgroundContext } : {}),
+    ...(narrativeContext ? { narrativeContext } : {}),
+  });
+  // Internal background context contains adapter ids and is not a public DTO.
+  return json({ ok: true, entries: toPlayerFacingNarrativeEntries(snapshot.entries), presentation: toPlayerFacingPresentation(snapshot.presentation), worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+}
+
+/**
+ * Compatibility LLM narration route. It uses the same observer-safe adapter
+ * context as the detached turn narration path; the route is read-side only
+ * and never exposes internal provenance or fallback diagnostics.
+ */
+export async function handleWorldNarrativeLLM(runtime: WorldRuntime, url: URL): Promise<JsonResponse> {
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const sinceRaw = url.searchParams.get("since");
+  const sinceP = parseStrictInt(sinceRaw, 0, 0, Number.MAX_SAFE_INTEGER);
+  if (!sinceP.ok) return error("invalid_request", "since must be a non-negative integer", 400);
+  const since = sinceP.value;
+  const base = buildNarrative(events, world, since > 0 ? { sinceTick: since } : undefined);
+  const narrativeContext = buildNarrationContext(runtime, base.presentation);
+  const snapshot = buildNarrative(events, world, {
+    ...(since > 0 ? { sinceTick: since } : {}),
+    ...(narrativeContext ? { narrativeContext } : {}),
+  });
+  const result = await narrateLLM(snapshot, runtime.router, {
+    ...(runtime.diagnostics ? { diagnostics: runtime.diagnostics } : {}),
+    worldId: runtime.worldId,
+    ...(narrativeContext ? { narrativeContext } : {}),
+  });
+  return json({
+    ok: true,
+    text: result.text,
+    usedFallback: result.usedFallback,
+    model: result.usedFallback ? "" : result.model,
+    latencyMs: result.latencyMs,
+  });
 }
 
 export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Promise<JsonResponse> {
@@ -724,7 +846,7 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       // durable tick commit is complete before detached read-side narration
       // is scheduled, and each tick retains its correlation metadata.
       scheduleNarrationForTicks(runtime, "wait", tickResult.tickEvents);
-      return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: pres, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+      return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }

@@ -23,6 +23,7 @@ import {
   handleWorldDiscoveries,
   handleWorldGuidance,
   handleWorldNarrative,
+  handleWorldNarrativeLLM,
   handleWorldEvents,
   handleWorldGameShell,
   handleWorldBeliefModel,
@@ -231,7 +232,7 @@ export async function startServer(options?: {
       const defaultWorldId = store.getPrimaryWorldId() ?? LEGACY_WORLD_ID;
       const UNSCoped_PATH: Record<string, string> = {
         "/api/state": "/state", "/api/command": "/command", "/api/wait": "/wait",
-        "/api/narrative": "/narrative", "/api/narrative-llm": "/narrative",
+        "/api/narrative": "/narrative", "/api/narrative-llm": "/narrative-llm",
         "/api/journal": "/journal", "/api/discoveries": "/discoveries",
         "/api/guidance": "/guidance", "/api/beliefs": "/beliefs", "/api/events": "/events",
       };
@@ -273,6 +274,7 @@ export async function startServer(options?: {
           if (sub === "/discoveries") { const r = handleWorldDiscoveries(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/guidance") { const r = handleWorldGuidance(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/narrative") { const r = handleWorldNarrative(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
+          if (sub === "/narrative-llm") { const r = await handleWorldNarrativeLLM(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/events") { const r = handleWorldEvents(runtime, url); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/game-shell") { const r = handleWorldGameShell(runtime, worldId); handle(r.statusCode, JSON.parse(r.body)); return; }
           if (sub === "/beliefs") { const r = handleWorldBeliefModel(runtime); handle(r.statusCode, JSON.parse(r.body)); return; }
@@ -328,7 +330,7 @@ export async function startServer(options?: {
         }
 
         // Known sub-path but wrong method → 405
-        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/events", "/game-shell", "/observer-session", "/presence", "/map", "/observer-threads"];
+        const knownGetSubs = ["/state", "", "/journal", "/discoveries", "/guidance", "/beliefs", "/narrative", "/narrative-llm", "/events", "/game-shell", "/observer-session", "/presence", "/map", "/observer-threads"];
         const knownPostSubs = ["/command", "/wait", "/presence/acknowledge", "/offline-command"];
         if (knownGetSubs.includes(sub) && method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
         if (knownPostSubs.includes(sub) && method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }

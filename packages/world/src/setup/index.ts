@@ -6,5 +6,12 @@ export type { BootstrapSelection } from "./bootstrap-builder.js";
 export { listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint } from "./entrypoints.js";
 export { buildPrologue, buildPrologueFromFirstEntry } from "./prologue.js";
 
-export { buildBackgroundNarrativeContext } from "./background-context.js";
-export type { BackgroundNarrativeContext } from "./background-context.js";
+export { buildBackgroundNarrativeContext, buildNarrativeAdapterContext } from "./background-context.js";
+export type {
+  BackgroundNarrativeContext,
+  NarrativeFact,
+  NarrativeFactEpistemicClass,
+  NarrativeFactSource,
+  NarrativeAdapterContext,
+  NarrativeAdapterContextOptions,
+} from "./background-context.js";

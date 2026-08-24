@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { NarrativeSnapshot } from "../src/narrative.js";
 
-function narrationJson(narration: string, claims: unknown[] = []): string {
+function narrationJson(narration: string, claims: unknown[] = [{ text: narration, sourceFactId: "primary", epistemicClass: "observed_fact" }]): string {
   return JSON.stringify({ narration, claims });
 }
 
