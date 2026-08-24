@@ -66,7 +66,7 @@ export type {
   CausalChain, PatternBelief, Contradiction, BeliefModel, BeliefModelDTO, ObservablePattern, ObservationAPI,
   CausalStep as ObservationCausalStep,
 } from "./observation/types.js";
-export { buildPlayerGuidance, GUIDANCE_ACTIONS } from "./guidance/index.js";
+export { buildPlayerGuidance, buildObserverGuidanceContext, GUIDANCE_ACTIONS } from "./guidance/index.js";
 export type * from "./guidance/types.js";
 export { CHARACTER_BACKGROUNDS, CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterBackground, getCharacterPreset, getWorldTemplate, listCharacterBackgrounds, listCharacterPresets, listWorldTemplates, listPlayerWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue, buildPrologueFromFirstEntry } from "./setup/index.js";
 export type { CharacterBackground, CharacterPreset, WorldTemplate, WorldTemplateAudience, RegionEntrypoint, PrologueDTO } from "./setup/types.js";

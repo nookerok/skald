@@ -792,3 +792,23 @@ deterministic gate pipeline is accepted.
   skipped; typecheck, shell syntax, Canon, simulation, eval, adventure
   acceptance and `git diff --check` pass. Fixed NTFS browser QA remains
   externally blocked by the unavailable browser task; no deploy was performed.
+
+## Current work (2026-08-24, Guidance v2 observer-safe prose)
+
+- `PlayerGuidance` now uses schema version 2 with `intentExamples` and
+  navigation entries. Intent examples are deterministic, non-executable prose
+  derived from an immutable `ObserverGuidanceContext`; they never dispatch
+  commands, call an LLM, create Events or advance world time.
+- Context is constrained to the player's observed local situation, observed
+  routes, known contacts, visible/accessibly-held objects and unblocked item
+  affordances. Rumored/glimpsed routes, unknown contacts, inaccessible items,
+  hidden region facts and internal IDs are excluded. An authored personal hook
+  is used only when profile/entrypoint context is available.
+- `/api/guidance`, command/wait responses and Game Shell snapshots expose the
+  same v2 read-side contract. The old `GUIDANCE_ACTIONS` registry remains an
+  internal simulation/evaluation vocabulary and is not serialized into player
+  guidance. Browser examples render as prose; navigation alone is interactive.
+- Focused checks after migration: typecheck and 76 guidance/server/game-shell
+  tests pass. Full `npm run validate` and fixed NTFS browser QA remain to be
+  run/recorded for this change; browser QA is externally blocked by the known
+  unavailable task.

@@ -1,7 +1,8 @@
 # ADR 0002 — Player Guidance Read Model
 
-Status: read-model decision retained; suggestion-button interaction mechanics
-superseded by ADR 0005 (Open Intent and Critical Checks).
+Status: read-model decision retained; command-suggestion interaction mechanics
+superseded by the v2 prose-intent contract below and ADR 0005 (Open Intent and
+Critical Checks).
 
 ## Context
 
@@ -26,16 +27,20 @@ Option 2 — a pure read-side `PlayerGuidance` — was chosen.
 2. **Phase is deterministic.** The same Event Log always produces the same
    guidance phase. No randomness, no timers, no LLM involvement.
 
-3. **Suggestions come from a static allowlist.** The `GuidanceActionId` enum
-   maps to registered `move`, `wait`, `give` commands and `navigate` targets.
-   The selector cannot suggest arbitrary strings.
+3. **The player DTO contains prose intent examples, not commands.**
+   `PlayerGuidance.schemaVersion === 2` exposes `intentExamples` derived from
+   observer-safe read models and authored background context. An example is a
+   sentence the player may type or adapt; it has no executable input, action
+   identifier, or command dispatch semantics. The legacy `GUIDANCE_ACTIONS`
+   registry remains available only to simulation/evaluation code that needs its
+   internal command vocabulary.
 
 4. **LLM is never involved.** Guidance text is compile-time static Russian
    text. No LLM call selects the phase, the text, or the suggestions.
 
-5. **Player confirms every action.** A suggestion button dispatches a
-   `skald:command` custom event which flows through the existing `handle()`
-   path (idempotency key, pending state, retry, timeout, reconciliation).
+5. **The composer remains the action boundary.** The browser renders intent
+   examples as text. Only navigation entries may dispatch `skald:navigate`;
+   guidance never dispatches `skald:command` and never submits player input.
 
 6. **Browser dismissal is local Presentation state.** A dismissed phase
    key (`skald:guidance:dismissed:<phase>`) is stored in `sessionStorage` only.
@@ -56,9 +61,30 @@ Option 2 — a pure read-side `PlayerGuidance` — was chosen.
 - New source files under `packages/world/src/guidance/`.
 - New read-only HTTP endpoint `GET /api/guidance`.
 - Guidance DTO included inline in command/wait responses.
-- New browser module `guidance-view.js` with custom event dispatch.
+- New browser module `guidance-view.js` with prose examples and navigation-only
+  custom event dispatch.
 - New CSS file `guidance.css`.
 - No new Domain Events, Rules, Projection fields, or SQLite tables.
+
+## Amendment 2026-08-24: observer-safe prose guidance v2
+
+The selector now derives an immutable `ObserverGuidanceContext` from the same
+observer-scoped spatial, object, contact, situation and action-capability read
+models used by the map, Narrative Adapter and Game Shell. It may include only
+locally observed situations, known routes at `observed` rank, known contacts,
+physically accessible items with unblocked affordances, and an authored
+background/entrypoint hook when that context is available. Rumored/glimpsed
+routes, unknown contacts, inaccessible items and region-wide hidden facts are
+not candidates. A closed crossing receives a research question rather than a
+movement instruction.
+
+Candidate order is deterministic: active situation, personal hook, observed
+object, known contact, accessible affordance, known route, then navigation. At
+most three stable, deduplicated examples are returned. When no grounded fact is
+available the exact text is `Опиши, что хочешь осмотреть, узнать или изменить.`
+and the intent-example list is empty. Guidance is read-side only: it does not
+call an LLM, create Events, advance world time, mutate Projection, or replace
+the internal Strategy Registry.
 
 ## Test gates
 

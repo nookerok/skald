@@ -107,6 +107,21 @@ describe("narrateTurnLLM", () => {
     expect(user.turnFacts.find((f: any) => f.text === "последствие дерзости")?.sourceEventIds).toBeUndefined();
   });
 
+  it("strips provenance ids from the response sent to the LLM", async () => {
+    const router = await mockRouter();
+    const chatSpy = vi.spyOn(router, "chat");
+    const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+    const presentation: TurnPresentation = {
+      ...pres(true),
+      response: { kind: "action_outcome", text: "Ты замечаешь след.", sourceEventIds: ["response-event"] },
+    };
+    await narrateTurnLLM("осмотреть след", presentation, router);
+    const messages = chatSpy.mock.calls[0]?.[1] as any[];
+    const user = JSON.parse(messages[1]!.content);
+    expect(user.response).toEqual({ kind: "action_outcome", text: "Ты замечаешь след." });
+    expect(user.response.sourceEventIds).toBeUndefined();
+  });
+
   it("binds the LLM to facts and forbids deciding the outcome", async () => {
     const router = await mockRouter();
     const chatSpy = vi.spyOn(router, "chat");

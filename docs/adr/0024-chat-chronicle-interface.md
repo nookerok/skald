@@ -17,9 +17,9 @@ as prose invitations, never as fixed action chips.
 Despite this, the Game Screen grew into a dashboard: a hero stage, a
 "primary/notable/background" narrative stack, activity and causal panels, a
 horizontal turn-history strip, and — in an uncommitted experiment — a
-**Recommendation Dock** that rendered `GameShellSnapshot.suggestions` as a
-row of clickable buttons above the composer. The dock was technically sound
-(fill-only, never auto-submit) but it pushed the interface toward an
+**Recommendation Dock** that rendered the old v1 `GameShellSnapshot.suggestions`
+as a row of clickable buttons above the composer. The dock was technically
+sound (fill-only, never auto-submit) but it pushed the interface toward an
 interactive RPG panel: a visible list of offered actions teaches the player
 "these are the options the game has", which is the opposite of "I can try
 anything and the world will answer."
@@ -33,17 +33,16 @@ re-opened accidentally and so the main screen has a normative shape.
 1. **Keep the Recommendation Dock as "fill-only chips".** Dropped: even
    fill-only chips are a visible action palette; they contradict the product
    contract's "no suggested-action chips" clause and the core discovery
-   principle. `suggestions` remain valid *data* (UX-3 onboarding), but not a
-   first-layer UI element.
+   principle. The old v1 `suggestions` field was removed from the runtime DTO;
+   v2 `intentExamples` are prose data, not controls.
 2. **Full-screen minimal terminal, remove every other panel at once.**
    Dropped: too big a single step; the context rail, situation and critical
    check surfaces carry real state. Delivered as sequential slices instead
    (UX-7.1 chat core, UX-7.2 tabs, UX-7.3 narrative polish).
 3. **Persist player intent text server-side so history bubbles survive
-   reloads.** Dropped for now: a PlayerCommand is not a Domain Event
-   (invariant 7) and must not enter the canonical log; a client-side
-   persistence follow-up (localStorage per world, like the offline queue)
-   remains possible without touching the log.
+   reloads.** The exact text is stored in the read-side `ConversationTurn`
+   table, never as a Domain Event or Projection field. This preserves the
+   chronicle without touching the canonical log.
 
 ## Decision
 
@@ -53,24 +52,22 @@ re-opened accidentally and so the main screen has a normative shape.
    consequences visible as part of the flow. The chronicle occupies the
    dominant share of the screen; the free-text composer is the only
    permanent game control.
-2. **No recommendations in the first layer.** `GameShellSnapshot.suggestions`
-   stays in the DTO (backward compatibility, UX-3 onboarding), but the shell
-   renders no suggestion buttons, chips or docks. First-hour onboarding hints
-   may appear only as dismissible prose, never as preselected actions.
+2. **No recommendations in the first layer.** `PlayerGuidance` v2 carries
+   observer-safe `intentExamples`, but the shell renders them as dismissible
+   prose, never as suggestion buttons, chips or docks. Only explicit navigation
+   entries remain interactive.
 3. **Everything else is a tab or an overlay.** Map, knowledge, character,
    relations, threads, activity and diagnostics live outside the main
    chronicle surface (context rail tabs / overlays today, full extraction in
    UX-7.2). Knowledge of space is part of discovery; the map is not a HUD.
-4. **No DTO, Event, Rule, Projection or HTTP contract changes.** The
-   chronicle is built purely from existing read models: the journal DTO
-   (history), `lastTurn` / `ShellDelta.turn` (live turns). Presentation and
-   Narrative remain the only player-facing text sources.
-5. **Honest limitation: intent bubbles are session-scoped.** The typed text
-   of a player intention is not a Domain Event and is absent from the
-   journal; the "player said" bubble is rendered from client-side session
-   input only. A reload shows the world's chronicle without the player's
-   exact words. Persisting intent text per world in localStorage is an
-   allowed future client-only enhancement.
+4. **Authoritative boundaries remain unchanged.** The chronicle and guidance
+   are built from read-side journal, ConversationTurn and observer models.
+   ConversationTurn and Guidance v2 are explicit non-authoritative DTO/read
+   model additions; no Rule, Projection truth, or canonical Event changes.
+5. **Conversation turns survive reload.** The typed text of a player
+   intention is persisted in `ConversationTurn` with idempotency and replay
+   semantics. It is never a Domain Event, never changes world time, and is
+   rendered before the deterministic Master response after hydration.
 6. Slice plan: **UX-7.1 Chat Core** (feed renderer + composer primacy),
    **UX-7.2 Tabs** (extract map/knowledge/character/activity panels from the
    main screen), **UX-7.3 Narrative polish** (turn rhythm, "ты сделал / мир
@@ -135,3 +132,14 @@ time, append Events or mutate Projection. Map, character and knowledge remain
 the only player spaces in the top navigation; discoveries are rendered inside
 the observer-scoped Knowledge surface. Developer diagnostics are not part of
 the player shell and must be opened through a separate trusted-LAN surface.
+
+## Amendment 2026-08-24: guidance is prose, not an action palette
+
+`PlayerGuidance` is now schema version 2. Its `intentExamples` are deterministic
+sentences derived from the player's observer-safe read models. They are rendered
+under «Можно попробовать:» as non-interactive prose and never dispatch
+`skald:command`. Only the separate `navigation` entries may dispatch
+`skald:navigate`. `/api/guidance`, command/wait responses and Game Shell
+snapshots use this same DTO; the legacy internal command registry is not a
+player-facing contract. No guidance read changes Events, Projection, Rules,
+Strategy Registry or world time, and no LLM participates in candidate choice.

@@ -328,6 +328,14 @@ function contextFacts(context: NarrativeAdapterContext | undefined): {
   };
 }
 
+function promptFacts(facts: readonly NarrativeFact[]): readonly Omit<NarrativeFact, "sourceEventIds">[] {
+  return facts.map(({ sourceEventIds: _sourceEventIds, ...fact }) => fact);
+}
+
+function promptResponse(response: TurnPresentation["response"]): { readonly kind: string; readonly text: string } | null {
+  return response ? { kind: response.kind, text: response.text } : null;
+}
+
 /** Only these read-side facts can bridge the opening window. Identity prose
  * (name/title/role/rupture) is background context, but not an arrival bridge. */
 function openingBackgroundFactIds(groups: ReturnType<typeof contextFacts>): string[] {
@@ -462,17 +470,17 @@ export async function narrateLLM(
   const guardFacts = asGuardFacts(groups, facts);
   const allowedOpeningFacts = openingBackgroundFactIds(groups);
   const userContent = JSON.stringify({
-    response: snapshot.presentation.response,
+    response: promptResponse(snapshot.presentation.response),
     entries: facts.map((fact) => ({ id: fact.id, text: fact.text, epistemicClass: fact.epistemicClass })),
     turnFacts: facts.map((fact) => ({ id: fact.id, text: fact.text, epistemicClass: fact.epistemicClass })),
     backgroundFacts: groups.backgroundFacts,
-    visibleSituation: groups.visibleSituation,
-    accessibleItems: groups.accessibleItems,
-    knownContacts: groups.knownContacts,
-    testimony: groups.testimony,
-    hypotheses: groups.hypotheses,
-    observedKnowledge: groups.observedKnowledge,
-    unresolvedSituation: groups.unresolvedSituation,
+    visibleSituation: promptFacts(groups.visibleSituation),
+    accessibleItems: promptFacts(groups.accessibleItems),
+    knownContacts: promptFacts(groups.knownContacts),
+    testimony: promptFacts(groups.testimony),
+    hypotheses: promptFacts(groups.hypotheses),
+    observedKnowledge: promptFacts(groups.observedKnowledge),
+    unresolvedSituation: promptFacts(groups.unresolvedSituation),
     openingWindow: snapshot.narrativeContext?.openingWindow === true,
     worldTime: snapshot.worldTime,
     playerPosition: snapshot.playerPosition,
@@ -682,16 +690,16 @@ export async function narrateTurnLLM(
 
   const userContent = JSON.stringify({
     playerAction,
-    response: presentation.response,
+    response: promptResponse(presentation.response),
     turnFacts: facts.map((f) => ({ id: f.id, role: f.role, text: f.text, epistemicClass: f.epistemicClass })),
     backgroundFacts: groups.backgroundFacts,
-    visibleSituation: groups.visibleSituation,
-    accessibleItems: groups.accessibleItems,
-    knownContacts: groups.knownContacts,
-    testimony: groups.testimony,
-    hypotheses: groups.hypotheses,
-    observedKnowledge: groups.observedKnowledge,
-    unresolvedSituation: groups.unresolvedSituation,
+    visibleSituation: promptFacts(groups.visibleSituation),
+    accessibleItems: promptFacts(groups.accessibleItems),
+    knownContacts: promptFacts(groups.knownContacts),
+    testimony: promptFacts(groups.testimony),
+    hypotheses: promptFacts(groups.hypotheses),
+    observedKnowledge: promptFacts(groups.observedKnowledge),
+    unresolvedSituation: promptFacts(groups.unresolvedSituation),
     openingWindow: opts?.narrativeContext?.openingWindow === true,
     worldTime: presentation.worldTime,
     playerPosition: presentation.playerPosition,

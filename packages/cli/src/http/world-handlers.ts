@@ -161,7 +161,13 @@ export function serializeWorldStateFromRuntime(r: WorldRuntime) {
 function buildGuidance(runtime: WorldRuntime) {
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
-  return buildPlayerGuidance(events, world);
+  return buildPlayerGuidance(events, world, buildGuidanceContext(runtime));
+}
+
+function buildGuidanceContext(runtime: WorldRuntime): NarrativeAdapterContext | undefined {
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  return buildNarrationContext(runtime, selectTurnPresentation(events, world), events, world);
 }
 
 function buildNarrationContext(
@@ -475,7 +481,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const world = runtime.projection.getSnapshot();
         const record = runtime.store.getWorldRecord(runtime.worldId);
         const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
-        const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
+        const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const inquiry = buildInquiryAnswer(interpretation.inquiry, { shell, background });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
@@ -500,7 +506,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const tickResult = r as { tickEvents: DomainEvent[] };
         const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
         const guidance = buildGuidance(runtime);
-        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         const correlationId = tickResult.tickEvents[0]?.correlationId;
         const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
@@ -518,7 +524,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const tickResult = r as { tickEvents: DomainEvent[] };
         const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
         const guidance = buildGuidance(runtime);
-        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         advanceNarrationTicks = tickResult.tickEvents;
         return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
@@ -538,7 +544,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
       const pres = selectTurnPresentation(allCycleEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
-      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
       const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
@@ -609,7 +615,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const world = runtime.projection.getSnapshot();
         const record = runtime.store.getWorldRecord(runtime.worldId);
         const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
-        const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId);
+        const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
@@ -646,7 +652,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
       const pres = selectTurnPresentation(allCycleEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
-      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
       const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
@@ -760,7 +766,7 @@ export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): Js
   const world = runtime.projection.getSnapshot();
   const record = runtime.store.getWorldRecord(worldId);
   const charProfile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
-  const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId);
+  const snapshot = buildGameShellSnapshot(events, world, charProfile, worldId, buildGuidanceContext(runtime));
   const { journal: observerThreads } = buildObserverThreadsForRuntime(runtime);
   return json({
     ok: true,
@@ -839,7 +845,7 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       const tickResult = result as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
-      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot());
+      const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
       // The legacy /wait endpoint commits one or more player-visible ticks
       // directly. Keep its narration lifecycle identical to /command: the

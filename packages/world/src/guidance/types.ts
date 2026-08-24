@@ -9,8 +9,26 @@ export type GuidancePhase =
   | "review_discovery"
   | "free_play";
 
+/** A natural-language example. It is never an executable command. */
+export interface GuidanceIntentExample {
+  readonly id: string;
+  readonly text: string;
+  readonly description?: string;
+}
+
+export interface GuidanceNavigation {
+  readonly id: string;
+  readonly label: string;
+  readonly view: "journal" | "discoveries";
+}
+
+/** Internal registry kind; never serialized in PlayerGuidance v2. */
 export type GuidanceSuggestionKind = "command" | "navigate";
 
+/**
+ * Legacy action identifiers remain available to simulation/evaluation code
+ * through GUIDANCE_ACTIONS, but are intentionally absent from this DTO.
+ */
 export type GuidanceActionId =
   | "move_north"
   | "move_south"
@@ -23,23 +41,17 @@ export type GuidanceActionId =
   | "open_journal"
   | "open_discoveries";
 
-export interface GuidanceSuggestion {
-  readonly id: string;
-  readonly kind: GuidanceSuggestionKind;
-  readonly actionId: GuidanceActionId;
-  readonly label: string;
-  readonly description: string;
-  readonly input: string | null;
-  readonly view: "journal" | "discoveries" | null;
-}
-
-export interface PlayerGuidance {
-  readonly schemaVersion: 1;
+export interface PlayerGuidanceV2 {
+  readonly schemaVersion: 2;
   readonly mode: GuidanceMode;
   readonly phase: GuidancePhase;
   readonly title: string;
   readonly text: string;
-  readonly suggestions: readonly GuidanceSuggestion[];
+  readonly intentExamples: readonly GuidanceIntentExample[];
+  readonly navigation: readonly GuidanceNavigation[];
   readonly relatedDiscoveryId: string | null;
   readonly worldTime: number;
 }
+
+/** Current player-facing guidance contract. Kept as a short migration alias. */
+export type PlayerGuidance = PlayerGuidanceV2;

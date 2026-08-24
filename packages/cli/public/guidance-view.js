@@ -91,35 +91,7 @@ function renderOnboarding(container) {
     section.appendChild(textEl);
   }
 
-  const actions = document.createElement("div");
-  actions.className = "guidance-actions";
-
-  for (const sug of currentGuidance.suggestions) {
-    const btn = document.createElement("button");
-    btn.className = "guidance-action";
-    btn.textContent = sug.label;
-    btn.setAttribute("aria-label", sug.description || sug.label);
-    btn.addEventListener("click", () => {
-      if (sug.kind === "command" && sug.input) {
-        document.dispatchEvent(new CustomEvent("skald:command", {
-          detail: { input: sug.input },
-        }));
-      } else if (sug.kind === "navigate" && sug.view) {
-        document.dispatchEvent(new CustomEvent("skald:navigate", {
-          detail: { view: sug.view },
-        }));
-      }
-    });
-    btn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        btn.click();
-      }
-    });
-    actions.appendChild(btn);
-  }
-
-  section.appendChild(actions);
+  appendIntentExamples(section);
   container.appendChild(section);
 }
 
@@ -131,27 +103,42 @@ function renderFreePlay(container) {
   summary.textContent = currentGuidance.title || "Куда дальше?";
   details.appendChild(summary);
 
-  const actions = document.createElement("div");
-  actions.className = "guidance-actions";
+  appendIntentExamples(details);
+  container.appendChild(details);
+}
 
-  for (const sug of currentGuidance.suggestions) {
-    const btn = document.createElement("button");
-    btn.className = "guidance-action";
-    btn.textContent = sug.label;
-    btn.addEventListener("click", () => {
-      if (sug.kind === "command" && sug.input) {
-        document.dispatchEvent(new CustomEvent("skald:command", {
-          detail: { input: sug.input },
-        }));
-      } else if (sug.kind === "navigate" && sug.view) {
-        document.dispatchEvent(new CustomEvent("skald:navigate", {
-          detail: { view: sug.view },
-        }));
-      }
-    });
-    actions.appendChild(btn);
+function appendIntentExamples(parent) {
+  const examples = Array.isArray(currentGuidance.intentExamples) ? currentGuidance.intentExamples : [];
+  if (examples.length > 0) {
+    const heading = document.createElement("p");
+    heading.className = "guidance-examples-title";
+    heading.textContent = "Можно попробовать:";
+    parent.appendChild(heading);
+    const list = document.createElement("ul");
+    list.className = "guidance-examples";
+    for (const example of examples) {
+      const item = document.createElement("li");
+      item.className = "guidance-example";
+      item.textContent = "— " + example.text;
+      if (example.description) item.setAttribute("aria-label", example.description);
+      list.appendChild(item);
+    }
+    parent.appendChild(list);
   }
 
-  details.appendChild(actions);
-  container.appendChild(details);
+  const navigation = Array.isArray(currentGuidance.navigation) ? currentGuidance.navigation : [];
+  if (navigation.length === 0) return;
+  const nav = document.createElement("nav");
+  nav.className = "guidance-navigation";
+  for (const item of navigation) {
+    const link = document.createElement("button");
+    link.className = "guidance-navigation-link";
+    link.type = "button";
+    link.textContent = item.label;
+    link.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("skald:navigate", { detail: { view: item.view } }));
+    });
+    nav.appendChild(link);
+  }
+  parent.appendChild(nav);
 }

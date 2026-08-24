@@ -1,4 +1,4 @@
-﻿import type { GuidanceSuggestion } from "../guidance/types.js";
+﻿import type { PlayerGuidance } from "../guidance/types.js";
 
 export interface CharacterView {
   displayName: string;
@@ -137,7 +137,7 @@ export interface GameShellSnapshot {
   recentActivity: readonly WorldActivityItem[];
   knowledge: KnowledgeSummary;
   beliefModel: import("../observation/types.js").BeliefModelDTO;
-  suggestions: readonly GuidanceSuggestion[];
+  guidance: PlayerGuidance;
   resources: readonly import("../resource/observer.js").ObservedResourceDTO[];
 }
 
@@ -150,6 +150,6 @@ export interface ShellDelta {
   activity: readonly WorldActivityItem[];
   knowledge: KnowledgeSummary;
   beliefModel: import("../observation/types.js").BeliefModelDTO;
-  suggestions: readonly GuidanceSuggestion[];
+  guidance: PlayerGuidance;
   resources: readonly import("../resource/observer.js").ObservedResourceDTO[];
 }

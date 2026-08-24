@@ -15,6 +15,7 @@ import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.j
 import { blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 import { buildObservedResources } from "../resource/observer.js";
 import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
+import type { NarrativeAdapterContext } from "../setup/background-context.js";
 
 interface CharacterProfileRecord {
   display_name: string;
@@ -271,9 +272,10 @@ export function buildGameShellSnapshot(
   world: ReadonlyWorld,
   characterProfile: CharacterProfileRecord | null,
   worldId: string,
+  narrativeContext?: NarrativeAdapterContext | null,
 ): GameShellSnapshot {
   const journal = buildTurnJournal(events);
-  const guidance = buildPlayerGuidance(events, world);
+  const guidance = buildPlayerGuidance(events, world, narrativeContext);
   const beliefModel = buildBeliefModel(events, world);
 
   // Event index for activity classification
@@ -329,7 +331,7 @@ export function buildGameShellSnapshot(
     recentActivity: activity,
     knowledge: buildKnowledgeSummary(beliefModel),
     beliefModel: serializeBeliefModel(beliefModel),
-    suggestions: guidance.suggestions,
+    guidance,
     resources: buildObservedResources(world),
   });
 }
@@ -337,8 +339,9 @@ export function buildGameShellSnapshot(
 export function buildShellDelta(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
+  narrativeContext?: NarrativeAdapterContext | null,
 ): ShellDelta {
-  const guidance = buildPlayerGuidance(events, world);
+  const guidance = buildPlayerGuidance(events, world, narrativeContext);
   const beliefModel = buildBeliefModel(events, world);
   const journal = buildTurnJournal(events);
 
@@ -383,7 +386,7 @@ export function buildShellDelta(
     activity,
     knowledge: buildKnowledgeSummary(beliefModel),
     beliefModel: serializeBeliefModel(beliefModel),
-    suggestions: guidance.suggestions,
+    guidance,
     resources: buildObservedResources(world),
   });
 }

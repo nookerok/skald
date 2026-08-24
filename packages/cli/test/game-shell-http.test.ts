@@ -85,6 +85,21 @@ describe("Game Shell HTTP contract", () => {
     }
   });
 
+  it("uses the same v2 observer-safe guidance DTO in command, delta and snapshot", async () => {
+    const command = await api("/api/worlds/shell-world/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "осматриваюсь", idempotencyKey: "shell-guidance-v2" }),
+    });
+    expect(command.status).toBe(200);
+    expect(command.body.guidance.schemaVersion).toBe(2);
+    expect(command.body.guidance).toEqual(command.body.shellDelta.guidance);
+    expect(command.body.guidance).not.toHaveProperty("suggestions");
+    expect(JSON.stringify(command.body.guidance)).not.toMatch(/move\s+(north|south|east|west)|give\s+.+guild/i);
+
+    const snapshot = await api("/api/worlds/shell-world/game-shell");
+    expect(snapshot.body.snapshot.guidance).toEqual(command.body.guidance);
+  });
+
   it("keeps Game Shell snapshots isolated between worlds", async () => {
     const created = await createWorld("other-world", "Марк", "keeper", "crossroads");
     expect(created.status).toBe(201);

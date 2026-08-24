@@ -43,7 +43,8 @@ export function handleState(app: App): JsonResponse {
 function buildGuidance(app: App) {
   const events = app.bus.query();
   const world = app.projection.getSnapshot();
-  return buildPlayerGuidance(events, world);
+  const presentation = selectTurnPresentation(events, world);
+  return buildPlayerGuidance(events, world, buildLegacyNarrativeContext(app, presentation));
 }
 
 function checkPoisoned(app: App): boolean {

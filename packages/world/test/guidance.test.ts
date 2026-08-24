@@ -3,7 +3,6 @@ import { buildPlayerGuidance } from "../src/guidance/selector.js";
 import { GUIDANCE_ACTIONS } from "../src/guidance/actions.js";
 import { rebuildProjection, type ReadonlyWorld } from "../src/projection.js";
 import type { DomainEvent } from "@skald/event-bus";
-import type { GuidanceActionId } from "../src/guidance/types.js";
 
 function ev(type: string, timestamp: number, payload: Record<string, unknown> = {}, eventId?: string): DomainEvent {
   return {
@@ -35,7 +34,9 @@ describe("Player Guidance", () => {
     expect(g.phase).toBe("first_action");
     expect(g.mode).toBe("onboarding");
     expect(g.worldTime).toBe(0);
-    expect(g.suggestions.length).toBe(3);
+    expect(g.schemaVersion).toBe(2);
+    expect(g.intentExamples.length).toBe(0);
+    expect(g.text).toBe("Опиши, что хочешь осмотреть, узнать или изменить.");
   });
 
   it("2. first move without discovery → explore_world", () => {
@@ -117,17 +118,14 @@ describe("Player Guidance", () => {
     expect(g.phase).toBe("free_play");
   });
 
-  it("9. every command suggestion actionId is in allowlist", () => {
+  it("9. guidance examples are natural language and never old commands", () => {
     const g = makeGuidance([]);
-    for (const s of g.suggestions) {
-      if (s.kind === "command") {
-        expect(GUIDANCE_ACTIONS).toHaveProperty(s.actionId);
-        expect(GUIDANCE_ACTIONS[s.actionId as GuidanceActionId].input).toBeTruthy();
-      }
-    }
+    expect(g.intentExamples).toEqual([]);
+    expect(JSON.stringify(g)).not.toContain("move north");
+    expect(JSON.stringify(g)).not.toContain("give help to guild");
   });
 
-  it("10. onboarding phase has 2–3 suggestions", () => {
+  it("10. contextual onboarding guidance has at most three examples", () => {
     const cases: DomainEvent[][] = [
       [],
       [ev("MoveRequested", 1), ev("MovementSucceeded", 1, { x: 0, y: 1 })],
@@ -135,8 +133,7 @@ describe("Player Guidance", () => {
     ];
     for (const c of cases) {
       const g = makeGuidance(c);
-      expect(g.suggestions.length).toBeGreaterThanOrEqual(2);
-      expect(g.suggestions.length).toBeLessThanOrEqual(3);
+      expect(g.intentExamples.length).toBeLessThanOrEqual(3);
     }
   });
 
@@ -157,7 +154,7 @@ describe("Player Guidance", () => {
   it("13. result is runtime-immutable", () => {
     const g = makeGuidance([]);
     expect(() => { (g as any).phase = "free_play"; }).toThrow();
-    expect(() => { (g.suggestions as any).push({}); }).toThrow();
+    expect(() => { (g.intentExamples as any).push({}); }).toThrow();
   });
 
   it("14. non-monotonic timestamps are rejected", () => {

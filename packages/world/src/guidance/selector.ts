@@ -2,26 +2,11 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "../projection.js";
 import type { DiscoveryJournal, DiscoveryCard } from "../discovery/types.js";
 import { buildDiscoveryJournal, deepFreeze } from "../discovery/builder.js";
-import type { GuidanceActionId, GuidancePhase, GuidanceSuggestion, PlayerGuidance } from "./types.js";
-import { GUIDANCE_ACTIONS } from "./actions.js";
+import type { GuidancePhase, GuidanceIntentExample, GuidanceNavigation, PlayerGuidance } from "./types.js";
+import { buildObserverGuidanceContext, type ObserverGuidanceContext } from "./observer-context.js";
+import type { NarrativeAdapterContext } from "../setup/background-context.js";
 
-function buildSuggestion(
-  actionId: GuidanceActionId,
-  label: string,
-  description: string,
-  index: number,
-): GuidanceSuggestion {
-  const def = GUIDANCE_ACTIONS[actionId];
-  return deepFreeze({
-    id: `sug:${index}`,
-    kind: def.kind,
-    actionId,
-    label,
-    description,
-    input: def.input,
-    view: def.view,
-  });
-}
+const EMPTY_GUIDANCE_TEXT = "Опиши, что хочешь осмотреть, узнать или изменить.";
 
 function monotonicCheck(events: readonly DomainEvent[]): void {
   let lastTs = 0;
@@ -44,164 +29,159 @@ function hasActiveConsequence(world: ReadonlyWorld, type: string): boolean {
   return false;
 }
 
-function getPhase(
-  events: readonly DomainEvent[],
-  world: ReadonlyWorld,
-  discovery: DiscoveryJournal,
-): GuidancePhase {
+function getPhase(events: readonly DomainEvent[], world: ReadonlyWorld, discovery: DiscoveryJournal): GuidancePhase {
   const riskCard = findRiskCard(discovery);
-
-  // Count unique action timestamps — one command produces
-  // MoveRequested + MovementBlocked + TickPassed at the same T.
-  // We count the timestamp once, not each event type.
   const actionTimes = new Set<number>();
   for (const e of events) {
-    if (
-      e.type === "MoveRequested" ||
-      e.type === "GiveRequested" ||
-      e.type === "TickPassed"
-    ) {
-      actionTimes.add(e.timestamp);
-    }
+    if (e.type === "MoveRequested" || e.type === "GiveRequested" || e.type === "TickPassed") actionTimes.add(e.timestamp);
   }
   const actionCount = actionTimes.size;
-
-  // discoveredAt: timestamp of the first echo evidence (ConsequenceFired for this discovery)
   let discoveredAt = 0;
   if (riskCard && riskCard.stage === "discovered") {
     const echoEv = riskCard.evidence.find((e) => e.kind === "echo");
     if (echoEv) discoveredAt = echoEv.worldTime;
   }
-
-  // first_action
   if (world.time === 0) return "first_action";
-
-  // free_play: 6+ actions without following discovery route
   const followsDiscovery = riskCard && riskCard.stage !== null;
   if (actionCount >= 6 && !followsDiscovery) return "free_play";
-
-  // review_discovery: the discovery happened recently (within 2 ticks of discovering)
-  if (discoveredAt > 0 && world.time <= discoveredAt + 2) {
-    return "review_discovery";
-  }
-
-  // free_play: old discovery
+  if (discoveredAt > 0 && world.time <= discoveredAt + 2) return "review_discovery";
   if (riskCard && riskCard.stage === "discovered") return "free_play";
-
-  // observe_consequence: hypothesis + active audacity consequence
-  if (riskCard && riskCard.stage === "hypothesis" && hasActiveConsequence(world, "audacity")) {
-    return "observe_consequence";
-  }
-
-  // strengthen_hypothesis: hypothesis without active consequence
+  if (riskCard && riskCard.stage === "hypothesis" && hasActiveConsequence(world, "audacity")) return "observe_consequence";
   if (riskCard && riskCard.stage === "hypothesis") return "strengthen_hypothesis";
-
-  // test_trace
   if (riskCard && riskCard.stage === "trace") return "test_trace";
-
-  // explore_world: at least one action, no discovery card yet, world.time < 6
   if (world.time >= 1 && world.time < 6 && !riskCard) return "explore_world";
-
-  // Fallback for any unhandled state
   return "free_play";
+}
+
+interface Candidate {
+  readonly priority: number;
+  readonly text: string;
+  readonly description?: string;
+}
+
+function candidate(priority: number, text: string, description?: string): Candidate {
+  return { priority, text, ...(description ? { description } : {}) };
+}
+
+function situationCandidates(context: ObserverGuidanceContext): Candidate[] {
+  const situation = context.activeSituation;
+  if (!situation) return [];
+  const haystack = `${situation.title} ${situation.description}`.toLocaleLowerCase("ru");
+  if (haystack.includes("переправ") || haystack.includes("вод") || haystack.includes("рек")) {
+    if (situation.description.includes("закрыта")) {
+      return [candidate(0, "Проверить, почему переправа закрыта.", "Осмотреть состояние воды и переправы.")];
+    }
+    return [candidate(0, "Осмотреть воду и переправу.", "Проверить местное состояние пути.")];
+  }
+  if (haystack.includes("дым") || haystack.includes("пожар") || haystack.includes("огон")) {
+    return [candidate(0, "Осмотреть, откуда идёт дым.", "Проверить наблюдаемую опасность вокруг.")];
+  }
+  return [candidate(0, `Осмотреть, что происходит: ${situation.title.toLocaleLowerCase("ru")}.`, "Проверить наблюдаемую ситуацию вокруг.")];
+}
+
+function hookCandidates(context: ObserverGuidanceContext): Candidate[] {
+  if (!context.personalHook) return [];
+  return [candidate(1, `Проверить, что означает: ${context.personalHook}`, "Вернуться к причине своего присутствия здесь.")];
+}
+
+function objectCandidates(context: ObserverGuidanceContext): Candidate[] {
+  const object = context.observedObjects[0];
+  return object ? [candidate(2, `Осмотреть ${object.label.toLocaleLowerCase("ru")}.`)] : [];
+}
+
+function contactCandidates(context: ObserverGuidanceContext): Candidate[] {
+  const contact = context.knownContacts[0];
+  return contact ? [candidate(3, `Спросить ${contact.label}, что здесь происходит.`, `Обратиться к знакомому контакту — ${contact.label}.`)] : [];
+}
+
+const AFFORDANCE_TEXT: Readonly<Record<string, string>> = {
+  illuminate: "осветить место",
+  ignite: "зажечь огонь",
+  signal: "подать сигнал",
+  secure: "закрепить что-нибудь",
+  tie: "связать найденное",
+  repair: "попробовать починить",
+  experiment: "провести осторожный опыт",
+  examine: "изучить свойства",
+};
+
+function itemCandidates(context: ObserverGuidanceContext): Candidate[] {
+  const item = context.accessibleItems[0];
+  if (!item) return [];
+  const affordance = item.affordances.find((value) => AFFORDANCE_TEXT[value]);
+  if (!affordance) return [];
+  return [candidate(4, `Проверить, как можно использовать ${item.label.toLocaleLowerCase("ru")}.`, `Можно ${AFFORDANCE_TEXT[affordance]}.` )];
+}
+
+function routeCandidates(context: ObserverGuidanceContext): Candidate[] {
+  const route = context.knownRoutes[0];
+  if (!route) return [];
+  if (route.status === "closed") return [candidate(5, `Узнать, как безопасно пройти через путь к «${route.label}».`, "Путь закрыт; сначала стоит разобраться в причине.")];
+  return [candidate(5, `Узнать больше о пути к «${route.label}».`, route.status === "difficult" ? "Путь наблюдаем, но сейчас труден." : "Путь уже наблюдаем в мире.")];
+}
+
+function buildIntentExamples(context: ObserverGuidanceContext): readonly GuidanceIntentExample[] {
+  const candidates = [
+    ...situationCandidates(context),
+    ...hookCandidates(context),
+    ...objectCandidates(context),
+    ...contactCandidates(context),
+    ...itemCandidates(context),
+    ...routeCandidates(context),
+  ];
+  const seen = new Set<string>();
+  const selected: GuidanceIntentExample[] = [];
+  for (const item of candidates.sort((a, b) => a.priority - b.priority || a.text.localeCompare(b.text, "ru"))) {
+    const normalized = item.text.trim().toLocaleLowerCase("ru");
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    selected.push({ id: `intent:${selected.length}`, text: item.text, ...(item.description ? { description: item.description } : {}) });
+    if (selected.length >= 3) break;
+  }
+  return deepFreeze(selected);
+}
+
+function buildNavigation(examples: readonly GuidanceIntentExample[]): readonly GuidanceNavigation[] {
+  if (examples.length === 0) return deepFreeze([]);
+  return deepFreeze([
+    { id: "navigation:journal", label: "Открыть журнал", view: "journal" as const },
+    { id: "navigation:discoveries", label: "Открыть открытия", view: "discoveries" as const },
+  ]);
+}
+
+function phaseCopy(phase: GuidancePhase): { title: string; text: string; mode: "onboarding" | "free_play" } {
+  switch (phase) {
+    case "first_action": return { title: "Первое действие", text: "Мир отвечает на поступки. Опиши первое намерение своими словами.", mode: "onboarding" };
+    case "explore_world": return { title: "Исследуй мир", text: "Попробуй разные намерения. Мир запоминает не команды, а их последствия.", mode: "onboarding" };
+    case "test_trace": return { title: "Проверь след", text: "Ты заметил след. Сравни его с тем, что можно наблюдать сейчас.", mode: "onboarding" };
+    case "strengthen_hypothesis": return { title: "Укрепи гипотезу", text: "Закономерность начинает проявляться, но одного совпадения недостаточно.", mode: "onboarding" };
+    case "observe_consequence": return { title: "Наблюдай за последствием", text: "Последствие уже возникло. Опиши, что хочешь проверить дальше.", mode: "onboarding" };
+    case "review_discovery": return { title: "Открытие", text: "Наблюдения сложились в открытие. Сравни свидетельства и новый ход.", mode: "onboarding" };
+    case "free_play": return { title: "Куда дальше?", text: "Опиши, что хочешь попробовать в мире.", mode: "free_play" };
+  }
 }
 
 export function buildPlayerGuidance(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
+  narrativeContext?: NarrativeAdapterContext | null,
 ): PlayerGuidance {
   monotonicCheck(events);
-
   const discovery = buildDiscoveryJournal(events);
   const phase = getPhase(events, world, discovery);
   const riskCard = findRiskCard(discovery);
-
-  let suggestions: GuidanceSuggestion[] = [];
-  let title = "";
-  let text = "";
-  let mode: "onboarding" | "free_play" = "onboarding";
-
-  switch (phase) {
-    case "first_action": {
-      title = "Первое действие";
-      text = "Мир отвечает на поступки. Выбери первое намерение и посмотри, что изменится.";
-      suggestions = [
-        buildSuggestion("move_north", "Идти на север", "Исследовать мир на север.", 0),
-        buildSuggestion("move_east", "Идти на восток", "Исследовать мир на восток.", 1),
-        buildSuggestion("wait", "Ждать", "Позволить миру идти своим чередом.", 2),
-      ];
-      break;
-    }
-    case "explore_world": {
-      title = "Исследуй мир";
-      text = "Попробуй разные поступки. Мир запоминает не команды, а их последствия.";
-      suggestions = [
-        buildSuggestion("move_north", "Идти на север", "Продолжить движение.", 0),
-        buildSuggestion("give_help", "Помочь", "Помочь гильдии.", 1),
-        buildSuggestion("open_journal", "Журнал", "Посмотреть хронику ходов.", 2),
-      ];
-      break;
-    }
-    case "test_trace": {
-      title = "Проверь след";
-      text = "Ты заметил след. Можно повторить похожий поступок или сравнить его с предыдущим ходом.";
-      suggestions = [
-        buildSuggestion("move_north", "Идти на север", "Повторить движение.", 0),
-        buildSuggestion("move_east", "Идти на восток", "Двигаться в другом направлении.", 1),
-        buildSuggestion("open_journal", "Журнал", "Сравнить с предыдущим ходом.", 2),
-      ];
-      break;
-    }
-    case "strengthen_hypothesis": {
-      title = "Укрепи гипотезу";
-      text = "Закономерность начинает проявляться, но одного совпадения недостаточно.";
-      suggestions = [
-        buildSuggestion("move_north", "Идти", "Продолжить движение.", 0),
-        buildSuggestion("open_discoveries", "Открытия", "Посмотреть карточку открытия.", 1),
-        buildSuggestion("open_journal", "Журнал", "Просмотреть хронику.", 2),
-      ];
-      break;
-    }
-    case "observe_consequence": {
-      title = "Наблюдай за последствием";
-      text = "Последствие уже возникло. Дай миру время ответить или продолжай действовать.";
-      suggestions = [
-        buildSuggestion("wait", "Ждать", "Дать миру время.", 0),
-        buildSuggestion("open_discoveries", "Открытия", "Следить за стадией открытия.", 1),
-        buildSuggestion("give_help", "Помочь", "Выполнить социальное действие.", 2),
-      ];
-      break;
-    }
-    case "review_discovery": {
-      title = "Открытие";
-      text = "Наблюдения сложились в открытие. Сравни свидетельства и ход, в котором проявилось последствие.";
-      suggestions = [
-        buildSuggestion("open_discoveries", "Открытия", "Изучить доказательства.", 0),
-        buildSuggestion("open_journal", "Журнал", "Найти ход с последствием.", 1),
-        buildSuggestion("wait", "Ждать", "Продолжить наблюдение.", 2),
-      ];
-      break;
-    }
-    case "free_play": {
-      mode = "free_play";
-      title = "Куда дальше?";
-      text = "";
-      suggestions = [
-        buildSuggestion("open_journal", "Журнал", "Просмотреть хронику.", 0),
-        buildSuggestion("open_discoveries", "Открытия", "Посмотреть открытия.", 1),
-        buildSuggestion("move_north", "Идти", "Продолжить движение.", 2),
-      ];
-      break;
-    }
-  }
-
+  const context = buildObserverGuidanceContext(events, world, narrativeContext);
+  const intentExamples = buildIntentExamples(context);
+  const copy = phaseCopy(phase);
+  const text = intentExamples.length > 0 ? copy.text : EMPTY_GUIDANCE_TEXT;
   return deepFreeze({
-    schemaVersion: 1 as const,
-    mode,
+    schemaVersion: 2 as const,
+    mode: copy.mode,
     phase,
-    title,
+    title: copy.title,
     text,
-    suggestions,
+    intentExamples,
+    navigation: buildNavigation(intentExamples),
     relatedDiscoveryId: riskCard?.discoveryId ?? null,
     worldTime: world.time,
   });

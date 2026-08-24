@@ -30,6 +30,8 @@ export interface NarrativeFact {
   readonly epistemicClass: NarrativeFactEpistemicClass;
   readonly source: NarrativeFactSource;
   readonly usableNow: boolean;
+  /** Internal read-side provenance; never included in player-facing DTOs or LLM prompt facts. */
+  readonly sourceEventIds?: readonly string[];
 }
 
 /**
@@ -84,8 +86,11 @@ export interface BackgroundNarrativeContext {
   readonly familiarSpatialRefs: readonly string[];
 }
 
-function fact(id: string, text: string, epistemicClass: NarrativeFactEpistemicClass, source: NarrativeFactSource, usableNow = true): NarrativeFact {
-  return Object.freeze({ id, text, epistemicClass, source, usableNow });
+function fact(id: string, text: string, epistemicClass: NarrativeFactEpistemicClass, source: NarrativeFactSource, usableNow = true, sourceEventIds?: readonly string[]): NarrativeFact {
+  return Object.freeze({
+    id, text, epistemicClass, source, usableNow,
+    ...(sourceEventIds && sourceEventIds.length > 0 ? { sourceEventIds: Object.freeze([...sourceEventIds]) } : {}),
+  });
 }
 
 function uniqueFacts(items: readonly NarrativeFact[]): readonly NarrativeFact[] {
@@ -226,7 +231,7 @@ export function buildNarrativeAdapterContext(
   const presentationFacts = options.presentation ? [
     ...(options.presentation.primary ? [options.presentation.primary] : []),
     ...options.presentation.notable,
-  ].map((entry, index) => fact(`turn:${index}`, entry.text, entry.epistemicClass, "observation")) : [];
+  ].map((entry, index) => fact(`turn:${index}`, entry.text, entry.epistemicClass, "observation", true, entry.sourceEventIds)) : [];
   const visibleFacts: NarrativeFact[] = [
     fact("situation:location", `${location.name}: ${location.description}`, "observed_fact", "situation"),
     ...presentationFacts,

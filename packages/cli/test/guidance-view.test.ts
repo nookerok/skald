@@ -26,14 +26,18 @@ describe("guidance-view.js", () => {
     expect(code).not.toMatch(/event\.type/);
   });
 
-  it("dispatches skald:command for command suggestions", () => {
+  it("renders intent examples as prose and never dispatches commands", () => {
     const code = readFileSync(resolve(PUBLIC, "guidance-view.js"), "utf-8");
-    expect(code).toContain("skald:command");
+    expect(code).toContain("guidance-example");
+    expect(code).toContain("Можно попробовать:");
+    expect(code).not.toContain("skald:command");
   });
 
-  it("dispatches skald:navigate for navigate suggestions", () => {
+  it("dispatches skald:navigate only for navigation", () => {
     const code = readFileSync(resolve(PUBLIC, "guidance-view.js"), "utf-8");
     expect(code).toContain("skald:navigate");
+    expect(code).toContain("guidance-navigation-link");
+    expect(code).not.toContain("guidance-action");
   });
 
   it("uses versioned sessionStorage for dismissal", () => {

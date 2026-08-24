@@ -374,8 +374,9 @@ describe("HTTP Server", () => {
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.guidance).toBeDefined();
-    expect(body.guidance.schemaVersion).toBe(1);
-    expect(body.guidance.suggestions).toBeInstanceOf(Array);
+    expect(body.guidance.schemaVersion).toBe(2);
+    expect(body.guidance.intentExamples).toBeInstanceOf(Array);
+    expect(body.guidance.navigation).toBeInstanceOf(Array);
     expect(body.guidance.worldTime).toBeGreaterThanOrEqual(0);
   });
 

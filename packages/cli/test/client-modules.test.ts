@@ -63,7 +63,8 @@ describe("Browser ES modules — import link integrity", () => {
   it("guidance.css exists", () => {
     expect(existsSync(resolve(PUBLIC, "guidance.css"))).toBe(true);
     const css = readFileSync(resolve(PUBLIC, "guidance.css"), "utf-8");
-    expect(css).toContain(".guidance-action");
+    expect(css).toContain(".guidance-example");
+    expect(css).not.toContain(".guidance-action");
     expect(css).toContain(".guidance-onboarding");
   });
 
