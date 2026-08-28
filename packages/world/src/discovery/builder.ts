@@ -43,6 +43,10 @@ function observerScopeFilter(events: readonly DomainEvent[]): readonly DomainEve
       const payload = event.payload as { playerOffline?: boolean };
       if (payload.playerOffline === true) return false;
     }
+    if (event.type === "RumorHeard") {
+      const observerId = (event.payload as { observerId?: unknown }).observerId;
+      if (observerId !== "player") return false;
+    }
     return true;
   });
 }
@@ -154,7 +158,7 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
   const rumors: readonly RumorRecord[] = observerEvents
     .filter((event) => event.type === "RumorHeard")
     .map((event) => {
-      const p = event.payload as { rumorRef?: string; subjectRef?: string; text?: string; sourceLabel?: string; confidence?: number };
+      const p = event.payload as { rumorRef?: string; subjectRef?: string; text?: string; sourceLabel?: string; confidence?: number; observerId?: string };
       return deepFreeze({
         ref: p.rumorRef ?? `rumor:${event.eventId}`,
         subjectRef: p.subjectRef ?? "unknown",
@@ -165,7 +169,7 @@ export function buildDiscoveryJournal(events: readonly DomainEvent[]): Discovery
         evidenceRefs: deepFreeze([]),
         source: "social",
         sourceEventIds: deepFreeze([event.eventId]),
-        observerId: "player",
+        observerId: typeof p.observerId === "string" ? p.observerId : "player",
         observedAt: event.timestamp,
       });
     });

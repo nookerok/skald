@@ -1,3 +1,5 @@
+import type { DomainEvent } from "@skald/event-bus";
+import { buildDiscoveryJournal, toPlayerDiscoveryJournal } from "@skald/world";
 import type { AdventureCheck, AdventureContext, AdventureSnapshot } from "./adventure-types.js";
 
 type Json = Record<string, unknown>;
@@ -37,6 +39,33 @@ function journalComparable(value: unknown): unknown {
 
 function events(ctx: AdventureContext, type?: string): readonly Json[] {
   return type ? ctx.events.filter((event) => event.type === type) : ctx.events;
+}
+
+function internalDiscoveryCards(ctx: AdventureContext) {
+  return buildDiscoveryJournal(ctx.events as unknown as readonly DomainEvent[]).cards;
+}
+
+function publicDiscoverySemantics(card: Json): Json {
+  return {
+    title: card.title,
+    question: card.question,
+    stage: card.stage,
+    summary: card.summary,
+    firstSeenAt: card.firstSeenAt,
+    lastSeenAt: card.lastSeenAt,
+    evidenceCount: card.evidenceCount,
+  };
+}
+
+function expectedPublicDiscovery(card: ReturnType<typeof buildDiscoveryJournal>["cards"][number]): Json {
+  const journal = toPlayerDiscoveryJournal({
+    cards: [card],
+    recentEvidence: card.evidence,
+    rumors: [],
+    biographyChains: [],
+    worldTime: card.lastSeenAt,
+  });
+  return publicDiscoverySemantics(journal.cards[0] as unknown as Json);
 }
 
 function snapshotLocation(snapshot: AdventureSnapshot): unknown {
@@ -90,15 +119,23 @@ export function evaluateAdventureCheck(check: AdventureCheck, ctx: AdventureCont
     case "rumour_was_received": {
       const journal = nested(ctx.current, "discoveries");
       const rumors = Array.isArray(journal.rumors) ? journal.rumors as Json[] : [];
-      const authored = rumors.find((rumor) => rumor.subjectRef === "old_ruins");
-      const payload = events(ctx, "RumorHeard").at(-1)?.payload as Json | undefined;
-      return authored?.status === "unverified"
-        && authored.source === "social"
-        && authored.observerId === "player"
-        && Array.isArray(authored.sourceEventIds) && authored.sourceEventIds.length > 0
-        && payload?.observerId === "player"
+      const authoredEvent = [...events(ctx, "RumorHeard")].reverse().find((event) => {
+        const payload = event.payload as Json;
+        return payload.subjectRef === "old_ruins"
+          && payload.source === "social"
+          && payload.observerId === "player";
+      });
+      const authored = rumors.find((rumor) => {
+        const text = typeof rumor.text === "string" ? rumor.text : "";
+        const sourceLabel = typeof rumor.sourceLabel === "string" ? rumor.sourceLabel : "";
+        return rumor.status === "unverified"
+          && /старое русло|развалинам на уступе/u.test(text)
+          && /перевозчик/u.test(sourceLabel)
+          && Number(rumor.observedAt) === Number(authoredEvent?.timestamp);
+      });
+      return authoredEvent && authored
         ? ""
-        : "authored rumor lacks observer/evidence provenance";
+        : "authored rumor is missing from the trusted Event Log or safe player journal";
     }
     case "rumour_is_player_visible": {
       const visible = ctx.steps.some((step) => {
@@ -150,7 +187,16 @@ export function evaluateAdventureCheck(check: AdventureCheck, ctx: AdventureCont
       return choices >= 3 ? "" : `only ${choices} meaningful player choices were recorded`;
     }
     case "discovery_reached_hypothesis": {
-      const found = cards(ctx.current).some((card) => (card.stage === "hypothesis" || card.stage === "discovered") && ["ancient_culture_traces", "conflict_trace", "river_course_shift", "abandoned_infrastructure"].includes(String(card.discoveryId)));
+      const historical = internalDiscoveryCards(ctx).filter((card) =>
+        (card.stage === "hypothesis" || card.stage === "discovered")
+        && ["ancient_culture_traces", "conflict_trace", "river_course_shift", "abandoned_infrastructure"].includes(card.discoveryId),
+      );
+      const found = historical.some((card) => {
+        const expected = expectedPublicDiscovery(card);
+        return cards(ctx.current).some((publicCard) =>
+          canonical(publicDiscoverySemantics(publicCard)) === canonical(expected),
+        );
+      });
       return found ? "" : "historical discovery did not reach hypothesis stage";
     }
     case "discovery_evidence_loop": {

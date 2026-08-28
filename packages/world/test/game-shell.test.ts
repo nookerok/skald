@@ -195,7 +195,7 @@ describe("Game Shell read model", () => {
 
     expect(result.lastTurn?.worldTime).toBe(2);
     expect(result.lastTurn?.discoverySignals).toEqual([]);
-    expect(result.knowledge.traces.length).toBeGreaterThan(0);
+    expect(result.knowledge.entries.length).toBeGreaterThan(0);
   });
 
   it("never exposes internal keys in player-facing shell DTO", () => {

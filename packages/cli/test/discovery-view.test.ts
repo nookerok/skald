@@ -18,6 +18,13 @@ describe("discovery-view.js", () => {
     expect(code).not.toMatch(/event\.type/);
   });
 
+  it("uses only local card indexes and world time for safe navigation", () => {
+    const code = readFileSync(resolve(PUBLIC, "discovery-view.js"), "utf-8");
+    expect(code).not.toContain("card.discoveryId");
+    expect(code).not.toContain("ev.journalTurnId");
+    expect(code).toContain("activeCardIndex");
+  });
+
   it("renders empty state text", () => {
     const code = readFileSync(resolve(PUBLIC, "discovery-view.js"), "utf-8");
     expect(code).toContain("Ты пока не заметил устойчивых закономерностей");

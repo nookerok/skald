@@ -11,10 +11,11 @@ compatibility adapter and is not the contract owner.
 ## Product boundary
 
 The UI does not receive the authoritative World, an unfiltered Event Log, or
-"truth" fields. The normal player renderer receives a `BeliefModelDTO` and
-current `ObservationRecord` data produced by the Observation Engine. It may
-render those records, but it must not infer facts, confidence, importance,
-causality, actions, or outcomes in the browser.
+"truth" fields. The normal player renderer receives a
+`PlayerKnowledgePresentation` produced by the world read-side adapter. It
+does not receive the internal `BeliefModelDTO`; that model is reserved for the
+explicitly trusted `/beliefs` diagnostics route. The browser must not infer
+facts, confidence, importance, causality, actions, or outcomes.
 
 The Event Log remains the sole simulation authority. Projection remains the
 sole canonical simulation read model. Observation & Belief is a deterministic,
@@ -22,6 +23,42 @@ observer-scoped read model over those sources; it is not a second authority.
 The existing Game Shell may retain compatibility read views for world context,
 character, attention, and presentation, but its Knowledge surface is governed
 exclusively by this contract.
+
+## Player Knowledge Presentation
+
+The normal Knowledge UI consumes one frozen DTO derived from the
+observer-scoped BeliefModel and visible evidence:
+
+```ts
+interface PlayerKnowledgePresentation {
+  schemaVersion: 1;
+  entries: readonly {
+    category: "seen" | "told" | "inferred" | "doubt";
+    text: string;
+    origin: string;
+    status: "current" | "uncertain" | "contradicted";
+    worldTime: number;
+  }[];
+}
+```
+
+`buildPlayerKnowledgePresentation` is pure read-side code. It filters foreign
+observers and unknown provenance, classifies sensory/anomaly/ritual evidence
+as `seen`, testimony as `told`, pattern-match/inference as `inferred`, and
+contradiction/weakening/refutation as `doubt`. Bootstrap hypotheses and
+`EpistemicEvidenceRecorded` are never silently presented as direct sight.
+Internal ids, confidence meters, evidence ids, raw propositions and English
+technical labels do not cross this boundary. `World Truth ≠ Observation ≠
+Testimony ≠ Inference`.
+
+The player-facing `GET /api/worlds/:worldId/discoveries` route uses the same
+observer-scoped source through a separate frozen `PlayerDiscoveryJournal`
+adapter. Its cards retain only localized title/question/summary, stage, world
+times and evidence prose; discovery identifiers, subject refs, journal refs,
+source event ids, observer ids, confidence and freshness never cross the HTTP
+boundary. Rumors require `observerId: "player"` and are reduced to safe text,
+source wording, status and observed time. Legacy discovery definitions are
+localized at design time and have a deterministic read-side copy fallback.
 
 ## Normative vocabulary
 
@@ -99,8 +136,9 @@ in the canonical log.
 2. The Observation Engine runs before any observation data is returned.
 3. Lens/read-model code consumes `ObservationRecord` or `BeliefModel` data, not
    mutable simulation state.
-4. The normal renderer reads only `BeliefModelDTO` and current observation
-   records. It never reads raw Event IDs, payloads, Rules or Projection maps.
+4. The normal renderer reads only `PlayerKnowledgePresentation` and current
+   player-facing presentation records. It never reads raw Event IDs, payloads,
+   Rules, Projection maps or the internal BeliefModel.
 5. Confidence and freshness decay deterministically with simulation time when
    no new observation arrives; old evidence is retained.
 6. Contradictions are append-only read-side facts: they remain visible until

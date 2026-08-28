@@ -10,11 +10,11 @@
  */
 
 import type {
-  BeliefModelDTO,
   Confidence,
   PatternId,
   SimTime,
 } from "../observation/types.js";
+import type { PlayerKnowledgePresentation } from "../game-shell/types.js";
 
 /** Operational world revision (world time + event number). */
 export interface WorldRevision {
@@ -168,7 +168,7 @@ export interface ObserverSessionDTO {
   readonly revision: WorldRevision;
   readonly checkpointState: CheckpointState;
   readonly checkpoint: ObserverCheckpoint | null;
-  readonly beliefModel: BeliefModelDTO;
+  readonly knowledge: PlayerKnowledgePresentation;
   readonly drift: BeliefDriftDTO;
   readonly presence: PresenceSnapshot;
   /** Present only while the observer checkpoint is missing for an authored start. */

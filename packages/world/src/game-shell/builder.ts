@@ -10,8 +10,8 @@ import { buildPlayerGuidance } from "../guidance/selector.js";
 import { buildCharacterView } from "./character-view.js";
 import { buildSituationView } from "./situation-view.js";
 import { buildAttentionView } from "./attention-view.js";
-import { buildKnowledgeSummary } from "./knowledge-view.js";
-import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
+import { buildPlayerKnowledgePresentation } from "./knowledge-view.js";
+import { buildBeliefModel } from "../observation/builder.js";
 import { blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 import { buildObservedResources } from "../resource/observer.js";
 import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
@@ -329,8 +329,7 @@ export function buildGameShellSnapshot(
     attention: buildAttentionView(world, events),
     lastTurn,
     recentActivity: activity,
-    knowledge: buildKnowledgeSummary(beliefModel),
-    beliefModel: serializeBeliefModel(beliefModel),
+    knowledge: buildPlayerKnowledgePresentation(events, world, beliefModel, { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 }),
     guidance,
     resources: buildObservedResources(world),
   });
@@ -384,8 +383,7 @@ export function buildShellDelta(
     journey: buildJourneyView(world),
     attention: buildAttentionView(world, events),
     activity,
-    knowledge: buildKnowledgeSummary(beliefModel),
-    beliefModel: serializeBeliefModel(beliefModel),
+    knowledge: buildPlayerKnowledgePresentation(events, world, beliefModel, { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 }),
     guidance,
     resources: buildObservedResources(world),
   });

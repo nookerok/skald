@@ -16,6 +16,7 @@ import type {
 } from "../observation/types.js";
 import { rebuildProjection, type ReadonlyWorld } from "../projection.js";
 import { buildBeliefModel, serializeBeliefModel } from "../observation/builder.js";
+import { buildPlayerKnowledgePresentation } from "../game-shell/knowledge-view.js";
 import { buildTurnJournal, type PresentationThread } from "../journal/index.js";
 import { buildObserverThreadJournal } from "../observer-threads/index.js";
 import { computeBeliefDrift, computeBeliefRevision, STALE_FRESHNESS_THRESHOLD } from "./drift.js";
@@ -640,7 +641,7 @@ function assembleObserverSession(internals: PresenceInternals, input: {
     revision: deepFreeze({ ...internals.revision }),
     checkpointState: internals.checkpointState,
     checkpoint: input.checkpoint ? deepFreeze({ ...input.checkpoint }) : null,
-    beliefModel: internals.currentModel,
+    knowledge: buildPlayerKnowledgePresentation(input.events, input.world, internals.currentModel, { startup: true, maxEntries: 3 }),
     drift: internals.drift,
     presence,
     firstEntry: internals.firstEntry,

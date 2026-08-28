@@ -1,6 +1,6 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
-import { buildNarrative, buildNarrativeAdapterContext, getRegionEntrypoint, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
+import { buildNarrative, buildNarrativeAdapterContext, getRegionEntrypoint, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, buildPlayerKnowledgePresentation, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
 import type { NarrativeAdapterContext, TurnPresentation } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
@@ -37,7 +37,7 @@ function error(code: string, message: string, statusCode = 400): JsonResponse {
 
 export function handleState(app: App): JsonResponse {
   const state = serializeWorldState(app);
-  return json({ ok: true, state });
+  return json({ ok: true, state, knowledge: buildLegacyKnowledge(app) });
 }
 
 function buildGuidance(app: App) {
@@ -45,6 +45,12 @@ function buildGuidance(app: App) {
   const world = app.projection.getSnapshot();
   const presentation = selectTurnPresentation(events, world);
   return buildPlayerGuidance(events, world, buildLegacyNarrativeContext(app, presentation));
+}
+
+function buildLegacyKnowledge(app: App) {
+  const events = app.bus.query();
+  const world = app.projection.getSnapshot();
+  return buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 });
 }
 
 function checkPoisoned(app: App): boolean {
@@ -113,7 +119,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
       const conversationTurn = app.store?.getConversationTurn(app.worldId, idempotencyKey);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app), ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
     }
     if (input.startsWith("advance ")) {
       const raw = input.slice(8).trim();
@@ -125,7 +131,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const tickResult = r as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance });
+      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app) });
     }
 
     const r = runCommandCycle(app, input, idempotencyKey);
@@ -141,6 +147,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
         clarificationId: (r as any).clarificationId,
         question: (r as any).question,
         interpretations: (r as any).interpretations,
+        knowledge: buildLegacyKnowledge(app),
       });
     }
     if ("type" in r && (r as any).type === "UnsupportedButUnderstood") {
@@ -148,6 +155,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
         ok: true,
         status: "unsupported",
         message: (r as any).message,
+        knowledge: buildLegacyKnowledge(app),
       });
     }
 
@@ -182,6 +190,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       state: serializeWorldState(app),
       presentation: toPlayerFacingPresentation(pres),
       guidance,
+      knowledge: buildLegacyKnowledge(app),
       criticalCheck: criticalCheckPresentation,
       observerMap,
       ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}),
@@ -206,7 +215,7 @@ export async function handleWait(app: App, body: unknown): Promise<JsonResponse>
     const r = result as { tickEvents: DomainEvent[] };
     const pres = selectTurnPresentation(r.tickEvents, app.projection.getSnapshot());
     const guidance = buildGuidance(app);
-    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance });
+    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app) });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
   }

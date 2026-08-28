@@ -98,7 +98,7 @@ describe("Observer presence HTTP contract", () => {
     expect(body.session.drift.level).toBe("none");
     expect(body.session.revision.worldTime).toBeGreaterThanOrEqual(0);
     expect(body.session.revision.eventNumber).toBeGreaterThan(0);
-    expect(body.session.beliefModel.observerId).toBe("player");
+    expect(body.session.knowledge.schemaVersion).toBe(1);
   });
 
   it("never leaks hidden world state into the session", async () => {

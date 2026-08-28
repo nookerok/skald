@@ -137,6 +137,29 @@ function appendFocusContext(panel, session) {
   panel.appendChild(block);
 }
 
+function appendKnowledge(panel, session) {
+  const entries = Array.isArray(session?.knowledge?.entries) ? session.knowledge.entries.slice(0, 3) : [];
+  if (entries.length === 0) return;
+  const section = document.createElement("section");
+  section.className = "presence-knowledge";
+  section.setAttribute("aria-label", "Твои знания");
+  section.appendChild(sectionTitle("Что ты уже знаешь"));
+  const listNode = list("presence-knowledge-list");
+  for (const entry of entries) {
+    const item = document.createElement("li");
+    const text = document.createElement("p");
+    text.className = "presence-knowledge-text";
+    text.textContent = entry.text;
+    const origin = document.createElement("p");
+    origin.className = "presence-knowledge-origin";
+    origin.textContent = entry.origin;
+    item.append(text, origin);
+    listNode.appendChild(item);
+  }
+  section.appendChild(listNode);
+  panel.appendChild(section);
+}
+
 export function renderPresenceView(session, summary) {
   const fragment = document.createDocumentFragment();
   const mode = presenceModeFor(session);
@@ -184,6 +207,7 @@ export function renderPresenceView(session, summary) {
     }
     appendFocusContext(panel, session);
   }
+  appendKnowledge(panel, session);
 
   const enterBtn = document.createElement("button");
   enterBtn.className = "presence-enter-btn";

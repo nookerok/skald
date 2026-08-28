@@ -127,6 +127,30 @@ describe("HTTP Server", () => {
     expect(body.state.player).toBeDefined();
   });
 
+  it("keeps the legacy player-facing route matrix on safe read-side DTOs", async () => {
+    const state = await api("/api/state");
+    const command = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "wait", idempotencyKey: "legacy-knowledge-command" }),
+    });
+    const wait = await api("/api/wait", {
+      method: "POST",
+      body: JSON.stringify({ count: 1, idempotencyKey: "legacy-knowledge-wait" }),
+    });
+    const discoveries = await api("/api/discoveries");
+
+    for (const response of [state, command, wait]) {
+      expect(response.status).toBe(200);
+      const knowledge = response.body.knowledge ?? response.body.shellDelta?.knowledge;
+      expect(knowledge?.schemaVersion).toBe(1);
+      expect(Array.isArray(knowledge?.entries)).toBe(true);
+      expect(response.body).not.toHaveProperty("beliefModel");
+    }
+    expect(discoveries.status).toBe(200);
+    expect(discoveries.body.schemaVersion).toBe(1);
+    expect(JSON.stringify(discoveries.body)).not.toMatch(/sourceEventIds|journalTurnId|subjectRef|observerId|confidence|freshness/);
+  });
+
   it("clarifies malformed and observer-invisible targets without advancing the world", async () => {
     const before = await api("/api/state");
     const malformed = await api("/api/command", {
@@ -318,6 +342,11 @@ describe("HTTP Server", () => {
     expect(Array.isArray(body.cards)).toBe(true);
     expect(body.worldTime).toBeGreaterThan(0);
     expect(Array.isArray(body.recentEvidence)).toBe(true);
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toMatch(/sourceEventIds|journalTurnId|subjectRef|observerId|confidence|freshness/);
+    expect(body.cards.every((card: any) => !Object.hasOwn(card, "discoveryId") && !Object.hasOwn(card, "definitionVersion"))).toBe(true);
+    expect(body.cards.flatMap((card: any) => [card.title, card.question, card.summary, ...card.evidence.map((entry: any) => entry.text)])
+      .join(" ")).not.toMatch(/[A-Za-z]{4,}/);
   });
 
   it("POST /api/discoveries returns 405", async () => {

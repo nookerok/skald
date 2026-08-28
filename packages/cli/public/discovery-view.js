@@ -1,20 +1,22 @@
 const STORAGE_ACTIVE_CARD = "skald:discovery:activeCard";
 
 let discoveryData = null;
-let activeCardId = null;
+let activeCardIndex = null;
 
 function restoreActiveCard() {
   try {
-    activeCardId = sessionStorage.getItem(STORAGE_ACTIVE_CARD);
+    const stored = sessionStorage.getItem(STORAGE_ACTIVE_CARD);
+    const index = stored === null ? NaN : Number(stored);
+    activeCardIndex = Number.isSafeInteger(index) && index >= 0 ? index : null;
   } catch {
-    activeCardId = null;
+    activeCardIndex = null;
   }
 }
 
 function persistActiveCard() {
   try {
-    if (activeCardId) {
-      sessionStorage.setItem(STORAGE_ACTIVE_CARD, activeCardId);
+    if (activeCardIndex !== null) {
+      sessionStorage.setItem(STORAGE_ACTIVE_CARD, String(activeCardIndex));
     } else {
       sessionStorage.removeItem(STORAGE_ACTIVE_CARD);
     }
@@ -82,12 +84,12 @@ export function renderDiscoveries() {
   sidebar.setAttribute("role", "list");
   sidebar.setAttribute("aria-label", "Список открытий");
 
-  for (const card of discoveryData.cards) {
+  for (const [cardIndex, card] of discoveryData.cards.entries()) {
     const cardEl = document.createElement("div");
     cardEl.className = "discovery-card";
     cardEl.setAttribute("role", "listitem");
 
-    if (activeCardId === card.discoveryId) {
+    if (activeCardIndex === cardIndex) {
       cardEl.classList.add("discovery-card-active");
     }
 
@@ -115,9 +117,9 @@ export function renderDiscoveries() {
 
     cardEl.setAttribute("tabindex", "0");
     cardEl.setAttribute("role", "button");
-    cardEl.setAttribute("aria-expanded", String(activeCardId === card.discoveryId));
+    cardEl.setAttribute("aria-expanded", String(activeCardIndex === cardIndex));
     cardEl.addEventListener("click", () => {
-      activeCardId = activeCardId === card.discoveryId ? null : card.discoveryId;
+      activeCardIndex = activeCardIndex === cardIndex ? null : cardIndex;
       persistActiveCard();
       renderDiscoveries();
     });
@@ -137,9 +139,7 @@ export function renderDiscoveries() {
   const detail = document.createElement("div");
   detail.className = "discovery-detail";
 
-  const activeCard = activeCardId
-    ? discoveryData.cards.find((c) => c.discoveryId === activeCardId)
-    : null;
+  const activeCard = activeCardIndex !== null ? discoveryData.cards[activeCardIndex] : null;
 
   if (activeCard) {
     const detailTitle = document.createElement("h3");
@@ -183,11 +183,11 @@ export function renderDiscoveries() {
         evEl.addEventListener("click", () => {
           // Set journal thread filter to open the correct journal view
           try {
-            sessionStorage.setItem("skald:discovery:navigateToTurn", ev.journalTurnId);
+            sessionStorage.setItem("skald:discovery:navigateToTurn", String(ev.worldTime));
           } catch {}
           // Dispatch custom event for app.js to handle
           document.dispatchEvent(new CustomEvent("skald:navigate", {
-            detail: { view: "journal", turnId: ev.journalTurnId },
+            detail: { view: "journal", worldTime: ev.worldTime },
           }));
         });
         evEl.addEventListener("keydown", (e) => {

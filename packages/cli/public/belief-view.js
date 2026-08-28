@@ -1,171 +1,96 @@
 import { emptyState, makeNode } from "./dom-helpers.js";
 
-function percent(value) {
-  return Math.round(Math.max(0, Math.min(1, Number(value) || 0)) * 100);
+const CATEGORIES = [
+  ["seen", "Что ты видел", "Пока ты не заметил ничего устойчивого."],
+  ["told", "Что тебе рассказали", "Пока тебе не передали ни одного рассказа."],
+  ["inferred", "Что ты предполагаешь", "Пока у тебя нет версии, связывающей увиденное."],
+  ["doubt", "В чём сомневаешься", "Сейчас известное тебе не противоречит само себе."],
+];
+
+export function isPlayerKnowledgePresentation(value) {
+  return Boolean(value && value.schemaVersion === 1 && Array.isArray(value.entries)
+    && value.entries.every((entry) => entry && ["seen", "told", "inferred", "doubt"].includes(entry.category)
+      && typeof entry.text === "string" && typeof entry.origin === "string"
+      && ["current", "uncertain", "contradicted"].includes(entry.status)
+      && Number.isFinite(entry.worldTime)));
 }
 
-
-function isBounded(value) {
-  return Number.isFinite(value) && value >= 0 && value <= 1;
-}
-
-const EVIDENCE_TYPES = new Set(["sensory", "pattern-match", "testimony", "anomaly", "ritual", "inference"]);
-const HYPOTHESIS_STATUSES = new Set(["open", "strengthening", "weakening", "confirmed", "refuted"]);
-const RELATION_TYPES = new Set(["supports", "feeds", "threatens", "depends", "enables", "constrains"]);
-const TRENDS = new Set(["rising", "stable", "falling", "unknown"]);
-
-function isBeliefEvidence(value) {
-  return Boolean(value && typeof value.id === "string" && EVIDENCE_TYPES.has(value.type)
-    && typeof value.description === "string" && isBounded(value.strength)
-    && Number.isFinite(value.observedAt) && Array.isArray(value.linkedObservationIds)
-    && value.linkedObservationIds.every((id) => typeof id === "string"));
-}
-
-function isHypothesis(value) {
-  return Boolean(value && typeof value.id === "string" && typeof value.targetId === "string"
-    && typeof value.statement === "string" && isBounded(value.confidence)
-    && Array.isArray(value.supportingEvidenceIds) && value.supportingEvidenceIds.every((id) => typeof id === "string")
-    && Array.isArray(value.contradictingEvidenceIds) && value.contradictingEvidenceIds.every((id) => typeof id === "string")
-    && HYPOTHESIS_STATUSES.has(value.status) && Number.isFinite(value.createdAt) && Number.isFinite(value.lastUpdated));
-}
-
-function isRelation(value) {
-  return Boolean(value && typeof value.sourceId === "string" && typeof value.targetId === "string"
-    && RELATION_TYPES.has(value.type) && isBounded(value.observedStrength)
-    && isBounded(value.confidence) && TRENDS.has(value.trend)
-    && Number.isFinite(value.discoveredAt) && Array.isArray(value.evidenceIds)
-    && value.evidenceIds.every((id) => typeof id === "string"));
-}
-
-function isContradiction(value) {
-  return Boolean(value && typeof value.id === "string" && typeof value.description === "string"
-    && Array.isArray(value.involvedHypothesisIds) && value.involvedHypothesisIds.every((id) => typeof id === "string")
-    && Array.isArray(value.involvedEvidenceIds) && value.involvedEvidenceIds.every((id) => typeof id === "string")
-    && Number.isFinite(value.detectedAt));
-}
-
-function isFactor(value) {
-  return Boolean(value && typeof value.description === "string" && isBounded(value.strength)
-    && isBounded(value.confidence) && Array.isArray(value.evidenceIds)
-    && value.evidenceIds.every((id) => typeof id === "string")
-    && (value.relatedPatternId === undefined || typeof value.relatedPatternId === "string"));
-}
-
-function isCollapseCondition(value) {
-  return Boolean(value && typeof value.description === "string"
-    && typeof value.thresholdExpression === "string" && isBounded(value.currentProximity)
-    && isBounded(value.confidence));
-}
-
-function isExistenceExplanation(value) {
-  return Boolean(value && typeof value.patternId === "string" && isBounded(value.confidence)
-    && Array.isArray(value.supportingFactors) && value.supportingFactors.every(isFactor)
-    && Array.isArray(value.weakeningFactors) && value.weakeningFactors.every(isFactor)
-    && Array.isArray(value.criticalDependencies) && value.criticalDependencies.every(isFactor)
-    && Array.isArray(value.collapseConditions) && value.collapseConditions.every(isCollapseCondition));
-}
-
+// Kept for the trusted /beliefs compatibility surface and older extensions;
+// the normal renderer never forwards this model to the player.
 export function isBeliefModelV2(model) {
-  const validBelief = (value) => Boolean(value && typeof value.patternId === "string"
-    && typeof value.displayName === "string" && typeof value.currentInterpretation === "string" && isBounded(value.confidence)
-    && Array.isArray(value.supportingEvidence) && value.supportingEvidence.every(isBeliefEvidence)
-    && Array.isArray(value.openHypotheses) && value.openHypotheses.every(isHypothesis)
-    && Number.isFinite(value.lastObserved) && isBounded(value.freshness)
-    && (value.existenceExplanation === undefined || isExistenceExplanation(value.existenceExplanation)));
+  const bounded = (value) => Number.isFinite(value) && value >= 0 && value <= 1;
+  const evidence = (value) => Boolean(value && typeof value.id === "string" && typeof value.type === "string"
+    && typeof value.description === "string" && bounded(value.strength) && Number.isFinite(value.observedAt)
+    && Array.isArray(value.linkedObservationIds));
+  const hypothesis = (value) => Boolean(value && typeof value.id === "string" && typeof value.targetId === "string"
+    && typeof value.statement === "string" && bounded(value.confidence) && Array.isArray(value.supportingEvidenceIds)
+    && Array.isArray(value.contradictingEvidenceIds) && typeof value.status === "string"
+    && Number.isFinite(value.createdAt) && Number.isFinite(value.lastUpdated));
+  const factor = (value) => Boolean(value && typeof value.description === "string" && bounded(value.strength)
+    && bounded(value.confidence) && Array.isArray(value.evidenceIds));
+  const explanation = (value) => Boolean(value && typeof value.patternId === "string" && bounded(value.confidence)
+    && Array.isArray(value.supportingFactors) && value.supportingFactors.every(factor)
+    && Array.isArray(value.weakeningFactors) && value.weakeningFactors.every(factor)
+    && Array.isArray(value.criticalDependencies) && value.criticalDependencies.every(factor)
+    && Array.isArray(value.collapseConditions) && value.collapseConditions.every((item) => Boolean(item && typeof item.description === "string" && typeof item.thresholdExpression === "string" && bounded(item.currentProximity) && bounded(item.confidence))));
+  const belief = (value) => Boolean(value && typeof value.patternId === "string" && typeof value.displayName === "string"
+    && typeof value.currentInterpretation === "string" && bounded(value.confidence)
+    && Array.isArray(value.supportingEvidence) && value.supportingEvidence.every(evidence)
+    && Array.isArray(value.openHypotheses) && value.openHypotheses.every(hypothesis)
+    && Number.isFinite(value.lastObserved) && bounded(value.freshness)
+    && (value.existenceExplanation === undefined || explanation(value.existenceExplanation)));
   return Boolean(model && model.schemaVersion === 2 && typeof model.observerId === "string"
-    && Array.isArray(model.beliefs) && model.beliefs.every(validBelief)
-    && Array.isArray(model.activeHypotheses) && model.activeHypotheses.every(isHypothesis)
-    && Array.isArray(model.knownRelations) && model.knownRelations.every(isRelation)
-    && Array.isArray(model.contradictions) && model.contradictions.every(isContradiction)
+    && Array.isArray(model.beliefs) && model.beliefs.every(belief)
+    && Array.isArray(model.activeHypotheses) && model.activeHypotheses.every(hypothesis)
+    && Array.isArray(model.knownRelations) && model.knownRelations.every((item) => item !== null && typeof item === "object")
+    && Array.isArray(model.contradictions) && model.contradictions.every((item) => Boolean(item && typeof item.id === "string" && typeof item.description === "string"))
     && Number.isFinite(model.lastUpdated));
 }
 
-const SEEN_EVIDENCE = new Set(["sensory", "anomaly", "ritual"]);
-const INFERRED_EVIDENCE = new Set(["pattern-match", "inference"]);
-
-const TESTIMONY_EVIDENCE = new Set(["testimony"]);
-function renderKnowledgeMeter(label, value) {
-  const bounded = percent(value);
-  const row = makeNode("div", { className: "knowledge-meter-row" });
-  row.appendChild(makeNode("span", { text: label }));
-  const meter = makeNode("span", {
-    className: "knowledge-meter",
-    attrs: { role: "meter", "aria-label": label, "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(bounded) },
-  });
-  meter.appendChild(makeNode("span", { attrs: { style: "width:" + bounded + "%" } }));
-  row.appendChild(meter);
-  return row;
-}
-
-function renderEvidenceCards(beliefs, evidenceTypes, limit) {
-  const cards = [];
-  for (const belief of beliefs) {
-    const evidence = belief.supportingEvidence.filter((entry) => evidenceTypes.has(entry.type)).slice().reverse();
-    for (const entry of evidence) {
-      const card = makeNode("article", { className: "knowledge-entry", attrs: { role: "listitem" } });
-      card.appendChild(makeNode("h4", { text: belief.displayName }));
-      card.appendChild(makeNode("p", { className: "knowledge-entry-copy", text: entry.description }));
-      const meters = makeNode("div", { className: "knowledge-entry-meters" });
-      meters.append(
-        renderKnowledgeMeter("Насколько ясно", entry.strength),
-        renderKnowledgeMeter("Насколько свежо", belief.freshness),
-      );
-      card.appendChild(meters);
-      cards.push(card);
-      if (cards.length >= limit) return cards;
-    }
+function legacyPresentation(model) {
+  if (!isBeliefModelV2(model)) return null;
+  const category = (type) => type === "testimony" ? "told" : type === "pattern-match" || type === "inference" ? "inferred" : "seen";
+  const origin = (kind) => kind === "told" ? "Тебе это рассказали." : kind === "inferred" ? "Это твоя версия." : "Ты заметил это сам.";
+  const entries = [];
+  for (const belief of model.beliefs) for (const evidence of belief.supportingEvidence) {
+    const kind = category(evidence.type);
+    entries.push({ category: kind, text: evidence.description, origin: origin(kind), status: kind === "inferred" ? "uncertain" : "current", worldTime: evidence.observedAt });
   }
-  return cards;
+  for (const contradiction of model.contradictions) entries.push({ category: "doubt", text: contradiction.description, origin: "Требуется новое наблюдение.", status: "contradicted", worldTime: contradiction.detectedAt });
+  return { schemaVersion: 1, entries };
 }
 
-function renderOriginSection(container, title, entries, emptyText, className) {
-  const section = makeNode("section", { className: "knowledge-origin-section " + className });
-  section.appendChild(makeNode("h3", { text: title }));
-  if (entries.length === 0) {
-    section.appendChild(emptyState(emptyText, "knowledge-origin-empty"));
-  } else {
-    const list = makeNode("div", { className: "knowledge-origin-list", attrs: { role: "list" } });
-    list.append(...entries);
-    section.appendChild(list);
-  }
-  container.appendChild(section);
+function renderEntry(entry) {
+  const card = makeNode("article", { className: "knowledge-entry", attrs: { role: "listitem" } });
+  card.appendChild(makeNode("p", { className: "knowledge-entry-copy", text: entry.text }));
+  card.appendChild(makeNode("p", { className: "knowledge-entry-origin", text: entry.origin }));
+  return card;
 }
 
-export function renderBeliefModel(container, model) {
+export function renderKnowledgePresentation(container, presentation) {
   if (!container) return;
   container.replaceChildren();
-  if (!isBeliefModelV2(model)) {
-    container.appendChild(emptyState("Твои наблюдения временно недоступны.", "belief-unavailable"));
+  if (!isPlayerKnowledgePresentation(presentation)) {
+    container.appendChild(emptyState("Твои знания временно недоступны.", "knowledge-unavailable belief-unavailable"));
     return;
   }
-  const beliefs = Array.isArray(model?.beliefs) ? model.beliefs : [];
-  const hypotheses = Array.isArray(model?.activeHypotheses) ? model.activeHypotheses : [];
-  const contradictions = Array.isArray(model?.contradictions) ? model.contradictions : [];
-
-  const seen = renderEvidenceCards(beliefs, SEEN_EVIDENCE, 8);
-  const told = renderEvidenceCards(beliefs, TESTIMONY_EVIDENCE, 8);
-  const inferred = renderEvidenceCards(beliefs, INFERRED_EVIDENCE, 6);
-  for (const hypothesis of hypotheses.filter((entry) => entry.status !== "weakening" && entry.status !== "refuted").slice(0, 6)) {
-    const card = makeNode("article", { className: "knowledge-entry knowledge-entry--inference", attrs: { role: "listitem" } });
-    card.appendChild(makeNode("p", { className: "knowledge-entry-copy", text: hypothesis.statement }));
-    card.appendChild(renderKnowledgeMeter("Насколько ясно", hypothesis.confidence));
-    inferred.push(card);
+  const entries = presentation.entries.slice(0, 100);
+  for (const [category, title, emptyText] of CATEGORIES) {
+    const section = makeNode("section", { className: "knowledge-origin-section knowledge-origin--" + category });
+    section.appendChild(makeNode("h3", { text: title }));
+    const categoryEntries = entries.filter((entry) => entry.category === category);
+    if (categoryEntries.length === 0) section.appendChild(emptyState(emptyText, "knowledge-origin-empty"));
+    else {
+      const list = makeNode("div", { className: "knowledge-origin-list", attrs: { role: "list" } });
+      list.append(...categoryEntries.map(renderEntry));
+      section.appendChild(list);
+    }
+    container.appendChild(section);
   }
-
-  const doubts = contradictions.slice(0, 8).map((item) => {
-    const card = makeNode("article", { className: "knowledge-entry knowledge-entry--doubt", attrs: { role: "listitem" } });
-    card.appendChild(makeNode("p", { className: "knowledge-entry-copy", text: item.description }));
-    return card;
-  });
-  for (const hypothesis of hypotheses.filter((entry) => entry.status === "weakening" || entry.status === "refuted").slice(0, 6)) {
-    const card = makeNode("article", { className: "knowledge-entry knowledge-entry--doubt", attrs: { role: "listitem" } });
-    card.appendChild(makeNode("p", { className: "knowledge-entry-copy", text: hypothesis.statement }));
-    doubts.push(card);
-  }
-
-  renderOriginSection(container, "Что ты видел", seen, "Пока ты не заметил ничего устойчивого.", "knowledge-origin--seen");
-  renderOriginSection(container, "Что тебе рассказали", told, "Пока тебе не передали ни одного рассказа, которому стоит уделить внимание.", "knowledge-origin--told");
-  renderOriginSection(container, "Что ты предполагаешь", inferred, "Пока у тебя нет версии, связывающей увиденное.", "knowledge-origin--inferred");
-  renderOriginSection(container, "В чём сомневаешься", doubts, "Сейчас ничто из известного тебе не противоречит само себе.", "knowledge-origin--doubts");
 }
 
+// Compatibility export for extensions that used the old function name. It
+// deliberately accepts only the new DTO; internal BeliefModel never renders.
+export function renderBeliefModel(container, presentation) {
+  renderKnowledgePresentation(container, isBeliefModelV2(presentation) ? legacyPresentation(presentation) : presentation);
+}

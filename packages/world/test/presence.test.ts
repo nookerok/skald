@@ -353,7 +353,7 @@ describe("buildObserverSession", () => {
     expect(session.presence.schemaVersion).toBe(1);
     expect(Object.isFrozen(session)).toBe(true);
     expect(Object.isFrozen(session.presence)).toBe(true);
-    expect(Object.isFrozen(session.beliefModel)).toBe(true);
+    expect(Object.isFrozen(session.knowledge)).toBe(true);
   });
 
   it("reports drift for stale beliefs after a long absence", () => {

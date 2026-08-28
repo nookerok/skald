@@ -122,6 +122,24 @@ export interface KnowledgeSummary {
   recentEvidence: { text: string; worldTime: number; kind: string }[];
 }
 
+export type PlayerKnowledgeCategory = "seen" | "told" | "inferred" | "doubt";
+export type PlayerKnowledgeStatus = "current" | "uncertain" | "contradicted";
+
+/** Stable, observer-safe knowledge DTO for the normal player UI. */
+export interface PlayerKnowledgeEntry {
+  readonly category: PlayerKnowledgeCategory;
+  readonly text: string;
+  readonly origin: string;
+  readonly status: PlayerKnowledgeStatus;
+  readonly worldTime: number;
+}
+
+/** Read-side projection of what the player can honestly say they know. */
+export interface PlayerKnowledgePresentation {
+  readonly schemaVersion: 1;
+  readonly entries: readonly PlayerKnowledgeEntry[];
+}
+
 export interface GameShellSnapshot {
   schemaVersion: 1;
   /** Player-facing region title; internal worldId is never rendered as a title. */
@@ -135,8 +153,7 @@ export interface GameShellSnapshot {
   attention: AttentionView;
   lastTurn: PlayerTurnView | null;
   recentActivity: readonly WorldActivityItem[];
-  knowledge: KnowledgeSummary;
-  beliefModel: import("../observation/types.js").BeliefModelDTO;
+  knowledge: PlayerKnowledgePresentation;
   guidance: PlayerGuidance;
   resources: readonly import("../resource/observer.js").ObservedResourceDTO[];
 }
@@ -148,8 +165,7 @@ export interface ShellDelta {
   journey: JourneyView;
   attention: AttentionView;
   activity: readonly WorldActivityItem[];
-  knowledge: KnowledgeSummary;
-  beliefModel: import("../observation/types.js").BeliefModelDTO;
+  knowledge: PlayerKnowledgePresentation;
   guidance: PlayerGuidance;
   resources: readonly import("../resource/observer.js").ObservedResourceDTO[];
 }

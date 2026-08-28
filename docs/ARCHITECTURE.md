@@ -273,7 +273,8 @@ Event Log + ReadonlyWorld
         |
 Observation Engine (deterministic and observer-scoped)
         |
-BeliefModel / ObservationRecord -> BeliefModelDTO -> Knowledge renderer
+BeliefModel / observer-visible evidence -> PlayerKnowledgePresentation -> Knowledge renderer
+DiscoveryJournal / observer-visible evidence -> PlayerDiscoveryJournal -> Discoveries renderer
 
 Evidence, hypotheses, relations, freshness and contradictions are derived
 read-side values. Observation Engine emits no Domain Events, writes no

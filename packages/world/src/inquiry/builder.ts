@@ -54,11 +54,7 @@ function buildCharacterIdentity(_request: InquiryRequest, context: InquiryReadCo
 
 function buildKnownPlaceKnowledge(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   const { shell } = context;
-  const known = [
-    ...shell.knowledge.facts.map((entry) => entry.text),
-    ...shell.knowledge.hypotheses.map((entry) => `Гипотеза: ${entry.text}`),
-    ...shell.knowledge.traces.map((entry) => `След: ${entry.text}`),
-  ].filter(Boolean).slice(0, 5);
+  const known = shell.knowledge.entries.map((entry) => entry.text).filter(Boolean).slice(0, 5);
   return answer("known_place_knowledge", known.length > 0 ? known.join(" ") : `Ты знаешь только то, что видишь у «${locationName(shell)}» прямо сейчас.`, shell);
 }
 

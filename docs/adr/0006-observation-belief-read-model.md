@@ -25,9 +25,10 @@ buildBeliefModel(events, world, observerId):
 - exposes serializeBeliefModel() at the HTTP boundary because a JavaScript
   Map is not JSON-safe.
 
-The browser receives BeliefModelDTO in the Game Shell and through
-GET /api/worlds/:worldId/beliefs (with the legacy /api/beliefs mapping).
-The Knowledge panel renders only that DTO. It does not infer confidence,
+The trusted diagnostics surface receives BeliefModelDTO through
+GET /api/worlds/:worldId/beliefs (with the legacy /api/beliefs mapping). The
+normal Game Shell, Presence and command responses receive the separate frozen
+PlayerKnowledgePresentation. The Knowledge panel does not infer confidence,
 freshness, hypotheses, relations or contradictions.
 
 ## Scope
@@ -45,6 +46,21 @@ relations, history, existence explanation and causal trace.
   deterministic prediction source exists.
 - Existing DiscoveryJournal and KnowledgeSummary remain available for backward
   compatibility, diagnostics and legacy read views while the normal browser
-  Knowledge tab uses the belief DTO. They must not become a parallel source
+  Knowledge tab uses the player knowledge DTO. They must not become a parallel source
   for belief rendering.
 
+## Player-facing knowledge boundary (Stage 7)
+
+The internal `BeliefModelDTO` is not a normal player UI contract. The Game
+Shell, Presence and command read responses consume the frozen
+`PlayerKnowledgePresentation` adapter instead. It exposes only category,
+plain-language text, origin, status and simulation time; provenance IDs,
+confidence, pattern keys and raw propositions remain backend/diagnostics data.
+The adapter is pure and observer-scoped, so this decision adds no Events,
+Rules, Projection fields or persistence state.
+
+The player-facing `/discoveries` route follows the same boundary through a
+frozen `PlayerDiscoveryJournal` serializer. It retains only localized card and
+evidence prose, stage/status and simulation time; raw discovery/subject/journal
+references, source event ids, observer ids and confidence/freshness are kept in
+the internal journal only. Rumors are admitted only for `observerId: "player"`.

@@ -8,6 +8,7 @@ import {
   buildDiscoveryJournal,
   buildPlayerGuidance,
   buildGameShellSnapshot,
+  buildPlayerKnowledgePresentation,
   buildBeliefModel,
   buildObserverSessionAndSummary,
   buildObserverThreadJournal,
@@ -18,6 +19,7 @@ import {
   serializeBeliefModel,
   buildShellDelta,
   selectTurnPresentation,
+  toPlayerDiscoveryJournal,
   resolveOfflineIntent,
   buildObserverMap,
   buildSpatialWorldProjection,
@@ -66,7 +68,7 @@ export interface JsonResponse {
 }
 
 function serializeShellDelta(delta: ReturnType<typeof buildShellDelta>) {
-  return { ...delta, beliefModel: parseBeliefModelDTO(serializeBeliefModel(delta.beliefModel)) };
+  return delta;
 }
 
 function json(data: unknown, statusCode = 200): JsonResponse {
@@ -127,7 +129,10 @@ function withClarificationConversation(
   const payload = JSON.parse(response.body) as Record<string, unknown>;
   const question = typeof payload.question === "string" ? payload.question : "Уточни намерение.";
   const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", question);
-  return json({ ...payload, conversationTurn }, response.statusCode);
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
+  return json({ ...payload, conversationTurn, knowledge }, response.statusCode);
 }
 
 export function serializeWorldStateFromRuntime(r: WorldRuntime) {
@@ -277,7 +282,10 @@ function parseStrictInt(raw: string | null, def: number, min: number, max: numbe
 
 export function handleWorldState(runtime: WorldRuntime): JsonResponse {
   const state = serializeWorldStateFromRuntime(runtime);
-  return json({ ok: true, state });
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 });
+  return json({ ok: true, state, knowledge });
 }
 
 // --- Command ---
@@ -485,7 +493,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const inquiry = buildInquiryAnswer(interpretation.inquiry, { shell, background });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
-        return json({ ok: true, status: "inquiry", inquiry, conversationTurn });
+        const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
+        return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });
       });
     }
     if (interpretation.status === "clarification") {
@@ -745,10 +754,12 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
-  const beliefModel = buildBeliefModel(runtime.bus.query(), runtime.projection.getSnapshot());
-  const rumors = buildDiscoveryJournal(runtime.bus.query()).rumors;
+  const events = runtime.bus.query();
+  const world = runtime.projection.getSnapshot();
+  const beliefModel = buildBeliefModel(events, world, "player");
+  const rumors = buildDiscoveryJournal(events).rumors.filter((rumor) => rumor.observerId === "player");
   const journal = buildDiscoveryJournalFromBeliefModel(beliefModel, rumors);
-  return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, rumors: journal.rumors, worldTime: journal.worldTime });
+  return json({ ok: true, ...toPlayerDiscoveryJournal(journal) });
 }
 
 export function handleWorldGuidance(runtime: WorldRuntime): JsonResponse {
@@ -772,7 +783,6 @@ export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): Js
     ok: true,
     snapshot: {
       ...snapshot,
-      beliefModel: parseBeliefModelDTO(serializeBeliefModel(snapshot.beliefModel)),
       // One consistent revision: the thread journal derives synchronously
       // from the same events/world as the rest of the snapshot.
       observerThreads,
@@ -903,7 +913,7 @@ export function handleObserverSession(runtime: WorldRuntime, worldId: string): J
   });
   return json({
     ok: true,
-    session: { ...session, beliefModel: parseBeliefModelDTO(session.beliefModel) },
+    session,
     summary,
     // One consistent revision: session.revision === threads.revision by
     // construction — both derive synchronously from the same snapshot.
@@ -947,7 +957,7 @@ export function handleWorldPresence(runtime: WorldRuntime, worldId: string): Jso
     worldId, events, world, playerContext, checkpoint,
     ...(firstEntryContext ? { firstEntryContext } : {}),
   });
-  return json({ ok: true, checkpoint, presence: session.presence, firstEntry: session.firstEntry, summary });
+  return json({ ok: true, checkpoint, presence: session.presence, firstEntry: session.firstEntry, knowledge: session.knowledge, summary });
 }
 
 

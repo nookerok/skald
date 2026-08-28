@@ -1,3 +1,17 @@
+# Current work (2026-08-24 — Player Knowledge Presentation)
+
+- The normal Knowledge surface now consumes the frozen, observer-safe
+  `PlayerKnowledgePresentation` DTO. It groups entries as seen, told,
+  inferred and doubt, includes plain-language origins, hides foreign or
+  unknown provenance, and caps the startup view at three entries.
+- Game Shell, command/wait/inquiry responses, Presence and legacy state routes
+  use the same read-side builder. Internal `BeliefModelDTO` remains available
+  only through the trusted beliefs/diagnostics surface and is not rendered by
+  the normal UI. No Domain Events, Rules, Projection fields or persistence
+  tables were added.
+- Focused and full repository tests pass locally; browser QA was not run in
+  this task and no commit, push or deployment was performed.
+
 # Current work (2026-08-23 — ConversationTurn review fixes)
 
 - Player input is no longer copied into newly emitted Domain Event payloads:
@@ -15,6 +29,23 @@
 - Fixed NTFS browser QA remains BLOCKED in this session: thread
   `019fa52b-1610-7b23-9567-37891d24c782` was unavailable
   (`RECEIVER_NOT_FOUND`). No deployment or production SQLite mutation was run.
+
+# Current work (2026-08-25 — observer-safe discovery projection)
+
+- `/discoveries` now serializes a frozen `PlayerDiscoveryJournal` instead of
+  exposing the internal DiscoveryJournal/BeliefModel shape. Cards and rumors
+  contain only localized player prose, stage/status and simulation time; raw
+  discovery ids, subject/journal/source refs, observer ids, confidence and
+  freshness are removed. Foreign or provenance-less `RumorHeard` events are
+  excluded.
+- The discovery renderer uses a local card index and world time for navigation,
+  so it no longer reads internal card or journal identifiers. The legacy
+  `heat_changes_material` copy is localized and covered by safe DTO tests.
+- Focused discovery/Game Shell HTTP tests and typecheck pass. The repository
+  gate passes with 143 test files, 1769 passed and 1 skipped; Canon,
+  simulation, eval, adventure acceptance and diff checks pass. Fixed NTFS
+  browser QA remains externally blocked. No commit, push or deployment was
+  performed.
 
 # Current work (2026-08-22 — durable ConversationTurn transcript)
 

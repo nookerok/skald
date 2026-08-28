@@ -54,8 +54,9 @@ export { parseBeliefModelDTO, parseObservationRecord } from "@skald/observation"
 export type * from "./presentation/types.js";
 export { buildTurnJournal, attachTurnNarrations } from "./journal/builder.js";
 export type * from "./journal/types.js";
-export { buildDiscoveryJournal, DEFINITIONS } from "./discovery/index.js";
+export { buildDiscoveryJournal, DEFINITIONS, toPlayerDiscoveryJournal } from "./discovery/index.js";
 export type * from "./discovery/types.js";
+export type { PlayerDiscoveryCard, PlayerDiscoveryEvidence, PlayerDiscoveryJournal, PlayerDiscoveryRumor } from "./discovery/index.js";
 export { buildBeliefModel, buildDiscoveryJournalFromBeliefModel, createObservationAPI, serializeBeliefModel } from "./observation/index.js";
 export type {
   SimTime, Confidence, PatternId, ObserverId, EvidenceId, HypothesisId, ObservationId,
@@ -73,6 +74,7 @@ export type { CharacterBackground, CharacterPreset, WorldTemplate, WorldTemplate
 export type { BootstrapSelection } from "./setup/bootstrap-builder.js";
 export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
+export { buildPlayerKnowledgePresentation } from "./game-shell/knowledge-view.js";
 export { buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } from "./inquiry/index.js";
 export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";

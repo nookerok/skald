@@ -1,5 +1,5 @@
 import { byId, emptyState, makeNode } from "./dom-helpers.js";
-import { renderBeliefModel } from "./belief-view.js";
+import { renderKnowledgePresentation } from "./belief-view.js";
 
 function addSection(parent, title, content) {
   const section = makeNode("section", { className: "context-section player-space-section" });
@@ -84,7 +84,7 @@ function renderCharacter(characterPanel, character) {
 
 export function renderContextRail(snapshot = {}) {
   const character = snapshot.character || {};
-  const beliefModel = snapshot.beliefModel;
+  const knowledge = snapshot.knowledge;
   const characterPanel = byId("context-character");
   const knowledgePanel = byId("context-knowledge");
   renderMapContext(snapshot);
@@ -93,7 +93,7 @@ export function renderContextRail(snapshot = {}) {
     const discoveries = makeNode("section", { className: "knowledge-discoveries", attrs: { id: "discovery-container", "aria-label": "Следы и открытия" } });
     const surface = makeNode("div", { attrs: { id: "knowledge-belief-surface" } });
     knowledgePanel.replaceChildren(surface, discoveries);
-    if (beliefModel) renderBeliefModel(surface, beliefModel);
+    if (knowledge) renderKnowledgePresentation(surface, knowledge);
     else surface.appendChild(emptyState("Твои наблюдения сейчас недоступны.", "knowledge-unavailable"));
   }
 }

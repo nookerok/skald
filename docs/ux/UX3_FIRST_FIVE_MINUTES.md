@@ -52,3 +52,12 @@ onboarding.
 `give ... guild`, направлений и внутренних ID. Слухи/смутные glimpsed-маршруты,
 неизвестные контакты и недоступные предметы не предлагаются. Guidance не
 создаёт Events, не меняет Projection/Strategy и не вызывает LLM.
+
+# Knowledge shown during the first minutes
+
+The first entry surface and the first Game Shell frame show at most three
+plain-language knowledge entries. They are grouped by origin: what the player
+saw, was told, infers, and doubts. Each entry includes a short origin phrase;
+internal belief metrics, identifiers and raw hypothesis seeds are never shown.
+The same read-side projection is refreshed after actions and restored after a
+reload. Empty groups use natural player language rather than diagnostic terms.

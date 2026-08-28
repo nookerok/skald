@@ -62,6 +62,29 @@ describe("Game Shell HTTP contract", () => {
     expect(status).toBe(405);
   });
 
+  it("uses the same player knowledge DTO across normal read routes", async () => {
+    const shell = await api("/api/worlds/shell-world/game-shell");
+    const state = await api("/api/worlds/shell-world/state");
+    const inquiry = await api("/api/worlds/shell-world/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "где я?", idempotencyKey: "shell-knowledge-inquiry" }),
+    });
+    const presence = await api("/api/worlds/shell-world/presence");
+    const session = await api("/api/worlds/shell-world/observer-session");
+    const discoveries = await api("/api/worlds/shell-world/discoveries");
+    expect(discoveries.status).toBe(200);
+    for (const body of [shell.body.snapshot, state.body, inquiry.body, presence.body, session.body.session, discoveries.body]) {
+      const knowledge = body.knowledge ?? body.shellDelta?.knowledge;
+      if (knowledge) {
+        expect(knowledge.schemaVersion).toBe(1);
+        expect(Array.isArray(knowledge.entries)).toBe(true);
+      }
+      expect(body).not.toHaveProperty("beliefModel");
+    }
+    const serializedDiscoveries = JSON.stringify(discoveries.body);
+    expect(serializedDiscoveries).not.toMatch(/sourceEventIds|journalTurnId|subjectRef|observerId|confidence|freshness/);
+  });
+
   it("includes a revision-aligned shellDelta in every command and wait path", async () => {
     const cases: Array<[string, RequestInit]> = [
       ["/api/worlds/shell-world/command", {
