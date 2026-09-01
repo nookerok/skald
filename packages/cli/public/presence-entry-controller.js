@@ -40,6 +40,8 @@ function focusFirst() {
 }
 function setBusy(busy) {
   if (container) container.setAttribute("aria-busy", String(busy));
+  const panel = container?.closest("#panel-presence-entry");
+  if (panel) panel.setAttribute("aria-busy", String(busy));
 }
 function renderLoading(phase) {
   const card = document.createElement("div");

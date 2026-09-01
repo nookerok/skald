@@ -101,6 +101,19 @@ describe("Browser ES modules — import link integrity", () => {
     expect(css).toContain("prefers-reduced-motion");
   });
 
+  it("keeps runtime palette ownership in one token layer", () => {
+    const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
+    const tokenCss = readFileSync(resolve(PUBLIC, "tokens.css"), "utf-8");
+    expect((tokenCss.match(/:root\b/g) ?? []).length).toBe(1);
+    for (const stylesheet of ["styles.css", "game-shell.css", "living-world.css", "skald-aaa.css"]) {
+      const css = readFileSync(resolve(PUBLIC, stylesheet), "utf-8");
+      expect(css).not.toMatch(/:root\b/);
+    }
+    expect(html.indexOf("/tokens.css")).toBeLessThan(html.indexOf("/styles.css"));
+    expect(tokenCss).toContain("--aaa-gold: #d7aa52");
+    expect(tokenCss).toContain("--aaa-cyan: #64c7d8");
+  });
+
   it("loads the observer-scoped map independently from the game shell snapshot", () => {
     const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
     const client = readFileSync(resolve(PUBLIC, "map-client.js"), "utf-8");
@@ -226,9 +239,9 @@ describe("Browser ES modules — import link integrity", () => {
     const poll = readFileSync(resolve(PUBLIC, "narration-poll.js"), "utf-8");
     // The client consumes the per-turn lifecycle status instead of guessing
     // by elapsed time; app.js wires a single session per command.
-    expect(app).toContain('import { createNarrationPoll } from "./narration-poll.js"');
+    expect(app).toContain('import { createNarrationPoll, resolveNarrationPollState } from "./narration-poll.js"');
     expect(app).toContain("narrationPoll.start(narrationPollTick,");
-    expect(app).toContain('target?.narrationState ?? "not_requested"');
+    expect(app).toContain("resolveNarrationPollState(data.turns");
     expect(app).toContain("watchdogMs: 150000");
     // The poll module owns stale-tick/generation semantics so a rearm can
     // never leave two timers running.

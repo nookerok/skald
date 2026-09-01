@@ -3,11 +3,19 @@ const SEEN_TURN_IDS = new Set();
 
 let fullJournalData = null;
 let currentThreadFilter = null;
+let loadGeneration = 0;
+let loadedWorld = null;
+
+function worldScope() {
+  try { return sessionStorage.getItem("skald:worldId") || "legacy"; } catch { return "legacy"; }
+}
+
+function filterStorageKey() { return STORAGE_KEY + ":" + worldScope(); }
 
 function restoreFilter() {
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (stored) currentThreadFilter = stored;
+    const stored = sessionStorage.getItem(filterStorageKey());
+    currentThreadFilter = stored && /^[a-f0-9]{64}$/.test(stored) ? stored : null;
   } catch {
     // silent
   }
@@ -15,24 +23,44 @@ function restoreFilter() {
 
 function persistFilter() {
   try {
-    if (currentThreadFilter) {
-      sessionStorage.setItem(STORAGE_KEY, currentThreadFilter);
+    if (currentThreadFilter && /^[a-f0-9]{64}$/.test(currentThreadFilter)) {
+      sessionStorage.setItem(filterStorageKey(), currentThreadFilter);
     } else {
-      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(filterStorageKey());
     }
   } catch {
     // silent
   }
 }
 
-function apiPath(path) { try { const id = sessionStorage.getItem("skald:worldId"); return id ? `/api/worlds/${encodeURIComponent(id)}${path}` : `/api${path}`; } catch { return path; } }
+function apiPath(path) { try { const id = sessionStorage.getItem("skald:worldId"); return id ? `/api/worlds/${encodeURIComponent(id)}${path}` : `/api${path}`; } catch { return "/api" + path; } }
+
+// The journal API deliberately omits persistence identifiers. These helpers
+// keep filtering and DOM ids local to this render, while accepting older
+// fixtures during a rolling upgrade.
+function localThreadKey(thread, index) { return thread.threadHandle || thread.threadKey || "local-thread-" + index; }
+function localTurnKey(turn, index) { return turn.turnHandle || turn.turnId || "local-turn-" + index; }
 
 export async function loadJournal() {
+  const generation = ++loadGeneration;
+  const world = worldScope();
+  if (loadedWorld !== world) {
+    fullJournalData = null;
+    currentThreadFilter = null;
+    SEEN_TURN_IDS.clear();
+    loadedWorld = world;
+  }
+  const isCurrent = () => generation === loadGeneration && world === worldScope();
   try {
     const res = await fetch(apiPath("/journal?limit=50"));
     const body = await res.json();
+    if (!isCurrent()) return null;
     if (body.ok) {
       fullJournalData = body;
+      SEEN_TURN_IDS.clear();
+      for (const [index, turn] of (body.turns || []).entries()) SEEN_TURN_IDS.add(localTurnKey(turn, index));
+      restoreFilter();
+      if (!(body.threads || []).some((thread, index) => localThreadKey(thread, index) === currentThreadFilter)) currentThreadFilter = null;
       renderJournal();
       return body;
     }
@@ -44,17 +72,20 @@ export async function loadJournal() {
 function getFilteredTurns() {
   if (!fullJournalData) return [];
   if (!currentThreadFilter) return fullJournalData.turns || [];
-  const thread = (fullJournalData.threads || []).find((t) => t.threadKey === currentThreadFilter);
+  const thread = (fullJournalData.threads || []).find((t, index) => localThreadKey(t, index) === currentThreadFilter);
   if (!thread) return fullJournalData.turns || [];
-  const turnIds = new Set(thread.entries.map((e) => e.turnId));
-  return (fullJournalData.turns || []).filter((t) => turnIds.has(t.turnId));
+  const turnKeys = new Set(thread.entries.map((entry) => entry.turnHandle || entry.turnId).filter(Boolean));
+  return (fullJournalData.turns || []).filter((turn, index) => {
+    if (turn.turnHandle || turn.turnId) return turnKeys.has(localTurnKey(turn, index));
+    // Older DTOs have no identity: never guess among equal-time scenes.
+    return fullJournalData.turns.filter((candidate) => candidate.worldTime === turn.worldTime).length === 1
+      && thread.entries.some((entry) => entry.worldTime === turn.worldTime);
+  });
 }
 
 export function renderJournal() {
   const container = document.getElementById("journal-container");
   if (!container) return;
-
-  restoreFilter();
 
   container.replaceChildren();
 
@@ -74,15 +105,15 @@ export function renderJournal() {
   });
   threadBar.appendChild(allBtn);
 
-  for (const thread of (fullJournalData?.threads || [])) {
+  for (const [index, thread] of (fullJournalData?.threads || []).entries()) {
     const btn = document.createElement("button");
     btn.textContent = thread.label;
     btn.className = "thread-btn";
-    const active = currentThreadFilter === thread.threadKey;
+    const threadKey = localThreadKey(thread, index);
+    const active = currentThreadFilter === threadKey;
     btn.setAttribute("aria-pressed", String(active));
-    if (active) btn.style.borderColor = "#e94560";
     btn.addEventListener("click", () => {
-      currentThreadFilter = (currentThreadFilter === thread.threadKey) ? null : thread.threadKey;
+      currentThreadFilter = (currentThreadFilter === threadKey) ? null : threadKey;
       persistFilter();
       renderJournal();
     });
@@ -99,10 +130,8 @@ export function renderJournal() {
   const filteredTurns = getFilteredTurns();
   const uniqueTurns = [];
   const seenSceneKeys = new Set();
-  for (const turn of filteredTurns) {
-    const primary = turn.presentation?.primary?.text || "";
-    const notable = (turn.presentation?.notable || []).slice(0, 1).map((entry) => entry.text).join("|");
-    const key = primary || notable ? primary + "|" + notable : turn.turnId;
+  for (const [index, turn] of filteredTurns.entries()) {
+    const key = localTurnKey(turn, index);
     if (seenSceneKeys.has(key)) continue;
     seenSceneKeys.add(key);
     uniqueTurns.push(turn);
@@ -112,14 +141,13 @@ export function renderJournal() {
     const turnEl = document.createElement("div");
     turnEl.className = "turn-entry";
     turnEl.setAttribute("role", "listitem");
-    const turnId = turn.turnId || "t" + turn.worldTime;
+    const turnId = "t-" + localTurnKey(turn, i);
     const isFirst = i === 0;
 
-    const header = document.createElement("div");
+    const header = document.createElement("button");
+    header.type = "button";
     header.className = "turn-header";
     header.textContent = sceneLabel(turn, i);
-    header.setAttribute("role", "button");
-    header.setAttribute("tabindex", "0");
     header.setAttribute("aria-expanded", String(isFirst));
     header.setAttribute("aria-controls", "body-" + turnId);
     header.addEventListener("click", () => {
@@ -154,11 +182,10 @@ export function renderJournal() {
     }
 
     if (pres && pres.notable && pres.notable.length > 0) {
-      const notableToggle = document.createElement("div");
+      const notableToggle = document.createElement("button");
+      notableToggle.type = "button";
       notableToggle.className = "notable-toggle";
       notableToggle.textContent = "Подробнее...";
-      notableToggle.setAttribute("role", "button");
-      notableToggle.setAttribute("tabindex", "0");
       notableToggle.setAttribute("aria-expanded", "false");
       notableToggle.addEventListener("click", () => {
         const list = notableToggle.nextElementSibling;
@@ -189,8 +216,8 @@ export function renderJournal() {
   }
 
   // Track seen turn IDs for dedup
-  for (const t of uniqueTurns) {
-    const id = t.turnId || ("t" + t.worldTime);
+  for (const [index, t] of uniqueTurns.entries()) {
+    const id = localTurnKey(t, index);
     SEEN_TURN_IDS.add(id);
   }
 
@@ -201,19 +228,44 @@ export function renderJournal() {
     moreBtn.textContent = "Ранее";
     moreBtn.setAttribute("aria-label", "Загрузить более ранние ходы");
     moreBtn.addEventListener("click", async () => {
-      const res = await fetch("/api/journal?limit=20&before=" + fullJournalData.nextBefore);
-      const body = await res.json();
-      if (body.ok && fullJournalData) {
-        for (const t of body.turns) {
-          const id = t.turnId || ("t" + t.worldTime);
+      if (moreBtn.disabled || !fullJournalData) return;
+      const snapshot = fullJournalData;
+      const generation = loadGeneration;
+      const world = worldScope();
+      const isCurrent = () => generation === loadGeneration && world === worldScope() && snapshot === fullJournalData;
+      const cursor = snapshot.nextBeforeTurn
+        ? "beforeTurn=" + encodeURIComponent(snapshot.nextBeforeTurn)
+        : "before=" + encodeURIComponent(snapshot.nextBefore);
+      moreBtn.disabled = true;
+      moreBtn.setAttribute("aria-busy", "true");
+      try {
+        const res = await fetch(apiPath("/journal?limit=20&" + cursor));
+        const body = await res.json();
+        if (!isCurrent()) return;
+        if (!body.ok) throw new Error("journal page unavailable");
+        for (const [index, turn] of (body.turns || []).entries()) {
+          const id = localTurnKey(turn, index);
           if (!SEEN_TURN_IDS.has(id)) {
-            fullJournalData.turns.push(t);
+            snapshot.turns.push(turn);
             SEEN_TURN_IDS.add(id);
           }
         }
-        fullJournalData.nextBefore = body.nextBefore;
-        fullJournalData.hasMore = body.hasMore;
+        snapshot.nextBefore = body.nextBefore;
+        snapshot.nextBeforeTurn = body.nextBeforeTurn;
+        snapshot.hasMore = body.hasMore;
         renderJournal();
+      } catch {
+        if (!isCurrent()) return;
+        moreBtn.setAttribute("aria-label", "Повторить загрузку более ранних ходов");
+        const notice = document.createElement("p");
+        notice.setAttribute("role", "status");
+        notice.textContent = "Не удалось загрузить ранние сцены. Нажми «Ранее», чтобы повторить.";
+        container.appendChild(notice);
+      } finally {
+        if (isCurrent()) {
+          moreBtn.disabled = false;
+          moreBtn.setAttribute("aria-busy", "false");
+        }
       }
     });
     container.appendChild(moreBtn);

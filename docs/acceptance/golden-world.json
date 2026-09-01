@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "riverwatch-first-15",
+  "title": "Золотой сценарий: первые пятнадцать минут",
+  "regionTitle": "Бассейн Речного Стража",
+  "entrypointTitle": "Переправа у Чёрного леса",
+  "playerPromise": "Опиши намерение, заметь последствие, задай следующий вопрос.",
+  "firstIntentExample": "Осмотреть воду и переправу.",
+  "milestones": [
+    {
+      "id": "first-consequence",
+      "label": "Первое последствие",
+      "targetMinutes": 5,
+      "evidenceType": "human",
+      "evidence": "Ответ мастера содержит понятный результат первого намерения."
+    },
+    {
+      "id": "first-observation",
+      "label": "Наблюдение",
+      "targetMinutes": 10,
+      "evidenceType": "human",
+      "evidence": "Игрок может назвать новое наблюдение или оставшуюся неизвестность."
+    },
+    {
+      "id": "first-question",
+      "label": "Следующий вопрос",
+      "targetMinutes": 15,
+      "evidenceType": "human",
+      "evidence": "Игрок своими словами формулирует, что хочет проверить дальше."
+    }
+  ],
+  "requiredUiSelectors": [
+    "#command-form",
+    "#command-input",
+    "#send-btn",
+    "#open-map-btn",
+    "#open-knowledge-btn",
+    "#chat-feed"
+  ],
+  "forbiddenTextPatterns": [
+    "eventId",
+    "correlationId",
+    "sourceEventIds",
+    "patternId",
+    "river_waystation",
+    "old_ruins"
+  ],
+  "sourceScenario": "packages/cli/acceptance-scenarios/riverwatch-old-course.json",
+  "humanGate": {
+    "status": "open",
+    "requiredSessions": "5-8 independent sessions of 30-60 minutes",
+    "automatedChecksAreNotHumanEvidence": true
+  }
+}

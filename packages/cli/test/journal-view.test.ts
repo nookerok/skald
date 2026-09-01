@@ -111,8 +111,8 @@ describe("journal-view", () => {
           ok: true,
           turns: [{ worldTime: 1, turnId: "t1", presentation: {} }],
           threads: [
-            { threadKey: "th1", label: "Movement", entries: [{ turnId: "t1" }] },
-            { threadKey: "th2", label: "Social", entries: [] },
+            { threadHandle: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", label: "Movement", entries: [{ turnId: "t1" }] },
+            { threadHandle: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", label: "Social", entries: [] },
           ],
           hasMore: false,
         }),
@@ -129,7 +129,7 @@ describe("journal-view", () => {
       // Click the first thread button
       threadBtns[0].click();
 
-      expect(sessionStorage.setItem).toHaveBeenCalledWith("skald:journal:thread", "th1");
+      expect(sessionStorage.setItem).toHaveBeenCalledWith("skald:journal:thread:legacy", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
       // Re-render — filter should be restored
       fetchMock.mockResolvedValueOnce({
@@ -137,8 +137,8 @@ describe("journal-view", () => {
           ok: true,
           turns: [{ worldTime: 1, turnId: "t1", presentation: {} }],
           threads: [
-            { threadKey: "th1", label: "Movement", entries: [{ turnId: "t1" }] },
-            { threadKey: "th2", label: "Social", entries: [] },
+            { threadHandle: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", label: "Movement", entries: [{ turnId: "t1" }] },
+            { threadHandle: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", label: "Social", entries: [] },
           ],
           hasMore: false,
         }),
@@ -146,16 +146,16 @@ describe("journal-view", () => {
 
       await journalViewMod.loadJournal();
       // sessionStorage.getItem should have been called
-      expect(sessionStorage.getItem).toHaveBeenCalledWith("skald:journal:thread");
+      expect(sessionStorage.getItem).toHaveBeenCalledWith("skald:journal:thread:legacy");
     });
 
     it("removes filter from sessionStorage when 'Все сцены' is clicked", async () => {
-      storage["skald:journal:thread"] = "th1";
+      storage["skald:journal:thread:legacy"] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
       fetchMock.mockResolvedValueOnce({
         json: () => Promise.resolve({
           ok: true, turns: [{ worldTime: 1, turnId: "t1", presentation: {} }],
-          threads: [{ threadKey: "th1", label: "Movement", entries: [{ turnId: "t1" }] }],
+          threads: [{ threadHandle: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", label: "Movement", entries: [{ turnId: "t1" }] }],
           hasMore: false,
         }),
       });
@@ -166,7 +166,7 @@ describe("journal-view", () => {
       const allBtn = threadBar._children.find((c) => c.textContent === "Все сцены");
       allBtn.click();
 
-      expect(sessionStorage.removeItem).toHaveBeenCalledWith("skald:journal:thread");
+      expect(sessionStorage.removeItem).toHaveBeenCalledWith("skald:journal:thread:legacy");
     });
   });
 
@@ -175,7 +175,7 @@ describe("journal-view", () => {
       fetchMock.mockResolvedValueOnce({
         json: () => Promise.resolve({
           ok: true, turns: [{ worldTime: 1, turnId: "t1", presentation: {} }],
-          threads: [{ threadKey: "th1", label: "Movement", entries: [{ turnId: "t1" }] }],
+          threads: [{ threadHandle: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", label: "Movement", entries: [{ turnId: "t1" }] }],
           hasMore: false,
         }),
       });
@@ -205,7 +205,7 @@ describe("journal-view", () => {
       const turnEntry = turnsList._children[0];
       const header = turnEntry._children.find((c) => c.className === "turn-header");
       expect(header._attrs["aria-expanded"]).toBe("true");
-      expect(header._attrs["aria-controls"]).toBe("body-t1");
+      expect(header._attrs["aria-controls"]).toBe("body-t-t1");
 
       // Click to collapse
       header.click();

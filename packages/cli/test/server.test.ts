@@ -78,6 +78,10 @@ describe("HTTP Server", () => {
     const premiumCss = await fetch(`${server!.url}/skald-aaa.css`);
     expect(premiumCss.status).toBe(200);
     expect(await premiumCss.text()).toContain(".conversation-surface");
+    const tokensCss = await fetch(`${server!.url}/tokens.css`);
+    expect(tokensCss.status).toBe(200);
+    expect(tokensCss.headers.get("content-type")).toContain("text/css");
+    expect(await tokensCss.text()).toContain("--aaa-gold: #d7aa52");
   });
 
   it("serves the whole app.js module graph (no 404 kills the boot)", async () => {
@@ -124,7 +128,15 @@ describe("HTTP Server", () => {
     const { status, body } = await api("/api/state");
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.state.player).toBeDefined();
+    expect(body.state).toEqual(expect.objectContaining({
+      worldTime: expect.any(Number),
+      eventNumber: expect.any(Number),
+      lastActionTick: expect.any(Number),
+      routerAvailable: expect.any(Boolean),
+    }));
+    expect(body.state).not.toHaveProperty("player");
+    expect(body.state).not.toHaveProperty("walls");
+    expect(body.state).not.toHaveProperty("heatMap");
   });
 
   it("keeps the legacy player-facing route matrix on safe read-side DTOs", async () => {
@@ -145,10 +157,28 @@ describe("HTTP Server", () => {
       expect(knowledge?.schemaVersion).toBe(1);
       expect(Array.isArray(knowledge?.entries)).toBe(true);
       expect(response.body).not.toHaveProperty("beliefModel");
+      expect(response.body).not.toHaveProperty("events");
+      expect(response.body).not.toHaveProperty("tickEvents");
+      expect(response.body).not.toHaveProperty("position");
+      expect(response.body.state).not.toHaveProperty("player");
+      expect(response.body.state).not.toHaveProperty("walls");
+      expect(response.body.state).not.toHaveProperty("heatMap");
     }
     expect(discoveries.status).toBe(200);
     expect(discoveries.body.schemaVersion).toBe(1);
     expect(JSON.stringify(discoveries.body)).not.toMatch(/sourceEventIds|journalTurnId|subjectRef|observerId|confidence|freshness/);
+
+    const narrative = await api("/api/narrative");
+    expect(narrative.status).toBe(200);
+    expect(narrative.body).not.toHaveProperty("playerPosition");
+    expect(narrative.body.presentation).not.toHaveProperty("playerPosition");
+    expect(JSON.stringify(narrative.body)).not.toMatch(/\(\s*-?\d+\s*,\s*-?\d+\s*\)/u);
+    expect(JSON.stringify(narrative.body)).not.toMatch(/sourceEventIds|threadKey|threadLabel/);
+    expect(narrative.body.entries.every((entry: any) => entry.kind !== "world")).toBe(true);
+    const journal = await api("/api/journal?limit=50");
+    expect(journal.status).toBe(200);
+    expect(journal.body.turns.every((turn: any) => !Object.prototype.hasOwnProperty.call(turn.presentation, "playerPosition"))).toBe(true);
+    expect(JSON.stringify(journal.body)).not.toMatch(/sourceEventIds|threadKey|threadLabel/);
   });
 
   it("clarifies malformed and observer-invisible targets without advancing the world", async () => {
@@ -195,7 +225,8 @@ describe("HTTP Server", () => {
     });
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.position).toEqual({ x: 0, y: 1 });
+    expect(body.position).toBeUndefined();
+    expect(body.state.player).toBeUndefined();
   });
 
   it("POST /api/command missing key returns 400", async () => {

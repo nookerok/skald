@@ -60,6 +60,32 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("pairs safe DTO handles at equal time and hides unavailable diagnostics", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const first = { ...turn(1, "Первый исход."), narrationHandle: "a", narrationState: "unavailable" };
+    const second = { ...turn(1, "Второй исход."), narrationHandle: "b", narrativeLLM: { text: "Второе описание.", usedFallback: false } };
+    const a = { ...conversation("a", "action", "Смотрю", "Первый ответ.", 1, 10), narrationHandle: "a" };
+    const b = { ...conversation("b", "action", "Слушаю", "Второй ответ.", 1, 20), narrationHandle: "b" };
+    renderChatFeed([second, first], [b, a], [], null);
+    expect(doc.feed.children).toHaveLength(4);
+    expect(allText(doc.feed.children[0])).toContain("Смотрю");
+    expect(allText(doc.feed.children[1])).toContain("Первый ответ.");
+    expect(allText(doc.feed.children[1])).not.toContain("Второе описание.");
+    expect(allText(doc.feed.children[2])).toContain("Слушаю");
+    expect(allText(doc.feed.children[3])).toContain("Второе описание.");
+    expect(allText(doc.feed)).not.toMatch(/литературное продолжение|недоступно|unavailable/);
+    renderChatFeed([first, second], [a, b], [], null);
+    expect(doc.feed.children).toHaveLength(4);
+  });
+
+  it("does not reuse a transcript answer for two uncorrelated equal-time turns", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([turn(1, "Сцена один."), turn(1, "Сцена два.")],
+      [conversation("a", "action", "Смотрю", "Мой ответ.", 1, 10)], [], null);
+    expect(allText(doc.feed).match(/Смотрю/g)).toHaveLength(1);
+    expect(allText(doc.feed).match(/Мой ответ/g)).toHaveLength(1);
+  });
+
   it("pairs the player intent before the world's answering turn", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const intents = [{ worldTime: 4, text: "идти к Переправе" }];

@@ -15,6 +15,10 @@ echo "[validate] node: $(node --version)"
 echo "[validate] npm:  $(npm --version)"
 echo "[validate] shell syntax"
 bash -n scripts/validate.sh packages/cli/deploy/*.sh
+# This only verifies that the read-only smoke harness is callable. A real
+# browser/production run needs the fixed NTFS task and is reported separately.
+echo "[validate] browser smoke harness (not browser QA)"
+npm run browser:smoke -- --help >/dev/null
 echo "[validate] typecheck"
 npm run typecheck
 echo "[validate] tests"

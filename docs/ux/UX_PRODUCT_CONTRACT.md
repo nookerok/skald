@@ -12,6 +12,13 @@ The normal player UI is determined by the Observation & Belief contract:
 docs/OBSERVATION_BELIEF_MODEL.md. It renders observer-scoped beliefs and
 observations, not authoritative World state or an unfiltered Event Log.
 
+The visual/runtime contract is anchored by the repository-root `DESIGN.md` and
+its canonical runtime token layer at `packages/cli/public/tokens.css`. The
+technical first-15-minute browser checks and the separate human evidence gate
+are recorded in `docs/acceptance/golden-world.json` and
+`docs/acceptance/first-15-minute-playtest.md`; automated checks must not be
+reported as playtest evidence.
+
 ## Current player loop
 
 ```text

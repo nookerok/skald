@@ -52,9 +52,13 @@ describe("Game Shell HTTP contract", () => {
     const { status, body } = await api("/api/worlds/shell-world/game-shell");
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.snapshot.worldId).toBe("shell-world");
+    expect(body.snapshot).not.toHaveProperty("worldId");
     expect(body.snapshot.character.displayName).toBe("Ирина");
     expect(body.snapshot.schemaVersion).toBe(1);
+    expect(body.snapshot.world).not.toHaveProperty("locationId");
+    expect(body.snapshot.world).not.toHaveProperty("position");
+    expect(body.snapshot.lastTurn ?? {}).not.toHaveProperty("turnId");
+    expect(body.snapshot.currentSituation ?? {}).not.toHaveProperty("situationId");
   });
 
   it("returns 405 for POST /game-shell", async () => {
@@ -83,6 +87,13 @@ describe("Game Shell HTTP contract", () => {
     }
     const serializedDiscoveries = JSON.stringify(discoveries.body);
     expect(serializedDiscoveries).not.toMatch(/sourceEventIds|journalTurnId|subjectRef|observerId|confidence|freshness/);
+    const serializedShell = JSON.stringify(shell.body.snapshot);
+    expect(serializedShell).not.toMatch(/worldId|locationId|situationId|turnId|eventId|correlationId|sourceEventIds/);
+    const command = await api("/api/worlds/shell-world/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "осматриваюсь", idempotencyKey: "shell-safe-delta" }),
+    });
+    expect(JSON.stringify(command.body.shellDelta)).not.toMatch(/turnId|situationId|eventId|correlationId|sourceEventIds/);
   });
 
   it("includes a revision-aligned shellDelta in every command and wait path", async () => {

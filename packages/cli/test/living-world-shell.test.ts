@@ -284,14 +284,12 @@ describe("Visual Shell — contextual map selection", () => {
     expect(text).not.toContain("АКТИВНАЯ СИТУАЦИЯ");
   });
 
-  it("renders connected location names and dispatches a travel intent", async () => {
+  it("renders connected location names as read-only route context", async () => {
     const { renderWorldStage } = await import("../public/world-stage-view.js");
     renderWorldStage({ locationName: "Башня", connectedLocations: [{ id: "crossing", name: "Перекрёсток" }] }, { marks: 0, maxMarks: 5 }, null);
     expect(doc.getElementById("stage-links").children[0].textContent).toBe("Перекрёсток");
-    const button = doc.getElementById("stage-links").children[0];
-    button.events.click();
-    expect(doc.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "skald:travel" }));
-    expect(doc.dispatchEvent.mock.calls[0][0].detail.locationId).toBe("crossing");
+    expect(doc.getElementById("stage-links").children[0].tagName).not.toBe("BUTTON");
+    expect(doc.dispatchEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: "skald:travel" }));
   });
 });
 

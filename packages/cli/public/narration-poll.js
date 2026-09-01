@@ -1,5 +1,5 @@
 /**
- * DOM-independent narration-settlement poller (ADR-0024 "МИР" voice).
+ * DOM-independent narration-settlement poller (ADR-0024 "МАСТЕР" voice).
  *
  * The browser must not guess "is the narration ready yet?" by elapsed time:
  * the server journal DTO now reports a per-turn `narrationState`
@@ -17,8 +17,18 @@
  *   - world change or exit           -> cancelled by caller before the tick
  *   - watchdog (default 150s)        -> only protects against a wedged state
  */
+/** Exact lifecycle lookup; legacy time-only lookup is safe only if unique. */
+export function resolveNarrationPollState(turns, { targetNarrationHandle = null, targetWorldTime = null } = {}) {
+  const candidates = Array.isArray(turns) ? turns : [];
+  const matches = targetNarrationHandle
+    ? candidates.filter((turn) => turn.narrationHandle === targetNarrationHandle)
+    : candidates.filter((turn) => turn.worldTime === targetWorldTime);
+  return matches.length === 1 ? matches[0].narrationState ?? "not_requested" : "not_requested";
+}
+
 export function createNarrationPoll({ intervalMs = 400, watchdogMs = 150000, onStopped = () => {} } = {}) {
   let live = null;
+  let nextGeneration = 0;
 
   function isStale(generation) {
     return live === null || live.generation !== generation;
@@ -30,11 +40,11 @@ export function createNarrationPoll({ intervalMs = 400, watchdogMs = 150000, onS
   }
 
   /** Starts (or re-arms) a polling session. Returns the new session object. */
-  function start(pollFn, { worldId = null, targetWorldTime = null } = {}) {
+  function start(pollFn, { worldId = null, targetWorldTime = null, targetNarrationHandle = null } = {}) {
     if (live && live.timer) clearTimeout(live.timer);
-    const generation = (live ? live.generation + 1 : 1);
+    const generation = ++nextGeneration;
     const session = {
-      generation, worldId, targetWorldTime, attempts: 0, startedAt: Date.now(), timer: null,
+      generation, worldId, targetWorldTime, targetNarrationHandle, attempts: 0, startedAt: Date.now(), timer: null,
     };
     live = session;
     scheduleTick(session, pollFn);
@@ -49,7 +59,7 @@ export function createNarrationPoll({ intervalMs = 400, watchdogMs = 150000, onS
       if (isStale(token.generation)) return;
       let status;
       try {
-        status = await pollFn({ worldId: token.worldId, targetWorldTime: token.targetWorldTime });
+        status = await pollFn({ worldId: token.worldId, targetWorldTime: token.targetWorldTime, targetNarrationHandle: token.targetNarrationHandle });
       } catch {
         status = "unavailable";
       }

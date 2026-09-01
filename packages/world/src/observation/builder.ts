@@ -388,7 +388,17 @@ function freezeEvidence(item: InternalEvidence, observationId: string): Evidence
     strength: item.strength,
     observedAt: item.observedAt,
     linkedObservationIds: [observationId],
+    sourceEventIds: [...item.sourceEventIds],
   });
+}
+
+/** Internal provenance only; serialized Observation/Belief contracts omit it. */
+export function evidenceSourceEventIds(evidence: Evidence): readonly string[] {
+  if ("sourceEventIds" in evidence && Array.isArray(evidence.sourceEventIds)) {
+    return Object.freeze(evidence.sourceEventIds.filter((id): id is string => typeof id === "string"));
+  }
+  // Compatibility with evidence predating internal provenance.
+  return Object.freeze(evidence.id.startsWith("evidence:") ? [evidence.id.slice(9)] : []);
 }
 
 export function buildBeliefModel(events: readonly DomainEvent[], world: ReadonlyWorld, observerId = "player"): BeliefModel {
@@ -523,7 +533,7 @@ export function buildDiscoveryJournalFromBeliefModel(model: BeliefModel, rumors:
       kind: discoveryStage(entry.strength) === "discovered" ? "echo"
         : discoveryStage(entry.strength) === "hypothesis" ? "omen" : "trace",
       subjectRef: discoveryId,
-      worldTime: entry.observedAt, text: entry.description, sourceEventIds: [],
+      worldTime: entry.observedAt, text: entry.description, sourceEventIds: evidenceSourceEventIds(entry),
       journalTurnId: "turn:" + entry.observedAt,
       confidence: entry.strength,
       freshness: 1.0,
@@ -582,6 +592,7 @@ function sanitizeBeliefDTOText(value: unknown, field = ""): unknown {
   }
   const result: Record<string, unknown> = {};
   for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "sourceEventIds") continue;
     result[key] = sanitizeBeliefDTOText(nested, key);
   }
   return result;

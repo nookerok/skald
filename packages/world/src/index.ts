@@ -50,9 +50,11 @@ export type {
   NarrativeSnapshot,
 } from "./narrative.js";
 export { selectTurnPresentation } from "./presentation/selector.js";
+export { actionFallbackText, isGenericActionFallback } from "./presentation/action-fallback.js";
 export { parseBeliefModelDTO, parseObservationRecord } from "@skald/observation";
 export type * from "./presentation/types.js";
 export { buildTurnJournal, attachTurnNarrations } from "./journal/builder.js";
+export { narrationKey } from "./journal/identity.js";
 export type * from "./journal/types.js";
 export { buildDiscoveryJournal, DEFINITIONS, toPlayerDiscoveryJournal } from "./discovery/index.js";
 export type * from "./discovery/types.js";
@@ -78,6 +80,7 @@ export { buildPlayerKnowledgePresentation } from "./game-shell/knowledge-view.js
 export { buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } from "./inquiry/index.js";
 export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
+export { localizedPlayerText } from "./game-shell/player-facing.js";
 export { narrateLLM, narrateTurnLLM, verifyEpistemicNarration } from "./narrative-llm.js";
 export type {
   TurnNarration,

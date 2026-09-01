@@ -18,8 +18,10 @@ export function buildSituationView(world: ReadonlyWorld): SituationView | null {
 
   for (const [id, s] of world.activeSituations) {
     const template = SITUATION_TEMPLATES[s.type];
-    const title = template?.title ?? s.type;
-    const description = template?.description ?? `Активная ситуация: ${s.type}`;
+    // Unknown types are still valid simulation state, but their internal key
+    // is not suitable for a normal player's UI or inquiry answer.
+    const title = template?.title ?? "Неясная перемена";
+    const description = template?.description ?? "Вокруг заметна перемена, но её причина пока неясна.";
     const effects = template?.effects ?? [];
     const remaining = (s.startedAt + s.duration) - world.time;
 

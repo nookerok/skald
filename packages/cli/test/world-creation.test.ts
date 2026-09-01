@@ -293,7 +293,7 @@ describe("World creation", () => {
     const { status, body } = await api(`/api/worlds/${worldId}/state`);
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.state.player).toBeDefined();
+    expect(body.state.player).toBeUndefined();
     expect(body.state.worldTime).toBe(0);
   });
 
@@ -317,10 +317,13 @@ describe("World creation", () => {
       }),
     });
 
-    // Both worlds should be distinct (walls differ by template)
+    // Both worlds are isolated while the normal state DTO stays observer-safe.
     const s1 = await api(`/api/worlds/${worldId}/state`);
     const s2 = await api(`/api/worlds/${wid2}/state`);
-    expect(s1.body.state.walls).not.toEqual(s2.body.state.walls);
+    expect(s1.body.state).not.toHaveProperty("player");
+    expect(s2.body.state).not.toHaveProperty("player");
+    expect(s1.body.state).not.toHaveProperty("walls");
+    expect(s2.body.state).not.toHaveProperty("walls");
   });
 
   it("SQLite restart preserves created world", async () => {

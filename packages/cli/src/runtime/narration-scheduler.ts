@@ -1,5 +1,5 @@
 /**
- * Detached, bounded runner for LLM turn-narration (ADR-0024 "МИР" voice).
+ * Detached, bounded runner for LLM turn-narration (ADR-0024 "МАСТЕР" voice).
  *
  * Narration is non-authoritative read-side decoration: it must never hold the
  * per-world command queue or delay the command response. Callers schedule a
@@ -23,6 +23,7 @@
  * no Rules, no Projection state.
  */
 import type { NarrationDiagnosticSink } from "@skald/world";
+import { narrationKey } from "@skald/world";
 export type NarrationPriority = "interactive" | "batch";
 
 export type NarrationJob = {
@@ -72,7 +73,7 @@ export class NarrationScheduler {
   private running = false;
   private interactiveQueue: NarrationJob[] = [];
   private batchQueue: NarrationJob[] = [];
-  private readonly statuses = new Map<number, NarrationRuntimeStatus>();
+  private readonly statuses = new Map<number | string, NarrationRuntimeStatus>();
 
   constructor(
     private readonly interactiveLimit = DEFAULT_INTERACTIVE_LIMIT,
@@ -105,24 +106,24 @@ export class NarrationScheduler {
       });
       dropped.onDrop();
     }
-    this.statuses.set(job.worldTime, "pending");
+    this.statuses.set(narrationKey(job.worldTime, job.correlationId), "pending");
     queue.push(job);
     void this.drain();
   }
 
   /** Recompose pending -> ready after a successful persist. */
-  markReady(worldTime: number): void {
-    this.statuses.delete(worldTime);
+  markReady(worldTime: number, correlationId?: string): void {
+    this.statuses.delete(narrationKey(worldTime, correlationId));
   }
 
   /** Recompose pending -> unavailable after fallback, error or eviction. */
-  markUnavailable(worldTime: number): void {
-    this.statuses.set(worldTime, "unavailable");
+  markUnavailable(worldTime: number, correlationId?: string): void {
+    this.statuses.set(narrationKey(worldTime, correlationId), "unavailable");
   }
 
   /** Runtime status for a turn; undefined means not_requested/ready-untracked. */
-  statusOf(worldTime: number): "pending" | "unavailable" | undefined {
-    return this.statuses.get(worldTime);
+  statusOf(worldTime: number, correlationId?: string): "pending" | "unavailable" | undefined {
+    return this.statuses.get(narrationKey(worldTime, correlationId));
   }
 
   pendingCount(): number {
@@ -162,7 +163,7 @@ export class NarrationScheduler {
             recordedAt: new Date().toISOString(),
             ...(job.correlationId ? { correlationId: job.correlationId } : {}),
           });
-          this.statuses.set(job.worldTime, "unavailable");
+          this.statuses.set(narrationKey(job.worldTime, job.correlationId), "unavailable");
         }
       }
     } finally {

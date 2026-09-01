@@ -74,7 +74,7 @@ describe("selectTurnPresentation", () => {
     // ConsequenceCreated is an internal scheduling event and never surfaces.
     const created = pres.notable.filter((e) => e.text.includes("породили"));
     expect(created.length).toBe(0);
-    const fired = pres.notable.filter((e) => e.text.includes("проявило"));
+    const fired = pres.notable.filter((e) => e.text.includes("сработало"));
     expect(fired.length).toBe(1);
   });
 
@@ -154,8 +154,17 @@ describe("selectTurnPresentation", () => {
       evt("ActionAttempted", "a-4", { operation: "observe", target: null }, 5),
     ], emptyWorld());
     expect(pres.response?.kind).toBe("action_outcome");
-    expect(pres.response?.text).toContain("начинаешь действовать");
+    expect(pres.response?.text).toBe("Ты осматриваешься, но пока не замечаешь ясного отклика.");
     expect(pres.primary?.text).toBe(pres.response?.text);
+  });
+
+  it("explains that waiting continues an active journey", () => {
+    const pres = selectTurnPresentation([
+      evt("ActionAttempted", "a-wait", { operation: "wait", target: null }, 5),
+      evt("ActionRejected", "r-wait", { reason: "traveling" }, 5),
+    ], emptyWorld());
+    expect(pres.response?.kind).toBe("action_rejection");
+    expect(pres.response?.text).toBe("Ты уже в пути — дорога ведёт тебя дальше, пока следующий этап не завершится.");
   });
 
   it("does not let a grouped candidate lose its epistemic class", () => {

@@ -12,7 +12,7 @@ import { buildSituationView } from "./situation-view.js";
 import { buildAttentionView } from "./attention-view.js";
 import { buildPlayerKnowledgePresentation } from "./knowledge-view.js";
 import { buildBeliefModel } from "../observation/builder.js";
-import { blockedReasonLabel, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
+import { blockedReasonLabel, localizedPlayerText, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 import { buildObservedResources } from "../resource/observer.js";
 import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
 import type { NarrativeAdapterContext } from "../setup/background-context.js";
@@ -59,6 +59,8 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
   }
   walk(root.eventId);
   const steps: CausalStep[] = [];
+  const safeDynamic = (value: unknown, fallback: string): string =>
+    localizedPlayerText(typeof value === "string" ? value : "", fallback);
   for (const event of ordered) {
     const p = event.payload as Record<string, unknown>;
     let text: string;
@@ -66,18 +68,18 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       case "MoveRequested": text = "Ты пытаешься сделать шаг."; break;
       case "GiveRequested": text = "Ты пытаешься повлиять на отношения."; break;
       case "ActionAttempted": text = "Ты формулируешь намерение: " + operationLabel(p.operation) + "."; break;
-      case "JourneyRequested": text = "Ты выбираешь путь к «" + (typeof p.destination === "string" ? p.destination : "новому месту") + "».";
+      case "JourneyRequested": text = "Ты выбираешь путь к «" + safeDynamic(p.destination, "новому месту") + "».";
         break;
       case "JourneyStarted": text = "Путь начался. Мир потребует времени и нескольких тяжёлых этапов."; break;
-      case "JourneyBlocked": text = typeof p.playerText === "string" ? p.playerText : "Путь пока не складывается."; break;
+      case "JourneyBlocked": text = safeDynamic(p.playerText, "Путь пока не складывается."); break;
       case "JourneyCompleted": text = "Путешествие завершено."; break;
       case "ActionValidated": case "GiveValidated": text = "Действие принято."; break;
-      case "ActionResolved": text = typeof p.description === "string" ? p.description : "Действие получило результат."; break;
+      case "ActionResolved": text = safeDynamic(p.description, "Действие получило результат."); break;
       case "ActionBlocked": text = "Действие заблокировано: " + blockedReasonLabel(p.reason) + "."; break;
-      case "ObjectObserved": text = typeof p.description === "string" ? p.description : "Ты заметил изменение."; break;
+      case "ObjectObserved": text = safeDynamic(p.description, "Ты заметил изменение."); break;
       case "ObjectTemperatureChanged": text = "Предмет рядом нагревается."; break;
       case "SoundProduced": text = "Раздался звук поблизости."; break;
-      case "SoundObserved": text = typeof p.description === "string" ? p.description : "Ты прислушиваешься."; break;
+      case "SoundObserved": text = safeDynamic(p.description, "Ты прислушиваешься."); break;
       case "ActionHadNoObservableEffect": text = "Ты не замечаешь ничего особенного."; break;
       case "CriticalCheckRequested": { const modifiers = Array.isArray(p.modifiers) ? (p.modifiers as Array<{ label?: unknown; delta?: unknown }>).map((item) => (typeof item.label === "string" ? item.label : "Модификатор") + " " + (typeof item.delta === "number" && item.delta >= 0 ? "+" : "") + (typeof item.delta === "number" ? item.delta : 0)).join(", ") : "нет"; text = "Критический момент. Сложность: " + (typeof p.difficulty === "number" ? p.difficulty : "—") + ". Модификаторы: " + modifiers; break; }
       case "CriticalCheckRolled": text = "Бросок: " + (typeof p.naturalRoll === "number" ? p.naturalRoll : "—") + "."; break;
@@ -102,10 +104,10 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
       const modifiers = Array.isArray(p.modifiers) ? p.modifiers as Array<{ label?: unknown; delta?: unknown }> : [];
       const stakes = p.stakes as { success?: unknown; failure?: unknown } | undefined;
       step.critical = {
-        success: typeof stakes?.success === "string" ? stakes.success : "Успех меняет ситуацию.",
-        failure: typeof stakes?.failure === "string" ? stakes.failure : "Неудача меняет ситуацию.",
+        success: safeDynamic(stakes?.success, "Успех меняет ситуацию."),
+        failure: safeDynamic(stakes?.failure, "Неудача меняет ситуацию."),
         ...(typeof p.difficulty === "number" ? { difficulty: p.difficulty } : {}),
-        modifiers: modifiers.map((modifier) => ({ label: typeof modifier.label === "string" ? modifier.label : "Модификатор", delta: typeof modifier.delta === "number" ? modifier.delta : 0 })),
+        modifiers: modifiers.map((modifier) => ({ label: safeDynamic(modifier.label, "Модификатор"), delta: typeof modifier.delta === "number" ? modifier.delta : 0 })),
       };
     }
     steps.push(step);
@@ -172,14 +174,8 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
 
   const connectedLocations: Array<{ id: string; label: string; detail?: string }> = [];
   const knownRoutes: Array<{ label: string; detail?: string; status?: "open" | "difficult" | "blocked" }> = [];
-  if (location && !world.spatial) {
-    for (const [, connTarget] of Object.entries(location.connections)) {
-      const connLoc = world.locations.get(connTarget);
-      if (connLoc) {
-        connectedLocations.push({ id: connLoc.id, label: connLoc.name, detail: connLoc.description });
-      }
-    }
-  }
+  // Legacy topology is world truth, not evidence that a route was observed.
+  // Publish destinations only through the observer-scoped spatial branch.
   // Travel destinations from the spatial read view (ADR-0015): roads,
   // crossings and rivers leaving the current location become real options the
   // player can act on, with the crossing condition surfaced honestly.
@@ -205,9 +201,6 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
       connectedLocations.push({ id: targetId, label: target.name, detail });
       seen.add(targetId);
     }
-  }
-  if (knownRoutes.length === 0 && !world.spatial) {
-    for (const connected of connectedLocations) knownRoutes.push({ label: connected.label, ...(connected.detail ? { detail: connected.detail } : {}), status: "open" });
   }
 
   return {

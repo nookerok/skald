@@ -1,7 +1,7 @@
 import { sendCommand, fetchState, fetchGameShell, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
 import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, removeLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
-import { createNarrationPoll } from "./narration-poll.js";
+import { createNarrationPoll, resolveNarrationPollState } from "./narration-poll.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
 import { loadMenu } from "./menu-view.js";
@@ -21,9 +21,10 @@ let interactionReady = false;
 let currentWorldId = null;
 let lastKnownRevision = 0;
 let latestJournal = null;
+let journalRequestGeneration = 0;
 
 /**
- * Server-driven narration polling (ADR-0024 "МИР" voice). The journal DTO now
+ * Server-driven narration polling (ADR-0024 "МАСТЕР" voice). The journal DTO now
  * reports a per-turn `narrationState`, so the browser never guesses by elapsed
  * time: it polls `pending`, stops on `ready`/`unavailable`/`not_requested` and
  * re-arms safely per new command. See narration-poll.js for the stale-tick/
@@ -34,21 +35,20 @@ const narrationPoll = createNarrationPoll({
   watchdogMs: 150000,
 });
 
-async function narrationPollTick({ worldId, targetWorldTime }) {
+async function narrationPollTick({ worldId, targetWorldTime, targetNarrationHandle }) {
   if (currentWorldId !== worldId || isExitInProgress()) return "unavailable";
   const data = await refreshJournal();
-  const target = data && Array.isArray(data.turns)
-    ? data.turns.find((t) => t.worldTime === targetWorldTime)
-    : null;
-  return target?.narrationState ?? "not_requested";
+  if (currentWorldId !== worldId || isExitInProgress()) return "unavailable";
+  if (!data) return "pending";
+  return resolveNarrationPollState(data.turns, { targetWorldTime, targetNarrationHandle });
 }
 
-function scheduleNarrationRefresh(routerAvailable, targetWorldTime) {
+function scheduleNarrationRefresh(routerAvailable, targetWorldTime, targetNarrationHandle) {
   if (!routerAvailable || !Number.isFinite(targetWorldTime)) {
     narrationPoll.stop();
     return;
   }
-  narrationPoll.start(narrationPollTick, { worldId: currentWorldId, targetWorldTime });
+  narrationPoll.start(narrationPollTick, { worldId: currentWorldId, targetWorldTime, targetNarrationHandle });
 }
 
 function renderOfflineBanner(text) {
@@ -95,7 +95,7 @@ async function flushOfflineQueue() {
       await refreshShell();
       await refreshJournal();
       await refreshDiscoveries();
-      scheduleNarrationRefresh(Boolean(result.body.state?.routerAvailable), result.body.state?.worldTime);
+      scheduleNarrationRefresh(Boolean(result.body.state?.routerAvailable), result.body.state?.worldTime, result.body.conversationTurn?.narrationHandle);
     } else if (resolution === "already_processed") {
       setIntentStatus(sessionIntent, "accepted");
       renderChatFeed(latestJournal);
@@ -138,9 +138,13 @@ async function refreshShell() {
   return true;
 }
 async function refreshJournal() {
+  const request = ++journalRequestGeneration;
+  const worldId = currentWorldId;
+  const isCurrent = () => request === journalRequestGeneration && worldId === currentWorldId && !isExitInProgress();
   dispatch("JOURNAL_LOADING");
   try {
     const data = await loadJournal();
+    if (!isCurrent()) return null;
     if (data) {
       renderJournal(data);
       latestJournal = data;
@@ -150,6 +154,7 @@ async function refreshJournal() {
     }
     dispatch("JOURNAL_UNAVAILABLE");
   } catch {
+    if (!isCurrent()) return null;
     dispatch("JOURNAL_UNAVAILABLE");
   }
   return null;
@@ -176,7 +181,7 @@ async function handle(input, overrideKey) {
   dispatch("COMMAND_START", { input, key });
   setControlsBusy(true);
   setShellBusy(true, "Разбираем намерение…");
-  renderShellConnection("pending", "Мир отвечает…");
+  renderShellConnection("pending", "МАСТЕР отвечает…");
   try {
     const result = await sendCommand(input, key);
     if (result.body?.ok && result.body?.status === "inquiry") {
@@ -211,7 +216,7 @@ async function handle(input, overrideKey) {
       await refreshJournal();
       await refreshShell();
       await refreshDiscoveries();
-      scheduleNarrationRefresh(Boolean(result.body?.state?.routerAvailable), result.body?.state?.worldTime);
+      scheduleNarrationRefresh(Boolean(result.body?.state?.routerAvailable), result.body?.state?.worldTime, result.body?.conversationTurn?.narrationHandle);
     } else if (result.status === 409) {
       // The original request may have committed before its response was lost.
       // Reconcile all authoritative read models before hiding retry.
@@ -288,6 +293,9 @@ function showPanel(name) {
   const presencePanel = document.getElementById("panel-presence-entry");
   if (presencePanel) presencePanel.hidden = name !== "presence";
 }
+function setDocumentTitle(title) {
+  document.title = title + " — Skald";
+}
 async function route() {
   const hash = window.location.hash || "#/menu";
   const worldMatch = hash.match(/^#\/world\/([^/]+)(\/return)?$/);
@@ -296,6 +304,7 @@ async function route() {
     const requestedRoute = "/world/" + worldId + (worldMatch[2] || "");
     const decision = resolveWorldRoute({ requestedRoute, worldId, hasLease: hasPresenceLease(worldId) });
     if (decision === ROUTE.PRESENCE) {
+      setDocumentTitle("Возвращение");
       if (requestedRoute !== "/world/" + worldId + "/return") {
         // No browser-session lease: never render the shell frame; redirect
         // so history cannot land back on the shell without presence.
@@ -309,6 +318,7 @@ async function route() {
       return;
     }
     if (decision === ROUTE.GAME) {
+      setDocumentTitle("Живой мир");
       currentWorldId = worldId;
       setCurrentWorld(worldId);
       showPanel("game");
@@ -317,11 +327,13 @@ async function route() {
     }
   }
   if (hash.startsWith("#/new/")) {
+    setDocumentTitle("Начало новой истории");
     showPanel("new");
     await initNewGame();
     return;
   }
   currentWorldId = null;
+  setDocumentTitle("Главное меню");
   showPanel("menu");
   await loadMenu();
 }
@@ -365,10 +377,6 @@ function bindGlobal() {
     if (worldId) window.location.hash = "#/world/" + worldId + "/return";
   });
   window.addEventListener("hashchange", () => route());
-  window.addEventListener("skald:travel", (event) => {
-    const name = event.detail?.name;
-    if (typeof name === "string" && name.length > 0) handle("идти к " + name);
-  });
   document.addEventListener("skald:context-select", (event) => {
     const label = event.detail?.name || event.detail?.label;
     if (label) renderShellConnection("ready", "Выбрано: " + label);

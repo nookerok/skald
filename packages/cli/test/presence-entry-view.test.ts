@@ -167,6 +167,14 @@ describe("presence-entry-controller.js", () => {
     expect(src).toContain("state.phase !== PHASE.PRESENCE");
     expect(src).not.toContain("skald:presence-continue");
   });
+
+  it("keeps the presence dialog live and exposes busy state on its surface", () => {
+    const html = code("index.html");
+    const src = code("presence-entry-controller.js");
+    expect(html).toMatch(/id="panel-presence-entry"[^>]*role="dialog"[^>]*aria-live="polite"[^>]*aria-busy="false"/);
+    expect(src).toContain('container?.closest("#panel-presence-entry")');
+    expect(src).toContain('panel.setAttribute("aria-busy", String(busy))');
+  });
 });
 
 describe("presence-entry.css", () => {

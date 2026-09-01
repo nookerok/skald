@@ -53,7 +53,9 @@ export function operationLabel(operation: unknown): string { return safeLookup(O
  * identifier is ever invented, only replaced when a canonical label exists.
  */
 export function relationTargetLabelOrRaw(target: unknown): string {
-  return typeof target === "string" && RELATION_TARGET_LABELS[target] ? RELATION_TARGET_LABELS[target]! : String(target);
+  return typeof target === "string" && RELATION_TARGET_LABELS[target]
+    ? RELATION_TARGET_LABELS[target]!
+    : localizedPlayerText(typeof target === "string" ? target : "", "цель действия");
 }
 
 const INTERNAL_LABELS: readonly [string, string][] = [
@@ -78,4 +80,12 @@ export function sanitizePlayerFacingText(text: string): string {
   let result = text;
   for (const [internal, label] of INTERNAL_LABELS) result = result.split(internal).join(label);
   return result;
+}
+
+/** Fail-closed localized prose boundary; never humanize unknown internal refs. */
+export function localizedPlayerText(text: string, fallback: string): string {
+  const normalized = sanitizePlayerFacingText(text).trim();
+  const internal = /[A-Za-z_#]|[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u;
+  const coordinates = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/u;
+  return normalized && !internal.test(normalized) && !coordinates.test(normalized) ? normalized : fallback;
 }

@@ -53,7 +53,7 @@ describe("formatEvent", () => {
 
   it("CommandRejected", () => {
     const result = formatEvent(e("c-1", "CommandRejected", { reason: "unknown command type: Foo" }, 3));
-    expect(result!.text).toBe("Мир не понял твоего намерения.");
+    expect(result!.text).toBe("МАСТЕР не понял твоего намерения. Опиши, что хочешь проверить или изменить.");
   });
 
   it("ObservationUpdated delta=1", () => {
@@ -82,7 +82,7 @@ describe("formatEvent", () => {
 
   it("ConsequenceFired", () => {
     const result = formatEvent(e("cf-1", "ConsequenceFired", { consequenceId: "aud@1", consequenceType: "audacity", firedAt: 8 }, 8));
-    expect(result!.text).toContain("audacity");
+    expect(result!.text).toContain("Ответ мира");
     expect(result!.text).toContain("сработало");
   });
 
@@ -246,8 +246,8 @@ describe("situationLabel + sanitize", () => {
 
   it("relation target labels are humanized only when a canonical label exists", () => {
     expect(relationTargetLabelOrRaw("guild")).toBe("Местная община");
-    expect(relationTargetLabelOrRaw("north")).toBe("north");
-    expect(relationTargetLabelOrRaw("old cart")).toBe("old cart");
+    expect(relationTargetLabelOrRaw("north")).toBe("цель действия");
+    expect(relationTargetLabelOrRaw("old cart")).toBe("цель действия");
   });
 
   it("modern open-intent operations map to player-facing verbs", () => {

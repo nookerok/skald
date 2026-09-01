@@ -14,14 +14,14 @@ export function renderStatus(state) {
     case APP.READY:
       switch (state.command) {
         case CMD.PENDING:
-          text = "Мир отвечает...";
+          text = "МАСТЕР отвечает...";
           ariaLive = "assertive";
           break;
         case CMD.SUCCEEDED:
           text = "Готов";
           break;
         case CMD.REJECTED:
-          text = state.lastPlayerMessage || "Мир не понял этого намерения.";
+          text = state.lastPlayerMessage || "МАСТЕР не понял этого намерения.";
           ariaLive = "assertive";
           break;
         case CMD.DUPLICATE:
@@ -29,11 +29,11 @@ export function renderStatus(state) {
           ariaLive = "assertive";
           break;
         case CMD.TRANSPORT_FAILED:
-          text = "Связь с миром прервалась. Нажми Retry.";
+          text = "Связь с миром прервалась. Можно повторить то же намерение.";
           ariaLive = "assertive";
           break;
         case CMD.TIMEOUT:
-          text = "Мир не отвечает. Нажми Retry.";
+          text = "Ответ задерживается. Можно повторить то же намерение.";
           ariaLive = "assertive";
           break;
         default:

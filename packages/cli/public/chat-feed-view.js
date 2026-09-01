@@ -157,7 +157,7 @@ function turnNode(turn, conversationTurn = null) {
   const narrative = turn.narrativeLLM;
   const response = conversationTurn ? { text: conversationTurn.responseText, kind: conversationTurn.responseKind } : presentation.response || null;
   const primary = presentation.primary || null;
-  const responseText = response?.text || (!response && primary?.sourceEventIds?.length ? primary.text : "");
+  const responseText = response?.text || primary?.text || "";
   if (responseText) {
     const primaryRow = makeNode("p", { className: "chat-world-primary", text: responseText });
     const label = markLabel(primary?.discoveryMark);
@@ -166,6 +166,10 @@ function turnNode(turn, conversationTurn = null) {
   }
   if (narrative && !narrative.usedFallback && narrative.text) {
     node.appendChild(makeNode("p", { className: "chat-world-narrated", text: narrative.text }));
+  }
+  const narrationState = turn.narrationState;
+  if (narrationState === "pending") {
+    node.appendChild(makeNode("p", { className: "chat-narration-status", text: "МАСТЕР дополняет эту запись…", attrs: { role: "status", "aria-live": "polite" } }));
   }
   for (const entry of (presentation.notable || []).slice(0, 2)) {
     node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
@@ -197,12 +201,15 @@ function sortKey(item) {
   return [Number.isFinite(time) ? time : 0, Number.isFinite(createdAt) ? createdAt : 0, Number.isFinite(turnSeq) ? turnSeq : 0];
 }
 
-function actionConversationMatches(candidate, journalTurn) {
+function actionConversationMatches(candidate, journalTurn, allowTimeFallback) {
   if (candidate.inputClass !== "action") return false;
-  if (typeof candidate.correlationId === "string" && typeof journalTurn.correlationId === "string") {
-    return candidate.correlationId === journalTurn.correlationId;
+  if (candidate.narrationHandle || journalTurn.narrationHandle) {
+    return typeof candidate.narrationHandle === "string" && candidate.narrationHandle === journalTurn.narrationHandle;
   }
-  return candidate.worldTimeAfter === journalTurn.worldTime;
+  if (typeof candidate.correlationId === "string" && typeof journalTurn.correlationId === "string") {
+    return candidate.correlationId === journalTurn.correlationId && candidate.worldTimeAfter === journalTurn.worldTime;
+  }
+  return allowTimeFallback && candidate.worldTimeAfter === journalTurn.worldTime;
 }
 
 export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOrSnapshot = null, snapshotArg = null) {
@@ -226,7 +233,10 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
   const items = [];
   const matchedConversationKeys = new Set();
   for (const item of journalItems) {
-    const conversation = uniqueConversationTurns.find((candidate) => actionConversationMatches(candidate, item.turn));
+    const allowTimeFallback = turnList.filter((turn) => turn.worldTime === item.turn.worldTime).length === 1
+      && uniqueConversationTurns.filter((turn) => turn.inputClass === "action" && turn.worldTimeAfter === item.turn.worldTime).length === 1;
+    const conversation = uniqueConversationTurns.find((candidate) => !matchedConversationKeys.has(candidate.idempotencyKey)
+      && actionConversationMatches(candidate, item.turn, allowTimeFallback));
     if (conversation) {
       matchedConversationKeys.add(conversation.idempotencyKey);
       items.push({ kind: "pair", turn: item.turn, conversation });

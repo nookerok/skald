@@ -21,7 +21,7 @@ export function addClarification(...args) { return addClarificationModel(...args
 export function clearLocalIntents(...args) { currentJournal = null; return clearLocalIntentsModel(...args); }
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
-export function setShellBusy(busy, stage = "Мир отвечает…") {
+export function setShellBusy(busy, stage = "МАСТЕР отвечает…") {
   document.body.classList.toggle("shell-busy", busy);
   const form = document.getElementById("command-form"); if (form) form.setAttribute("aria-busy", String(busy));
   const input = document.getElementById("command-input"); const send = document.getElementById("send-btn");
@@ -133,7 +133,7 @@ export function initShellView(onCommand) {
   document.getElementById("open-journal-inline")?.addEventListener("click", () => openShellOverlay("journal-overlay"));
   const submitCommand = () => { const input = document.getElementById("command-input"); const value = input?.value.trim(); if (value) onCommand(value); };
   document.getElementById("command-form")?.addEventListener("submit", (event) => { event.preventDefault(); submitCommand(); });
-  document.getElementById("command-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitCommand(); } });
+  document.getElementById("command-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); submitCommand(); } });
   initVoiceInput();
   document.querySelectorAll("[data-close-overlay]").forEach((button) => button.addEventListener("click", () => closeShellOverlay(button.dataset.closeOverlay)));
   document.querySelectorAll("[data-mobile-target]").forEach((button) => button.addEventListener("click", () => {

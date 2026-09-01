@@ -2,12 +2,14 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { PresentationTemplate, PresentationCandidate } from "./types.js";
 import type { EpistemicClass } from "./types.js";
 import { WORLD_WIDTH, WORLD_HEIGHT } from "../map.js";
-import { relationTargetLabel, relationKindLabel, situationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
+import { consequenceLabel, observationLabel, relationTargetLabel, relationKindLabel, situationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
+import { actionFallbackText } from "./action-fallback.js";
 
 const ACTION_REJECTION_TEXT: Readonly<Record<string, string>> = {
   no_such_target: "Ты не находишь здесь такого объекта.",
   target_not_accessible: "К этому сейчас нельзя добраться.",
   insufficient_time: "Ты пытаешься действовать слишком поздно — момент уже ушёл.",
+  traveling: "Ты уже в пути — дорога ведёт тебя дальше, пока следующий этап не завершится.",
   missing_affordance: "У тебя нет подходящего способа это сделать.",
   container_closed: "Контейнер закрыт. Сначала нужно найти способ его открыть.",
   not_carrying: "У тебя нет этого предмета с собой.",
@@ -19,17 +21,17 @@ function actionRejectionText(payload: { reason?: string; targetName?: string; ob
   if (reason === "no_such_target" && payload.targetName) return "Ты не находишь здесь " + payload.targetName + ".";
   if (reason === "target_not_accessible" && payload.targetName) return "К " + payload.targetName + " сейчас нельзя добраться.";
   if (payload.playerText && reason === "player_facing") return payload.playerText;
-  return ACTION_REJECTION_TEXT[reason] ?? "Это действие сейчас не удаётся. Мир не даёт ему совершиться.";
+  return ACTION_REJECTION_TEXT[reason] ?? actionFallbackText("действие", "rejection");
 }
 
 function commandRejectionText(payload: { reason?: string }): string {
   const reason = typeof payload.reason === "string" ? payload.reason : "";
   if (reason === "missing_journey_destination") return "Куда ты хочешь направиться? Назови место или направление.";
   if (reason === "missing_interaction_object") return "Что именно ты хочешь сделать?";
-  if (reason === "unknown_interaction_verb") return "Я не понял, какое действие ты хочешь совершить. Опиши его иначе.";
+  if (reason === "unknown_interaction_verb") return "МАСТЕР не понял, какое действие ты хочешь совершить. Опиши его иначе.";
   if (reason === "missing_interaction_mode" || reason === "missing_operation") return "В этом действии не хватает цели.";
-  if (reason === "invalid_command_type") return "Я не понял, что ты хочешь сделать. Скажи это иначе.";
-  return "Я не понял, какое действие ты хочешь совершить. Опиши его иначе.";
+  if (reason === "invalid_command_type") return "МАСТЕР не понял, что ты хочешь сделать. Скажи это иначе.";
+  return "МАСТЕР не понял, какое действие ты хочешь совершить. Опиши его иначе.";
 }
 
 function describeActionAttempt(payload: { operation: string; target?: { raw?: string; normalized?: string } | string | null }): string {
@@ -83,8 +85,21 @@ export const MOVEMENT_BLOCKED_WALL: PresentationTemplate = {
 
 export const ACTION_REJECTED: PresentationTemplate = {
   id: "action_rejected", listens: ["ActionRejected"],
-  present: (event, _world) => {
+  present: (event, world) => {
     const p = event.payload as { reason?: string; targetName?: string; objectName?: string; playerText?: string };
+    if (p.reason === "traveling" && world.activeJourneyId) {
+      const journey = world.journeys.get(world.activeJourneyId);
+      if (journey?.status === "active") {
+        const destination = world.locations.get(journey.toLocationId)?.name;
+        const remaining = Math.max(0, journey.plannedTicks - journey.elapsedTicks);
+        const progress = remaining === 1 ? "Остался последний этап." : "Осталось этапов: " + remaining + ".";
+        return cand("action_rejected_traveling", "action", "primary", 120,
+          destination
+            ? "Ты уже в пути к «" + destination + "». " + progress
+            : "Ты уже в пути. " + progress,
+          event);
+      }
+    }
     return cand("action_rejected", "action", "primary", 120, actionRejectionText(p), event);
   },
 };
@@ -139,7 +154,7 @@ export const TREE_BURNED: PresentationTemplate = {
 
 export const AUDACITY_TRIGGERED: PresentationTemplate = {
   id: "audacity_triggered", listens: ["AudacityTriggered"],
-  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event, undefined, `consequence:audacity`, `Последствие: audacity`, "omen"),
+  present: (event, _world) => cand("audacity_triggered", "consequence", "notable", 90, "Твоя дерзость не осталась без ответа — мир настороже.", event, undefined, "consequence:audacity", `Последствие: ${consequenceLabel("audacity")}`, "omen"),
 };
 
 export const CONSEQUENCE_CREATED: PresentationTemplate = {
@@ -156,7 +171,8 @@ export const CONSEQUENCE_FIRED: PresentationTemplate = {
   present: (event, _world) => {
     const p = event.payload as { consequenceType: string };
     const mark: PresentationCandidate["discoveryMark"] = p.consequenceType === "audacity" ? "echo" : null;
-    return cand("consequence_fired", "consequence", "notable", 80, `Последствие ${p.consequenceType} проявило себя.`, event, `cons:fired:${p.consequenceType}`, `consequence:${p.consequenceType}`, `Последствие: ${p.consequenceType}`, mark);
+    const label = consequenceLabel(p.consequenceType);
+    return cand("consequence_fired", "consequence", "notable", 80, `Последствие «${label}» сработало.`, event, `cons:fired:${p.consequenceType}`, `consequence:${p.consequenceType}`, `Последствие: ${label}`, mark);
   },
 };
 
@@ -172,7 +188,7 @@ export const OBSERVATION_UPDATED: PresentationTemplate = {
     const text = OBSERVATION_TEXTS[key];
     if (!text) return null;
     const mark: PresentationCandidate["discoveryMark"] = key === "risk_taken" ? "trace" : null;
-    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`, `observation:${key}`, `Наблюдение: ${key}`, mark);
+    return cand("observation_updated", "observation", "notable", 70, text, event, `obs:${key}`, `observation:${key}`, `Наблюдение: ${observationLabel(key)}`, mark);
   },
 };
 

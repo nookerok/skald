@@ -62,9 +62,9 @@ describe("status-view", () => {
       expect(statusEl.textContent).toBe("Загрузка...");
     });
 
-    it("shows 'Мир отвечает...' during PENDING", () => {
+    it("shows 'МАСТЕР отвечает...' during PENDING", () => {
       renderStatus({ application: APP.READY, command: CMD.PENDING });
-      expect(statusEl.textContent).toBe("Мир отвечает...");
+      expect(statusEl.textContent).toBe("МАСТЕР отвечает...");
       expect(statusEl._attrs["aria-live"]).toBe("assertive");
     });
 
@@ -80,7 +80,7 @@ describe("status-view", () => {
 
     it("shows default rejection text when no message", () => {
       renderStatus({ application: APP.READY, command: CMD.REJECTED, lastPlayerMessage: null });
-      expect(statusEl.textContent).toBe("Мир не понял этого намерения.");
+      expect(statusEl.textContent).toBe("МАСТЕР не понял этого намерения.");
     });
 
     it("shows duplicate message on DUPLICATE", () => {
@@ -90,12 +90,12 @@ describe("status-view", () => {
 
     it("shows transport failure message on TRANSPORT_FAILED", () => {
       renderStatus({ application: APP.READY, command: CMD.TRANSPORT_FAILED });
-      expect(statusEl.textContent).toBe("Связь с миром прервалась. Нажми Retry.");
+      expect(statusEl.textContent).toBe("Связь с миром прервалась. Можно повторить то же намерение.");
     });
 
     it("shows timeout message on TIMEOUT", () => {
       renderStatus({ application: APP.READY, command: CMD.TIMEOUT });
-      expect(statusEl.textContent).toBe("Мир не отвечает. Нажми Retry.");
+      expect(statusEl.textContent).toBe("Ответ задерживается. Можно повторить то же намерение.");
     });
 
     it("shows disconnected message", () => {

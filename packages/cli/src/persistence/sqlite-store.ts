@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
+import { narrationKey } from "@skald/world";
+import { migrateV9ToV10 } from "./migrations.js";
 import { configureDatabase, execSchemaV9 } from "./schema.js";
 import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, migrateV8ToV9, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
@@ -51,9 +53,9 @@ export interface MultiWorldStore {
     idempotencyKey: string,
   ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null;
   /** Persist one turn's non-authoritative literary narration (read-side). */
-  saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration): void;
+  saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration, correlationId?: string): void;
   /** All stored narrations for a world, keyed by turn worldTime. Idempotent. */
-  getTurnNarrations(worldId: WorldId): Map<number, TurnNarration>;
+  getTurnNarrations(worldId: WorldId): Map<number | string, TurnNarration>;
   /** Record a conversation turn (idempotent by world_id + idempotency_key). */
   recordConversationTurn(turn: ConversationTurnDraft): ConversationTurnRecord;
   /** Replay-safe lookup: returns the original turn + requestHash for a given idempotency key. */
@@ -248,6 +250,11 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     verifyIntegrity(db);
   }
 
+  // All supported older paths converge at v9 before the read-side identity migration.
+  if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 9) {
+    migrateV9ToV10(db);
+  }
+
   // Prepared statements
   const loadEvents = db.prepare("SELECT * FROM events WHERE world_id = ? ORDER BY seq ASC");
   const loadKeys = db.prepare("SELECT idempotency_key FROM processed_requests WHERE world_id = ?");
@@ -282,10 +289,10 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     "INSERT INTO acknowledge_requests (world_id, idempotency_key, request_hash, correlation_id, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const upsertTurnNarration = db.prepare(
-    "INSERT INTO turn_narrations (world_id, world_time, text, model, used_fallback, latency_ms) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(world_id, world_time) DO UPDATE SET text = excluded.text, model = excluded.model, used_fallback = excluded.used_fallback, latency_ms = excluded.latency_ms",
+    "INSERT INTO turn_narrations (world_id, world_time, text, model, used_fallback, latency_ms, correlation_id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(world_id, world_time, correlation_id) DO UPDATE SET text = excluded.text, model = excluded.model, used_fallback = excluded.used_fallback, latency_ms = excluded.latency_ms",
   );
   const listTurnNarrations = db.prepare(
-    "SELECT world_time, text, model, used_fallback, latency_ms FROM turn_narrations WHERE world_id = ?",
+    "SELECT world_time, correlation_id, text, model, used_fallback, latency_ms FROM turn_narrations WHERE world_id = ?",
   );
 
   const insertConversationTurn = db.prepare(
@@ -745,18 +752,18 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
       return row ? mapAcknowledgeReplay(row) : null;
     },
 
-    saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration): void {
+    saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration, correlationId?: string): void {
       upsertTurnNarration.run(
         worldId, worldTime, narration.text, narration.model,
-        narration.usedFallback ? 1 : 0, narration.latencyMs,
+        narration.usedFallback ? 1 : 0, narration.latencyMs, correlationId ?? "",
       );
     },
 
-    getTurnNarrations(worldId: WorldId): Map<number, TurnNarration> {
+    getTurnNarrations(worldId: WorldId): Map<number | string, TurnNarration> {
       const rows = listTurnNarrations.all(worldId) as Record<string, unknown>[];
-      const map = new Map<number, TurnNarration>();
+      const map = new Map<number | string, TurnNarration>();
       for (const r of rows) {
-        map.set(r["world_time"] as number, {
+        map.set(narrationKey(r["world_time"] as number, r["correlation_id"] as string), {
           text: r["text"] as string,
           model: r["model"] as string,
           usedFallback: (r["used_fallback"] as number) === 1,

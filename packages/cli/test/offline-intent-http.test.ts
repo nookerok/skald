@@ -111,7 +111,7 @@ describe("Offline intent queue HTTP contract", () => {
     expect(r.body.presentation).toBeTruthy();
     const pres = r.body.presentation as any;
     const entries = [pres.primary, ...(pres.notable ?? [])].filter(Boolean);
-    const examined = entries.some((p: any) => p.kind === "observation" && p.text.includes("рассматриваешь") && p.text.includes("cart"));
+    const examined = entries.some((p: any) => p.kind === "observation" && typeof p.text === "string" && p.text.length > 0 && !p.text.includes("cart"));
     expect(examined).toBe(true);
     expect(r.body.state.eventNumber).toBeGreaterThan(before.eventNumber);
   });

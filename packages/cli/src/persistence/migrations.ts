@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -139,9 +139,39 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 6) return "migrateV7";
   if (v === 7) return "migrateV8";
   if (v === 8) return "migrateV9";
-  if (v === 9) return "open";
+  if (v === 9) return "migrateV10";
+  if (v === 10) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-9.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-10.`);
+}
+
+/** Preserve old prose as uncorrelated legacy rows; do not guess a command. */
+export function migrateV9ToV10(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE turn_narrations_v10 (
+      world_id TEXT NOT NULL,
+      world_time INTEGER NOT NULL,
+      correlation_id TEXT NOT NULL DEFAULT '',
+      text TEXT NOT NULL,
+      model TEXT NOT NULL,
+      used_fallback INTEGER NOT NULL,
+      latency_ms INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      PRIMARY KEY (world_id, world_time, correlation_id)
+    ) STRICT`);
+    db.exec(`INSERT INTO turn_narrations_v10 (world_id, world_time, text, model, used_fallback, latency_ms)
+      SELECT world_id, world_time, text, model, used_fallback, latency_ms FROM turn_narrations`);
+    db.exec("DROP TABLE turn_narrations");
+    db.exec("ALTER TABLE turn_narrations_v10 RENAME TO turn_narrations");
+    db.exec("PRAGMA user_version = 10");
+    verifyIntegrity(db);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function migrateV6ToV7(db: SqliteHandle): void {

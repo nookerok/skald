@@ -214,12 +214,13 @@ describe("Observation & Belief read model", () => {
     expect(api.trace("exam-other", "other").steps).toEqual([]);
   });
 
-  it("projects discoveries from beliefs without source event identifiers", () => {
+  it("preserves discovery provenance internally but strips it from serialized beliefs", () => {
     const events = [event("ObservationUpdated", "risk-1", 1, { key: "risk_taken", delta: 1 })];
     const model = buildBeliefModel(events, rebuildProjection(events).getSnapshot());
     const journal = buildDiscoveryJournalFromBeliefModel(model);
     expect(journal.cards[0]?.discoveryId).toBe("risk_draws_attention");
-    expect(journal.cards[0]?.evidence[0]?.sourceEventIds).toEqual([]);
+    expect(journal.cards[0]?.evidence[0]?.sourceEventIds).toEqual(["risk-1"]);
+    expect(JSON.stringify(serializeBeliefModel(model))).not.toContain("sourceEventIds");
   });
 
   it("rejects a non-monotonic event log", () => {
@@ -230,4 +231,3 @@ describe("Observation & Belief read model", () => {
     expect(() => buildBeliefModel(events, rebuildProjection([]).getSnapshot())).toThrow("Non-monotonic");
   });
 });
-

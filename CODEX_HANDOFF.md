@@ -1,3 +1,40 @@
+# Current work (2026-09-01 — review hardening: public shell boundary and route UX)
+
+- Game Shell and shell-delta HTTP responses now pass through a dedicated
+  observer-safe serializer: world/location/situation/turn/event identifiers and
+  map coordinates are not returned to the normal browser DTO. Observer thread
+  references remain opaque read-side handles.
+- The compatibility narrative endpoint and persisted transcript responses now
+  fail closed to localized prose when a provider or event description contains
+  internal/English text. Unknown situation types use a neutral localized copy.
+- Legacy clickable `skald:travel` controls were removed from the stage. Known
+  routes remain read-only context; travel is expressed through the command
+  composer. The composer explicitly declares `resize: none`.
+- Progress-aware copy reports the active journey destination and remaining
+  stages instead of repeating an unqualified travel rejection.
+- External browser QA after the production save reset: menu/empty-save baseline
+  PASS; shell/map/network checks BLOCKED because there is no world and mutation
+  budget is zero. This is separate from repository validation.
+- Repository gate after these changes: PASS (145 test files, 1794 passed,
+  1 skipped; typecheck, Canon, Simulation, Eval, acceptance and diff-check).
+
+# Current work (2026-09-01 — review hardening: read-side identity and observer-safe player copy)
+
+- Fixed equal-world-time narration identity end-to-end. Read-side SQLite schema
+  v10 stores `(world_id, world_time, correlation_id)` while preserving v9 rows
+  as explicitly uncorrelated legacy data; Events remain unchanged.
+- Journal grouping retains the documented atomic `cmd-N`/`tick-N` cycle but
+  keeps independent same-time turns separate. HTTP pagination exposes opaque
+  `turnHandle` cursors; browser polling and Chat Feed pair by opaque
+  `narrationHandle`, with unique-time fallback only for legacy DTOs.
+- Transcript wait replies use the actual committed tick correlation. Late
+  journal loads and stopped polling sessions are ignored after a world switch.
+  Narration-unavailable operational status is no longer rendered in the chat.
+- Added persistence, migration, journal, HTTP, polling, Chat Feed and
+  pagination regressions. Repository gate: PASS (145 test files, 1791 passed,
+  1 skipped). Browser QA for the dirty WSL snapshot remains separate from
+  repository validation and requires a browser task that can load this snapshot.
+
 # Current work (2026-08-24 — Player Knowledge Presentation)
 
 - The normal Knowledge surface now consumes the frozen, observer-safe

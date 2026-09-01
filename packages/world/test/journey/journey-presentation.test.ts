@@ -48,6 +48,20 @@ describe("journey presentation", () => {
     expect(presentation.primary?.text).not.toContain("формулируешь");
   });
 
+  it("reports the concrete destination and remaining stages when travel is already active", () => {
+    const travellingWorld = {
+      ...world(),
+      activeJourneyId: "journey-1",
+      journeys: new Map([
+        ["journey-1", { journeyId: "journey-1", relationId: "road-1", fromLocationId: "home", toLocationId: "pass", startedAt: 4, plannedTicks: 3, elapsedTicks: 1, status: "active" }],
+      ]),
+    } as unknown as ReadonlyWorld;
+    const presentation = selectTurnPresentation([
+      event("ActionRejected", "rejected", { reason: "traveling" }),
+    ], travellingWorld);
+    expect(presentation.response?.text).toBe("Ты уже в пути к «Северный проход». Осталось этапов: 2.");
+  });
+
   it("surfaces a route block as a useful player-facing answer", () => {
     const presentation = selectTurnPresentation([
       event("JourneyBlocked", "blocked", { reason: "unknown_destination", playerText: "Нет известной дороги к северному проходу." }),

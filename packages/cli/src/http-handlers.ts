@@ -1,11 +1,13 @@
 import type { App, IdempotencyReject } from "./index.js";
 import { runCommandCycle, runOfflineTicks } from "./index.js";
+import { readSideHandle } from "./conversation/identity.js";
 import { buildNarrative, buildNarrativeAdapterContext, getRegionEntrypoint, narrateLLM, selectTurnPresentation, buildTurnJournal, buildDiscoveryJournal, buildPlayerGuidance, buildBeliefModel, buildPlayerKnowledgePresentation, serializeBeliefModel, parseBeliefModelDTO, buildObserverMap, buildSpatialWorldProjection } from "@skald/world";
 import type { NarrativeAdapterContext, TurnPresentation } from "@skald/world";
+import { buildDiscoveryJournalFromBeliefModel, toPlayerDiscoveryJournal } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { serializeWorldState } from "./state-view.js";
 import { conversationRequestHash, toConversationTurnDTO } from "./conversation/builder.js";
-import { toPlayerFacingJournalTurns, toPlayerFacingNarrativeEntries, toPlayerFacingPresentation, toPlayerFacingThreads } from "./http/player-facing.js";
+import { toPlayerFacingJournalTurns, toPlayerFacingNarrativeEntries, toPlayerFacingPresentation, toPlayerFacingState, toPlayerFacingThreads } from "./http/player-facing.js";
 
 export interface JsonResponse {
   statusCode: number;
@@ -36,7 +38,7 @@ function error(code: string, message: string, statusCode = 400): JsonResponse {
 }
 
 export function handleState(app: App): JsonResponse {
-  const state = serializeWorldState(app);
+  const state = toPlayerFacingState(serializeWorldState(app));
   return json({ ok: true, state, knowledge: buildLegacyKnowledge(app) });
 }
 
@@ -119,7 +121,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
       const conversationTurn = app.store?.getConversationTurn(app.worldId, idempotencyKey);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app), ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+      return json({ ok: true, state: toPlayerFacingState(serializeWorldState(app)), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app), ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
     }
     if (input.startsWith("advance ")) {
       const raw = input.slice(8).trim();
@@ -131,7 +133,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
       const tickResult = r as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, app.projection.getSnapshot());
       const guidance = buildGuidance(app);
-      return json({ ok: true, tickEvents: tickResult.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app) });
+      return json({ ok: true, state: toPlayerFacingState(serializeWorldState(app)), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app) });
     }
 
     const r = runCommandCycle(app, input, idempotencyKey);
@@ -174,9 +176,6 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
     const criticalCheck = cmdResult.events.find((e) => e.type === "CriticalCheckRequested");
     const criticalCheckPresentation = criticalCheck
       ? {
-          checkId: (criticalCheck.payload as any).checkId,
-          checkKind: (criticalCheck.payload as any).checkKind,
-          difficulty: (criticalCheck.payload as any).difficulty,
           stakes: (criticalCheck.payload as any).stakes,
         }
       : undefined;
@@ -184,10 +183,7 @@ export async function handleCommand(app: App, body: unknown): Promise<JsonRespon
     return json({
       ok: true,
       status: "resolved",
-      events: cmdResult.events,
-      tickEvents: cmdResult.tickEvents,
-      position: cmdResult.position,
-      state: serializeWorldState(app),
+      state: toPlayerFacingState(serializeWorldState(app)),
       presentation: toPlayerFacingPresentation(pres),
       guidance,
       knowledge: buildLegacyKnowledge(app),
@@ -215,7 +211,7 @@ export async function handleWait(app: App, body: unknown): Promise<JsonResponse>
     const r = result as { tickEvents: DomainEvent[] };
     const pres = selectTurnPresentation(r.tickEvents, app.projection.getSnapshot());
     const guidance = buildGuidance(app);
-    return json({ ok: true, tickEvents: r.tickEvents, state: serializeWorldState(app), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app) });
+    return json({ ok: true, state: toPlayerFacingState(serializeWorldState(app)), presentation: toPlayerFacingPresentation(pres), guidance, knowledge: buildLegacyKnowledge(app) });
   } catch (err) {
     return error("internal_error", safeError(err), 500);
   }
@@ -238,7 +234,7 @@ export function handleNarrative(app: App, url: URL): JsonResponse {
   const opts = sinceP.value > 0 ? { sinceTick: sinceP.value } : undefined;
   const snapshot = buildNarrative(events, world, opts);
   // Serialize safely — remove circular refs and non-serializable
-  return json({ ok: true, entries: toPlayerFacingNarrativeEntries(snapshot.entries), presentation: toPlayerFacingPresentation(snapshot.presentation), worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  return json({ ok: true, entries: toPlayerFacingNarrativeEntries(snapshot.entries), presentation: toPlayerFacingPresentation(snapshot.presentation), worldTime: snapshot.worldTime });
 }
 
 export async function handleNarrativeLLM(app: App, url: URL): Promise<JsonResponse> {
@@ -260,10 +256,7 @@ export async function handleNarrativeLLM(app: App, url: URL): Promise<JsonRespon
     ...(narrativeContext ? { narrativeContext } : {}),
   });
   // Sanitize: never expose internal error details or fallbackReason to client
-  const sanitized = result.usedFallback
-    ? { text: result.text, usedFallback: true, model: "", latencyMs: 0 }
-    : { text: result.text, usedFallback: false, model: result.model, latencyMs: result.latencyMs };
-  return json({ ok: true, ...sanitized });
+  return json({ ok: true, text: result.text });
 }
 
 export function handleEvents(app: App, url: URL): JsonResponse {
@@ -297,12 +290,20 @@ export function handleJournal(app: App, url: URL): JsonResponse {
     beforeTick = beforeP.value;
   }
 
-  const filtered = beforeTick
-    ? journal.turns.filter((t) => t.worldTime < beforeTick)
-    : journal.turns;
-  const page = [...filtered].sort((a, b) => b.worldTime - a.worldTime).slice(0, limit);
-  const hasMore = filtered.length > page.length;
+  const beforeTurn = url.searchParams.get("beforeTurn");
+  let eligible = beforeTick ? journal.turns.filter((turn) => turn.worldTime < beforeTick) : journal.turns;
+  if (beforeTurn !== null) {
+    if (beforeRaw !== null || !/^[a-f0-9]{64}$/.test(beforeTurn)) {
+      return error("invalid_request", "beforeTurn must be an opaque journal cursor, without before", 400);
+    }
+    const boundary = journal.turns.findIndex((turn) => readSideHandle("turn", turn.turnId) === beforeTurn);
+    if (boundary < 0) return error("invalid_request", "unknown journal cursor", 400);
+    eligible = journal.turns.slice(0, boundary);
+  }
+  const page = [...eligible].reverse().slice(0, limit);
+  const hasMore = eligible.length > page.length;
   const nextBefore = hasMore ? page[page.length - 1]!.worldTime : null;
+  const nextBeforeTurn = hasMore ? readSideHandle("turn", page[page.length - 1]!.turnId) : null;
 
   return json({
     ok: true,
@@ -313,14 +314,16 @@ export function handleJournal(app: App, url: URL): JsonResponse {
     threads: toPlayerFacingThreads(journal.threads),
     worldTime: journal.worldTime,
     nextBefore,
+    nextBeforeTurn,
     hasMore,
   });
 }
 
 export function handleDiscoveries(app: App): JsonResponse {
   const events = app.bus.query();
-  const journal = buildDiscoveryJournal(events);
-  return json({ ok: true, cards: journal.cards, recentEvidence: journal.recentEvidence, worldTime: journal.worldTime });
+  const model = buildBeliefModel(events, app.projection.getSnapshot(), "player");
+  const rumors = buildDiscoveryJournal(events).rumors.filter((rumor) => rumor.observerId === "player");
+  return json({ ok: true, ...toPlayerDiscoveryJournal(buildDiscoveryJournalFromBeliefModel(model, rumors)) });
 }
 
 export function handleGuidance(app: App): JsonResponse {

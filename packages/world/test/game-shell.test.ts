@@ -31,6 +31,19 @@ const profile = {
 };
 
 describe("Game Shell read model", () => {
+  it("does not reveal legacy connected locations from topology alone", () => {
+    const events = [
+      event("LocationDefined", "here", 0, { id: "courtyard", name: "Двор", description: "Старый двор.", connections: { north: "hidden-cellar" }, objectIds: [] }),
+      event("LocationDefined", "there", 0, { id: "hidden-cellar", name: "Тайный подвал", description: "Неизвестная дверь.", connections: {}, objectIds: [] }),
+      event("PlayerLocationChanged", "arrival", 0, { locationId: "courtyard" }),
+    ];
+    const snapshot = buildGameShellSnapshot(events, world(events), null, "legacy");
+    expect(snapshot.world.locationName).toBe("Двор");
+    expect(snapshot.world.connectedLocations).toBeUndefined();
+    expect(snapshot.world.knownRoutes).toBeUndefined();
+    expect(JSON.stringify(snapshot.world)).not.toMatch(/Тайный подвал|hidden-cellar|Неизвестная дверь/);
+  });
+
   it("builds a deterministic deeply frozen empty snapshot", () => {
     const first = buildGameShellSnapshot([], world([]), null, "empty-world");
     const second = buildGameShellSnapshot([], world([]), null, "empty-world");
@@ -214,6 +227,17 @@ describe("Game Shell read model", () => {
     for (const key of ["risk_taken", "heat:nearby", "audacity", "world_reaction_fear", "boundary", "edge_awareness", "guild"]) {
       expect(serialized).not.toContain(key);
     }
+  });
+
+  it("fails closed when causal event descriptions contain internal references", () => {
+    const events = [
+      event("ActionAttempted", "attempt-safe", 1, { operation: "observe", target: null }, "corr-safe"),
+      event("ActionResolved", "result-safe", 1, { description: "event:secret item:unknown" }, "corr-safe", "attempt-safe"),
+    ];
+    const snapshot = buildGameShellSnapshot(events, world(events), null, "causal-privacy-world");
+    const causalText = snapshot.lastTurn?.causalChain.map((step) => step.text).join(" ") ?? "";
+    expect(causalText).toBe("Ты формулируешь намерение: осмотреться. Действие получило результат.");
+    expect(causalText).not.toMatch(/event:secret|item:unknown/);
   });
 
   it("is replay deterministic and emits a frozen current-revision delta", () => {

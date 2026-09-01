@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#071017">
 <title>Skald — Living World</title>
+<link rel="stylesheet" href="/tokens.css">
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/guidance.css">
 <link rel="stylesheet" href="/menu.css">
@@ -12,13 +13,13 @@
 <link rel="stylesheet" href="/new-game.css">
 <link rel="stylesheet" href="/game-shell.css">
 <link rel="stylesheet" href="/living-world.css">
-<link rel="stylesheet" href="/skald-aaa.css?v=21-voice-fallback">
+<link rel="stylesheet" href="/skald-aaa.css?v=22-release-hygiene">
 </head>
 <body>
 <div id="app">
   <div id="panel-menu"><div id="menu-container"></div></div>
   <div id="panel-new-game" hidden><div id="new-game-container"></div></div>
-  <section id="panel-presence-entry" class="presence-entry" role="dialog" aria-modal="true" aria-labelledby="presence-entry-title" hidden>
+  <section id="panel-presence-entry" class="presence-entry" role="dialog" aria-modal="true" aria-labelledby="presence-entry-title" aria-live="polite" aria-busy="false" hidden>
     <h2 id="presence-entry-title" class="visually-hidden">Вход в историю</h2>
     <div id="presence-entry-container" class="presence-entry-container"></div>
   </section>
@@ -47,9 +48,9 @@
           </section>
           <section id="controls-section" class="command-dock" aria-busy="true" aria-labelledby="composer-title">
             <p id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></p>
-            <form id="command-form" class="command-line">
+            <form id="command-form" class="command-line" novalidate>
               <label id="composer-title" class="command-label" for="command-input">Что ты делаешь?</label>
-              <textarea id="command-input" class="command-input" rows="2" autocomplete="off" placeholder="Например: «Иду к северному проходу и держусь ближе к реке»"></textarea>
+              <textarea id="command-input" class="command-input" style="resize: none;" rows="2" autocomplete="off" placeholder="Например: «Иду к северному проходу и держусь ближе к реке»"></textarea>
               <button id="voice-btn" class="voice-button voice-fallback-hidden" type="button" hidden aria-label="Надиктовать намерение" title="Голосовой ввод">◉</button>
               <button id="voice-cancel-btn" class="voice-cancel-button" type="button" aria-label="Отменить голосовое намерение" title="Очистить распознанный текст" hidden>×</button>
               <button id="send-btn" class="command-send" type="submit">Отправить</button>
@@ -97,6 +98,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="/app.js?v=21-voice-fallback"></script>
+<script type="module" src="/app.js?v=22-release-hygiene"></script>
 </body>
 </html>

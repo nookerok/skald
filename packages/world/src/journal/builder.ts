@@ -5,6 +5,7 @@ import type { PresentationEntry } from "../presentation/types.js";
 import { sanitizePlayerFacingText } from "../game-shell/player-facing.js";
 import type { JournalNarration, JournalTurn, PresentationThread, PresentationThreadEntry, TurnJournal } from "./types.js";
 import type { TurnNarration } from "../narrative-llm.js";
+import { narrationKey } from "./identity.js";
 
 function deepFreeze<T>(obj: T): T {
   if (obj === null || obj === undefined || typeof obj !== "object") return obj;
@@ -34,15 +35,19 @@ function turnIsOffline(events: readonly DomainEvent[]): boolean {
 
 /**
  * Pure, non-authoritative read-side merge: attach stored literary narrations to
- * journal turns by matching worldTime. Fallback narrations (usedFallback) are
+ * journal turns by time and correlation. Uncorrelated legacy rows attach only
+ * when the full journal has a single turn at that time. Fallback narrations are
  * never surfaced — the deterministic template is already authoritative there.
  */
 export function attachTurnNarrations(
   turns: readonly JournalTurn[],
-  narrations: ReadonlyMap<number, TurnNarration>,
+  narrations: ReadonlyMap<number | string, TurnNarration>,
+  allTurns: readonly JournalTurn[] = turns,
 ): JournalTurn[] {
   return turns.map((t) => {
-    const narration = narrations.get(t.worldTime);
+    const sameTimeCount = allTurns.filter((candidate) => candidate.worldTime === t.worldTime).length;
+    const narration = narrations.get(narrationKey(t.worldTime, t.correlationId))
+      ?? (sameTimeCount === 1 ? narrations.get(t.worldTime) : undefined);
     if (!narration || narration.usedFallback) return t;
 
     // Keep persistence/operational fields out of the player-facing journal
@@ -107,9 +112,10 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
         .filter((event) => responseEventIds.has(event.eventId))
         .map((event) => event.correlationId),
     )];
-    const correlationId = responseCorrelations.length === 1 ? responseCorrelations[0] : undefined;
+    const correlationId = responseCorrelations.length === 1 ? responseCorrelations[0] : currentTurnEvents[0]?.correlationId;
 
-    const turnId = `turn:${ts}`;
+    const turnId = turns.some((turn) => turn.worldTime === ts)
+      ? `turn:${ts}:${currentTurnEvents[0]!.eventId}` : `turn:${ts}`;
     turns.push({
       turnId,
       worldTime: ts,
@@ -166,7 +172,14 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
       continue;
     }
 
-    if (e.timestamp !== lastTimestamp && currentTurnEvents.length > 0) {
+    // Existing command cycles commit cmd-N followed by tick-N in one atomic
+    // sequence. Keep that documented legacy pair together, without merging
+    // arbitrary equal-time commands or autonomous tick correlations.
+    const currentCorrelation = currentTurnEvents[0]?.correlationId;
+    const isCommandCycleTick = currentCorrelation === `cmd-${e.timestamp}`
+      && e.correlationId === `tick-${e.timestamp}`;
+    if (currentTurnEvents.length > 0 && (e.timestamp !== lastTimestamp
+      || (e.correlationId !== currentCorrelation && !isCommandCycleTick))) {
       flushTurn();
     }
 

@@ -517,15 +517,15 @@ describe("buildObserverSession", () => {
     // The hidden continuation is not observable: no changes, no leak.
     expect(session.presence.nearbyChanges).toEqual([]);
     const labels = session.presence.dormantThreads.map((thread) => thread.label);
-    expect(labels).toContain("Наблюдение: рискованный поступок");
-    const knownThread = session.presence.dormantThreads.find((thread) => thread.label === "Наблюдение: рискованный поступок")!;
+    expect(labels).toContain("Наблюдение: Тревожный след");
+    const knownThread = session.presence.dormantThreads.find((thread) => thread.label === "Наблюдение: Тревожный след")!;
     expect(knownThread.entryCount).toBe(1);
     expect(knownThread.lastWorldTime).toBe(1);
     // The hidden continuation produced no observation-delta anywhere: the
     // only statement is the dormant-thread reminder.
     expect(session.drift.newlyObservedChangeCount).toBe(0);
     expect(session.statements).toEqual([
-      { text: "История о «Наблюдение: рискованный поступок» осталась без продолжения.", source: "known_thread" },
+      { text: "История о «Наблюдение: Тревожный след» осталась без продолжения.", source: "known_thread" },
     ]);
   });
 });

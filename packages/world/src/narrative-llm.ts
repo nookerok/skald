@@ -6,6 +6,7 @@ import type { ChatMessage, ChatResult } from "./llm/types.js";
 import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, NarrationOutcome, RetryOutcome } from "./narration-diagnostics.js";
 import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
 import type { NarrativeAdapterContext, NarrativeFact } from "./setup/background-context.js";
+import { actionFallbackText, isGenericActionFallback } from "./presentation/action-fallback.js";
 
 export interface NarrativeLLMResult {
   readonly text: string;
@@ -293,7 +294,7 @@ function templateText(entries: readonly NarrativeEntry[]): string {
       lines.push(e.text);
     }
   }
-  return lines.join("\n");
+  return lines.join("\n") || "Здесь начинается твой путь — осмотрись и выбери, что проверить дальше.";
 }
 
 function contextFacts(context: NarrativeAdapterContext | undefined): {
@@ -358,8 +359,12 @@ function asGuardFacts(groups: ReturnType<typeof contextFacts>, turnFacts: readon
   return all;
 }
 
-function personalizedFallback(presentation: TurnPresentation, context: NarrativeAdapterContext | undefined): string {
-  const base = sanitizePlayerFacingText(presentation.response?.text ?? presentation.primary?.text ?? "Мир продолжал дышать вокруг тебя.");
+function personalizedFallback(presentation: TurnPresentation, playerAction: string, context: NarrativeAdapterContext | undefined): string {
+  const primary = presentation.response?.text ?? presentation.primary?.text;
+  const fallbackKind = presentation.response?.kind === "action_rejection" ? "rejection" : "outcome";
+  const base = sanitizePlayerFacingText(primary && !isGenericActionFallback(primary)
+    ? primary
+    : actionFallbackText(playerAction, fallbackKind));
   if (!context) return base;
   const additions: string[] = [];
   if (context.openingWindow && !base.includes(context.arrival.reason)) {
@@ -461,7 +466,7 @@ export async function narrateLLM(
   if (facts.length === 0) {
     facts.push({
       id: "primary",
-      text: snapshot.presentation?.response?.text ?? "Мир продолжал дышать вокруг тебя.",
+      text: snapshot.presentation?.response?.text ?? "В мире пока не видно нового движения — осмотрись и выбери, что проверить дальше.",
       epistemicClass: "observed_fact",
       sourceEventIds: [],
     });
@@ -639,9 +644,9 @@ const DND_SYSTEM_PROMPT =
   "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-4 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из переданных групп>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." +
   EPISTEMIC_PROMPT;
 
-function fallbackNarration(presentation: TurnPresentation, reason: string, context?: NarrativeAdapterContext): TurnNarration {
+function fallbackNarration(playerAction: string, presentation: TurnPresentation, reason: string, context?: NarrativeAdapterContext): TurnNarration {
   return {
-    text: personalizedFallback(presentation, context),
+    text: personalizedFallback(presentation, playerAction, context),
     model: "",
     usedFallback: true,
     fallbackReason: reason,
@@ -677,12 +682,14 @@ export async function narrateTurnLLM(
       recordedAt: new Date().toISOString(),
       correlationId: opts?.correlationId,
     });
-    return fallbackNarration(presentation, "no_api_key", opts?.narrativeContext);
+    return fallbackNarration(playerAction, presentation, "no_api_key", opts?.narrativeContext);
   }
 
   const groups = contextFacts(opts?.narrativeContext);
   const facts = [
-    { id: "primary", role: "primary", text: presentation.primary?.text ?? presentation.response?.text ?? "Мир продолжал дышать вокруг тебя.", epistemicClass: presentation.primary?.epistemicClass ?? "observed_fact", sourceEventIds: presentation.primary?.sourceEventIds ?? [] },
+    { id: "primary", role: "primary", text: presentation.primary?.text && !isGenericActionFallback(presentation.primary.text)
+      ? presentation.primary.text
+      : actionFallbackText(playerAction, presentation.response?.kind === "action_rejection" ? "rejection" : "outcome"), epistemicClass: presentation.primary?.epistemicClass ?? "observed_fact", sourceEventIds: presentation.primary?.sourceEventIds ?? [] },
     ...presentation.notable.slice(0, 3).map((e, i) => ({ id: `notable-${i}`, role: "notable", text: e.text, epistemicClass: e.epistemicClass, sourceEventIds: e.sourceEventIds })),
   ];
   const guardFacts = asGuardFacts(groups, facts);
@@ -742,7 +749,7 @@ export async function narrateTurnLLM(
           configuredModel: result.configuredModel,
         });
         // Schema rejection is deterministic — no retry
-        return fallbackNarration(presentation, `epistemic_violation:${guard.reason}`, opts?.narrativeContext);
+        return fallbackNarration(playerAction, presentation, `epistemic_violation:${guard.reason}`, opts?.narrativeContext);
       }
       const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
       const configuredProvider = result.configuredProvider ?? router.providerId;
@@ -805,7 +812,7 @@ export async function narrateTurnLLM(
       });
 
       if (!isTransient || isLastAttempt) {
-        return fallbackNarration(presentation, "chat_error", opts?.narrativeContext);
+        return fallbackNarration(playerAction, presentation, "chat_error", opts?.narrativeContext);
       }
 
       await sleep(retryBaseMs * Math.pow(2, attempt - 1));
@@ -813,5 +820,5 @@ export async function narrateTurnLLM(
   }
 
   // Unreachable — satisfies TS exhaustiveness
-  return fallbackNarration(presentation, "chat_error", opts?.narrativeContext);
+  return fallbackNarration(playerAction, presentation, "chat_error", opts?.narrativeContext);
 }

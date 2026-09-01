@@ -47,11 +47,11 @@ describe("narrateTurnLLM", () => {
     expect(result.model).toBe("");
   });
 
-  it("uses the atmospheric fallback when there is no primary and no key", async () => {
+  it("uses an action-aware fallback when there is no primary and no key", async () => {
     const { narrateTurnLLM } = await import("../src/narrative-llm.js");
     const result = await narrateTurnLLM("подождать", pres(false), null);
     expect(result.usedFallback).toBe(true);
-    expect(result.text).toBe("Мир продолжал дышать вокруг тебя.");
+    expect(result.text).toBe("Ты даёшь времени пройти и всматриваешься в перемены вокруг.");
   });
 
   it("returns the LLM text on success with usedFallback false", async () => {

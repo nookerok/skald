@@ -15,9 +15,11 @@ export function renderWorldStage(world = {}, attention = {}, situation = null) {
     connected.slice(0, 4).forEach((location) => {
       const name = location.label || location.name || "Место";
       const detail = location.detail || "";
-      const button = makeNode("button", { className: "stage-link", text: name, attrs: { type: "button", "aria-label": "Идти в " + name, title: detail } });
-      button.addEventListener("click", () => document.dispatchEvent(new CustomEvent("skald:travel", { detail: { locationId: location.id, name } })));
-      links.appendChild(button);
+      // Routes are read-side orientation only. Travel is expressed through
+      // the command composer, so the stage must not reintroduce clickable
+      // legacy movement controls.
+      const route = makeNode("p", { className: "stage-link", text: name, attrs: { title: detail } });
+      links.appendChild(route);
     });
   }
   const marks = byId("stage-attention");

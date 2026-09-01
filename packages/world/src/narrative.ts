@@ -2,9 +2,10 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "./projection.js";
 import { selectTurnPresentation } from "./presentation/selector.js";
 import type { TurnPresentation } from "./presentation/types.js";
-import { observationLabel, situationLabel } from "./game-shell/player-facing.js";
+import { blockedReasonLabel, consequenceLabel, observationLabel, situationLabel } from "./game-shell/player-facing.js";
 import type { BackgroundNarrativeContext } from "./setup/background-context.js";
 import type { NarrativeAdapterContext } from "./setup/background-context.js";
+import { actionFallbackText } from "./presentation/action-fallback.js";
 
 export interface NarrativeEntry {
   readonly kind: "action" | "observation" | "consequence" | "situation" | "world" | "tick" | "relation" | "time";
@@ -45,17 +46,20 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
       const { reason } = event.payload as { reason: string };
       if (reason === "wall") return { ...base, kind: "action", text: "Ты уткнулся в стену." };
       if (reason === "boundary") return { ...base, kind: "action", text: "Ты достиг края мира — дальше пути нет." };
-      return { ...base, kind: "action", text: `Ты не можешь туда пойти (${reason}).` };
+      return { ...base, kind: "action", text: `Ты не можешь туда пойти: ${blockedReasonLabel(reason)}.` };
     }
     case "ActionRejected": {
       const { reason } = event.payload as { reason: string };
       if (reason === "insufficient_time") {
         return { ...base, kind: "action", text: "Ты уже действовал в этом мгновенье — нужно подождать." };
       }
-      return { ...base, kind: "action", text: `Действие отклонено: ${reason}.` };
+      if (reason === "traveling") {
+        return { ...base, kind: "action", text: "Ты уже в пути — дорога ведёт тебя дальше, пока следующий этап не завершится." };
+      }
+      return { ...base, kind: "action", text: actionFallbackText("действие", "rejection") };
     }
     case "CommandRejected": {
-      return { ...base, kind: "action", text: "Мир не понял твоего намерения." };
+      return { ...base, kind: "action", text: "МАСТЕР не понял твоего намерения. Опиши, что хочешь проверить или изменить." };
     }
     case "ObservationUpdated": {
       const { key, delta } = event.payload as { key: string; delta: number };
@@ -78,7 +82,7 @@ export function formatEvent(event: DomainEvent): NarrativeEntry | null {
     }
     case "ConsequenceFired": {
       const p = event.payload as { consequenceType: string };
-      return { ...base, kind: "consequence", text: `Последствие ${p.consequenceType} сработало.` };
+      return { ...base, kind: "consequence", text: `Последствие «${consequenceLabel(p.consequenceType)}» сработало.` };
     }
     case "AudacityTriggered": {
       const p = event.payload as { severity: number };

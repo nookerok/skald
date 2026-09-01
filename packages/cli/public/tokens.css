@@ -1,0 +1,81 @@
+:root {
+  color-scheme: dark;
+
+  /* Canonical Skald palette: DESIGN.md mirrors these runtime values. */
+  --aaa-void: #03080c;
+  --aaa-ink: #071017;
+  --aaa-surface: #0b1720;
+  --aaa-raised: #10232e;
+  --aaa-glass: rgba(8, 19, 27, .86);
+  --aaa-gold: #d7aa52;
+  --aaa-gold-hi: #f5d28a;
+  --aaa-cyan: #64c7d8;
+  --aaa-text: #f0eadf;
+  --aaa-text-secondary: #cbd8d6;
+  --aaa-muted: #9eadb0;
+  --aaa-danger: #ed795f;
+  --aaa-success: #62b78c;
+  --aaa-line: rgba(215, 170, 82, .24);
+  --aaa-cyan-line: rgba(100, 199, 216, .25);
+  --aaa-shadow: 0 28px 80px rgba(0, 0, 0, .58);
+  --aaa-radius-lg: 22px;
+  --aaa-radius: 12px;
+  --aaa-display: Georgia, "Times New Roman", serif;
+  --aaa-ui: Inter, "Segoe UI", system-ui, sans-serif;
+
+  /* Compatibility aliases for the pre-atlas stylesheets. */
+  --bg-primary: var(--aaa-void);
+  --bg-secondary: var(--aaa-surface);
+  --bg-accent: var(--aaa-raised);
+  --accent: var(--aaa-gold);
+  --accent-dim: var(--aaa-gold);
+  --text-primary: var(--aaa-text);
+  --text-secondary: var(--aaa-text-secondary);
+  --text-muted: var(--aaa-muted);
+  --border: var(--aaa-line);
+  --focus-ring: var(--aaa-cyan);
+  --font-base: 1rem;
+  --font-sm: .85rem;
+  --font-xs: .75rem;
+  --radius: var(--aaa-radius);
+  --radius-sm: 8px;
+  --touch-target: 44px;
+  --transition: .2s ease;
+
+  --ink: var(--aaa-text);
+  --paper: var(--aaa-surface);
+  --paper-deep: var(--aaa-raised);
+  --wood: var(--aaa-ink);
+  --gold: var(--aaa-gold);
+  --muted: var(--aaa-muted);
+  --line: var(--aaa-line);
+  --shell-bg: var(--aaa-ink);
+  --panel-bg: var(--aaa-surface);
+  --panel-raised: var(--aaa-raised);
+  --gold-bright: var(--aaa-gold-hi);
+  --cyan: var(--aaa-cyan);
+  --text: var(--aaa-text);
+  --danger: var(--aaa-danger);
+  --success: var(--aaa-success);
+}
+
+html {
+  min-width: 320px;
+  background: var(--aaa-void);
+  scrollbar-color: var(--aaa-raised) var(--aaa-void);
+  scrollbar-width: thin;
+}
+
+* {
+  scrollbar-color: var(--aaa-raised) var(--aaa-void);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: var(--aaa-void); }
+*::-webkit-scrollbar-thumb { border: 2px solid var(--aaa-void); border-radius: 999px; background: var(--aaa-raised); }
+*::-webkit-scrollbar-thumb:hover { background: var(--aaa-gold); }
+
+@media (forced-colors: active) {
+  *, *::before, *::after { scrollbar-color: auto; }
+}

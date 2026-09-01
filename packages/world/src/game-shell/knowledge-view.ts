@@ -4,6 +4,8 @@ import type { ReadonlyWorld } from "../projection.js";
 import type { KnowledgeSummary, PlayerKnowledgeCategory, PlayerKnowledgeEntry, PlayerKnowledgePresentation, PlayerKnowledgeStatus } from "./types.js";
 import { sanitizePlayerFacingText } from "./player-facing.js";
 import { deepFreeze } from "../discovery/builder.js";
+import { buildBeliefModel, evidenceSourceEventIds } from "../observation/builder.js";
+import { authoredKnowledgeText } from "./knowledge-copy.js";
 
 export function buildKnowledgeSummary(model: BeliefModel): KnowledgeSummary {
   const facts: KnowledgeSummary["facts"] = [];
@@ -33,14 +35,11 @@ function eventPayload(event: DomainEvent): Record<string, unknown> {
   return event.payload && typeof event.payload === "object" ? event.payload as Record<string, unknown> : {};
 }
 
-function sourceEventId(id: string): string | null {
-  if (!id.startsWith("evidence:")) return null;
-  const value = id.slice("evidence:".length);
-  return value || null;
-}
-
 function observerVisible(event: DomainEvent): boolean {
-  const observerId = eventPayload(event).observerId;
+  const payload = eventPayload(event);
+  if (event.type === "KnowledgeAcquired") return payload.subjectId === "player";
+  if (event.type === "TestimonyReceived" || event.type === "EpistemicEvidenceRecorded") return payload.observerId === "player";
+  const observerId = payload.observerId;
   return observerId === undefined || observerId === "player";
 }
 
@@ -123,11 +122,18 @@ export function buildPlayerKnowledgePresentation(
   const candidates: PlayerKnowledgeEntry[] = [];
   const seen = new Set<string>();
   const now = world.time;
-  const beliefs = Array.isArray(model.beliefs) ? model.beliefs : [...model.beliefs.values()];
+  // A serialized model intentionally has no provenance: recover it through
+  // the same observation builder, never by guessing discovery event IDs.
+  const internal = Array.isArray(model.beliefs) ? buildBeliefModel(events, world, model.observerId) : model;
+  const beliefs = [...internal.beliefs.values()];
+  const sources = new Map(beliefs.flatMap((belief) => belief.supportingEvidence.map((evidence) => [evidence.id, evidenceSourceEventIds(evidence)] as const)));
+  const visibleEvidence = (id: string) => (sources.get(id) ?? []).some((source) => {
+    const event = byEvent.get(source);
+    return event !== undefined && observerVisible(event);
+  });
   for (const belief of beliefs) {
     for (const evidence of belief.supportingEvidence) {
-      const eventId = sourceEventId(evidence.id);
-      const event = eventId ? byEvent.get(eventId) : undefined;
+      const event = evidenceSourceEventIds(evidence).map((id) => byEvent.get(id)).find((candidate) => candidate && observerVisible(candidate));
       if (!event || !observerVisible(event)) continue;
       const eventData = eventPayload(event);
       if ((event.type === "TestimonyReceived" || event.type === "KnowledgeAcquired" || event.type === "EpistemicEvidenceRecorded") && typeof eventData.proposition === "string") continue;
@@ -152,17 +158,18 @@ export function buildPlayerKnowledgePresentation(
     if (event.type === "TestimonyReceived" && p.observerId === "player" && typeof p.proposition === "string") category = "told";
     if (event.type === "EpistemicEvidenceRecorded" && p.observerId === "player" && typeof p.proposition === "string") category = p.relation === "contradicts" ? "doubt" : p.relation === "supports" ? "inferred" : null;
     if (!category) continue;
-    const text = fallbackFor(category);
+    const authored = authoredKnowledgeText(event);
+    const text = authored ? safeText(authored, category) : fallbackFor(category);
     const key = category + "\u0000" + text;
     if (seen.has(key)) continue;
     seen.add(key);
-    candidates.push({ category, text, origin: originFor(category), status: statusFor(category, Math.max(0, now - event.timestamp)), worldTime: event.timestamp });
+    const origin = event.type === "KnowledgeAcquired" && authored
+      ? "Из твоей предыстории; это ещё не наблюдение здесь."
+      : event.type === "TestimonyReceived" && authored ? "Свидетельство из твоего прошлого; его ещё предстоит проверить." : originFor(category);
+    candidates.push({ category, text, origin, status: statusFor(category, Math.max(0, now - event.timestamp)), worldTime: event.timestamp });
   }
   for (const contradiction of model.contradictions) {
-    const hasVisibleEvidence = contradiction.involvedEvidenceIds.some((id) => {
-      const eventId = sourceEventId(id);
-      return Boolean(eventId && byEvent.has(eventId) && observerVisible(byEvent.get(eventId)!));
-    });
+    const hasVisibleEvidence = contradiction.involvedEvidenceIds.some(visibleEvidence);
     if (!hasVisibleEvidence) continue;
     const text = "Свидетельства расходятся; прежняя версия требует проверки.";
     const key = "doubt\u0000" + text;
@@ -174,10 +181,7 @@ export function buildPlayerKnowledgePresentation(
   for (const hypothesis of model.activeHypotheses) {
     if (hypothesis.status !== "weakening" && hypothesis.status !== "refuted") continue;
     const evidenceIds = [...hypothesis.supportingEvidenceIds, ...hypothesis.contradictingEvidenceIds];
-    const visible = evidenceIds.some((id) => {
-      const eventId = sourceEventId(id);
-      return Boolean(eventId && byEvent.has(eventId) && observerVisible(byEvent.get(eventId)!));
-    });
+    const visible = evidenceIds.some(visibleEvidence);
     if (!visible) continue;
     const text = hypothesis.status === "refuted"
       ? "Прежняя версия больше не подтверждается."

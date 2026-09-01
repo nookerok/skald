@@ -137,6 +137,8 @@ describe("Stage 5 narrative context HTTP path", () => {
       const narrativeBody = await narrative.json() as any;
       expect(JSON.stringify(narrativeBody)).not.toContain("eventId");
       expect(JSON.stringify(narrativeBody)).not.toContain("canonicalRefs");
+      expect(narrativeBody).not.toHaveProperty("playerPosition");
+      expect(narrativeBody.presentation).not.toHaveProperty("playerPosition");
       expect((narrativeBody.entries ?? []).every((entry: any) => (entry.sourceEventIds ?? []).length === 0)).toBe(true);
       expect(narrativeBody.backgroundContext).toBeUndefined();
 
@@ -249,7 +251,8 @@ describe("Stage 5 narrative context HTTP path", () => {
       const response = await fetch(`${server.url}/api/worlds/${worldId}/narrative-llm`);
       expect(response.status).toBe(200);
       const body = await response.json() as any;
-      expect(body).toMatchObject({ ok: true, usedFallback: false });
+      expect(body).toEqual({ ok: true, text: expect.any(String) });
+      expect(body.text.length).toBeGreaterThan(0);
       expect(provider.prompts.at(-1)?.backgroundFacts).toEqual(expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("архив") })]));
     } finally {
       await server.close();
@@ -271,7 +274,8 @@ describe("Stage 5 narrative context HTTP path", () => {
     } as any;
     const response = await handleWorldNarrativeLLM(runtime, new URL("http://localhost/narrative-llm"));
     expect(response.statusCode).toBe(200);
-    expect(JSON.parse(response.body)).toMatchObject({ ok: true, usedFallback: true });
+    expect(JSON.parse(response.body)).toEqual({ ok: true, text: expect.any(String) });
+    expect(JSON.parse(response.body).text.length).toBeGreaterThan(0);
     expect(diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "context", category: "context_error", outcome: "context_error", worldId: "context-error-world" }),
     ]));

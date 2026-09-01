@@ -2,6 +2,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "../projection.js";
 import { ALL_TEMPLATES } from "./templates.js";
 import type { PresentationCandidate, PresentationEntry, PresentationImportance, TurnPresentation, TurnResponse, TurnResponseKind } from "./types.js";
+import { actionFallbackText } from "./action-fallback.js";
 
 export interface PresentationSelectionOptions {
   readonly allowEmptyStateFallback?: boolean;
@@ -131,12 +132,22 @@ export function selectTurnPresentation(
     responseCandidate = rejectionCandidates[0] ?? outcomeCandidates[0] ?? null;
     if (!responseCandidate) {
       const attempted = merged.find((candidate) => candidate.templateId === "action_attempted");
+      let attemptedEvent: DomainEvent | undefined;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i]?.type === "ActionAttempted") {
+          attemptedEvent = events[i];
+          break;
+        }
+      }
+      const operation = attemptedEvent && typeof (attemptedEvent.payload as { operation?: unknown }).operation === "string"
+        ? (attemptedEvent.payload as { operation: string }).operation
+        : "действие";
       responseCandidate = attempted
-        ? { ...attempted, templateId: "command_neutral_outcome", text: "Ты начинаешь действовать, но пока не видишь заметного результата." }
+        ? { ...attempted, templateId: "command_neutral_outcome", text: actionFallbackText(operation) }
         : {
             templateId: "command_neutral_outcome", kind: "action", defaultImportance: "primary", rank: 1,
             discoveryMark: null, epistemicClass: "established_fact",
-            text: "Ты начинаешь действовать, но пока не видишь заметного результата.",
+            text: actionFallbackText(operation),
             timestamp: events[0]?.timestamp ?? world.time,
             sourceEventIds: events.filter((event) => PLAYER_COMMAND_EVENTS.has(event.type)).map((event) => event.eventId),
             groupKey: null, threadKey: null, threadLabel: null,

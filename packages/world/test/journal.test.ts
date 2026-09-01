@@ -7,6 +7,15 @@ function e(eventId: string, type: string, payload: unknown = {}, timestamp = 1):
 }
 
 describe("buildTurnJournal", () => {
+  it("keeps the existing cmd-N/tick-N atomic cycle together", () => {
+    const journal = buildTurnJournal([
+      e("attempt", "MovementSucceeded", { x: 0, y: 1 }),
+      { ...e("tick", "TickPassed", { delta: 1 }), correlationId: "tick-1" },
+    ]);
+    expect(journal.turns).toHaveLength(1);
+    expect(journal.turns[0]?.correlationId).toBe("cmd-1");
+    expect(journal.turns[0]?.sourceEventIds).toEqual(["attempt", "tick"]);
+  });
   it("events of same timestamp form one turn", () => {
     const events = [
       e("m-1", "MovementSucceeded", { x: 0, y: 1 }, 1),

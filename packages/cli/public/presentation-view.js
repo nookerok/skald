@@ -14,7 +14,7 @@ export function renderTurn(pres) {
       primaryEl.appendChild(mark);
     }
   } else {
-    primaryEl.textContent = "Мир замер в ожидании.";
+    primaryEl.textContent = "Здесь начинается твой путь. Осмотрись и опиши первое намерение.";
   }
 
   const notableList = document.getElementById("notable-list");
@@ -56,31 +56,15 @@ function markLabel(m) {
 }
 
 export function renderState(state) {
-  document.getElementById("time-display").textContent = "T: " + state.worldTime;
-  document.getElementById("pos-display").textContent = "(" + state.player.x + ", " + state.player.y + ")";
-
+  const time = document.getElementById("time-display");
+  if (time) time.textContent = "T: " + state.worldTime;
+  // Spatial state belongs to the dedicated observer map DTO. The compatibility
+  // renderer remains loadable for old tests, but intentionally has no access to
+  // player coordinates, walls or heat values.
+  const position = document.getElementById("pos-display");
+  if (position) position.textContent = "Место скрыто до открытия карты.";
   const grid = document.getElementById("map-grid");
-  grid.replaceChildren();
-  for (let y = 4; y >= 0; y--) {
-    for (let x = 0; x < 5; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      const key = x + "," + y;
-      if (state.walls && state.walls.includes(key)) cell.classList.add("wall");
-      if (state.player.x === x && state.player.y === y) {
-        cell.classList.add("player");
-        cell.textContent = "\u25CF";
-      }
-      if (state.heatMap && state.heatMap[key]) {
-        cell.classList.add("heat");
-        const tip = document.createElement("span");
-        tip.className = "heat-tooltip";
-        tip.textContent = "heat: " + state.heatMap[key];
-        cell.appendChild(tip);
-      }
-      grid.appendChild(cell);
-    }
-  }
+  if (grid) grid.replaceChildren();
 }
 
 export const renderDiagnostics = {

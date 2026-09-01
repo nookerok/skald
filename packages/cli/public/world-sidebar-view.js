@@ -24,5 +24,8 @@ export function renderWorldSidebar(snapshot = {}) {
   renderList("world-sidebar-nearby", (snapshot.recentActivity || []).filter((item) => item.scope === "visible"), "Пока ничего не замечено.");
   renderList("world-sidebar-places", world.connectedLocations || (world.locationName ? [{ name: world.locationName, text: "Текущее место" }] : []), "Известных мест пока нет.");
   renderList("world-sidebar-relations", character.relations || [], "Связи ещё не проявились.");
-  renderList("world-sidebar-interest", [...(knowledge.traces || []), ...(knowledge.facts || [])], "Мир пока не оставил заметных следов.");
+  const entries = Array.isArray(knowledge.entries)
+    ? knowledge.entries.map((entry) => ({ label: entry.text, detail: entry.origin }))
+    : [...(knowledge.traces || []), ...(knowledge.facts || [])];
+  renderList("world-sidebar-interest", entries, "Мир пока не оставил заметных следов.");
 }

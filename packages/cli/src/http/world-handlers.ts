@@ -1,9 +1,11 @@
 import type { WorldRuntime } from "../runtime/index.js";
+import { readSideHandle } from "../conversation/identity.js";
 import { resolveNarrationState } from "../runtime/index.js";
 import {
   buildNarrative,
   buildTurnJournal,
   attachTurnNarrations,
+  narrationKey,
   buildDiscoveryJournalFromBeliefModel,
   buildDiscoveryJournal,
   buildPlayerGuidance,
@@ -26,6 +28,7 @@ import {
   narrateTurnLLM,
   buildBackgroundNarrativeContext,
   buildNarrativeAdapterContext,
+  localizedPlayerText,
   WorldProjector,
   buildInquiryAnswer,
   getCharacterBackground,
@@ -51,7 +54,10 @@ import {
   toPlayerFacingJournalTurns,
   toPlayerFacingNarrativeEntries,
   toPlayerFacingPresentation,
+  toPlayerFacingState,
   toPlayerFacingThreads,
+  toPlayerFacingGameShellSnapshot,
+  toPlayerFacingShellDelta,
 } from "./player-facing.js";
 
 /** Deterministic canonical hash of the acknowledge request body. */
@@ -68,7 +74,7 @@ export interface JsonResponse {
 }
 
 function serializeShellDelta(delta: ReturnType<typeof buildShellDelta>) {
-  return delta;
+  return toPlayerFacingShellDelta(delta);
 }
 
 function json(data: unknown, statusCode = 200): JsonResponse {
@@ -235,8 +241,10 @@ function isOpeningNarrationWindow(runtime: WorldRuntime, currentIdempotencyKey?:
   }
 }
 
-function historicalWorldAt(events: readonly DomainEvent[], worldTime: number): { events: readonly DomainEvent[]; world: ReturnType<WorldRuntime["projection"]["getSnapshot"]> } {
-  const prefix = events.filter((event) => event.timestamp <= worldTime);
+function historicalWorldAt(events: readonly DomainEvent[], lastEventId: string): { events: readonly DomainEvent[]; world: ReturnType<WorldRuntime["projection"]["getSnapshot"]> } {
+  const end = events.findIndex((event) => event.eventId === lastEventId);
+  if (end < 0) throw new Error("Narration turn is absent from its captured Event Log");
+  const prefix = events.slice(0, end + 1);
   const projector = new WorldProjector();
   for (const event of prefix) projector.apply(event);
   return { events: prefix, world: projector.getSnapshot() };
@@ -281,7 +289,7 @@ function parseStrictInt(raw: string | null, def: number, min: number, max: numbe
 // --- State ---
 
 export function handleWorldState(runtime: WorldRuntime): JsonResponse {
-  const state = serializeWorldStateFromRuntime(runtime);
+  const state = toPlayerFacingState(serializeWorldStateFromRuntime(runtime));
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 });
@@ -291,7 +299,7 @@ export function handleWorldState(runtime: WorldRuntime): JsonResponse {
 // --- Command ---
 
 /**
- * Best-effort read-side narration (ADR-0024 "МИР" voice). Runs detached from
+ * Best-effort read-side narration (ADR-0024 "МАСТЕР" voice). Runs detached from
  * the world command queue so the LLM call can never delay the command response
  * (browser-side timeout is 15s, LLM can take tens of seconds). The narration
  * only persists prose keyed by worldTime; the deterministic primary text is
@@ -346,10 +354,10 @@ function scheduleNarration(
         ...(narrativeContext ? { narrativeContext } : {}),
       });
       // 2. Classify LLM result
-      if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
+      if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
       // 3. Persist (separate try/catch for persistence diagnostics)
       try {
-        runtime.store.saveTurnNarration(worldId, worldTime, narration);
+        runtime.store.saveTurnNarration(worldId, worldTime, narration, correlationId);
       } catch {
         try { runtime.diagnostics({
             kind: "scheduler",
@@ -368,13 +376,13 @@ function scheduleNarration(
             recordedAt: new Date().toISOString(),
             ...(correlationId ? { correlationId } : {}),
         }); } catch { /* diagnostics are best-effort */ }
-        runtime.narration.markUnavailable(worldTime);
+        runtime.narration.markUnavailable(worldTime, correlationId);
         return;
       }
-      runtime.narration.markReady(worldTime);
+      runtime.narration.markReady(worldTime, correlationId);
     },
     ...(correlationId ? { correlationId } : {}),
-    onDrop: () => runtime.narration.markUnavailable(worldTime),
+    onDrop: () => runtime.narration.markUnavailable(worldTime, correlationId),
   });
 }
 
@@ -402,19 +410,19 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
   // capture it once instead of replaying the log inside every job.
   const allEvents = runtime.bus.query();
   const journal = buildTurnJournal(allEvents);
-  const targets = [...new Set(tickEvents.map((e) => e.timestamp))]
-    .map((worldTime) => {
-      const source = tickEvents.find((event) => event.timestamp === worldTime);
-      const historical = historicalWorldAt(allEvents, worldTime);
-      const presentation = journal.turns.find((t) => t.worldTime === worldTime)?.presentation ?? null;
+  const requested = new Set(tickEvents.map((event) => narrationKey(event.timestamp, event.correlationId)));
+  const targets = journal.turns
+    .filter((turn) => requested.has(narrationKey(turn.worldTime, turn.correlationId)))
+    .map((turn) => {
+      const { worldTime, presentation, correlationId } = turn;
+      const historical = historicalWorldAt(allEvents, turn.sourceEventIds[turn.sourceEventIds.length - 1]!);
       return {
         worldTime,
         presentation,
-        narrativeContext: presentation ? buildNarrationContext(runtime, presentation, historical.events, historical.world, false, source?.correlationId, "batch") : undefined,
-        ...(source?.correlationId ? { correlationId: source.correlationId } : {}),
+        narrativeContext: buildNarrationContext(runtime, presentation, historical.events, historical.world, false, correlationId, "batch"),
+        ...(correlationId ? { correlationId } : {}),
       };
-    })
-    .filter((t) => t.presentation !== null);
+    });
   for (const target of targets) {
     const { worldTime, presentation, correlationId, narrativeContext } = target;
     if (!presentation) continue;
@@ -432,10 +440,10 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
           ...(narrativeContext ? { narrativeContext } : {}),
         });
         // 2. Classify LLM result
-        if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime); return; }
+        if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
         // 3. Persist (separate try/catch for persistence diagnostics)
         try {
-          runtime.store.saveTurnNarration(worldId, worldTime, narration);
+          runtime.store.saveTurnNarration(worldId, worldTime, narration, correlationId);
         } catch {
           try { runtime.diagnostics({
             kind: "scheduler",
@@ -454,13 +462,13 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
             recordedAt: new Date().toISOString(),
             ...(correlationId ? { correlationId } : {}),
           }); } catch { /* diagnostics are best-effort */ }
-          runtime.narration.markUnavailable(worldTime);
+          runtime.narration.markUnavailable(worldTime, correlationId);
           return;
         }
-        runtime.narration.markReady(worldTime);
+        runtime.narration.markReady(worldTime, correlationId);
       },
       ...(correlationId ? { correlationId } : {}),
-      onDrop: () => runtime.narration.markUnavailable(worldTime),
+      onDrop: () => runtime.narration.markUnavailable(worldTime, correlationId),
     });
   }
 }
@@ -521,7 +529,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
         narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
         const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
-        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+        return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
       }
       if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
@@ -536,7 +544,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         advanceNarrationTicks = tickResult.tickEvents;
-        return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+        return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
@@ -561,8 +569,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
       return json({
         ok: true,
-        state: serializeWorldStateFromRuntime(runtime),
-        position: cmdResult.position,
+        state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)),
         // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
         presentation: toPlayerFacingPresentation(pres),
         guidance,
@@ -671,7 +678,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         resolution: "accepted",
         message: null,
         reason: null,
-        state: serializeWorldStateFromRuntime(runtime),
+        state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)),
         // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
         presentation: toPlayerFacingPresentation(pres),
         guidance,
@@ -710,25 +717,36 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
     beforeTick = beforeP.value;
   }
 
-  const filtered = beforeTick ? journal.turns.filter((t) => t.worldTime < beforeTick) : journal.turns;
-  const page = [...filtered].sort((a, b) => b.worldTime - a.worldTime).slice(0, limit);
-  const hasMore = filtered.length > page.length;
+  const beforeTurn = url.searchParams.get("beforeTurn");
+  let eligible = beforeTick ? journal.turns.filter((turn) => turn.worldTime < beforeTick) : journal.turns;
+  if (beforeTurn !== null) {
+    if (beforeRaw !== null || !/^[a-f0-9]{64}$/.test(beforeTurn)) {
+      return error("invalid_request", "beforeTurn must be an opaque journal cursor, without before", 400);
+    }
+    const boundary = journal.turns.findIndex((turn) => readSideHandle("turn", turn.turnId) === beforeTurn);
+    if (boundary < 0) return error("invalid_request", "unknown journal cursor", 400);
+    eligible = journal.turns.slice(0, boundary);
+  }
+  // Reverse append order, not timestamps: distinct turns can share world time.
+  const page = [...eligible].reverse().slice(0, limit);
+  const hasMore = eligible.length > page.length;
   const nextBefore = hasMore ? page[page.length - 1]!.worldTime : null;
+  const nextBeforeTurn = hasMore ? readSideHandle("turn", page[page.length - 1]!.turnId) : null;
 
-  // Merge non-authoritative literary narrations (ADR-0024 "МИР" voice) from the
+  // Merge non-authoritative literary narrations (ADR-0024 "МАСТЕР" voice) from the
   // read-side table so the chronicle shows the D&D-style narration for each turn,
   // and expose the per-turn narration lifecycle so the browser knows whether to
   // keep polling instead of guessing by elapsed time. `ready` derives from the
   // persisted row; `pending`/`unavailable` come from the in-memory scheduler.
   const narrations = runtime.store.getTurnNarrations(runtime.worldId);
-  const turnsWithNarrations = attachTurnNarrations(page, narrations);
+  const turnsWithNarrations = attachTurnNarrations(page, narrations, journal.turns);
   const turns = turnsWithNarrations.map((turn) => {
-    const row = narrations.get(turn.worldTime);
+    const row = turn.narrativeLLM;
     return {
       ...turn,
       narrationState: resolveNarrationState(
         { hasNonFallback: Boolean(row && !row.usedFallback) },
-        runtime.narration.statusOf(turn.worldTime),
+        runtime.narration.statusOf(turn.worldTime, turn.correlationId),
       ),
     };
   });
@@ -750,7 +768,7 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
   const conversationHasMore = conversationRows.length === conversationLimitP.value;
   const conversationNextBefore = conversationHasMore ? conversationRows[0]?.turnSeq ?? null : null;
 
-  return json({ ok: true, turns: toPlayerFacingJournalTurns(turns), conversationTurns, conversationNextBefore, conversationHasMore, threads: toPlayerFacingThreads(journal.threads), worldTime: journal.worldTime, nextBefore, hasMore });
+  return json({ ok: true, turns: toPlayerFacingJournalTurns(turns), conversationTurns, conversationNextBefore, conversationHasMore, threads: toPlayerFacingThreads(journal.threads), worldTime: journal.worldTime, nextBefore, nextBeforeTurn, hasMore });
 }
 
 export function handleWorldDiscoveries(runtime: WorldRuntime): JsonResponse {
@@ -782,7 +800,7 @@ export function handleWorldGameShell(runtime: WorldRuntime, worldId: string): Js
   return json({
     ok: true,
     snapshot: {
-      ...snapshot,
+      ...toPlayerFacingGameShellSnapshot(snapshot),
       // One consistent revision: the thread journal derives synchronously
       // from the same events/world as the rest of the snapshot.
       observerThreads,
@@ -803,7 +821,7 @@ export function handleWorldNarrative(runtime: WorldRuntime): JsonResponse {
     ...(narrativeContext ? { narrativeContext } : {}),
   });
   // Internal background context contains adapter ids and is not a public DTO.
-  return json({ ok: true, entries: toPlayerFacingNarrativeEntries(snapshot.entries), presentation: toPlayerFacingPresentation(snapshot.presentation), worldTime: snapshot.worldTime, playerPosition: snapshot.playerPosition });
+  return json({ ok: true, entries: toPlayerFacingNarrativeEntries(snapshot.entries), presentation: toPlayerFacingPresentation(snapshot.presentation), worldTime: snapshot.worldTime });
 }
 
 /**
@@ -831,10 +849,7 @@ export async function handleWorldNarrativeLLM(runtime: WorldRuntime, url: URL): 
   });
   return json({
     ok: true,
-    text: result.text,
-    usedFallback: result.usedFallback,
-    model: result.usedFallback ? "" : result.model,
-    latencyMs: result.latencyMs,
+    text: localizedPlayerText(result.text, "МАСТЕР пока не смог связно продолжить эту сцену."),
   });
 }
 
@@ -862,7 +877,7 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       // durable tick commit is complete before detached read-side narration
       // is scheduled, and each tick retains its correlation metadata.
       scheduleNarrationForTicks(runtime, "wait", tickResult.tickEvents);
-      return json({ ok: true, state: serializeWorldStateFromRuntime(runtime), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+      return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }

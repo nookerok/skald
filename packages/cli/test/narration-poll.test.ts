@@ -2,6 +2,38 @@
 import { describe, it, expect, vi } from "vitest";
 
 describe("createNarrationPoll", () => {
+  it("selects the exact equal-time handle and refuses ambiguous legacy time", async () => {
+    const { resolveNarrationPollState } = await import("../public/narration-poll.js");
+    const turns = [
+      { worldTime: 7, narrationHandle: "a", narrationState: "ready" },
+      { worldTime: 7, narrationHandle: "b", narrationState: "pending" },
+    ];
+    expect(resolveNarrationPollState(turns, { targetWorldTime: 7, targetNarrationHandle: "b" })).toBe("pending");
+    expect(resolveNarrationPollState(turns, { targetWorldTime: 7 })).toBe("not_requested");
+    expect(resolveNarrationPollState(turns.slice(0, 1), { targetWorldTime: 7 })).toBe("ready");
+  });
+
+  it("a stopped in-flight request cannot settle a new session with a reused generation", async () => {
+    vi.useFakeTimers();
+    try {
+      const { createNarrationPoll } = await import("../public/narration-poll.js");
+      const stopped = vi.fn();
+      const poll = createNarrationPoll({ intervalMs: 10, onStopped: stopped });
+      let release;
+      const first = poll.start(() => new Promise((resolve) => { release = resolve; }));
+      await vi.advanceTimersByTimeAsync(10);
+      poll.stop();
+      const next = vi.fn(() => "pending");
+      const second = poll.start(next, { worldId: "w", targetNarrationHandle: "b" });
+      release("ready");
+      await vi.advanceTimersByTimeAsync(10);
+      expect(second.generation).toBeGreaterThan(first.generation);
+      expect(stopped).not.toHaveBeenCalled();
+      expect(poll.isActive()).toBe(true);
+      expect(next).toHaveBeenCalledWith({ worldId: "w", targetWorldTime: null, targetNarrationHandle: "b" });
+      poll.stop();
+    } finally { vi.useRealTimers(); }
+  });
   it("polls pending repeatedly well beyond the old 24s wall and stops on ready", async () => {
     vi.useFakeTimers();
     const { createNarrationPoll } = await import("../public/narration-poll.js");

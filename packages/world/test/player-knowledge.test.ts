@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { DomainEvent } from "@skald/event-bus";
 import { rebuildProjection } from "../src/projection.js";
-import { buildBeliefModel } from "../src/observation/builder.js";
+import { buildBeliefModel, serializeBeliefModel, evidenceSourceEventIds } from "../src/observation/builder.js";
+import { getRegionBackgroundBinding } from "../src/region/compiler.js";
+import { authoredKnowledgeText } from "../src/game-shell/knowledge-copy.js";
 import { buildPlayerKnowledgePresentation } from "../src/game-shell/knowledge-view.js";
 
 function event(type: string, eventId: string, timestamp: number, payload: Record<string, unknown>): DomainEvent {
@@ -9,6 +11,42 @@ function event(type: string, eventId: string, timestamp: number, payload: Record
 }
 
 describe("PlayerKnowledgePresentation", () => {
+  it("retains approved testimony and procedural knowledge without promoting them to sight", () => {
+    const events = getRegionBackgroundBinding("riverwatch-basin", "keeper")!.bootstrapEvents;
+    const world = rebuildProjection(events).getSnapshot();
+    const model = buildBeliefModel(events, world);
+    const dto = buildPlayerKnowledgePresentation(events, world, model);
+    const testimony = events.find((entry) => entry.type === "TestimonyReceived")!;
+    const knowledge = events.find((entry) => entry.type === "KnowledgeAcquired")!;
+    expect(authoredKnowledgeText(testimony)).toContain("Перед пожаром из архива исчезла запись");
+    expect(dto.entries).toContainEqual(expect.objectContaining({
+      category: "told", text: (testimony.payload as any).proposition,
+    }));
+    expect(dto.entries).toContainEqual(expect.objectContaining({
+      category: "inferred", text: (knowledge.payload as any).proposition,
+    }));
+    expect(dto.entries.filter((entry) => entry.category === "seen").map((entry) => entry.text))
+      .not.toContain((testimony.payload as any).proposition);
+    const poisoned = { ...testimony, payload: { ...(testimony.payload as object), proposition: "event:secret item:unknown The hidden truth" } };
+    expect(authoredKnowledgeText(poisoned)).toBeNull();
+    const foreign = { ...testimony, payload: { ...(testimony.payload as object), observerId: "npc" } };
+    const hidden = buildPlayerKnowledgePresentation([foreign], world, buildBeliefModel([foreign], world));
+    expect(hidden.entries).toEqual([]);
+  });
+
+  it("resolves discovery hypotheses through provenance, including serialized-model callers", () => {
+    const events = [event("ObservationUpdated", "risk-source", 1, { key: "risk_taken", delta: 1 })];
+    const world = rebuildProjection(events).getSnapshot();
+    const model = buildBeliefModel(events, world);
+    const evidence = model.beliefs.get("discovery:risk_draws_attention")!.supportingEvidence[0]!;
+    expect(evidenceSourceEventIds(evidence)).toEqual(["risk-source"]);
+    expect(Object.isFrozen(evidenceSourceEventIds(evidence))).toBe(true);
+    const result = buildPlayerKnowledgePresentation(events, world, model);
+    expect(result.entries).toContainEqual(expect.objectContaining({ category: "inferred", text: evidence.description }));
+    expect(buildPlayerKnowledgePresentation(events, world, serializeBeliefModel(model))).toEqual(result);
+    expect(JSON.stringify(result)).not.toContain("risk-source");
+  });
+
   it("classifies visible evidence without exposing internal or English text", () => {
     const events = [
       event("EntityExamined", "seen-1", 1, { entityId: "stone", description: "Камень покрыт свежими трещинами." }),

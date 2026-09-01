@@ -106,7 +106,7 @@ export function execSchemaV5(db: { exec(sql: string): void }): void {
   execSchemaV4(db);
   db.exec(`PRAGMA user_version = 5`);
 
-  // Non-authoritative literary narration (ADR-0024 "МИР" voice), keyed per turn.
+  // Non-authoritative literary narration (ADR-0024 "МАСТЕР" voice), keyed per turn.
   // This is a read-side journal decoration, never part of the Event Log.
   db.exec(`CREATE TABLE IF NOT EXISTS turn_narrations (
     world_id      TEXT NOT NULL,
