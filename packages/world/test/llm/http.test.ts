@@ -269,4 +269,36 @@ describe("per-model Zen wire protocol", () => {
     expect(body).not.toHaveProperty("input");
     expect(body).not.toHaveProperty("max_output_tokens");
   });
+
+  it("surfaces geo-gating as region_unavailable instead of a credential failure", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () => JSON.stringify({ error: { message: "This model is not available in your country.", type: "RegionError" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () => JSON.stringify({ error: { type: "RegionError" } }),
+      }));
+
+    const byMessage = await chatOnce("https://opencode.ai/zen/v1", "key", "muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_responses",
+      category: "narrate",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+    expect(byMessage).toBeInstanceOf(ProviderRequestError);
+    expect(byMessage as ProviderRequestError).toMatchObject({ phase: "response_status", httpStatus: 403, providerCode: "region_unavailable" });
+    expect((byMessage as ProviderRequestError).message).not.toContain("country");
+
+    const byType = await chatOnce("https://opencode.ai/zen/v1", "key", "muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_responses",
+      category: "narrate",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+    expect((byType as ProviderRequestError).providerCode).toBe("region_unavailable");
+  });
 });

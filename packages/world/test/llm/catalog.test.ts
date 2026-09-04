@@ -126,8 +126,7 @@ describe("OpenCode Zen live catalogue selection", () => {
     ]);
   });
 
-  it("probes muse-spark via Responses and ling via Chat Completions with per-model live protocols", async () => {
-    const urls: string[] = [];
+  it("probes muse-spark via Responses and ling via Chat Completions with per-model live protocols", async () => {    const urls: string[] = [];
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/models")) {
@@ -175,5 +174,26 @@ describe("OpenCode Zen live catalogue selection", () => {
     ]);
     expect(urls.filter((url) => url.endsWith("/responses"))).toHaveLength(2);
     expect(urls.filter((url) => url.endsWith("/chat/completions"))).toHaveLength(2);
+  });
+
+  it("keeps the region gate code on a 403 probe instead of reporting a bare credential failure", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return response({ data: [{ id: "muse-spark-1.3-contributor-free" }] });
+      return response({ error: { message: "This model is not available in your country.", type: "RegionError" } }, 403);
+    });
+    const report = await discoverOpenCodeRoutes({
+      apiKey: "zen-key",
+      preferredModels: ["muse-spark-1.3-contributor-free"],
+      fetchImpl,
+    });
+    expect(report.status).toBe("misconfigured");
+    expect(report.candidates[0]).toMatchObject({
+      active: false,
+      exclusionReason: "auth_failure",
+      interpret: { status: "auth_failure", httpStatus: 403, providerCode: "region_unavailable" },
+      narrate: { status: "auth_failure", httpStatus: 403, providerCode: "region_unavailable" },
+    });
+    expect(report.excluded).toEqual([{ model: "muse-spark-1.3-contributor-free", reason: "auth_failure" }]);
   });
 });

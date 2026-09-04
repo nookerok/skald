@@ -104,10 +104,18 @@ export async function readProviderErrorCode(
     : (parsed as { code?: unknown }).code;
   const sanitizedCode = sanitizeProviderCode(code);
   if (sanitizedCode) return sanitizedCode;
+  // Some gateways (e.g. OpenCode Zen geo-gating) report the refusal only via
+  // `type`/free-form `message` with no `code`. Map the known shapes to our
+  // own allowlist tokens; provider text itself is never returned.
+  const type = error !== null && typeof error === "object"
+    ? (error as { type?: unknown }).type
+    : (parsed as { type?: unknown }).type;
+  if (typeof type === "string" && type.trim().toLowerCase() === "regionerror") return "region_unavailable";
   const message = error !== null && typeof error === "object"
     ? (error as { message?: unknown }).message
     : (parsed as { message?: unknown }).message;
   if (typeof message !== "string") return undefined;
+  if (/not available in your country/i.test(message)) return "region_unavailable";
   const normalized = message.trim().toLowerCase();
   if (/^model\s+unavailable$/.test(normalized)) return "model_unavailable";
   if (/^model\s+not\s+found$/.test(normalized)) return "model_not_found";
