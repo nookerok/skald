@@ -1,5 +1,6 @@
 import {
   LLM_CONFIG,
+  candidateForModel,
   llmConfigFingerprint,
   protocolForModel,
   providerForModel,
@@ -238,10 +239,14 @@ export class ModelRouter {
     opts: { provider?: ProviderId; maxTokens?: number; timeoutMs?: number; category?: Category } = {},
   ): Promise<{ text: string; responseModel: string; latencyMs: number; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     const provider = opts.provider ?? providerForModel(model);
+    const configuredProtocol = candidateForModel("interpret", model) ?? candidateForModel("narrate", model) ?? candidateForModel("analyze", model);
     const target: SendTarget = {
       provider,
       model,
-      protocol: LLM_CONFIG.providers[provider]?.protocol ?? protocolForModel(model),
+      // The wire format is per model (Zen multiplexes Chat Completions and
+      // Responses behind one base URL); fall back to the explicit provider
+      // default only for unconfigured models.
+      protocol: configuredProtocol?.protocol ?? LLM_CONFIG.providers[provider]?.protocol ?? protocolForModel(model),
     };
     return this._send(target, messages, {
       category: opts.category ?? "narrate",

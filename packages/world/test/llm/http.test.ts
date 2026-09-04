@@ -133,8 +133,7 @@ describe("provider HTTP transport", () => {
   });
 });
 
-describe("retry and failover classification", () => {
-  it("moves across providers for auth/model errors but skips same-provider candidates", () => {
+describe("retry and failover classification", () => {  it("moves across providers for auth/model errors but skips same-provider candidates", () => {
     const authFailure = new ProviderRequestError({
       provider: OPEN_CODE.provider,
       model: OPEN_CODE.model,
@@ -164,5 +163,110 @@ describe("retry and failover classification", () => {
     });
     expect(shouldRetrySameCandidate(transient)).toBe(true);
     expect(shouldTryNextCandidate(transient, OLLAMA_BACKUP)).toBe(true);
+  });
+});
+
+describe("per-model Zen wire protocol", () => {
+  it("sends muse-spark via Responses API and parses output_text", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        model: "muse-spark-1.3-contributor-free",
+        output_text: "SKALD_PROBE_OK",
+        usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await chatOnce("https://opencode.ai/zen/v1", "key", "muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_responses",
+      category: "narrate",
+      maxTokens: 16,
+    });
+
+    expect(result.text).toBe("SKALD_PROBE_OK");
+    expect(result.responseModel).toBe("muse-spark-1.3-contributor-free");
+    expect(result.usage).toEqual({ promptTokens: 5, completionTokens: 2, totalTokens: 7 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://opencode.ai/zen/v1/responses");
+    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    expect(body.model).toBe("muse-spark-1.3-contributor-free");
+    expect(body.input).toEqual([{ role: "user", content: "probe" }]);
+    expect(body.max_output_tokens).toBe(16);
+    expect(body).not.toHaveProperty("messages");
+    expect(body).not.toHaveProperty("max_tokens");
+  });
+
+  it("parses the Responses output item list when output_text is absent", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        model: "muse-spark-1.3-contributor-free",
+        output: [{ type: "message", content: [{ type: "output_text", text: "SKALD_PROBE_OK" }] }],
+        usage: { input_tokens: 3, output_tokens: 1, total_tokens: 4 },
+      }),
+    }));
+
+    const result = await chatOnce("https://opencode.ai/zen/v1", "key", "muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_responses",
+      category: "narrate",
+      maxTokens: 16,
+    });
+
+    expect(result.text).toBe("SKALD_PROBE_OK");
+    expect(result.usage).toEqual({ promptTokens: 3, completionTokens: 1, totalTokens: 4 });
+  });
+
+  it("rejects a Chat Completions choices body on the Responses protocol", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: "SKALD_PROBE_OK" } }], model: "muse-spark-1.3-contributor-free" }),
+    }));
+
+    const thrown = await chatOnce("https://opencode.ai/zen/v1", "key", "muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_responses",
+      category: "narrate",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(ProviderRequestError);
+    expect((thrown as ProviderRequestError).phase).toBe("response_shape");
+  });
+
+  it("keeps ling on Chat Completions with messages and choices", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: "SKALD_PROBE_OK" } }],
+        model: "ling-3.0-flash-fin-free",
+        usage: { prompt_tokens: 6, completion_tokens: 2, total_tokens: 8 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await chatOnce("https://opencode.ai/zen/v1", "key", "ling-3.0-flash-fin-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_chat",
+      category: "narrate",
+      maxTokens: 16,
+    });
+
+    expect(result.text).toBe("SKALD_PROBE_OK");
+    expect(result.usage).toEqual({ promptTokens: 6, completionTokens: 2, totalTokens: 8 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://opencode.ai/zen/v1/chat/completions");
+    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    expect(body.messages).toEqual([{ role: "user", content: "probe" }]);
+    expect(body.max_tokens).toBe(16);
+    expect(body).not.toHaveProperty("input");
+    expect(body).not.toHaveProperty("max_output_tokens");
   });
 });

@@ -125,4 +125,55 @@ describe("OpenCode Zen live catalogue selection", () => {
       { model: "mimo-v2.5-free", reason: "interpret_probe_failed" },
     ]);
   });
+
+  it("probes muse-spark via Responses and ling via Chat Completions with per-model live protocols", async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) {
+        return response({ data: [{ id: "muse-spark-1.3-contributor-free" }, { id: "ling-3.0-flash-fin-free" }] });
+      }
+      urls.push(url);
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      if (url.endsWith("/responses")) {
+        expect(body.model).toBe("muse-spark-1.3-contributor-free");
+        expect(body).toHaveProperty("input");
+        expect(body).toHaveProperty("max_output_tokens");
+        expect(body).not.toHaveProperty("messages");
+        const marker = body.input?.[1]?.content ?? body.input?.[0]?.content ?? "";
+        const text = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return response({ output_text: text, model: "muse-spark-1.3-contributor-free" });
+      }
+      expect(url.endsWith("/chat/completions")).toBe(true);
+      expect(body.model).toBe("ling-3.0-flash-fin-free");
+      expect(body).toHaveProperty("messages");
+      expect(body).toHaveProperty("max_tokens");
+      expect(body).not.toHaveProperty("input");
+      const marker = body.messages?.[1]?.content ?? body.messages?.[0]?.content ?? "";
+      const text = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+        ? "SKALD_PROBE_OK"
+        : '{"schemaVersion":1,"probe":true}';
+      return response({ choices: [{ message: { content: text } }], model: "ling-3.0-flash-fin-free" });
+    });
+    const report = await discoverOpenCodeRoutes({
+      apiKey: "zen-key",
+      preferredModels: ["muse-spark-1.3-contributor-free", "ling-3.0-flash-fin-free"],
+      fetchImpl,
+    });
+    expect(report.status).toBe("ready");
+    expect(report.activeModel).toBe("muse-spark-1.3-contributor-free");
+    expect(report.backupModel).toBe("ling-3.0-flash-fin-free");
+    expect(report.routes.interpret.map((candidate) => `${candidate.model}:${candidate.protocol}`)).toEqual([
+      "muse-spark-1.3-contributor-free:openai_responses",
+      "ling-3.0-flash-fin-free:openai_chat",
+    ]);
+    expect(report.routes.narrate.map((candidate) => `${candidate.model}:${candidate.protocol}`)).toEqual([
+      "muse-spark-1.3-contributor-free:openai_responses",
+      "ling-3.0-flash-fin-free:openai_chat",
+    ]);
+    expect(urls.filter((url) => url.endsWith("/responses"))).toHaveLength(2);
+    expect(urls.filter((url) => url.endsWith("/chat/completions"))).toHaveLength(2);
+  });
 });

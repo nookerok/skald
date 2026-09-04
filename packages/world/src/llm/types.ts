@@ -5,8 +5,12 @@ export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "n
 /**
  * Wire protocol a provider speaks for chat completions. The HTTP transport
  * branches on this value instead of guessing from the model id.
+ *
+ * `openai_chat` is `/chat/completions` with `messages`/`max_tokens` and a
+ * `choices` response. `openai_responses` is `/responses` with
+ * `input`/`max_output_tokens` and an `output_text`/`output` response.
  */
-export type ProviderProtocol = "openai_chat" | "ollama_chat";
+export type ProviderProtocol = "openai_chat" | "openai_responses" | "ollama_chat";
 
 /**
  * Role of a candidate inside a route matrix.

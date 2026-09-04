@@ -21,20 +21,37 @@ export interface LLMConfig {
 }
 
 /**
- * Ordered OpenCode Zen preferences. Runtime routing activates only entries
- * present in the live catalogue that pass both authenticated no-world probes.
- * The list is a preference order, not a claim that any model is available.
+ * Ordered OpenCode Zen test preferences. Runtime routing activates only
+ * entries present in the live catalogue that pass both authenticated no-world
+ * probes. The list is a preference order, not a claim that any model is
+ * available.
  */
 export const OPENCODE_PREFERRED_MODELS: readonly string[] = Object.freeze([
-  "big-pickle",
   "muse-spark-1.3-contributor-free",
-  "muse-spark-1.2-contributor-free",
-  "mimo-v2.5-free",
   "ling-3.0-flash-fin-free",
-  "nemotron-3-ultra-free",
-  "nemotron-3.5-lightning-free",
-  "laguna-s-2.1-free",
 ]);
+
+/**
+ * Per-model wire protocol for OpenCode Zen. Zen multiplexes models with
+ * different OpenAI-compatible surfaces behind one base URL: most models speak
+ * `/chat/completions`, while `muse-spark` requires the Responses API
+ * (`/responses` with `input`/`max_output_tokens` and an
+ * `output_text`/`output` response). Routing must never guess the protocol
+ * from the provider alone.
+ */
+export const OPENCODE_MODEL_PROTOCOLS: Readonly<Record<string, ProviderProtocol>> = Object.freeze({
+  "muse-spark-1.3-contributor-free": "openai_responses",
+  "ling-3.0-flash-fin-free": "openai_chat",
+});
+
+/**
+ * Wire protocol for one OpenCode Zen model id. Unknown ids fall back to the
+ * Chat Completions surface so catalogue discovery stays forward-compatible
+ * with new Zen models.
+ */
+export function openCodeProtocolForModel(model: string): ProviderProtocol {
+  return OPENCODE_MODEL_PROTOCOLS[model] ?? "openai_chat";
+}
 
 /**
  * Provisional Ollama Cloud backup model. Ollama's catalogue separates cloud
@@ -52,7 +69,7 @@ function preferredCandidates(): readonly RouteCandidate[] {
   return OPENCODE_PREFERRED_MODELS.map((model) => ({
     provider: "opencode_zen" as const,
     model,
-    protocol: "openai_chat" as const,
+    protocol: openCodeProtocolForModel(model),
     tier: "catalog_candidate" as const,
   }));
 }

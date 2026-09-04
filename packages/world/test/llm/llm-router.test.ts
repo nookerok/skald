@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { LLM_CONFIG, OPENCODE_PREFERRED_MODELS, criticalRouteConfigIssues } from "../../src/llm/config.js";
+import { LLM_CONFIG, OPENCODE_PREFERRED_MODELS, criticalRouteConfigIssues, openCodeProtocolForModel } from "../../src/llm/config.js";
 import { ModelRouter } from "../../src/llm/router.js";
 import { ProviderUnavailableError } from "../../src/llm/errors.js";
 import type { ChatMessage, RouteCandidate } from "../../src/llm/types.js";
@@ -12,7 +12,7 @@ function candidate(provider: "opencode_zen" | "ollama_cloud", model: string, tie
   return {
     provider,
     model,
-    protocol: provider === "opencode_zen" ? "openai_chat" : "ollama_chat",
+    protocol: provider === "opencode_zen" ? openCodeProtocolForModel(model) : "ollama_chat",
     tier,
   };
 }
@@ -32,6 +32,10 @@ describe("ModelRouter", () => {
       expect(primary?.tier).toBe("catalog_candidate");
       expect(backup?.tier).toBe("catalog_candidate");
       expect(primary?.provider).toBe("opencode_zen");
+      expect(primary?.model).toBe("muse-spark-1.3-contributor-free");
+      expect(primary?.protocol).toBe("openai_responses");
+      expect(backup?.model).toBe("ling-3.0-flash-fin-free");
+      expect(backup?.protocol).toBe("openai_chat");
       expect(LLM_CONFIG.routes[category].models).toEqual(OPENCODE_PREFERRED_MODELS);
     }
   });
@@ -61,7 +65,7 @@ describe("ModelRouter", () => {
   it("decideModel selects first model when health is unknown", () => {
     const router = new ModelRouter({ apiKey: "test-key" });
     const decision = router.decideModel("narrate", msg("hello"));
-    expect(decision.selectedModel).toBe("big-pickle");
+    expect(decision.selectedModel).toBe("muse-spark-1.3-contributor-free");
     expect(decision.category).toBe("narrate");
     expect(decision.healthStatus).toBe("unknown");
   });
@@ -114,7 +118,10 @@ describe("ModelRouter", () => {
   it("skips a model-scoped 404 and uses the next same-provider backup", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: false, status: 404, text: async () => JSON.stringify({ error: { code: "model_not_found" } }) })
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: "backup" } }], model: "muse-spark-1.3-contributor-free" }) });
+      .mockImplementationOnce(async (input: string | URL | Request) => {
+        expect(String(input)).toBe("https://opencode.ai/zen/v1/responses");
+        return { ok: true, status: 200, json: async () => ({ output_text: "backup", model: "muse-spark-1.3-contributor-free" }) };
+      });
     vi.stubGlobal("fetch", fetchMock);
 
     try {
@@ -285,8 +292,8 @@ describe("ModelRouter", () => {
         const pue = err as ProviderUnavailableError;
         expect(pue.code).toBe("PROVIDER_UNAVAILABLE");
         expect(pue.provider).toBe("opencode_zen");
-        expect(pue.model).toBe("big-pickle");
-        expect(pue.configuredModel).toBe("big-pickle");
+        expect(pue.model).toBe("muse-spark-1.3-contributor-free");
+        expect(pue.configuredModel).toBe("muse-spark-1.3-contributor-free");
         expect(pue.cause).toBeInstanceOf(Error);
       }
     } finally {

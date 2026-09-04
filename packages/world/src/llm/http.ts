@@ -116,6 +116,61 @@ export async function readProviderErrorCode(
 }
 
 /**
+ * Convert chat messages to the Responses API `input` shape. The Responses
+ * endpoint accepts the same role/content pairs; only the envelope field name
+ * and token-limit field differ from Chat Completions.
+ */
+function toResponsesInput(messages: readonly ChatMessage[]): Array<{ role: string; content: string }> {
+  return messages.map((message) => ({ role: message.role, content: message.content }));
+}
+
+/**
+ * Extract assistant text from an OpenAI Responses payload. Prefers the
+ * aggregated `output_text` convenience field, then walks the `output` item
+ * list collecting `output_text` content parts. Returns an empty string when
+ * no text segment is present so the caller raises `response_shape`.
+ */
+function extractResponsesText(payload: {
+  readonly output_text?: unknown;
+  readonly output?: unknown;
+}): string {
+  if (typeof payload.output_text === "string" && payload.output_text.length > 0) return payload.output_text;
+  if (!Array.isArray(payload.output)) return typeof payload.output_text === "string" ? payload.output_text : "";
+  const segments: string[] = [];
+  for (const item of payload.output) {
+    if (item === null || typeof item !== "object") continue;
+    const content = (item as { content?: unknown }).content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part === null || typeof part !== "object") continue;
+      const typed = part as { type?: unknown; text?: unknown };
+      if (typed.type !== "output_text" || typeof typed.text !== "string") continue;
+      segments.push(typed.text);
+    }
+  }
+  return segments.join("");
+}
+
+/**
+ * Read token usage from either Chat Completions (`prompt_tokens`) or
+ * Responses (`input_tokens`) naming. Unknown shapes yield zeros.
+ */
+function extractTokenUsage(usage: unknown): { promptTokens: number; completionTokens: number; totalTokens: number } {
+  if (usage === null || typeof usage !== "object") return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const record = usage as Record<string, unknown>;
+  const promptTokens = typeof record.prompt_tokens === "number"
+    ? record.prompt_tokens
+    : typeof record.input_tokens === "number" ? record.input_tokens : 0;
+  const completionTokens = typeof record.completion_tokens === "number"
+    ? record.completion_tokens
+    : typeof record.output_tokens === "number" ? record.output_tokens : 0;
+  const totalTokens = typeof record.total_tokens === "number"
+    ? record.total_tokens
+    : promptTokens + completionTokens;
+  return { promptTokens, completionTokens, totalTokens };
+}
+
+/**
  * One provider round-trip. Every failure leaves as a `ProviderRequestError`
  * carrying its phase; raw bodies, status text and keys are never propagated.
  */
@@ -142,10 +197,16 @@ export async function chatOnce(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const url = protocol === "ollama_chat" ? `${baseUrl}/api/chat` : `${baseUrl}/chat/completions`;
+    const url = protocol === "ollama_chat"
+      ? `${baseUrl}/api/chat`
+      : protocol === "openai_responses"
+        ? `${baseUrl}/responses`
+        : `${baseUrl}/chat/completions`;
     const body = protocol === "ollama_chat"
       ? { model, messages: messages as unknown as Array<{ role: string; content: string }>, stream: false, options: { num_predict: opts.maxTokens ?? 600 } }
-      : { model, messages: messages as unknown as Array<{ role: string; content: string }>, max_tokens: opts.maxTokens ?? 600 };
+      : protocol === "openai_responses"
+        ? { model, input: toResponsesInput(messages), max_output_tokens: opts.maxTokens ?? 600 }
+        : { model, messages: messages as unknown as Array<{ role: string; content: string }>, max_tokens: opts.maxTokens ?? 600 };
 
     let response: Response;
     try {
@@ -205,6 +266,23 @@ export async function chatOnce(
       };
     }
 
+    if (protocol === "openai_responses") {
+      const payload = (json ?? {}) as {
+        output_text?: unknown;
+        output?: unknown;
+        model?: unknown;
+        usage?: unknown;
+      };
+      const text = extractResponsesText(payload);
+      if (!text) throw new ProviderRequestError({ provider, model, category, phase: "response_shape", reason: "empty response" });
+      return {
+        text,
+        responseModel: typeof payload.model === "string" ? payload.model : model,
+        latencyMs,
+        usage: extractTokenUsage(payload.usage),
+      };
+    }
+
     const payload = json as {
       choices?: Array<{ message?: { content?: unknown } }>;
       model?: string;
@@ -216,11 +294,7 @@ export async function chatOnce(
       text,
       responseModel: payload?.model ?? model,
       latencyMs,
-      usage: {
-        promptTokens: payload?.usage?.prompt_tokens ?? 0,
-        completionTokens: payload?.usage?.completion_tokens ?? 0,
-        totalTokens: payload?.usage?.total_tokens ?? 0,
-      },
+      usage: extractTokenUsage(payload?.usage),
     };
   } finally {
     clearTimeout(timer);

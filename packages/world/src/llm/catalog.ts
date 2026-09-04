@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { OPENCODE_PREFERRED_MODELS } from "./config.js";
+import { OPENCODE_PREFERRED_MODELS, openCodeProtocolForModel } from "./config.js";
 import { chatOnce, readProviderErrorCode } from "./http.js";
 import { isProviderScopedFailure, toProviderFailure } from "./errors.js";
-import type { ChatMessage, ProviderPhase, RouteCandidate } from "./types.js";
+import type { ChatMessage, ProviderPhase, ProviderProtocol, RouteCandidate } from "./types.js";
 
 const OPENCODE_ZEN_BASE_URL = "https://opencode.ai/zen/v1";
 const CATALOG_TIMEOUT_MS = 10_000;
@@ -185,10 +185,11 @@ function probeText(category: "interpret" | "narrate", text: string): CandidatePr
 }
 
 async function probeOpenCodeModel(category: "interpret" | "narrate", model: string, options: { apiKey: string; baseUrl: string; timeoutMs: number; fetchImpl?: typeof fetch }): Promise<CandidateProbeResult> {
+  const protocol: ProviderProtocol = openCodeProtocolForModel(model);
   try {
     const result = await chatOnce(options.baseUrl, options.apiKey, model, category === "interpret" ? INTERPRET_MESSAGES : NARRATE_MESSAGES, {
       provider: "opencode_zen",
-      protocol: "openai_chat",
+      protocol,
       category,
       maxTokens: category === "interpret" ? 64 : 16,
       timeoutMs: options.timeoutMs,
@@ -221,7 +222,7 @@ function routeForModels(models: readonly string[]): readonly RouteCandidate[] {
   return Object.freeze(models.map((model, index) => ({
     provider: "opencode_zen" as const,
     model,
-    protocol: "openai_chat" as const,
+    protocol: openCodeProtocolForModel(model),
     tier: (index === 0 ? "live_primary" : index === 1 ? "live_backup" : "live_fallback") as RouteCandidate["tier"],
   })));
 }

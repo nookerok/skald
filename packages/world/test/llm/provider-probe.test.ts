@@ -31,8 +31,8 @@ describe("no-world AI readiness probe", () => {
 
   it("reports degraded when a paid primary fails but backup passes", async () => {
     const router = fakeRouter({
-      "interpret:big-pickle": new Error("HTTP 503 (secret response body must not leak)"),
-      "narrate:big-pickle": new Error("HTTP 503 (secret response body must not leak)"),
+      "interpret:muse-spark-1.3-contributor-free": new Error("HTTP 503 (secret response body must not leak)"),
+      "narrate:muse-spark-1.3-contributor-free": new Error("HTTP 503 (secret response body must not leak)"),
     });
     const report = await probeAIReadiness(router);
     expect(report.status).toBe("degraded");
@@ -52,11 +52,11 @@ describe("no-world AI readiness probe", () => {
   });
 
   it("classifies malformed interpret JSON without exposing response text", async () => {
-    const router = fakeRouter({ "interpret:big-pickle": "not-json" });
+    const router = fakeRouter({ "interpret:muse-spark-1.3-contributor-free": "not-json" });
     const diagnostics: unknown[] = [];
     const report = await probeAIReadiness(router, { diagnostics: (event) => diagnostics.push(event) });
     expect(report.routes.interpret[0]).toMatchObject({ status: "failed", phase: "response_decode" });
-    expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "probe", model: "big-pickle", phase: "response_decode" })]));
+    expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "probe", model: "muse-spark-1.3-contributor-free", phase: "response_decode" })]));
   });
 
   it("fails closed when a provider returns a different model id", async () => {
