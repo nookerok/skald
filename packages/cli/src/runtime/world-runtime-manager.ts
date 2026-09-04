@@ -17,6 +17,9 @@ import { rollPendingCheck } from "../dice-roller.js";
 import type { NarrationDiagnosticEvent, NarrationDiagnosticSink } from "@skald/world";
 import { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 import { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
+import { AIReadinessService } from "./ai-readiness.js";
+import { createRouterConfiguration, type RouterConfiguration } from "./router-factory.js";
+import type { AIReadinessReport } from "@skald/world";
 
 export interface WorldRuntime {
   worldId: WorldId;
@@ -33,23 +36,19 @@ export interface WorldRuntime {
   diagnostics: NarrationDiagnosticSink;
 }
 
-function createRouter(): ModelRouter | null {
-  const zenKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
-  const ollamaKey = process.env["SKALD_OLLAMA_CLOUD_API_KEY"] ?? "";
-  if (!zenKey && !ollamaKey) return null;
-  return new ModelRouter({ apiKey: zenKey || ollamaKey, providerId: zenKey ? "opencode_zen" : "ollama_cloud", availableProviders: [zenKey ? "opencode_zen" : null, ollamaKey ? "ollama_cloud" : null].filter((provider): provider is "opencode_zen" | "ollama_cloud" => provider !== null), healthCachePath: "packages/cli/llm-health.json" });
-}
-
 export class WorldRuntimeManager {
   private runtimes = new Map<WorldId, WorldRuntime>();
   private initializing = new Map<WorldId, Promise<WorldRuntime>>();
   private readonly diagnosticLog = new NarrationDiagnosticLog();
   private readonly diagnosticSink: NarrationDiagnosticSink;
+  private readonly sharedRouter: ModelRouter | null;
+  private readonly readiness: AIReadinessService;
 
   constructor(
     private readonly store: MultiWorldStore,
-    private readonly configuredRouter?: ModelRouter | null,
+    configuredRouter?: ModelRouter | null,
     diagnostics?: NarrationDiagnosticSink,
+    routerConfiguration?: RouterConfiguration | null,
   ) {
     const externalSink = diagnostics ?? createProductionDiagnosticSink();
     this.diagnosticSink = (event) => {
@@ -60,11 +59,28 @@ export class WorldRuntimeManager {
         // Best-effort: external sink errors must not affect narration.
       }
     };
+    const resolvedConfiguration = routerConfiguration ?? (configuredRouter === undefined ? createRouterConfiguration() : null);
+    this.sharedRouter = configuredRouter === undefined ? resolvedConfiguration!.router : configuredRouter;
+    this.readiness = new AIReadinessService(this.sharedRouter, {
+      ...(resolvedConfiguration ? { configFingerprint: resolvedConfiguration.configFingerprint } : {}),
+      ...(resolvedConfiguration?.selectionReport ? { selectionReport: resolvedConfiguration.selectionReport } : {}),
+      diagnostics: this.diagnosticSink,
+    });
   }
 
   /** Read-only operational diagnostics for trusted diagnostics surfaces/tests. */
   narrationDiagnostics(): readonly NarrationDiagnosticEvent[] {
     return this.diagnosticLog.snapshot();
+  }
+
+  /** Execute the cached/serialized no-world AI readiness probe. */
+  aiReadiness(): Promise<AIReadinessReport> {
+    return this.readiness.probe();
+  }
+
+  /** Return the most recent probe without invoking a provider. */
+  cachedAIReadiness(): AIReadinessReport | null {
+    return this.readiness.cached();
   }
 
   async get(worldId: WorldId): Promise<WorldRuntime> {
@@ -139,7 +155,7 @@ export class WorldRuntimeManager {
     const engine = new RuleEngine(registry, projection, bus, committer, onSubErr);
     // Tests and acceptance harnesses may inject a deterministic, non-network
     // narration adapter. Production keeps the environment-backed router.
-    const router = this.configuredRouter === undefined ? createRouter() : this.configuredRouter;
+    const router = this.sharedRouter;
     const queue = new WorldCommandQueue();
 
     const runtime: WorldRuntime = {

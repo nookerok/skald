@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { interpretPlayerInput } from "../src/runtime/intent-gateway.js";
+import { ProviderRequestError } from "@skald/world";
 
 function routerReturning(text: string) {
   return { chat: vi.fn().mockResolvedValue({ text }) } as any;
@@ -45,6 +46,74 @@ describe("intent gateway", () => {
     const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
     const timedOut = await interpretPlayerInput("сделать нечто странное", slow, { timeoutMs: 5 });
     expect(timedOut.status).toBe("clarification");
+  });
+
+  it("materializes safe diagnostics for transport, parse and schema outcomes", async () => {
+    const events: any[] = [];
+    const invalid = await interpretPlayerInput("идти к башне и наблюдать за огнями", routerReturning("not json"), {
+      diagnostics: (event) => events.push(event),
+      correlationId: "intent-test-1",
+      worldTime: 7,
+      timeoutMs: 100,
+    });
+    expect(invalid.status).toBe("clarification");
+    expect(events.map((event) => event.category)).toEqual(expect.arrayContaining([
+      "intent_proposal_request",
+      "intent_json_parse",
+      "clarification_fallback",
+    ]));
+    expect(events.every((event) => event.correlationId === "intent-test-1" && event.worldTime === 7)).toBe(true);
+
+    events.length = 0;
+    const schemaRejected = await interpretPlayerInput(
+      "идти к башне и наблюдать за огнями",
+      routerReturning(JSON.stringify({ schemaVersion: 1, primary: { kind: "unknown" } })),
+      { diagnostics: (event) => events.push(event) },
+    );
+    expect(["clarification", "unavailable"]).toContain(schemaRejected.status);
+    expect(events.map((event) => event.category)).toContain("intent_schema_validation");
+    expect(JSON.stringify(events)).not.toMatch(/идти к башне и наблюдать за огнями|prompt|response|secret/i);
+  });
+
+  it("records timeout without exposing player input", async () => {
+    const events: any[] = [];
+    const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
+    const result = await interpretPlayerInput("идти к башне и наблюдать за огнями", slow, {
+      diagnostics: (event) => events.push(event),
+      timeoutMs: 5,
+    });
+
+    expect(result.status).toBe("clarification");
+    expect(events.map((event) => event.category)).toContain("intent_timeout");
+    expect(JSON.stringify(events)).not.toContain("идти к башне и наблюдать за огнями");
+  });
+
+  it("keeps typed provider metadata in operational diagnostics", async () => {
+    const events: any[] = [];
+    const router = {
+      chat: vi.fn().mockRejectedValue(new ProviderRequestError({
+        provider: "opencode_zen",
+        model: "deepseek-v4-flash",
+        category: "interpret",
+        phase: "response_status",
+        httpStatus: 503,
+        providerCode: "temporary_outage",
+      })),
+    } as any;
+    await interpretPlayerInput("идти к башне и наблюдать за огнями", router, {
+      diagnostics: (event) => events.push(event),
+      correlationId: "intent-provider-1",
+    });
+
+    const providerEvent = events.find((event) => event.category === "intent_proposal_request");
+    expect(providerEvent).toMatchObject({
+      provider: "opencode_zen",
+      model: "deepseek-v4-flash",
+      phase: "response_status",
+      httpStatus: 503,
+      providerCode: "temporary_outage",
+    });
+    expect(JSON.stringify(providerEvent)).not.toContain("идти к башне");
   });
 
   it("rejects an LLM destination copied from a negated lead clause", async () => {

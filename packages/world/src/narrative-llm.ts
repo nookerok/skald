@@ -2,6 +2,7 @@ import type { NarrativeSnapshot, NarrativeEntry } from "./narrative.js";
 import type { EpistemicClass, EpistemicNarrativeFact, TurnPresentation } from "./presentation/types.js";
 import { sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 import { ModelRouter } from "./llm/router.js";
+import { toProviderFailure } from "./llm/errors.js";
 import type { ChatMessage, ChatResult } from "./llm/types.js";
 import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, NarrationOutcome, RetryOutcome } from "./narration-diagnostics.js";
 import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
@@ -406,6 +407,17 @@ function diagnosticField(error: unknown, field: "model" | "configuredModel"): st
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function diagnosticProviderFailure(router: ModelRouter, error: unknown): ReturnType<typeof toProviderFailure> {
+  const context = { provider: router.providerId, category: "narrate" as const };
+  const direct = toProviderFailure(error, context);
+  if (direct) return direct;
+  if (error && typeof error === "object") {
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause) return toProviderFailure(cause, context);
+  }
+  return null;
+}
+
 /**
  * §6 Authority Hierarchy: этот адаптер — самый нижний уровень иерархии.
  * Он НЕ имеет доступа к EventBus, Projection (кроме read-only snapshot'а на входе),
@@ -419,7 +431,9 @@ export async function narrateLLM(
   opts?: NarrationOptions,
 ): Promise<NarrativeLLMResult> {
   const sink = opts?.diagnostics;
-  const maxAttempts = 1 + retryCount(opts?.maxRetries);
+  const maxAttempts = router && (router as { managesRetries?: boolean }).managesRetries
+    ? 1
+    : 1 + retryCount(opts?.maxRetries);
   const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
   const priority = opts?.priority ?? "interactive";
 
@@ -501,7 +515,13 @@ export async function narrateLLM(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const start = performance.now();
     try {
-      const result: ChatResult = await router.chat("narrate", messages);
+      const result: ChatResult = await router.chat("narrate", messages, {
+        ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+        ...(sink ? { diagnostics: sink } : {}),
+        ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
+        worldTime: snapshot.worldTime,
+        priority,
+      });
       const durationMs = Math.round(performance.now() - start);
       const guard = verifyEpistemicNarration(result.text, guardFacts, {
         requireClaims: true,
@@ -569,6 +589,7 @@ export async function narrateLLM(
     } catch (err) {
       const durationMs = Math.round(performance.now() - start);
       lastCategory = classifyNarrationError(err, null);
+      const failure = diagnosticProviderFailure(router, err);
 
       const isTransient = isTransientNarrationError(lastCategory);
       const isLastAttempt = attempt >= maxAttempts;
@@ -594,6 +615,10 @@ export async function narrateLLM(
         correlationId: opts?.correlationId,
         model: diagnosticField(err, "model"),
         configuredModel: diagnosticField(err, "configuredModel"),
+        ...(failure?.phase ? { phase: failure.phase } : {}),
+        ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
+        ...(failure?.providerCode ? { providerCode: failure.providerCode } : {}),
+        timeoutMs: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
       });
 
       if (!isTransient || isLastAttempt) {
@@ -661,7 +686,9 @@ export async function narrateTurnLLM(
   opts?: NarrationOptions,
 ): Promise<TurnNarration> {
   const sink = opts?.diagnostics;
-  const maxAttempts = 1 + retryCount(opts?.maxRetries);
+  const maxAttempts = router && (router as { managesRetries?: boolean }).managesRetries
+    ? 1
+    : 1 + retryCount(opts?.maxRetries);
   const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
   const priority = opts?.priority ?? "interactive";
 
@@ -722,7 +749,13 @@ export async function narrateTurnLLM(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const start = performance.now();
     try {
-      const result: ChatResult = await router.chat("narrate", messages);
+      const result: ChatResult = await router.chat("narrate", messages, {
+        ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+        ...(sink ? { diagnostics: sink } : {}),
+        ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
+        worldTime: presentation.worldTime,
+        priority,
+      });
       const durationMs = Math.round(performance.now() - start);
       const guard = verifyEpistemicNarration(result.text, guardFacts, {
         requireClaims: true,
@@ -784,6 +817,7 @@ export async function narrateTurnLLM(
     } catch (err) {
       const durationMs = Math.round(performance.now() - start);
       lastCategory = classifyNarrationError(err, null);
+      const failure = diagnosticProviderFailure(router, err);
 
       const isTransient = isTransientNarrationError(lastCategory);
       const isLastAttempt = attempt >= maxAttempts;
@@ -809,6 +843,10 @@ export async function narrateTurnLLM(
         correlationId: opts?.correlationId,
         model: diagnosticField(err, "model"),
         configuredModel: diagnosticField(err, "configuredModel"),
+        ...(failure?.phase ? { phase: failure.phase } : {}),
+        ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
+        ...(failure?.providerCode ? { providerCode: failure.providerCode } : {}),
+        timeoutMs: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
       });
 
       if (!isTransient || isLastAttempt) {

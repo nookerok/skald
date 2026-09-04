@@ -5,7 +5,7 @@ const host = process.env["SKALD_HOST"] ?? "127.0.0.1";
 const port = parseInt(process.env["SKALD_PORT"] ?? "3000", 10);
 const dbPath = process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
 
-const server = await startServer({ host, port, dbPath });
+const server = await startServer({ host, port, dbPath, discoverAI: true });
 
 process.stdout.write(`Skald server started\n`);
 process.stdout.write(`  Host: ${server.url}\n`);

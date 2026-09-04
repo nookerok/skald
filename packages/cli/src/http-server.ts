@@ -4,6 +4,7 @@ import { resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMultiWorldStore, type MultiWorldStore } from "./persistence/index.js";
 import { WorldRuntimeManager } from "./runtime/index.js";
+import { createLiveRouterConfiguration } from "./runtime/router-factory.js";
 import { readJsonBody } from "./http-body.js";
 import {
   handleWorlds,
@@ -109,6 +110,14 @@ function validateWorldId(id: string): boolean {
   return WORLD_ID_RE.test(id);
 }
 
+export function isLoopbackRequest(req: IncomingMessage): boolean {
+  const address = req.socket.remoteAddress?.toLowerCase() ?? "";
+  return address === "127.0.0.1"
+    || address === "::1"
+    || address === "::ffff:127.0.0.1"
+    || address === "0:0:0:0:0:ffff:7f00:1";
+}
+
 type PoisonResponse = {
   readonly writableFinished?: boolean;
   readonly destroyed?: boolean;
@@ -150,10 +159,16 @@ export async function startServer(options?: {
   allowLegacyWorldCreation?: boolean;
   /** Optional trusted sink for structured narration diagnostics. */
   diagnostics?: NarrationDiagnosticSink;
+  /** Run live Zen catalogue discovery before accepting production requests. */
+  discoverAI?: boolean;
 }): Promise<StartedServer> {
   const dbPath = options?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
   const store = createMultiWorldStore(dbPath);
-  const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics);
+  const discoverAI = options?.discoverAI ?? (process.env.SKALD_AI_REQUIRED === "1" && process.env.NODE_ENV !== "test");
+  const routerConfiguration = options?.router === undefined && discoverAI
+    ? await createLiveRouterConfiguration()
+    : null;
+  const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics, routerConfiguration);
   const serverApp: ServerApp = { store, runtimes };
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
   const allowLegacyWorldCreation = options?.allowLegacyWorldCreation ?? process.env.NODE_ENV === "test";
@@ -213,6 +228,36 @@ export async function startServer(options?: {
       if (method === "GET" && url.pathname === "/api/health") {
         const poisoned = runtimes.isAnyPoisoned();
         handle(poisoned ? 503 : 200, { status: poisoned ? "poisoned" : "ok", uptimeSeconds: Math.floor(process.uptime()), persistence: "sqlite", multiWorld: true });
+        return;
+      }
+
+      // Operational AI readiness is deliberately loopback-only and separate
+      // from simulation liveness. It has no world route or player input.
+      if (url.pathname === "/api/ops/ai-probe") {
+        if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
+        if (method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
+        let body: unknown = undefined;
+        const contentLength = Number(req.headers["content-length"] ?? 0);
+        const transferEncoding = req.headers["transfer-encoding"];
+        const hasChunkedBody = typeof transferEncoding === "string" && transferEncoding.length > 0;
+        if (contentLength > 0 || hasChunkedBody) {
+          if (parseContentType(req.headers["content-type"]) !== "application/json") {
+            errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return;
+          }
+          try { body = await readJsonBody(req); } catch { errHandle(400, "invalid_request", "invalid body"); return; }
+        }
+        if (body !== undefined && (!body || typeof body !== "object" || Object.keys(body as object).length > 0)) {
+          errHandle(400, "invalid_request", "AI probe does not accept input"); return;
+        }
+        const report = await runtimes.aiReadiness();
+        handle(report.status === "ready" ? 200 : 503, { ok: report.status === "ready", readiness: report });
+        return;
+      }
+      if (url.pathname === "/api/ops/ai-readiness") {
+        if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
+        if (method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
+        const report = runtimes.cachedAIReadiness();
+        handle(report?.status === "ready" ? 200 : 503, { ok: report?.status === "ready", readiness: report });
         return;
       }
 

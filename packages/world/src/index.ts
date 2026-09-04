@@ -104,14 +104,71 @@ export type {
   NarrationContextDiagnosticEvent,
   NarrationDiagnosticEvent,
   NarrationDiagnosticSink,
+  AIDiagnosticEvent,
+  AIDiagnosticSink,
   NarrationOptions,
 } from "./narration-diagnostics.js";
 export { ModelRouter } from "./llm/router.js";
-export { chatOnce, shouldFallback } from "./llm/http.js";
+export type { ChatCandidateOptions, ChatOptions, ModelRouterOptions } from "./llm/router.js";
+export {
+  chatOnce,
+  readProviderErrorCode,
+  shouldFallback,
+  shouldRetrySameCandidate,
+  shouldTryNextCandidate,
+} from "./llm/http.js";
+export type { ChatOnceOptions, HttpResult } from "./llm/http.js";
+export {
+  discoverOpenCodeRoutes,
+  fetchOpenCodeCatalog,
+  liveModelSelectionFingerprint,
+} from "./llm/catalog.js";
+export type {
+  CandidateProbeResult,
+  CandidateProbeStatus,
+  CatalogPhase,
+  LiveModelSelectionOptions,
+  LiveModelSelectionReport,
+  ModelCandidateReport,
+  ModelExclusionReason,
+  OpenCodeCatalogOptions,
+  OpenCodeCatalogReport,
+  OpenCodeCatalogStatus,
+} from "./llm/catalog.js";
 export { classifyPayload, scanForSecrets, enforceDataPolicy } from "./llm/data-policy.js";
 export { loadHealth, saveHealth, checkModel, classifyModelError } from "./llm/health.js";
-export { LLM_CONFIG } from "./llm/config.js";
-export { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE } from "./llm/errors.js";
+export {
+  LLM_CONFIG,
+  OPENCODE_PREFERRED_MODELS,
+  OLLAMA_CLOUD_BACKUP_MODEL,
+  candidateForModel,
+  configuredProviders,
+  criticalRouteConfigIssues,
+  llmConfigFingerprint,
+  protocolForModel,
+  providerForModel,
+  providersWithKeys,
+  routeCandidates,
+} from "./llm/config.js";
+export type { LLMConfig, PolicyConf, ProviderConf } from "./llm/config.js";
+export {
+  PROVIDER_REQUEST_FAILED_CODE,
+  PROVIDER_SCOPED_HTTP_STATUSES,
+  PROVIDER_UNAVAILABLE_CODE,
+  ProviderRequestError,
+  ProviderUnavailableError,
+  TRANSIENT_HTTP_STATUSES,
+  formatProviderErrorMessage,
+  isProviderScopedFailure,
+  isModelScopedFailure,
+  isRetryableProviderFailure,
+  sanitizeProviderCode,
+  MODEL_SCOPED_PROVIDER_CODES,
+  toProviderFailure,
+} from "./llm/errors.js";
+export type { ProviderFailureContext, ProviderRequestErrorOptions } from "./llm/errors.js";
+export { probeAIReadiness } from "./llm/provider-probe.js";
+export type { AIReadinessReport, AIProbeRoute, RouteProbeResult, RouteProbeStatus } from "./llm/provider-probe.js";
 export type * from "./llm/types.js";
 
 // Iteration 15 — Objects & Locations

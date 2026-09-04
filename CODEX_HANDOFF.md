@@ -1,3 +1,41 @@
+# Current work (2026-09-03 — plan_5 AI liveness/readiness/deployment contract)
+
+- Simulation liveness remains separate from AI readiness: `/api/health` does
+  not call providers; loopback `POST /api/ops/ai-probe` runs a cached,
+  serialized no-world probe and returns HTTP 200 only for `ready`.
+- LLM routes now use an ordered OpenCode Zen preference list. Production
+  startup fetches the live model catalogue and probes every preferred model for
+  both interpret and narrate; only probe-valid catalogue entries are routed.
+  The readiness report names active/backup models and sanitized exclusion
+  reasons. Transport failures are typed and sanitized; retry and failover
+  policies are distinct and bounded by one overall request budget.
+- One provider factory captures provider-scoped keys for gameplay, Intent,
+  Narration and readiness. Intent and provider diagnostics are structured and
+  remain outside player-facing DTOs and transcripts.
+- Deployment scripts require the readiness probe before printing success;
+  `SKALD_AI_REQUIRED=1` additionally requires a Zen credential and two live
+  probe-valid models. Ollama remains an optional compatibility provider and is
+  not used as a static Zen fallback.
+- The local deployment preflight now checks HTTP liveness independently from
+  the canonical SSH identity in five sessions. HTTP 200 with a wrong user,
+  host, repository, data path or inactive service is the blocked state
+  `HTTP_ALIVE_SSH_IDENTITY_MISMATCH`; no alternate target is substituted.
+- Repository gate: PASS (`npm run validate`, Node v22.23.1; typecheck,
+  full Vitest suite, Canon validation and diff checks). Live provider probe on
+  Orange Pi `orangepi4-lts` (remote commit `8cb2380f393f9b86c0c753f5e4789889b0930033`)
+  ran directly because the deployed service still returns 404 for
+  `/api/ops/ai-probe`: the previous deployed build's static OpenCode Zen model
+  failed HTTP 401 on both `interpret` and `narrate`, while Ollama Cloud
+  `gemma4:31b-cloud`
+  passed HTTP 200 on both. Readiness is therefore degraded (2/4), and Orange
+  Pi production acceptance remains failed/unverified: both provider key
+  entries are non-empty, but the Zen credential is rejected and the remote env
+  does not set `SKALD_AI_REQUIRED=1`; the plan_5 probe endpoint is also not yet
+  deployed. After the credential file was updated and `skald.service` was
+  restarted, the same four direct checks remained unchanged: Zen HTTP 401 on
+  both routes, Ollama HTTP 200 on both; service and simulation health stayed
+  active/ok.
+
 # Current work (2026-09-01 — review hardening: public shell boundary and route UX)
 
 - Game Shell and shell-delta HTTP responses now pass through a dedicated
@@ -414,7 +452,8 @@ Mutable milestone note. Git, tests and current source outrank this file.
     yields prose within budget. Verified LIVE 2026-08-08 on Жора
     (world-msjeemf2-1-44xf6oisyo2): `look around` → HTTP 200 in ~12s,
     journal `narrativeLLM` with `usedFallback:false`, model
-    `deepseek-v4-flash-free`, latency ~12s; DB row `used_fallback=0`.
+    the then-configured static emergency model, latency ~12s; DB row
+    `used_fallback=0`.
     Fallback narrations are correctly never surfaced in the journal.
   - P2 fix (uncommitted): `wait` and `advance N` bypassed the new narration
     (both branches early-returned before narrateTurnLLM). Now narration is

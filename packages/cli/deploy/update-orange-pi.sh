@@ -5,6 +5,7 @@ SKALD_CODE="/home/nooker/skald"
 SKALD_DATA="/home/nooker/skald-data"
 BACKUP_DIR="${SKALD_DATA}/backups"
 DB="${SKALD_DATA}/events.sqlite"
+AI_PROBE_URL="http://127.0.0.1:3000/api/ops/ai-probe"
 NODE_BINARY="/home/nooker/.nvm/versions/node/v22.23.1/bin/node"
 NODE_BIN_DIR="$(dirname "${NODE_BINARY}")"
 
@@ -70,6 +71,8 @@ if ! git pull --ff-only origin "${PREV_BRANCH}"; then
   echo "Rollback: git reset --hard ${PREV_COMMIT} && npm ci && sudo systemctl restart skald.service"
   exit 1
 fi
+CURRENT_COMMIT=$(git rev-parse HEAD)
+echo "Current commit: ${CURRENT_COMMIT}"
 
 # 7. Fix Node runtime to match systemd unit
 if [ ! -x "${NODE_BINARY}" ]; then
@@ -109,15 +112,44 @@ echo "Waiting for health check..."
 for i in $(seq 1 60); do
   if curl --fail --silent --max-time 2 http://127.0.0.1:3000/api/health > /dev/null 2>&1; then
     echo "[OK] Server is healthy."
-    echo "Update complete."
-    exit 0
+    break
   fi
   sleep 1
 done
 
-echo "ERROR: Server did not become healthy within 60 seconds."
-echo "Previous commit: ${PREV_COMMIT}"
-echo "Rollback: git reset --hard ${PREV_COMMIT} && npm ci && sudo systemctl restart skald.service"
-echo ""
-journalctl -u skald.service -n 100 --no-pager
-exit 1
+if ! curl --fail --silent --max-time 2 http://127.0.0.1:3000/api/health > /dev/null 2>&1; then
+  echo "ERROR: Server did not become healthy within 60 seconds."
+  echo "Previous commit: ${PREV_COMMIT}"
+  echo "Current commit: ${CURRENT_COMMIT}"
+  echo "Rollback: git reset --hard ${PREV_COMMIT} && npm ci && sudo systemctl restart skald.service"
+  echo ""
+  journalctl -u skald.service -n 100 --no-pager
+  exit 1
+fi
+
+# 11. Deployment acceptance: liveness is necessary but not sufficient.
+echo "Checking AI readiness (loopback probe)..."
+AI_RESPONSE=$(curl --silent --show-error --max-time 30 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' "${AI_PROBE_URL}" 2>&1 || true)
+AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
+AI_BODY="${AI_RESPONSE%$'\n'*}"
+if [ "${AI_HTTP_STATUS}" != "200" ]; then
+  echo "[OK] Simulation is healthy"
+  echo "[ERROR] AI readiness failed"
+  echo "Deployment acceptance: FAILED"
+  echo "Previous commit: ${PREV_COMMIT}"
+  echo "Current commit: ${CURRENT_COMMIT}"
+  echo "Sanitized readiness report: ${AI_BODY}"
+  echo "Rollback guidance: inspect model/configuration and restore ${PREV_COMMIT} only if the deployed code is incompatible."
+  exit 1
+fi
+echo "[OK] AI readiness is ready."
+
+# The fast-forward must still point at the commit that was validated.
+if [ "$(git rev-parse HEAD)" != "${CURRENT_COMMIT}" ]; then
+  echo "ERROR: commit changed during deployment."
+  echo "Previous commit: ${PREV_COMMIT}"
+  echo "Current commit: ${CURRENT_COMMIT}"
+  exit 1
+fi
+echo "Update complete."
+exit 0

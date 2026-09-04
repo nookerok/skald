@@ -19,6 +19,7 @@ import { createMultiWorldStore, LEGACY_WORLD_ID, type WorldId } from "./persiste
 import { rollCriticalCheck, rollPendingCheck } from "./dice-roller.js";
 import { buildActionConversationTurn } from "./conversation/builder.js";
 import { createProductionDiagnosticSink } from "./runtime/narration-diagnostic-prod-sink.js";
+import { createRouter } from "./runtime/router-factory.js";
 
 export type { IntentResult } from "@skald/intent-parser";
 export interface IdempotencyReject {
@@ -37,13 +38,6 @@ export interface App {
   store: ReturnType<typeof createMultiWorldStore> | null;
   worldId: WorldId;
   diagnostics?: NarrationDiagnosticSink;
-}
-
-function createRouter(): ModelRouter | null {
-  const zenKey = process.env["SKALD_OPENCODE_ZEN_API_KEY"] ?? "";
-  const ollamaKey = process.env["SKALD_OLLAMA_CLOUD_API_KEY"] ?? "";
-  if (!zenKey && !ollamaKey) return null;
-  return new ModelRouter({ apiKey: zenKey || ollamaKey, providerId: zenKey ? "opencode_zen" : "ollama_cloud", availableProviders: [zenKey ? "opencode_zen" : null, ollamaKey ? "ollama_cloud" : null].filter((provider): provider is "opencode_zen" | "ollama_cloud" => provider !== null), healthCachePath: "packages/cli/llm-health.json" });
 }
 
 export function createApp(): App {

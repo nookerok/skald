@@ -2,8 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { createPoisonExitScheduler, startServer } from "../src/http-server.js";
+import { createPoisonExitScheduler, isLoopbackRequest, startServer } from "../src/http-server.js";
 import { EventEmitter } from "node:events";
+import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
+import { LLM_CONFIG } from "@skald/world";
 
 let server: Awaited<ReturnType<typeof startServer>> | null = null;
 const dbDir = mkdtempSync(join(tmpdir(), "skald-server-test-"));
@@ -264,6 +266,79 @@ describe("HTTP Server", () => {
     expect(status).toBe(200);
     expect(body.status).toBe("ok");
     expect(body.persistence).toBe("sqlite");
+  });
+
+  it("keeps simulation health independent from the loopback AI probe", async () => {
+    const before = await api("/api/health");
+    const probe = await api("/api/ops/ai-probe", { method: "POST", body: "{}" });
+    expect(probe.status).toBe(503);
+    expect(probe.body.ok).toBe(false);
+    expect(probe.body.readiness.status).toBe("misconfigured");
+    expect(JSON.stringify(probe.body)).not.toMatch(/prompt|response|key|worldId|eventId/i);
+    const cached = await api("/api/ops/ai-readiness");
+    expect(cached.status).toBe(503);
+    expect(cached.body.readiness.status).toBe("misconfigured");
+    const after = await api("/api/health");
+    expect(after.status).toBe(before.status);
+    expect(after.body.status).toBe("ok");
+  });
+
+  it("keeps the no-world probe read-only and accepts only loopback", async () => {
+    const probeDbPath = join(dbDir, "ai-probe.sqlite");
+    const probeRouter = {
+      hasProviderKey: () => true,
+      configFingerprint: () => "probe-config",
+      routeCandidates: (category: "interpret" | "narrate") => LLM_CONFIG.routes[category].candidates.slice(0, 2),
+      chatCandidate: vi.fn(async (category: "interpret" | "narrate", candidate: { model: string }) => ({
+        text: category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
+        responseModel: candidate.model,
+      })),
+    };
+    const probeServer = await startServer({ host: "127.0.0.1", port: 0, dbPath: probeDbPath, router: probeRouter as any });
+    try {
+      const worldId = LEGACY_WORLD_ID;
+      const runtime = await probeServer.app.runtimes.get(worldId);
+      const before = {
+        eventLogLength: probeServer.app.store.loadEvents(worldId).length,
+        eventNumber: runtime.projection.getSnapshot().eventNumber,
+        worldTime: runtime.projection.getSnapshot().time,
+        conversationTurns: probeServer.app.store.listConversationTurns(worldId).length,
+        turnNarrations: probeServer.app.store.getTurnNarrations(worldId).size,
+      };
+
+      const response = await fetch(`${probeServer.url}/api/ops/ai-probe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      expect(response.status).toBe(200);
+      expect((await response.json() as any).readiness.status).toBe("ready");
+      expect(probeRouter.chatCandidate).toHaveBeenCalledTimes(4);
+
+      const after = {
+        eventLogLength: probeServer.app.store.loadEvents(worldId).length,
+        eventNumber: runtime.projection.getSnapshot().eventNumber,
+        worldTime: runtime.projection.getSnapshot().time,
+        conversationTurns: probeServer.app.store.listConversationTurns(worldId).length,
+        turnNarrations: probeServer.app.store.getTurnNarrations(worldId).size,
+      };
+      expect(after).toEqual(before);
+
+      const cached = await fetch(`${probeServer.url}/api/ops/ai-readiness`);
+      expect(cached.status).toBe(200);
+      expect(probeRouter.chatCandidate).toHaveBeenCalledTimes(4);
+    } finally {
+      await probeServer.close();
+    }
+  });
+
+  it("recognizes loopback forms and rejects LAN addresses", () => {
+    const request = (remoteAddress: string) => ({ socket: { remoteAddress } }) as any;
+    expect(isLoopbackRequest(request("127.0.0.1"))).toBe(true);
+    expect(isLoopbackRequest(request("::1"))).toBe(true);
+    expect(isLoopbackRequest(request("::ffff:127.0.0.1"))).toBe(true);
+    expect(isLoopbackRequest(request("0:0:0:0:0:ffff:7f00:1"))).toBe(true);
+    expect(isLoopbackRequest(request("192.168.0.5"))).toBe(false);
   });
 
   it("GET /api/narrative returns narrative entries", async () => {

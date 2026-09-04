@@ -826,6 +826,24 @@ Narrative LLM и Intent Gateway реализованы как неавторит
 ConversationTurn — read-side transcript. Living-region slice включает
 authoritative Events/Rules/Projection и observer read models.*
 
+### 13. Operational liveness, AI readiness and deployment acceptance
+
+These are separate operational states. `GET /api/health` checks only that the
+simulation can load its SQLite Event Log and maintain a healthy Projection. It
+does not call an external model provider and an AI outage must not make the
+simulation unhealthy or cause a systemd restart loop.
+
+AI readiness is established by a no-world read-side probe of OpenCode Zen
+catalogue candidates. Runtime startup fetches `/zen/v1/models`, checks every
+preferred ID once for both Intent and Narration, and routes only candidates
+that are present and probe-valid. The first two valid candidates are reported
+as active and backup; excluded IDs carry sanitized reasons. The probe has no
+`worldId`, does not read or mutate Event Log/Projection/time or
+ConversationTurn/narration persistence, and its report never enters
+player-facing DTOs. Deployment acceptance additionally requires this report to
+be `ready`; deterministic gameplay fallbacks may continue while acceptance is
+failed. See ADR-0036.
+
 ### 5.3.6 Image reference -> Canon region pipeline
 
 An existing region image is an authoring-only reference artifact. It is validated by the Region Interpretation Layer into visual observations, proposals and an explicit author review. Only accepted Canon facts are read by the deterministic region loader/IR builder and compiled into the generated bundle under packages/world/src/region/compiled/. The simulation backend never reads the image, docs/canon/, proposals, hypotheses, resources or authoring YAML; the browser may load a non-authoritative presentation copy under packages/cli/public/assets/maps/. The bundle carries regionVersion, Canon/compiler digests and per-object canonicalRefs; Event Log remains the runtime authority.

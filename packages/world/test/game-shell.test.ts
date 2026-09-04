@@ -262,6 +262,7 @@ describe("Game Shell read model", () => {
         stakes: { success: "Дверь открывается.", failure: "Дверь остаётся закрытой." },
         difficulty: 15,
         modifiers: [{ label: "Повреждение", delta: 2 }],
+        targetObjectName: "Старая дверь",
       }, "critical", "attempt"),
       event("CriticalCheckRolled", "roll", 4, {
         naturalRoll: 14, modifierTotal: 2, total: 16, difficulty: 15,
@@ -277,11 +278,43 @@ describe("Game Shell read model", () => {
     expect(chain.map((step) => step.text).join(" ")).toContain("Итого 16 против 15");
     const check = chain.find((step) => step.critical);
     expect(check?.critical).toMatchObject({
+      acceptedInterpretation: {
+        action: "воздействовать силой",
+        target: "Старая дверь",
+      },
       success: "Дверь открывается.",
       failure: "Дверь остаётся закрытой.",
       difficulty: 15,
       modifiers: [{ label: "Повреждение", delta: 2 }],
     });
+  });
+
+  it("omits an unsafe critical target while retaining the accepted action", () => {
+    const events = [
+      event("ActionAttempted", "attempt", 4, { operation: "apply_force", target: { raw: "дверь" } }, "critical"),
+      event("CriticalCheckRequested", "request", 4, {
+        stakes: { success: "Дверь открывается.", failure: "Дверь остаётся закрытой." },
+        modifiers: [],
+        targetObjectName: "object:secret",
+      }, "critical", "attempt"),
+    ];
+
+    const check = buildCausalChain(events, 4).find((step) => step.critical);
+    expect(check?.critical?.acceptedInterpretation).toEqual({ action: "воздействовать силой" });
+  });
+
+  it("omits accepted interpretation when the root action has no usable operation", () => {
+    const events = [
+      event("ActionAttempted", "attempt", 4, { operation: "   ", target: { raw: "дверь" } }, "critical"),
+      event("CriticalCheckRequested", "request", 4, {
+        stakes: { success: "Дверь открывается.", failure: "Дверь остаётся закрытой." },
+        modifiers: [],
+        targetObjectName: "Старая дверь",
+      }, "critical", "attempt"),
+    ];
+
+    const check = buildCausalChain(events, 4).find((step) => step.critical);
+    expect(check?.critical?.acceptedInterpretation).toBeUndefined();
   });
 
 });

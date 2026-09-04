@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { HealthStatus } from "./types.js";
 
 export interface HealthRecord {
@@ -15,9 +16,8 @@ export interface HealthRecord {
 
 export function loadHealth(path: string): Record<string, HealthRecord> {
   try {
-    const fs = require("fs");
-    if (fs.existsSync(path)) {
-      const raw = fs.readFileSync(path, "utf-8");
+    if (existsSync(path)) {
+      const raw = readFileSync(path, "utf-8");
       return JSON.parse(raw);
     }
   } catch {
@@ -28,8 +28,7 @@ export function loadHealth(path: string): Record<string, HealthRecord> {
 
 export function saveHealth(path: string, health: Record<string, HealthRecord>): void {
   try {
-    const fs = require("fs");
-    fs.writeFileSync(path, JSON.stringify(health, null, 2));
+    writeFileSync(path, JSON.stringify(health, null, 2));
   } catch {
     // ignore
   }

@@ -73,6 +73,10 @@ export interface CausalStep {
   kind: "intention" | "action" | "outcome" | "observation" | "consequence";
   text: string;
   critical?: {
+    acceptedInterpretation?: {
+      action: string;
+      target?: string;
+    };
     success: string;
     failure: string;
     difficulty?: number;

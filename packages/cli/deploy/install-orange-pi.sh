@@ -78,9 +78,18 @@ echo "[OK] Restricted restart privilege installed."
 if [ ! -f "${ENV_FILE}" ]; then
   cp "${SKALD_CODE}/packages/cli/deploy/skald.env.example" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
-  echo "[INFO] ${ENV_FILE} created. Add LLM API keys if desired."
+  echo "[INFO] ${ENV_FILE} created. Add the OpenCode Zen API key before acceptance."
 else
   echo "[OK] ${ENV_FILE} already exists."
+fi
+
+# Orange Pi is a production installation target. Keep SKALD_AI_REQUIRED=0
+# available for local/test environments, but never advertise this installer
+# as complete without an explicit production readiness gate.
+if ! grep -q '^SKALD_AI_REQUIRED=1[[:space:]]*$' "${ENV_FILE}"; then
+  echo "[ERROR] ${ENV_FILE} must set SKALD_AI_REQUIRED=1 for Orange Pi installation."
+  echo "Edit the file, set the Zen API key, and rerun the installer."
+  exit 1
 fi
 
 # 8. Helper scripts first
@@ -120,6 +129,20 @@ done
 sudo systemctl enable --now skald-healthcheck.timer
 sudo systemctl enable --now skald-backup.timer
 echo "[OK] Timers enabled."
+
+# 12. Production acceptance requires a live AI readiness probe.
+echo "Checking AI readiness (loopback probe)..."
+AI_RESPONSE=$(curl --silent --show-error --max-time 30 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' http://127.0.0.1:3000/api/ops/ai-probe 2>&1 || true)
+AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
+AI_BODY="${AI_RESPONSE%$'\n'*}"
+if [ "${AI_HTTP_STATUS}" != "200" ]; then
+  echo "[OK] Simulation is healthy"
+  echo "[ERROR] AI readiness failed"
+  echo "Deployment acceptance: FAILED"
+  echo "Sanitized readiness report: ${AI_BODY}"
+  exit 1
+fi
+echo "[OK] AI readiness is ready."
 
 echo ""
 echo "=== Installation complete ==="

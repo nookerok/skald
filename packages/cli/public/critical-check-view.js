@@ -7,6 +7,17 @@ export function renderCriticalCheck(steps = []) {
   card.hidden = !relevant.length;
   if (!relevant.length) return;
   card.append(makeNode("span", { className: "eyebrow", text: "CRITICAL CHECK" }), makeNode("h2", { text: "Критический момент" }));
+  const acceptedInterpretation = relevant.find((step) => step.critical?.acceptedInterpretation)?.critical?.acceptedInterpretation;
+  const action = typeof acceptedInterpretation?.action === "string" ? acceptedInterpretation.action.trim() : "";
+  const target = typeof acceptedInterpretation?.target === "string" ? acceptedInterpretation.target.trim() : "";
+  if (action) {
+    const interpretation = makeNode("strong", { className: "check-stakes" });
+    interpretation.append(makeNode("span", { text: "Ты пытаешься: " + action }));
+    if (target) interpretation.append(makeNode("span", { text: "Цель: " + target }));
+    const row = makeNode("div", { className: "check-row" });
+    row.append(makeNode("span", { className: "check-label", text: "Действие" }), interpretation);
+    card.appendChild(row);
+  }
   relevant.forEach((step) => {
     const row = makeNode("div", { className: "check-row" });
     if (step.critical) {

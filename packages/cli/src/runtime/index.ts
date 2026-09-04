@@ -5,3 +5,7 @@ export { NarrationScheduler, resolveNarrationState } from "./narration-scheduler
 export type { NarrationJob, NarrationPriority, NarrationRuntimeStatus, NarrationState } from "./narration-scheduler.js";
 export { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 export { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
+export { AIReadinessService } from "./ai-readiness.js";
+export type { AIReadinessOptions } from "./ai-readiness.js";
+export { createLiveRouterConfiguration, createRouter, createRouterConfiguration } from "./router-factory.js";
+export type { LiveRouterConfigurationOptions, RouterConfiguration } from "./router-factory.js";

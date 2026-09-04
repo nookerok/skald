@@ -7,7 +7,7 @@
  * state, Event Log or Projection.
  */
 
-import { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE } from "./llm/errors.js";
+import { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE, toProviderFailure } from "./llm/errors.js";
 import type { NarrativeAdapterContext } from "./setup/background-context.js";
 
 // ---------------------------------------------------------------------------
@@ -71,6 +71,13 @@ export interface NarrationLLMDiagnosticEvent {
   readonly priority: "interactive" | "batch";
   /** Configured request timeout in ms for this route. */
   readonly timeout: number;
+  /** Configured request timeout under the shared operational name. */
+  readonly timeoutMs?: number | undefined;
+  /** Provider transport phase, when this event represents a provider attempt. */
+  readonly phase?: string | undefined;
+  /** Safe provider HTTP status/code, when available. */
+  readonly httpStatus?: number | undefined;
+  readonly providerCode?: string | undefined;
   readonly retryOutcome: RetryOutcome;
   /** World this narration belongs to. */
   readonly worldId?: string | undefined;
@@ -131,7 +138,41 @@ export interface NarrationContextDiagnosticEvent {
 export type NarrationDiagnosticEvent =
   | NarrationLLMDiagnosticEvent
   | NarrationSchedulerDiagnosticEvent
-  | NarrationContextDiagnosticEvent;
+  | NarrationContextDiagnosticEvent
+  | AIDiagnosticEvent;
+
+/**
+ * Shared operational AI diagnostic contract.  The older narration-specific
+ * event shapes remain part of NarrationDiagnosticEvent for compatibility;
+ * newly instrumented providers, Intent Gateway and readiness probes use this
+ * shape.  It deliberately contains only sanitized operational metadata.
+ */
+export interface AIDiagnosticEvent {
+  readonly kind: "provider" | "intent" | "narration" | "probe" | "scheduler";
+  readonly category: string;
+  readonly outcome: string;
+  readonly provider: string;
+  readonly model?: string;
+  readonly configuredModel?: string;
+  readonly phase?: string;
+  readonly httpStatus?: number;
+  readonly providerCode?: string;
+  readonly attempt: number;
+  readonly durationMs: number;
+  /** New name used by the operational contract. */
+  readonly timeoutMs: number;
+  /** Legacy spelling retained for old diagnostic consumers. */
+  readonly timeout?: number;
+  readonly priority: "interactive" | "batch";
+  readonly correlationId?: string;
+  readonly worldTime?: number;
+  /** Legacy world/turn fields may be present on narration events. */
+  readonly worldId?: string;
+  readonly turn?: number;
+  readonly recordedAt?: string;
+}
+
+export type AIDiagnosticSink = (event: AIDiagnosticEvent) => void;
 
 /** Callback type for receiving narration diagnostic events. */
 export type NarrationDiagnosticSink = (event: NarrationDiagnosticEvent) => void;
@@ -180,6 +221,21 @@ export function classifyNarrationError(
     err && typeof err === "object"
     && (err as { code?: unknown }).code === PROVIDER_UNAVAILABLE_CODE
   ) return "provider_unavailable";
+
+  const providerFailure = toProviderFailure(err);
+  if (providerFailure) {
+    if (providerFailure.httpStatus === 429) return "provider_429";
+    if ([500, 502, 503, 504].includes(providerFailure.httpStatus ?? -1)) return "provider_5xx";
+    if (providerFailure.phase === "transport") {
+      return err instanceof Error && (err.message.includes("AbortError") || err.message.includes("timeout") || err.message.includes("timed out"))
+        ? "timeout"
+        : "network";
+    }
+    if (providerFailure.phase === "response_shape") return "empty_response";
+    if (providerFailure.phase === "schema_validation") return "schema_rejection";
+    if (providerFailure.phase === "response_decode") return "unknown_provider_error";
+    if (providerFailure.httpStatus !== undefined) return "provider_unavailable";
+  }
 
   if (err instanceof Error) {
     const msg = err.message.toLowerCase();

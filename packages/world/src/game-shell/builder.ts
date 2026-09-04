@@ -103,7 +103,17 @@ export function buildCausalChain(events: readonly DomainEvent[], turnWorldTime: 
     if (event.type === "CriticalCheckRequested") {
       const modifiers = Array.isArray(p.modifiers) ? p.modifiers as Array<{ label?: unknown; delta?: unknown }> : [];
       const stakes = p.stakes as { success?: unknown; failure?: unknown } | undefined;
+      const rootPayload = root.type === "ActionAttempted" ? root.payload as Record<string, unknown> : null;
+      const operation = typeof rootPayload?.operation === "string" ? rootPayload.operation.trim() : "";
+      const action = operation ? operationLabel(operation).trim() : "";
+      const target = localizedPlayerText(typeof p.targetObjectName === "string" ? p.targetObjectName : "", "").trim();
       step.critical = {
+        ...(action ? {
+          acceptedInterpretation: {
+            action,
+            ...(target ? { target } : {}),
+          },
+        } : {}),
         success: safeDynamic(stakes?.success, "Успех меняет ситуацию."),
         failure: safeDynamic(stakes?.failure, "Неудача меняет ситуацию."),
         ...(typeof p.difficulty === "number" ? { difficulty: p.difficulty } : {}),

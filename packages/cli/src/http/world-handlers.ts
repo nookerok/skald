@@ -490,7 +490,11 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   let resolvedIntent: ExecutableIntent | undefined;
 
   if (input !== "wait" && !input.startsWith("advance ")) {
-    const interpretation = await interpretPlayerInput(input, runtime.router);
+    const interpretation = await interpretPlayerInput(input, runtime.router, {
+      diagnostics: runtime.diagnostics,
+      correlationId: `intent-${idempotencyKey}`,
+      worldTime: runtime.projection.getSnapshot().time,
+    });
     if (interpretation.status === "inquiry") {
       return runtime.queue.enqueue(async () => {
         const events = runtime.bus.query();

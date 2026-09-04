@@ -33,20 +33,76 @@ The install script will:
 4. Install a restricted sudoers rule for restarting only `skald.service`
 5. Install helper scripts to `/usr/local/bin/`
 6. Install systemd units
-7. Start the server and wait for health
-8. Enable health check and backup timers
+7. Start the server and wait for simulation liveness
+8. Require `SKALD_AI_REQUIRED=1`, run the loopback AI readiness probe, and
+   refuse installation completion when the required routes are not ready
+9. Enable health check and backup timers
+
+The installer creates `skald.env` from the example on first run. Set
+`SKALD_AI_REQUIRED=1` and add the OpenCode Zen key before rerunning it; `0` is
+reserved for local/test environments and cannot produce an Orange Pi success
+banner. The server fetches the live Zen catalogue at startup and probes every
+preferred model for both routes before selecting active and backup models.
+
+## Target preflight
+
+Before any commit, push or updater invocation, run the local read-only target
+preflight:
+
+```bash
+packages/cli/deploy/preflight-orange-pi.sh
+```
+
+It performs two independent checks:
+
+1. `GET http://192.168.0.5:3000/api/health` checks HTTP simulation liveness.
+2. `ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5` checks
+   `hostname`, `whoami`, `uname -a`, `/home/nooker/skald`,
+   `/home/nooker/skald-data` and `systemctl is-active skald.service`.
+
+The canonical command is:
+
+```bash
+ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5 \
+  'hostname; whoami; uname -a; \
+   test -d /home/nooker/skald; \
+   test -d /home/nooker/skald-data; \
+   systemctl is-active skald.service'
+```
+
+The SSH check is repeated in five independent sessions. This catches a
+port-forward or NAT that alternates between the Orange Pi and another host;
+every observed session must match the canonical identity.
+
+HTTP 200 does not identify the machine behind the HTTP endpoint. If HTTP is
+alive but SSH reaches the wrong user/host or the canonical paths/service do not
+match, the script returns `HTTP_ALIVE_SSH_IDENTITY_MISMATCH`, prints
+`Preflight: BLOCKED` and exits non-zero. It never substitutes another user or
+path and never runs commit, push, updater, restart or migrations.
+
+The only deployable identity is `nooker` with repository
+`/home/nooker/skald`, data `/home/nooker/skald-data` and active
+`skald.service`.
 
 > **Do not run install-orange-pi.sh with sudo.** It refuses root. Only `systemctl` and file copies inside the script use sudo.
 
 ## Configuration
 
-LLM API keys go in `/home/nooker/skald-data/skald.env`:
+AI provider keys and the production acceptance policy go in `/home/nooker/skald-data/skald.env`:
 ```
 SKALD_OPENCODE_ZEN_API_KEY=your_key_here
-SKALD_OLLAMA_CLOUD_API_KEY=your_key_here
+# Optional legacy provider key; it is not a live Zen candidate.
+SKALD_OLLAMA_CLOUD_API_KEY=
+SKALD_AI_REQUIRED=1
 ```
 
-Without keys, the server runs normally with template-based narrative fallback.
+`GET /api/health` is simulation liveness only and never calls a provider.
+`POST http://127.0.0.1:3000/api/ops/ai-probe` is loopback-only and returns 200
+only when the live Zen catalogue has at least two models that pass both
+authenticated no-world probes. The JSON report includes `activeModel`,
+`backupModel` and sanitized exclusion reasons. With `SKALD_AI_REQUIRED=0`,
+deterministic fallback keeps the server usable but an AI readiness failure is
+not deployment acceptance.
 
 ## Access
 
@@ -84,7 +140,10 @@ The update script:
 6. Fetches and merges via `git pull --ff-only`
 7. Runs `npm ci`, typecheck, and tests
 8. Restarts the service
-9. Waits up to 60 seconds for health check
+9. Waits up to 60 seconds for simulation liveness
+10. Runs the loopback AI readiness probe and exits non-zero on `degraded`,
+    `unavailable` or `misconfigured`; it prints `Update complete` only after
+    readiness is `ready`
 
 > **Do not run update-orange-pi.sh with sudo.** It refuses root.
 
@@ -111,7 +170,7 @@ The script:
 1. Verifies backup integrity (`PRAGMA integrity_check`)
 2. Stops timers, then services
 3. Replaces database and cleans stale WAL/SHM files
-4. Starts server and waits for health (up to 60 seconds)
+4. Starts server and waits for simulation liveness (up to 60 seconds)
 5. Re-enables timers only after successful health check
 
 Manual procedure (if script is unavailable):
@@ -172,4 +231,7 @@ sudo ufw enable
 - **Single process.** Do not run multiple Skald instances on the same SQLite.
 - **No auto-advancing time.** World time advances only with player commands, `wait`, or `advance N`.
 - **Node 22.23.1 required.** `node:sqlite` is experimental and the service hardcodes this path.
-- **LLM is optional.** Without API keys, template narrative is used.
+- **AI readiness is separate from liveness.** Without a Zen key, the server
+  remains usable with deterministic fallback when `SKALD_AI_REQUIRED=0`;
+  production acceptance requires a live Zen catalogue and two passing model
+  probes.

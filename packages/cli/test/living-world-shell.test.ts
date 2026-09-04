@@ -320,6 +320,55 @@ describe("Visual Shell — critical presentation", () => {
     expect(stakes.children.map((child) => child.textContent).join(" ")).toContain("Дверь открывается.");
     expect(stakes.children.map((child) => child.textContent).join(" ")).toContain("Дверь остаётся закрытой.");
   });
+  it("renders accepted action and target once before stakes", async () => {
+    const { renderCriticalCheck } = await import("../public/critical-check-view.js");
+    renderCriticalCheck([{
+      text: "Критический момент: дверь.",
+      critical: {
+        acceptedInterpretation: { action: " воздействовать силой ", target: " Старая дверь " },
+        success: "Дверь открывается.",
+        failure: "Дверь остаётся закрытой.",
+        modifiers: [],
+      },
+    }]);
+    const card = doc.getElementById("critical-check-card");
+    expect(textOf(card.children[2])).toContain("Ты пытаешься: воздействовать силой");
+    expect(textOf(card.children[2])).toContain("Цель: Старая дверь");
+    expect(card.children[3].children[0].textContent).toBe("Ставки");
+    expect(textOf(card).match(/Ты пытаешься:/g)).toHaveLength(1);
+  });
+  it("renders an accepted action without an empty target row", async () => {
+    const { renderCriticalCheck } = await import("../public/critical-check-view.js");
+    renderCriticalCheck([{
+      text: "Критический момент: осмотреться.",
+      critical: {
+        acceptedInterpretation: { action: " осмотреться ", target: "   " },
+        success: "Ты замечаешь важную деталь.",
+        failure: "Момент ускользает.",
+        modifiers: [],
+      },
+    }]);
+    const card = doc.getElementById("critical-check-card");
+    expect(textOf(card.children[2])).toContain("Ты пытаешься: осмотреться");
+    expect(textOf(card.children[2])).not.toContain("Цель:");
+    expect(card.children[3].children[0].textContent).toBe("Ставки");
+  });
+  it("hides only invalid interpretation content", async () => {
+    const { renderCriticalCheck } = await import("../public/critical-check-view.js");
+    renderCriticalCheck([{
+      text: "Критический момент: дверь.",
+      critical: {
+        acceptedInterpretation: { action: "   ", target: "Старая дверь" },
+        success: "Дверь открывается.",
+        failure: "Дверь остаётся закрытой.",
+        modifiers: [],
+      },
+    }]);
+    const card = doc.getElementById("critical-check-card");
+    expect(textOf(card)).not.toContain("Ты пытаешься:");
+    expect(textOf(card)).not.toContain("Цель:");
+    expect(card.children[2].children[0].textContent).toBe("Ставки");
+  });
 });
 
 

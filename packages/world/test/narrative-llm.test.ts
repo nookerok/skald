@@ -267,4 +267,40 @@ describe("narrateLLM retry and diagnostics", () => {
     expect(llmEvents.length).toBe(1);
     expect((llmEvents[0] as any).timeout).toBe(5000);
   });
+
+  it("passes provider diagnostics through turn narration failover", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({
+      apiKey: "zen-key",
+      providerId: "opencode_zen",
+      providerKeys: { opencode_zen: "zen-key", ollama_cloud: "ollama-key" },
+      availableProviders: ["opencode_zen", "ollama_cloud"],
+      routeCandidates: {
+        narrate: [
+          { provider: "opencode_zen", model: "big-pickle", protocol: "openai_chat", tier: "catalog_candidate" },
+          { provider: "ollama_cloud", model: "gemma4:31b-cloud", protocol: "ollama_chat", tier: "catalog_candidate" },
+        ],
+      },
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 404, text: async () => JSON.stringify({ error: { code: "model_not_found" } }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ model: "gemma4:31b-cloud", message: { content: narrationJson("Тихий вечер.") } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const events: unknown[] = [];
+
+    try {
+      const { narrateTurnLLM } = await import("../src/narrative-llm.js");
+      const result = await narrateTurnLLM("осмотреться", emptySnapshot().presentation!, router, {
+        diagnostics: (event) => events.push(event),
+        correlationId: "turn-1",
+      });
+      expect(result.usedFallback).toBe(false);
+      const providerEvents = events.filter((event: any) => event.kind === "provider") as any[];
+      expect(providerEvents).toHaveLength(2);
+      expect(providerEvents[0]).toMatchObject({ provider: "opencode_zen", model: "big-pickle", phase: "response_status", httpStatus: 404, providerCode: "model_not_found", outcome: "failed" });
+      expect(providerEvents[1]).toMatchObject({ provider: "ollama_cloud", model: "gemma4:31b-cloud", outcome: "provider_failover", correlationId: "turn-1" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
