@@ -45,10 +45,14 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     entrypoint -> read-only prologue -> POST /api/worlds (living_region,
     idempotent) -> observer session -> first Presence acknowledge -> #/world/:id
 
-    Browser/REPL -> Interpretation Gateway (deterministic fast path or
-    closed LLM IntentProposalV1) -> schema/capability validation -> command
-    handler -> RuleEngine -> staged Domain Events -> EventBus + Projection
-    commit -> Presentation/Narrative -> HTTP/CLI output
+    Browser/REPL -> Master Turn Gateway / Interpretation Gateway
+    (deterministic fast path for simple commands, otherwise closed LLM
+    TurnProposalV2 in bounded observer-safe scene + conversation context)
+    -> static schema + contextual referent validation + stale-revision
+    recheck -> at most one primary command handler / read-only Inquiry
+    -> RuleEngine -> staged Domain Events -> EventBus + Projection
+    commit -> Presentation/Narrative -> unified Master response ->
+    HTTP/CLI output
 
     Journal DTO + session-scoped intents -> Conversation Feed (ТЫ → МАСТЕР)
     -> transient gateway clarification or accepted world reply; Map/You/Knowledge

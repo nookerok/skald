@@ -539,9 +539,13 @@ Observations (§5.3), активные Consequences (§5.1) и Relation Edges (�
 Biography-граф остаётся отдельной read-side utility (§5.9). Текущий
 `narrateLLM` получает только выбранные `primary`/`notable` facts, deterministic
 response, worldTime и playerPosition; Biography и background context не входят
-в его prompt. Intent Gateway отдельно использует bounded LLM proposal только
-для интерпретации пользовательского текста. Ни Narrative, ни Gateway не
-выбирают факты, исходы или состояние мира.
+в его prompt. Master Turn Gateway (ADR-0028) отдельно использует bounded LLM
+TurnProposal только для интерпретации целой реплики в observer-safe
+контексте: player text, static capability manifest, bounded observer-safe
+scene, bounded recent conversation и pending clarification. Event Log,
+полная Projection, Canon, скрытые сущности, внутренние ID, координаты,
+недоступный инвентарь и чужие знания в prompt не передаются. Ни Narrative,
+ни Gateway не выбирают факты, исходы или состояние мира.
 
 ---
 
@@ -803,13 +807,19 @@ Projection несёт `eventNumber` (порядковый номер после�
 
 > Parser выполняет только синтаксическую и семантическую интерпретацию пользовательского ввода. Он никогда не принимает игровые решения и не разрешает неоднозначность, если для это требует знание мира. Любая неоднозначность должна быть разрешена либо пользователем (уточняющий вопрос на уровне интерфейса), либо Rules после появления Domain Event.
 
-Это распространяется и на текущий Intent Gateway: deterministic parser или
-LLM proposal переводит свободный текст в существующий transient intent.
-Schema/capability validation и world-aware preflight выполняются до
-authoritative command path; LLM не выбирает исход, target identity, route или
-world facts. Если для интерпретации неоднозначной фразы требуется знание мира,
-она завершается clarification либо передаётся в Rules после появления Domain
-Event.
+Это распространяется и на Master Turn Gateway (ADR-0028): deterministic
+fast path обслуживает только простую уверенную команду, иначе свободный
+текст целой реплики переводит в transient plan закрытый LLM TurnProposalV2.
+Статическая schema-валидация, контекстная referent-валидация по
+observer-safe кандидатам и повторная проверка revision
+(`worldTime/eventNumber`) внутри world queue выполняются до authoritative
+command path; LLM не выбирает исход, target identity, route или world facts.
+Одна реплика даёт не более одного исполняемого primary intent; supporting
+clause никогда не исполняется как второй action, вопрос не создаёт Events.
+Если для интерпретации неоднозначной фразы требуется знание мира, она
+завершается clarification либо передаётся в Rules после появления Domain
+Event. Никакого multi-step executor и action queue этот контракт не вводит;
+transcript остаётся неавторитетным read-side.
 
 ### 12.9 Политика удаления событий
 
@@ -822,8 +832,9 @@ Event.
 repository gate проходит с 135 test files, 1654 passed и 1 skipped. Runtime
 Rule Synthesis, Distribution/Parallel RuleEngine, Biography pruning и
 persisted Projection snapshots остаются исследовательскими направлениями.
-Narrative LLM и Intent Gateway реализованы как неавторитетные adapters;
-ConversationTurn — read-side transcript. Living-region slice включает
+Narrative LLM и Master Turn Gateway (ADR-0028) реализованы как
+неавторитетные adapters; ConversationTurn — read-side transcript.
+Living-region slice включает
 authoritative Events/Rules/Projection и observer read models.*
 
 ### 13. Operational liveness, AI readiness and deployment acceptance

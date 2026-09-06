@@ -1,59 +1,116 @@
-# ADR 0028: AI-DM intent proposal gateway
+# ADR 0028: AI-DM intent proposal gateway (Master Turn revision)
 
 Status: accepted
+
+Amended 2026-09-06: the Interpretation Gateway becomes the Master Turn
+Gateway. It understands one whole player replica in observer-safe
+conversation context, not one isolated command. This revision replaces the
+previous contract, it does not create a competing architecture.
 
 ## Context
 
 The deterministic intent parser handles the registered grammar well, but a
 player can express one intention in richer free text than a finite verb list
-can reliably normalize. The game needs an AI-DM interpretation layer without
-allowing an LLM to become a hidden source of world truth.
+can reliably normalize. A single replica may also combine an action with a
+read-only question, character speech, a manner constraint or a deferred
+second action, and it may use pronouns or references to the previous replica
+(`ему`, `ней`, `этим`, `туда`, `за ней`). The game needs an AI-DM
+interpretation layer without allowing an LLM to become a hidden source of
+world truth.
 
 ## Decision
 
-Player text enters an Interpretation Gateway. Deterministic parsing is the
-fast path for an unambiguous registered command. Unknown, low-confidence or
-compound text may be sent to an LLM which returns one closed `IntentProposalV1`
-JSON object. The proposal is untrusted until the pure schema validator maps it
-to an existing transient `ActionIntentCommand`, `InteractionCommand` or
-`JourneyIntent`.
+Player text enters the Master Turn Gateway. Deterministic parsing remains
+the fast path for a simple, confident, unambiguous registered command.
+Unknown, low-confidence, contextual, pronoun-bearing or mixed-clause text
+goes to an LLM which returns one closed `TurnProposalV2` JSON object
+(`IntentProposalV1` stays temporarily for backward compatibility of tests;
+production follows V2). The proposal is untrusted until pure static schema
+validation plus server-side contextual referent validation map it to a
+transient `ValidatedMasterTurnPlan`.
 
-The LLM receives only the player text and a static capability manifest. It does
-not receive Projection, Event Log, hidden Canon, internal identifiers or
-observer truth. It cannot create Domain Events, choose success, resolve a
-world target, select a route, set difficulty or describe consequences.
+The LLM receives:
 
-One primary intent is allowed. Additional executable clauses are preserved and
-produce a player clarification; they are never silently discarded and never
-auto-executed as a chain. A clarification changes neither Event Log nor world
-time. After a validated command reaches the existing Command Handler, Rules
-read the current `ReadonlyWorld` and remain authoritative for target and route
-validation and all consequences.
+- player text (untrusted game data, never instructions);
+- static capability manifest (closed registries of verbs, operations,
+  inquiry query ids, meta operations);
+- bounded observer-safe scene (visible/observed objects, known people,
+  known routes, accessible items with affordances, observed situation,
+  `seen/told/inferred/doubt` knowledge, current `worldTime/eventNumber`);
+- bounded recent conversation (last turns of the current `worldId`,
+  recent focus, pending clarification);
+- unresolved clarification, if any.
 
-Interpretation runs before the serialized world command queue. If the provider
-times out, returns invalid JSON or is unavailable, no command is committed and
-the player is asked to rephrase. Existing deterministic commands continue to
-work without a network call.
+The LLM does not receive:
+
+- Event Log;
+- full Projection;
+- Canon;
+- hidden entities, hidden objects, undiscovered routes;
+- internal `entityId`/`locationId`/`eventId`/`worldId`/`sourceEventIds`;
+- exact unknown coordinates;
+- unavailable inventory;
+- foreign observations / foreign knowledge / internal confidence /
+  numeric relation values.
+
+One replica maps to at most one executable primary intent. The remaining
+parts may be constraints, manner, a read-only question, character speech or
+deferred actions. They are never silently discarded and never auto-executed
+as a chain.
+
+Fixed guarantees:
+
+- The LLM may select a referent only among the supplied observer-safe
+  candidates via transient `observerRef` handles; the server re-resolves
+  every referent against the current world.
+- A question creates no Events, advances no time and creates no
+  Observation; it is answered from a post-action observer snapshot when it
+  follows a primary action.
+- A supporting clause is never executed as a second action; a noticed
+  second action becomes `deferred_action` text for the Master response.
+- Stale context requires revalidation inside the world queue against the
+  current `worldTime/eventNumber`; a disappeared, inaccessible or newly
+  ambiguous target blocks execution with no Events and a natural
+  clarification. The LLM is never re-invoked inside the queue.
+- This stage adds no multi-step executor, no action queue and no
+  `CompositeCommand`.
+- `ConversationTurn` transcript stays a non-authoritative read-side record;
+  player text never enters the Event Log.
+
+After a validated plan reaches the existing Command Handler / Inquiry
+builder, Rules read the current `ReadonlyWorld` and remain authoritative
+for target and route validation and all consequences.
+
+Interpretation runs before the serialized world command queue. If the
+provider times out, returns invalid JSON or is unavailable, no command is
+committed: a safe deterministic fallback is used when one exists, otherwise
+the player is asked to rephrase. Existing deterministic commands continue
+to work without a network call.
 
 ## Consequences
 
-- No new Domain Event or persistence table is introduced by this slice.
-- `parseIntent` remains pure and synchronous; the network adapter lives in the
-  CLI runtime gateway.
+- No new Domain Event is introduced by this contract. Read-side
+  clarification/focus metadata, if persisted, is a separate migration and
+  never becomes World State.
+- `parseIntent` remains pure and synchronous; the network adapter lives in
+  the CLI runtime gateway.
 - Runtime HTTP uses the gateway, while deterministic eval and REPL paths may
   continue to use the existing parser directly.
 - LLM interpretation is a fallback feature and can be disabled with
   `SKALD_INTENT_LLM_MODE=off`.
 - Real model calls are not part of the mandatory repository validation gate;
   fixture providers cover schema, authority and failure tests.
-- Multi-step travel plans are explicitly deferred to a separate ADR because
-  they would introduce new execution and cancellation semantics.
+- Multi-step travel plans remain deferred because they would introduce new
+  execution and cancellation semantics.
 
 ## Definition of done
 
 Invalid or authoritative model output cannot reach the Command Handler;
+`unknown` reaches the LLM instead of failing structurally first;
 clarifications produce no Events or ticks; a validated proposal maps
-deterministically to an existing command; current Rules validate the world;
-timeouts and duplicate requests are safe; focused tests and `npm run validate`
-pass; and browser QA confirms the clarification is presented as a player-facing
-DM response rather than a technical parser error.
+deterministically to at most one existing command plus an optional
+read-only inquiry; pronouns resolve only through validated focus and
+survive reload; stale context never mutates the world; focused tests and
+`npm run validate` pass; and browser QA confirms the clarification is
+presented as a player-facing DM response rather than a technical parser
+error.
