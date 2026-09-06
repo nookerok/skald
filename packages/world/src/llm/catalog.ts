@@ -187,11 +187,16 @@ function probeText(category: "interpret" | "narrate", text: string): CandidatePr
 async function probeOpenCodeModel(category: "interpret" | "narrate", model: string, options: { apiKey: string; baseUrl: string; timeoutMs: number; fetchImpl?: typeof fetch }): Promise<CandidateProbeResult> {
   const protocol: ProviderProtocol = openCodeProtocolForModel(model);
   try {
+    // Probe budgets must cover reasoning traces: live evidence shows Zen
+    // thinking models (effort high) spending a dozen-plus tokens before any
+    // content, so terse budgets starve the marker (`incomplete`,
+    // `max_output_tokens`) and healthy models look dead.
+    const maxTokens = category === "interpret" ? 1024 : 512;
     const result = await chatOnce(options.baseUrl, options.apiKey, model, category === "interpret" ? INTERPRET_MESSAGES : NARRATE_MESSAGES, {
       provider: "opencode_zen",
       protocol,
       category,
-      maxTokens: category === "interpret" ? 64 : 16,
+      maxTokens,
       timeoutMs: options.timeoutMs,
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     });

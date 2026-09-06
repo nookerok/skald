@@ -176,6 +176,23 @@ describe("OpenCode Zen live catalogue selection", () => {
     expect(urls.filter((url) => url.endsWith("/chat/completions"))).toHaveLength(2);
   });
 
+  it("budgets probes for reasoning traces, not just marker text", async () => {
+    const seen: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return response({ data: [{ id: "muse-spark-1.3-contributor-free" }] });
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      seen.push({ url, body });
+      return response({ output_text: "SKALD_PROBE_OK", model: "muse-spark-1.3-contributor-free" });
+    });
+    await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: ["muse-spark-1.3-contributor-free"], fetchImpl });
+    expect(seen).toHaveLength(2);
+    for (const { url, body } of seen) {
+      if (url.endsWith("/responses")) expect(body.max_output_tokens as number).toBeGreaterThanOrEqual(512);
+      else expect(body.max_tokens as number).toBeGreaterThanOrEqual(512);
+    }
+  });
+
   it("keeps the region gate code on a 403 probe instead of reporting a bare credential failure", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
