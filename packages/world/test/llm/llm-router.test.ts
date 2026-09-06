@@ -323,4 +323,31 @@ describe("ModelRouter", () => {
     }
   });
 
+  it("applies a fresh live selection without rebuilding the router", () => {
+    const router = new ModelRouter({ apiKey: "test-key", providerId: "opencode_zen" });
+    const before = router.routeCandidates("interpret").map((candidate) => candidate.model);
+    const selection = {
+      provider: "opencode_zen",
+      status: "ready",
+      checkedAt: "2026-09-06T00:00:00.000Z",
+      durationMs: 1,
+      catalog: { provider: "opencode_zen", status: "ok", phase: "response_shape", modelIds: ["ling-3.0-flash-fin-free"] },
+      activeModel: "ling-3.0-flash-fin-free",
+      candidates: [],
+      excluded: [],
+      routes: {
+        interpret: [{ provider: "opencode_zen", model: "ling-3.0-flash-fin-free", protocol: "openai_chat", tier: "live_primary" }],
+        narrate: [{ provider: "opencode_zen", model: "ling-3.0-flash-fin-free", protocol: "openai_chat", tier: "live_primary" }],
+      },
+    } as const;
+    router.applyLiveSelection(selection as any, "refreshed-fingerprint");
+    expect(before).toContain("muse-spark-1.3-contributor-free");
+    expect(router.routeCandidates("interpret").map((candidate) => candidate.model)).toEqual(["ling-3.0-flash-fin-free"]);
+    expect(router.routeCandidates("narrate").map((candidate) => `${candidate.model}:${candidate.protocol}`)).toEqual([
+      "ling-3.0-flash-fin-free:openai_chat",
+    ]);
+    expect(router.liveModelSelection()?.activeModel).toBe("ling-3.0-flash-fin-free");
+    expect(router.configFingerprint()).toBe("refreshed-fingerprint");
+  });
+
 });

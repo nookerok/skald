@@ -104,6 +104,27 @@ authenticated no-world probes. The JSON report includes `activeModel`,
 deterministic fallback keeps the server usable but an AI readiness failure is
 not deployment acceptance.
 
+## Daily model re-discovery
+
+Startup discovery runs once before the server accepts requests. After that a
+built-in daily refresher re-runs the same catalogue fetch plus authenticated
+no-world probes for every preferred model and applies the fresh selection to
+the running router without rebuilding it or restarting the process:
+
+- the policy is stale-while-revalidate: a selection that activates nothing
+  (or a failed discovery run) never empties live routes; the last good
+  selection keeps serving;
+- every refresh is reported through the readiness `modelSelection` block
+  (`checkedAt`, active/backup models, exclusion reasons) and a one-line
+  `[ai-discovery]` log entry; credentials never enter reports or logs;
+- the cadence defaults to 24h and is tunable via `SKALD_AI_DISCOVERY_REFRESH_MS`
+  (minimum 5 minutes; bad values fall back to daily).
+
+Note: `POST /api/ops/ai-probe` re-checks the currently routed candidates; it
+does not re-run catalogue discovery. After network-level changes (VPN,
+credential rotation) either wait for the daily refresh or restart
+`skald.service` for an immediate fresh discovery.
+
 ## Access
 
 ```bash

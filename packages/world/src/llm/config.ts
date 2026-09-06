@@ -25,6 +25,14 @@ export interface LLMConfig {
  * entries present in the live catalogue that pass both authenticated no-world
  * probes. The list is a preference order, not a claim that any model is
  * available.
+ *
+ * Live recon (2026-09-06, tunnel egress, both wire protocols, production
+ * probe budgets): muse-spark answers only on Responses; ling answers on Chat
+ * Completions but its upstream flaps (503/garbled). big-pickle and
+ * mimo-v2.5-free are persistently 429-gated, deepseek-v4-flash-free is a
+ * persistent 400, and both nemotron frees are too slow for route timeouts
+ * (16-63s). No better free backup exists right now, so the daily
+ * re-discovery keeps probing this pair and promotes whichever passes.
  */
 export const OPENCODE_PREFERRED_MODELS: readonly string[] = Object.freeze([
   "muse-spark-1.3-contributor-free",

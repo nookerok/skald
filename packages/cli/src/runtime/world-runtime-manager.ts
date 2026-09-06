@@ -3,6 +3,7 @@ import { RuleRegistry, RuleEngine, type CommitContext } from "@skald/rule-engine
 import {
   WorldProjector,
   bootstrapWorldEvents,
+  LLM_CONFIG,
   ModelRouter,
   createRules,
   buildObserverMap,
@@ -18,6 +19,7 @@ import type { NarrationDiagnosticEvent, NarrationDiagnosticSink } from "@skald/w
 import { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 import { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
 import { AIReadinessService } from "./ai-readiness.js";
+import { DiscoveryRefresher, type DiscoveryRefreshEvent } from "./discovery-refresh.js";
 import { createRouterConfiguration, type RouterConfiguration } from "./router-factory.js";
 import type { AIReadinessReport } from "@skald/world";
 
@@ -43,6 +45,7 @@ export class WorldRuntimeManager {
   private readonly diagnosticSink: NarrationDiagnosticSink;
   private readonly sharedRouter: ModelRouter | null;
   private readonly readiness: AIReadinessService;
+  private discoveryRefresher: DiscoveryRefresher | null = null;
 
   constructor(
     private readonly store: MultiWorldStore,
@@ -81,6 +84,36 @@ export class WorldRuntimeManager {
   /** Return the most recent probe without invoking a provider. */
   cachedAIReadiness(): AIReadinessReport | null {
     return this.readiness.cached();
+  }
+
+  /**
+   * Start the daily live-model re-discovery cadence for the shared router.
+   * Stale-while-revalidate: empty or failed selections never empty live
+   * routes. Safe to call when no live router exists (it stays idle).
+   */
+  startDiscoveryRefresh(options?: {
+    apiKey?: string;
+    intervalMs?: number;
+    timeoutMs?: number;
+    onEvent?: (event: DiscoveryRefreshEvent) => void;
+  }): void {
+    this.stopDiscoveryRefresh();
+    if (!this.sharedRouter) return;
+    const envName = LLM_CONFIG.providers["opencode_zen"]?.apiKeyEnv ?? "";
+    this.discoveryRefresher = new DiscoveryRefresher({
+      apiKey: options?.apiKey ?? (envName ? process.env[envName] ?? "" : ""),
+      router: this.sharedRouter,
+      ...(options?.intervalMs !== undefined ? { intervalMs: options.intervalMs } : {}),
+      ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+      ...(options?.onEvent ? { onEvent: options.onEvent } : {}),
+    });
+    this.discoveryRefresher.start();
+  }
+
+  /** Stop the re-discovery cadence. In-flight refreshes still settle. */
+  stopDiscoveryRefresh(): void {
+    this.discoveryRefresher?.stop();
+    this.discoveryRefresher = null;
   }
 
   async get(worldId: WorldId): Promise<WorldRuntime> {

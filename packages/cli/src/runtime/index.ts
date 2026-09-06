@@ -7,5 +7,7 @@ export { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 export { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
 export { AIReadinessService } from "./ai-readiness.js";
 export type { AIReadinessOptions } from "./ai-readiness.js";
-export { createLiveRouterConfiguration, createRouter, createRouterConfiguration } from "./router-factory.js";
+export { createLiveRouterConfiguration, createRouter, createRouterConfiguration, refreshRouterSelection, selectionConfigFingerprint } from "./router-factory.js";
 export type { LiveRouterConfigurationOptions, RouterConfiguration } from "./router-factory.js";
+export { DISCOVERY_REFRESH_INTERVAL_MS, DiscoveryRefresher, MIN_DISCOVERY_REFRESH_INTERVAL_MS, resolveRefreshIntervalMs } from "./discovery-refresh.js";
+export type { DiscoveryRefreshEvent, DiscoveryRefreshOutcome, DiscoveryRefreshSummary, DiscoveryRefresherOptions } from "./discovery-refresh.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLiveRouterConfiguration, createRouterConfiguration } from "../src/runtime/router-factory.js";
+import { createLiveRouterConfiguration, createRouterConfiguration, refreshRouterSelection } from "../src/runtime/router-factory.js";
 
 describe("router factory", () => {
   it("captures provider-scoped keys in the runtime router without returning them", () => {
@@ -70,5 +70,37 @@ describe("router factory", () => {
     expect(config.router?.routeCandidates("interpret").map((candidate) => candidate.model)).toEqual(preferred);
     expect(JSON.stringify(config)).not.toContain("zen-secret");
     expect(config.router?.configFingerprint()).toBe(config.configFingerprint);
+  });
+
+  it("reapplies a fresh selection to a live router with a recomputed fingerprint", async () => {
+    const preferred = ["muse-spark-1.3-contributor-free"];
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: preferred.map((id) => ({ id })) }),
+    } as unknown as Response);
+    const probe = async () => ({ status: "ok", phase: "schema_validation" } as const);
+    const env = { SKALD_OPENCODE_ZEN_API_KEY: "zen-secret", SKALD_AI_REQUIRED: "1" };
+    const config = await createLiveRouterConfiguration(env, { preferredModels: preferred, fetchImpl, probe });
+    const router = config.router!;
+    const before = router.configFingerprint();
+    const ling = {
+      provider: "opencode_zen",
+      model: "ling-3.0-flash-fin-free",
+      protocol: "openai_chat",
+      tier: "live_primary",
+    } as const;
+    const refreshed = {
+      ...config.selectionReport!,
+      checkedAt: "2026-09-06T12:00:00.000Z",
+      activeModel: "ling-3.0-flash-fin-free",
+      routes: { interpret: [ling], narrate: [ling] },
+    };
+    const fingerprint = refreshRouterSelection(router, refreshed as any, env);
+    expect(fingerprint).not.toBe(before);
+    expect(router.configFingerprint()).toBe(fingerprint);
+    expect(router.routeCandidates("interpret").map((candidate) => candidate.model)).toEqual(["ling-3.0-flash-fin-free"]);
+    expect(router.liveModelSelection()?.checkedAt).toBe("2026-09-06T12:00:00.000Z");
+    expect(JSON.stringify(router.diagnostics())).not.toContain("zen-secret");
   });
 });

@@ -37,6 +37,52 @@ function routerMaterial(env: NodeJS.ProcessEnv, providers: readonly ProviderId[]
   ].join("|");
 }
 
+function providerKeysFromEnv(env: NodeJS.ProcessEnv): { providers: readonly ProviderId[]; providerKeys: Partial<Record<ProviderId, string>> } {
+  const providers = Object.keys(LLM_CONFIG.providers) as ProviderId[];
+  const providerKeys: Partial<Record<ProviderId, string>> = {};
+  for (const provider of providers) {
+    const key = keyValue(env, provider);
+    if (key) providerKeys[provider] = key;
+  }
+  return { providers, providerKeys };
+}
+
+function baseConfigFingerprint(env: NodeJS.ProcessEnv, providers: readonly ProviderId[], providerKeys: Partial<Record<ProviderId, string>>): string {
+  return createHash("sha256").update(routerMaterial(env, providers, providerKeys), "utf8").digest("hex");
+}
+
+/**
+ * Secret-free fingerprint for one discovery selection: combines the static
+ * provider/key-presence material with the live selection. Key values never
+ * enter the digest. Shared by startup discovery and scheduled refresh so both
+ * produce identical fingerprints for identical inputs.
+ */
+export function selectionConfigFingerprint(
+  env: NodeJS.ProcessEnv,
+  selection: LiveModelSelectionReport,
+): string {
+  const { providers, providerKeys } = providerKeysFromEnv(env);
+  const baseFingerprint = baseConfigFingerprint(env, providers, providerKeys);
+  return createHash("sha256")
+    .update(`${baseFingerprint}|${liveModelSelectionFingerprint(selection)}`, "utf8")
+    .digest("hex");
+}
+
+/**
+ * Apply a fresh discovery selection to a live router without rebuilding it.
+ * Returns the recomputed secret-free config fingerprint. Pure routing
+ * metadata; credentials and provider output never cross this boundary.
+ */
+export function refreshRouterSelection(
+  router: ModelRouter,
+  selection: LiveModelSelectionReport,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configFingerprint = selectionConfigFingerprint(env, selection);
+  router.applyLiveSelection(selection, configFingerprint);
+  return configFingerprint;
+}
+
 function buildRouter(
   env: NodeJS.ProcessEnv,
   providerKeys: Partial<Record<ProviderId, string>>,
@@ -104,16 +150,8 @@ export async function createLiveRouterConfiguration(
     ...(options.probe ? { probe: options.probe } : {}),
   };
   const selectionReport = await discoverOpenCodeRoutes(selectionOptions);
-  const providers = Object.keys(LLM_CONFIG.providers) as ProviderId[];
-  const providerKeys: Partial<Record<ProviderId, string>> = {};
-  for (const provider of providers) {
-    const key = keyValue(env, provider);
-    if (key) providerKeys[provider] = key;
-  }
-  const baseFingerprint = createHash("sha256").update(routerMaterial(env, providers, providerKeys), "utf8").digest("hex");
-  const configFingerprint = createHash("sha256")
-    .update(`${baseFingerprint}|${liveModelSelectionFingerprint(selectionReport)}`, "utf8")
-    .digest("hex");
+  const { providers, providerKeys } = providerKeysFromEnv(env);
+  const configFingerprint = selectionConfigFingerprint(env, selectionReport);
   const routes = {
     interpret: selectionReport.routes.interpret,
     narrate: selectionReport.routes.narrate,

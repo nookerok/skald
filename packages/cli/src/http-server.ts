@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createMultiWorldStore, type MultiWorldStore } from "./persistence/index.js";
 import { WorldRuntimeManager } from "./runtime/index.js";
 import { createLiveRouterConfiguration } from "./runtime/router-factory.js";
+import { resolveRefreshIntervalMs } from "./runtime/discovery-refresh.js";
 import { readJsonBody } from "./http-body.js";
 import {
   handleWorlds,
@@ -170,6 +171,17 @@ export async function startServer(options?: {
     : null;
   const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics, routerConfiguration);
   const serverApp: ServerApp = { store, runtimes };
+  // Daily live-model re-discovery keeps routing aligned with the provider
+  // catalogue without restarts. It only ever narrows or refreshes the same
+  // live candidate slots that startup discovery filled.
+  if (routerConfiguration?.selectionReport && routerConfiguration.router) {
+    runtimes.startDiscoveryRefresh({
+      intervalMs: resolveRefreshIntervalMs(process.env),
+      onEvent: (event) => {
+        console.info(`[ai-discovery] outcome=${event.outcome} status=${event.status ?? "-"} active=${event.activeModel ?? "-"} backup=${event.backupModel ?? "-"} durationMs=${event.durationMs}`);
+      },
+    });
+  }
   const corsOrigin = options?.corsOrigin ?? process.env["SKALD_CORS_ORIGIN"] ?? "";
   const allowLegacyWorldCreation = options?.allowLegacyWorldCreation ?? process.env.NODE_ENV === "test";
   let closed = false;
@@ -402,6 +414,7 @@ export async function startServer(options?: {
         close: () => new Promise((res) => {
           if (closed) { res(); return; }
           closed = true;
+          runtimes.stopDiscoveryRefresh();
           server.close(() => { store.close(); res(); });
         }),
       });

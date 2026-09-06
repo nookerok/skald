@@ -116,9 +116,9 @@ export class ModelRouter {
   readonly timeoutSeconds: number;
   readonly availableProviders: readonly ProviderId[];
   private readonly providerKeys: Readonly<Partial<Record<ProviderId, string>>>;
-  private readonly fingerprint: string | undefined;
-  private readonly routeOverrides: Partial<Record<Category, readonly RouteCandidate[]>>;
-  private readonly startupSelection: LiveModelSelectionReport | undefined;
+  private fingerprint: string | undefined;
+  private routeOverrides: Partial<Record<Category, readonly RouteCandidate[]>>;
+  private startupSelection: LiveModelSelectionReport | undefined;
 
   constructor(opts?: ModelRouterOptions) {
     this.managesRetries = opts?.boundedRetries === true;
@@ -170,6 +170,22 @@ export class ModelRouter {
   /** Sanitized startup model selection, when live discovery was enabled. */
   liveModelSelection(): LiveModelSelectionReport | undefined {
     return this.startupSelection;
+  }
+
+  /**
+   * Replace the live Zen routes with a fresh discovery selection.
+   * Operational mutation only: it never touches the Event Log, Projection or
+   * game state. Callers own the policy of when a selection is worth applying
+   * (e.g. only when it keeps at least one active model).
+   */
+  applyLiveSelection(selection: LiveModelSelectionReport, configFingerprint: string): void {
+    this.routeOverrides = Object.freeze({
+      ...this.routeOverrides,
+      interpret: Object.freeze([...selection.routes.interpret]),
+      narrate: Object.freeze([...selection.routes.narrate]),
+    });
+    this.startupSelection = selection;
+    this.fingerprint = configFingerprint;
   }
 
   /** Ordered candidates of a route restricted to available providers. */
