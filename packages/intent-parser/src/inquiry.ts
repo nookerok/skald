@@ -23,12 +23,23 @@ export const INQUIRY_QUERY_IDS = [
 
 export type InquiryQueryId = (typeof INQUIRY_QUERY_IDS)[number];
 
+/** Closed spatial-relation registry for focused questions (plan_6 Stage 6). */
+export type InquiryRelation = "behind" | "near" | "inside" | "beyond";
+
+/** Optional contextual focus of a question. `observerRef` arrives only via validated proposals (later stage); the deterministic layer sets surface only. */
+export interface InquiryFocus {
+  readonly observerRef?: string;
+  readonly surface: string;
+}
+
 export interface InquiryRequest {
   readonly type: "InquiryRequest";
   readonly queryId: InquiryQueryId;
   readonly rawText: string;
   readonly confidence: number;
   readonly source: "deterministic" | "llm";
+  readonly focus?: InquiryFocus;
+  readonly relation?: InquiryRelation;
 }
 
 export type PlayerInputKind = "inquiry" | "action" | "speech";
@@ -107,6 +118,59 @@ function isExplicitSpeech(text: string): boolean {
   return /^(?:спроси|спросить|скажи|сказать|обратись|обратиться|позови|позвать|окликни|окликнуть)\s+(?:к\s+)?(?:перевозчик|архивист|стражник|местн|торгов|человек|нему|ней|им|ей)/iu.test(text);
 }
 
+/**
+ * Surfaces only the contextual interpreter may resolve. The deterministic
+ * layer never claims a pronoun as focus: such questions stay LLM candidates
+ * so the focus stack can bind them to an observerRef first.
+ * (Mirrors the focus-stack pronoun classes; kept local so the parser stays
+ * dependency-free.)
+ */
+const UNRESOLVED_FOCUS_SURFACES: ReadonlySet<string> = new Set([
+  "он", "она", "оно", "они",
+  "его", "ее", "их",
+  "ему", "ей", "им", "ими",
+  "нем", "ней",
+  "него", "нее", "них", "ним", "ними", "нему",
+  "это", "этот", "эта", "этом", "этим", "этой", "этого", "того",
+  "такой", "такая", "такое", "такие",
+  "туда", "сюда", "там", "здесь", "тут", "оттуда", "отсюда",
+]);
+
+/** True for a focus surface only the contextual interpreter may resolve. */
+export function isUnresolvedFocusSurface(surface: string): boolean {
+  return UNRESOLVED_FOCUS_SURFACES.has(surface.trim().toLowerCase().replace(/ё/gu, "е"));
+}
+
+/** Deterministic spatial-focus patterns for explicit-noun questions. `beyond` has no deterministic producer yet and arrives via validated proposals. */
+const SPATIAL_FOCUS_PATTERNS: readonly [InquiryRelation, RegExp][] = [
+  ["behind", /^(?:а\s+)?что\s+(?:там\s+)?за\s+(.+)$/iu],
+  ["near", /^(?:а\s+)?что\s+(?:там\s+)?(?:у|возле|около|близ|рядом\s+с)\s+(.+)$/iu],
+  ["inside", /^(?:а\s+)?что\s+(?:там\s+)?(?:в|внутри)\s+(.+)$/iu],
+];
+
+/** Maximum focus surface kept from player text. */
+const MAX_FOCUS_SURFACE = 120;
+
+function spatialFocusInquiry(input: string, withoutPrefix: string): InquiryRequest | null {
+  for (const [relation, pattern] of SPATIAL_FOCUS_PATTERNS) {
+    const match = pattern.exec(withoutPrefix);
+    if (!match?.[1]) continue;
+    const surface = match[1].trim().slice(0, MAX_FOCUS_SURFACE).trim();
+    if (!/[а-яёa-z]/iu.test(surface)) return null;
+    if (isUnresolvedFocusSurface(surface)) return null;
+    return Object.freeze({
+      type: "InquiryRequest",
+      queryId: "visible_scene",
+      rawText: input,
+      confidence: 1,
+      source: "deterministic",
+      focus: Object.freeze({ surface }),
+      relation,
+    });
+  }
+  return null;
+}
+
 function directInquiry(input: string): InquiryRequest | null {
   const normalized = normalizeQuestion(input);
   const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").trim();
@@ -116,7 +180,7 @@ function directInquiry(input: string): InquiryRequest | null {
       return Object.freeze({ type: "InquiryRequest", queryId, rawText: input, confidence: 1, source: "deterministic" });
     }
   }
-  return null;
+  return spatialFocusInquiry(input, withoutPrefix);
 }
 
 export function isQuestionLikeInput(input: string): boolean {

@@ -35,3 +35,40 @@ describe("player input inquiry classification", () => {
     expect(result).toEqual({ kind: "inquiry_candidate", rawText: "что это за след?" });
   });
 });
+
+describe("spatial focus questions", () => {
+  it("reads an explicit noun behind as focused visible scene", () => {
+    const result = classifyPlayerInput("что за оградой?", parseIntent);
+    expect(result.kind).toBe("inquiry");
+    if (result.kind !== "inquiry") return;
+    expect(result.inquiry.queryId).toBe("visible_scene");
+    expect(result.inquiry.relation).toBe("behind");
+    expect(result.inquiry.focus?.surface).toBe("оградой");
+    expect(result.inquiry.focus?.observerRef).toBeUndefined();
+    expect(result.inquiry.source).toBe("deterministic");
+  });
+
+  it("reads near and inside relations", () => {
+    const near = classifyPlayerInput("что у реки?", parseIntent);
+    expect(near.kind).toBe("inquiry");
+    if (near.kind !== "inquiry") return;
+    expect(near.inquiry.relation).toBe("near");
+    expect(near.inquiry.focus?.surface).toBe("реки");
+
+    const inside = classifyPlayerInput("что внутри сундука", parseIntent);
+    expect(inside.kind).toBe("inquiry");
+    if (inside.kind !== "inquiry") return;
+    expect(inside.inquiry.relation).toBe("inside");
+    expect(inside.inquiry.focus?.surface).toBe("сундука");
+  });
+
+  it("leaves pronoun focus to the contextual interpreter", () => {
+    for (const input of ["а что за ней?", "что за ним?", "что за этим?"]) {
+      expect(classifyPlayerInput(input, parseIntent).kind).toBe("inquiry_candidate");
+    }
+  });
+
+  it("leaves punctuation-only focus to the candidate path", () => {
+    expect(classifyPlayerInput("что за ...?", parseIntent).kind).toBe("inquiry_candidate");
+  });
+});

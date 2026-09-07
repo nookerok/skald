@@ -29,12 +29,97 @@ function buildCurrentLocation(_request: InquiryRequest, context: InquiryReadCont
   return answer("current_location", `Ты находишься у «${locationName(shell)}».${routeText}`, shell);
 }
 
-function buildVisibleScene(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+function buildVisibleScene(request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+  if (request.focus) return buildFocusedScene(request, context);
   const { shell } = context;
   const parts = [shell.world.locationDescription, shell.currentSituation?.description, shell.lastTurn?.primary?.text]
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .slice(0, 3);
   return answer("visible_scene", parts.length > 0 ? parts.join(" ") : "В твоих текущих наблюдениях нет ничего, что можно уверенно описать.", shell);
+}
+
+/**
+ * Pronoun surfaces the builder must not guess at. They arrive resolved
+ * (with an observerRef and a label surface) via validated proposals;
+ * an unresolved pronoun is honestly unknown. Mirrors the parser-side
+ * focus guard; kept local so the builder reads parser types only.
+ */
+const UNRESOLVED_FOCUS_SURFACES: ReadonlySet<string> = new Set([
+  "он", "она", "оно", "они",
+  "его", "ее", "их",
+  "ему", "ей", "им", "ими",
+  "нем", "ней",
+  "него", "нее", "них", "ним", "ними", "нему",
+  "это", "этот", "эта", "этом", "этим", "этой", "этого", "того",
+  "такой", "такая", "такое", "такие",
+  "туда", "сюда", "там", "здесь", "тут", "оттуда", "отсюда",
+]);
+
+function normalizeFocus(surface: string): string {
+  return surface.toLowerCase().replace(/ё/gu, "е").trim();
+}
+
+/**
+ * Derives a match key from an explicit-noun surface, or null when there is
+ * nothing honest to match: pronouns, too-short or letterless surfaces.
+ * One trailing declension vowel is stripped so "оградой" meets "ограда".
+ */
+function focusMatchKey(surface: string): string | null {
+  const normalized = normalizeFocus(surface);
+  if (UNRESOLVED_FOCUS_SURFACES.has(normalized)) return null;
+  if (!/[а-яa-z]/iu.test(normalized)) return null;
+  const stem = normalized.replace(/[аеиоуыэюяьй]$/, "");
+  if (stem.length >= 3) return stem;
+  return normalized.length >= 4 ? normalized : null;
+}
+
+/** Observer-safe texts a focus question may quote: shell prose only, never hidden geometry. */
+function focusSearchTexts(shell: GameShellSnapshot): readonly string[] {
+  return [
+    shell.world.locationDescription,
+    shell.currentSituation?.description,
+    shell.lastTurn?.primary?.text,
+    ...(shell.lastTurn?.notable.slice(0, 2).map((entry) => entry.text) ?? []),
+    ...shell.knowledge.entries.slice(0, 5).map((entry) => entry.text),
+    ...(shell.world.knownRoutes ?? []).flatMap((route) => [route.label, route.detail].filter((value): value is string => typeof value === "string")),
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
+function focusLabel(surface: string): string {
+  const trimmed = surface.trim();
+  return trimmed.length <= 120 ? trimmed : trimmed.slice(0, 120);
+}
+
+/**
+ * Answers a focused scene question from observer-safe shell prose only.
+ * Known (quoted) when shell texts mention the focus, honestly unknown
+ * otherwise. Creates no Observation and moves no time; the builder stays
+ * a pure read of the passed snapshot.
+ */
+function buildFocusedScene(request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+  const { shell } = context;
+  const label = focusLabel(request.focus?.surface ?? "");
+  const key = focusMatchKey(label);
+  const matched = key === null ? [] : focusSearchTexts(shell)
+    .filter((text) => normalizeFocus(text).includes(key))
+    .slice(0, 2);
+  if (matched.length > 0) {
+    const known = `Про «${label}» в твоих наблюдениях есть: ${matched.join(" ")}`;
+    const closer = request.relation === "behind" || request.relation === "beyond"
+      ? " Что находится дальше — в твоих наблюдениях пока нет."
+      : "";
+    return answer("visible_scene", `${known}${closer}`, shell);
+  }
+  const unknown = (() => {
+    switch (request.relation) {
+      case "behind": return `Что за «${label}» — из твоих наблюдений пока не различить. Подойди ближе или осмотри окрестности действием.`;
+      case "beyond": return `Что за «${label}» вдали — пока не различить.`;
+      case "near": return `Что рядом с «${label}» — в твоих наблюдениях пока ничего различимого нет. Осмотрись действием.`;
+      case "inside": return `Что внутри «${label}» — из текущих наблюдений не различить.`;
+      default: return `Про «${label}» в твоих наблюдениях пока ничего нет.`;
+    }
+  })();
+  return answer("visible_scene", unknown, shell);
 }
 
 function buildAuditoryScene(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {

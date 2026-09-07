@@ -38,3 +38,67 @@ describe("read-only inquiry builder", () => {
     expect(buildInquiryAnswer(request, context())).toEqual(buildInquiryAnswer(request, context()));
   });
 });
+
+describe("focused scene questions", () => {
+  function focused(rawText: string, surface: string, relation?: "behind" | "near" | "inside" | "beyond", observerRef?: string) {
+    return {
+      type: "InquiryRequest" as const,
+      queryId: "visible_scene" as const,
+      rawText,
+      confidence: 1 as const,
+      source: "deterministic" as const,
+      focus: observerRef ? { observerRef, surface } : { surface },
+      ...(relation ? { relation } : {}),
+    };
+  }
+
+  it("quotes shell prose mentioning an explicit-noun focus", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(focused("что за водой?", "водой", "behind"), { shell, background });
+
+    expect(result.queryId).toBe("visible_scene");
+    expect(result.answer).toContain("Камни скрыты высокой водой");
+    expect(result.revision).toEqual({ worldTime: 0, eventNumber: 2 });
+  });
+
+  it("answers honestly when the focus is unknown", () => {
+    const { shell, background } = context();
+    const before = JSON.stringify({ shell, background });
+    const result = buildInquiryAnswer(focused("что за башней?", "башней", "behind"), { shell, background });
+
+    expect(result.answer).toContain("башней");
+    expect(result.answer).toMatch(/не различить|пока ничего нет/);
+    expect(result.answer).not.toContain("crossing");
+    expect(JSON.stringify({ shell, background })).toBe(before);
+  });
+
+  it("does not guess at pronoun focus", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(focused("а что за ней?", "ней", "behind"), { shell, background });
+
+    expect(result.answer).toMatch(/не различить|пока ничего нет/);
+  });
+
+  it("treats a present observerRef as validation-side metadata only", () => {
+    const { shell, background } = context();
+    const plain = buildInquiryAnswer(focused("что за водой?", "водой", "behind"), { shell, background });
+    const withRef = buildInquiryAnswer(focused("что за водой?", "водой", "behind", "object_1"), { shell, background });
+
+    expect(withRef).toEqual(plain);
+  });
+
+  it("leaves other queries unaffected by focus", () => {
+    const { shell, background } = context();
+    const request = {
+      type: "InquiryRequest" as const,
+      queryId: "current_location" as const,
+      rawText: "где я?",
+      confidence: 1 as const,
+      source: "deterministic" as const,
+      focus: { surface: "водой" },
+    };
+    const result = buildInquiryAnswer(request, { shell, background });
+
+    expect(result.answer).toContain("Переправа у Чёрного леса");
+  });
+});
