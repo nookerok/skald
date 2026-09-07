@@ -204,4 +204,63 @@ describe("intent gateway", () => {
     expect((result as any).intent.verb).toBe("observe");
     expect((result as any).intent.target.raw).toBe("реку");
   });
+
+  it("keeps simple commands on the fast path without calling the model", async () => {
+    for (const input of ["осматриваю реку", "слушаю", "беру фонарь", "иду к Речному Стражу"]) {
+      const router = routerReturning("{}");
+      const result = await interpretPlayerInput(input, router);
+
+      expect(result.status).toBe("accepted");
+      expect((result as any).source).toBe("deterministic");
+      expect(router.chat).not.toHaveBeenCalled();
+    }
+  });
+
+  it("routes unknown verb forms to the LLM instead of structural clarification", async () => {
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 1,
+      primary: { kind: "legacy", operation: "approach", target: "ограда" },
+    }));
+    const result = await interpretPlayerInput("подхожу к ограде", router);
+
+    expect(result).toMatchObject({ status: "accepted", source: "llm" });
+    expect((result as any).intent.operation).toBe("approach");
+    expect(router.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes pronoun-bearing replicas to the LLM instead of the fast path", async () => {
+    const proposal = JSON.stringify({
+      schemaVersion: 1,
+      primary: { kind: "journey", destination: "башня" },
+    });
+    for (const input of ["спрошу у него об этом", "осмотрю её внимательнее"]) {
+      const router = routerReturning(proposal);
+      const result = await interpretPlayerInput(input, router);
+
+      expect(result).toMatchObject({ status: "accepted", source: "llm" });
+      expect(router.chat).toHaveBeenCalled();
+    }
+  });
+
+  it("routes multi-clause replicas to the LLM instead of the fast path", async () => {
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 1,
+      primary: { kind: "journey", destination: "башня" },
+    }));
+    const result = await interpretPlayerInput("подхожу к ограде и смотрю во двор", router);
+
+    expect(result).toMatchObject({ status: "accepted", source: "llm" });
+    expect(router.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a safe deterministic fallback when the model is unavailable", async () => {
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 1,
+      primary: { kind: "journey", destination: "башня" },
+    }));
+    const result = await interpretPlayerInput("осматриваю реку", router, { mode: "off" });
+
+    expect(result).toMatchObject({ status: "accepted", source: "deterministic" });
+    expect(router.chat).not.toHaveBeenCalled();
+  });
 });

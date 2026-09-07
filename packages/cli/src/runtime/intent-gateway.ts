@@ -187,24 +187,34 @@ export async function interpretPlayerInput(
       ],
     };
   }
-  if (deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent") {
-    const structural = validateActionProposal(deterministic);
-    if (!structural.ok) {
-      return {
-        status: "clarification",
-        question: structural.clarification,
-        options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
-      };
+  // Master Turn order (ADR-0028, plan_6 Stage 1): fast path first.
+  // Structural validation runs only for simple safe commands. Unknown,
+  // pronoun-bearing, multi-clause or question-like inputs skip pre-LLM
+  // validation so that `unknown` reaches the LLM proposal.
+  if (isSimpleSafeDeterministic(input, deterministic)) {
+    if (deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent") {
+      const structural = validateActionProposal(deterministic);
+      if (!structural.ok) {
+        return {
+          status: "clarification",
+          question: structural.clarification,
+          options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
+        };
+      }
+      return { status: "accepted", intent: deterministic, source: "deterministic" };
     }
-  }
-  if (isSafeDeterministic(deterministic) && !needsLLMForNaturalPhrase(input, deterministic)) return { status: "accepted", intent: deterministic, source: "deterministic" };
-  if (deterministic.type === "ClarificationRequired") {
-    return { status: "clarification", question: deterministic.question, options: deterministic.interpretations.map((label, index) => ({ optionId: `deterministic-${index + 1}`, label })) };
   }
   if (deterministic.type === "UnsupportedButUnderstood" && (options?.mode ?? readMode()) === "off") {
     return { status: "unsupported", message: deterministic.message };
   }
   if ((options?.mode ?? readMode()) === "off" || router === null) {
+    // Safe deterministic fallback when the model is unavailable: keep simple
+    // playable commands working without a network call.
+    if ((deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent")
+      && isSafeDeterministic(deterministic)) {
+      const structural = validateActionProposal(deterministic);
+      if (structural.ok) return { status: "accepted", intent: deterministic, source: "deterministic" };
+    }
     return fallbackForDeterministic(deterministic);
   }
 
@@ -224,6 +234,11 @@ export async function interpretPlayerInput(
       emitIntentDiagnostic(options?.diagnostics, options, "deterministic_fallback", "accepted", "fallback", startedAt, 1, "gateway");
       return { status: "accepted", intent: safeFallback, source: "deterministic" };
     }
+    const deterministicClarification = clarificationFromDeterministic(deterministic);
+    if (deterministicClarification) {
+      emitIntentDiagnostic(options?.diagnostics, options, "deterministic_clarification_fallback", "accepted", "fallback", startedAt, 1, "gateway");
+      return deterministicClarification;
+    }
     emitIntentDiagnostic(options?.diagnostics, options, "clarification_fallback", "accepted", "fallback", startedAt, 1, "gateway");
     return { status: "clarification", question: "Я не уверен, что правильно понял. Скажи, чего ты хочешь добиться первым.", options: [{ optionId: "rephrase", label: "Уточнить намерение" }] };
   }
@@ -236,6 +251,11 @@ export async function interpretPlayerInput(
     if (safeFallback) {
       emitIntentDiagnostic(options?.diagnostics, options, "deterministic_fallback", "accepted", "fallback", startedAt, 1, "gateway");
       return { status: "accepted", intent: safeFallback, source: "deterministic" };
+    }
+    const deterministicClarification = clarificationFromDeterministic(deterministic);
+    if (deterministicClarification) {
+      emitIntentDiagnostic(options?.diagnostics, options, "deterministic_clarification_fallback", "accepted", "fallback", startedAt, 1, "gateway");
+      return deterministicClarification;
     }
     emitIntentDiagnostic(options?.diagnostics, options, "clarification_fallback", "accepted", "fallback", startedAt, 1, "gateway");
     return { status: "clarification", question: "Я не уверен, что правильно понял. Скажи, чего ты хочешь добиться первым.", options: [{ optionId: "rephrase", label: "Уточнить намерение" }] };
@@ -255,8 +275,18 @@ export async function interpretPlayerInput(
         options: [{ optionId: "primary-action", label: "Сначала назвать основное действие" }],
       };
     }
-    return mapValidation(validated);
+    const mapped = mapValidation(validated);
+    // Parser-detected compound keeps its specific clarification when the
+    // model output cannot be used (invalid/unavailable), instead of a
+    // generic fallback message.
+    if (mapped.status === "unavailable") {
+      const deterministicClarification = clarificationFromDeterministic(deterministic);
+      if (deterministicClarification) return deterministicClarification;
+    }
+    return mapped;
   } catch {
+    const deterministicClarification = clarificationFromDeterministic(deterministic);
+    if (deterministicClarification) return deterministicClarification;
     emitIntentDiagnostic(options?.diagnostics, options, "clarification_fallback", "accepted", "fallback", startedAt, 1, "gateway");
     return { status: "clarification", question: "Я не уверен, что правильно понял. Скажи, чего ты хочешь добиться первым.", options: [{ optionId: "rephrase", label: "Уточнить намерение" }] };
   }
@@ -299,6 +329,81 @@ function needsLLMForNaturalPhrase(input: string, result: ExecutableIntent): bool
   if (result.type !== "ActionIntentCommand" || result.operation !== "approach") return false;
   if (!result.target?.normalized) return false;
   return !/^(?:я\s*)?(?:(?:иду|идти|пойти|направиться|двигаться|двигайся|обойти|обходить)|move)?\s*(?:на\s+)?(?:север|юг|восток|запад|north|south|east|west)\s*[.!?]*$/iu.test(input.trim());
+}
+
+/**
+ * Master Turn fast-path gate (ADR-0028, plan_6 Stage 1).
+ *
+ * True only for a simple, confident, unambiguous command without pronouns,
+ * previous-replica references, extra clauses or question form. Everything
+ * else (including `unknown`) must reach the LLM proposal. Pending
+ * clarification is not checked here yet: the gateway has no conversation
+ * context (Stage 4); that check arrives with MasterTurnContext.
+ */
+function isSimpleSafeDeterministic(input: string, result: IntentResult): boolean {
+  if (result.type !== "ActionIntentCommand" && result.type !== "InteractionCommand" && result.type !== "JourneyIntent") return false;
+  if (!isSafeDeterministic(result)) return false;
+  if (needsLLMForNaturalPhrase(input, result)) return false;
+  if (isQuestionLikeForFastPath(input)) return false;
+  if (containsPronounOrContextReference(input)) return false;
+  if (hasMultipleActionClauses(input)) return false;
+  return true;
+}
+
+function normalizeWords(input: string): readonly string[] {
+  return input
+    .toLowerCase()
+    .replace(/ё/gu, "е")
+    .split(/[^a-zа-я0-9]+/iu)
+    .filter((word) => word.length > 0);
+}
+
+const PRONOUN_OR_CONTEXT_WORDS: ReadonlySet<string> = new Set([
+  "он", "она", "оно", "они",
+  "его", "ее", "их",
+  "ему", "ей", "им", "ими",
+  "нем", "ней",
+  "него", "нее", "них", "ним", "ними",
+  "меня", "тебя", "себя", "нас", "вас",
+  "этом", "этим", "этой", "этого", "того",
+  "этот", "эта", "это",
+  "такой", "такая", "такое", "такие",
+  "туда", "сюда", "там", "здесь", "тут",
+  "оттуда", "отсюда",
+  "тогда", "прежде", "раньше",
+]);
+
+function containsPronounOrContextReference(input: string): boolean {
+  const words = normalizeWords(input);
+  return words.some((word) => PRONOUN_OR_CONTEXT_WORDS.has(word));
+}
+
+const SECOND_VERB_STEMS = "(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|обходить|подойти|подхож|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|спрош|прошептать|позвать|крик|оклик|осматр|осматрива|рассмотр|огля|посмотр|смотр|взгляд|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп|наблюд)";
+
+function hasMultipleActionClauses(input: string): boolean {
+  if (/[:;]/u.test(input)) return true;
+  if (/(?:^|\s)(?:потом|затем|после|одновременно)\s+/iu.test(input)) return true;
+  const secondVerb = new RegExp(`(?:^|\\s)(?:и|а|но|или)\\s+(?:я\\s+)?${SECOND_VERB_STEMS}`, "iu");
+  if (secondVerb.test(input)) return true;
+  const commaVerb = new RegExp(`,\\s*(?:я\\s+)?${SECOND_VERB_STEMS}`, "iu");
+  if (commaVerb.test(input)) return true;
+  return false;
+}
+
+function isQuestionLikeForFastPath(input: string): boolean {
+  const trimmed = input.trim();
+  if (/[?]\s*$/u.test(trimmed)) return true;
+  const normalized = trimmed.toLowerCase().replace(/ё/gu, "е");
+  return /^(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)/iu.test(normalized);
+}
+
+function clarificationFromDeterministic(result: IntentResult): IntentGatewayResult | null {
+  if (result.type !== "ClarificationRequired") return null;
+  return {
+    status: "clarification",
+    question: result.question,
+    options: result.interpretations.map((label, index) => ({ optionId: `deterministic-${index + 1}`, label })),
+  };
 }
 
 function fallbackForDeterministic(result: IntentResult, message = "Я не уверен, что правильно понял действие. Скажи, что ты хочешь сделать в первую очередь."): IntentGatewayResult {
