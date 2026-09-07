@@ -20,3 +20,9 @@ export type {
   MasterConversationTurn,
   PendingClarification,
 } from "./context-builder.js";
+export { bindTurnPronouns } from "./focus-stack.js";
+export type {
+  FocusReferenceClass,
+  PronounBinding,
+  PronounResolution,
+} from "./focus-stack.js";
