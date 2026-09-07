@@ -65,6 +65,40 @@ export type { InterpreterOptions } from "./deterministic-interpreter.js";
 export { INTENT_CAPABILITIES, INQUIRY_CAPABILITIES, isIntentProposal, parseIntentProposal, isInquiryProposal, parseInquiryProposal } from "./intent-proposal.js";
 export type { ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation, InquiryCapabilitiesManifest, InquiryProposalV1, InquiryProposalValidation } from "./intent-proposal.js";
 export { validateIntentProposal, validateInquiryProposal, validateActionProposal } from "./intent-proposal-validator.js";
+export {
+  OBSERVER_REF_PATTERN,
+  TURN_AUTHORITY_FIELDS,
+  TURN_INQUIRY_RELATIONS,
+  TURN_LEGACY_OPERATIONS,
+  TURN_MAX_CANDIDATES,
+  TURN_MAX_REFERENTS,
+  TURN_MAX_STRING,
+  TURN_MAX_SUPPORTING,
+  TURN_META_OPERATIONS,
+  isTurnQueryId,
+  parseTurnProposal,
+} from "./turn-proposal.js";
+export type {
+  ProposedAction,
+  ProposedAmbiguity,
+  ProposedInquiry,
+  ProposedMeta,
+  ProposedQuestion,
+  ProposedReferent,
+  ProposedSpeech,
+  SupportingClause,
+  TurnAmbiguityKind,
+  TurnInquiryRelation,
+  TurnInteractionVerb,
+  TurnLegacyOperation,
+  TurnMetaOperation,
+  TurnPrimaryIntent,
+  TurnProposalKind,
+  TurnProposalV2,
+  TurnReferentRole,
+} from "./turn-proposal.js";
+export { findAuthorityField, validateTurnProposal } from "./turn-proposal-validator.js";
+export type { TurnProposalValidation } from "./turn-proposal-validator.js";
 
 // ── Legacy parser (kept for backward compatibility) ──────────────────
 
