@@ -68,7 +68,7 @@ describe("correlated narration lifecycle", () => {
     store.close();
     const check = new DatabaseSync(dbPath);
     try {
-      expect(check.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
+      expect(check.prepare("PRAGMA user_version").get()).toEqual({ user_version: 11 });
       expect(check.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
       expect(check.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
       expect(check.prepare("SELECT * FROM events ORDER BY seq").all()).toEqual(before);

@@ -59,6 +59,67 @@ describe("conversation turn persistence", () => {
     migrated.close();
   });
 
+  it("migrates a v10 database to v11 preserving rows and widening turn classes", () => {
+    const db = tmpDb();
+    const seed = createMultiWorldStore(db);
+    seed.recordConversationTurn({ ...draft("k-1", "осматриваюсь", 0), inputClass: "action", responseKind: "action_outcome", responseText: "Вижу двор." });
+    seed.recordConversationTurn({ ...draft("k-2", "где я?", 1), inputClass: "inquiry", responseKind: "inquiry_answer", responseText: "У реки." });
+    seed.recordConversationTurn({ ...draft("k-3", "сделай то", 1), inputClass: "clarification", responseKind: "clarification", responseText: "Что именно?" });
+    seed.close();
+
+    const require = createRequire(import.meta.url);
+    const DatabaseSync = (require("node:sqlite") as { DatabaseSync: new (path: string) => {
+      exec(sql: string): void;
+      close(): void;
+    } }).DatabaseSync;
+    const raw = new DatabaseSync(db);
+    raw.exec(`CREATE TABLE conversation_turns_v10 (
+      turn_seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id        TEXT NOT NULL,
+      correlation_id  TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash    TEXT NOT NULL,
+      player_text     TEXT NOT NULL,
+      input_class     TEXT NOT NULL
+          CHECK (input_class IN ('action', 'inquiry', 'clarification')),
+      world_time_before INTEGER NOT NULL,
+      world_time_after  INTEGER NOT NULL,
+      response_kind   TEXT NOT NULL
+          CHECK (response_kind IN ('action_outcome', 'action_rejection', 'inquiry_answer', 'clarification')),
+      response_text   TEXT NOT NULL,
+      created_at      INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      UNIQUE (world_id, idempotency_key)
+    ) STRICT`);
+    raw.exec(`INSERT INTO conversation_turns_v10 (turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at)
+      SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns`);
+    raw.exec("DROP TABLE conversation_turns");
+    raw.exec("ALTER TABLE conversation_turns_v10 RENAME TO conversation_turns");
+    raw.exec("PRAGMA user_version = 10");
+    raw.close();
+
+    const store = createMultiWorldStore(db);
+    const rows = store.listConversationTurns(LEGACY_WORLD_ID);
+    expect(rows.map((row) => [row.turnSeq, row.inputClass, row.responseKind, row.playerText])).toEqual([
+      [1, "action", "action_outcome", "осматриваюсь"],
+      [2, "inquiry", "inquiry_answer", "где я?"],
+      [3, "clarification", "clarification", "сделай то"],
+    ]);
+
+    const mixed = store.recordConversationTurn({ ...draft("k-4", "подхожу и смотрю"), inputClass: "mixed", responseKind: "mixed_outcome", responseText: "Подошёл. Вижу двор." });
+    expect(mixed.turnSeq).toBe(4);
+    const speech = store.recordConversationTurn({ ...draft("k-5", "прошу"), inputClass: "speech", responseKind: "speech_reaction", responseText: "Кивает." });
+    expect(speech.turnSeq).toBe(5);
+    const meta = store.recordConversationTurn({ ...draft("k-6", "справка"), inputClass: "meta", responseKind: "meta_answer", responseText: "Действия: осмотрись." });
+    expect(meta.turnSeq).toBe(6);
+    expect(() => store.recordConversationTurn({ ...draft("k-7", "заклинание"), inputClass: "spell" as "action", responseText: "x" })).toThrow();
+    store.close();
+
+    const reopened = createMultiWorldStore(db);
+    expect(reopened.listConversationTurns(LEGACY_WORLD_ID)).toHaveLength(6);
+    reopened.close();
+  });
+
   it("replays the same key, rejects a conflicting text, and orders by turn_seq", () => {
     const store = createMultiWorldStore(tmpDb());
     const first = store.recordConversationTurn(draft("k-1", "first"));

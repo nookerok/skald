@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "migrateV11" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -140,9 +140,10 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 7) return "migrateV8";
   if (v === 8) return "migrateV9";
   if (v === 9) return "migrateV10";
-  if (v === 10) return "open";
+  if (v === 10) return "migrateV11";
+  if (v === 11) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-10.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-11.`);
 }
 
 /** Preserve old prose as uncorrelated legacy rows; do not guess a command. */
@@ -166,6 +167,52 @@ export function migrateV9ToV10(db: SqliteHandle): void {
     db.exec("DROP TABLE turn_narrations");
     db.exec("ALTER TABLE turn_narrations_v10 RENAME TO turn_narrations");
     db.exec("PRAGMA user_version = 10");
+    verifyIntegrity(db);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+/**
+ * Widens conversation_turns CHECKs for speech/mixed/meta turns. Old rows
+ * keep their classes (a subset of the new lists), turn_seq values and the
+ * AUTOINCREMENT sequence are preserved; no backfill, no world facts.
+ */
+export function migrateV10ToV11(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    const before = (db.prepare("SELECT COUNT(*) AS c FROM conversation_turns").get() as { c: number }).c;
+    db.exec(`CREATE TABLE conversation_turns_v11 (
+      turn_seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+      world_id        TEXT NOT NULL,
+      correlation_id  TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash    TEXT NOT NULL,
+      player_text     TEXT NOT NULL,
+      input_class     TEXT NOT NULL
+          CHECK (input_class IN ('action', 'inquiry', 'speech', 'mixed', 'meta', 'clarification')),
+      world_time_before INTEGER NOT NULL,
+      world_time_after  INTEGER NOT NULL,
+      response_kind   TEXT NOT NULL
+          CHECK (response_kind IN ('action_outcome', 'action_rejection', 'inquiry_answer', 'speech_reaction', 'mixed_outcome', 'meta_answer', 'clarification')),
+      response_text   TEXT NOT NULL,
+      created_at      INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      UNIQUE (world_id, idempotency_key)
+    ) STRICT`);
+    db.exec(`INSERT INTO conversation_turns_v11 (turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at)
+      SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns`);
+    db.exec("DROP TABLE conversation_turns");
+    db.exec("ALTER TABLE conversation_turns_v11 RENAME TO conversation_turns");
+    db.exec("UPDATE sqlite_sequence SET seq = COALESCE((SELECT MAX(turn_seq) FROM conversation_turns), 0) WHERE name = 'conversation_turns'");
+    db.exec("CREATE INDEX IF NOT EXISTS conversation_turns_world_seq ON conversation_turns(world_id, turn_seq)");
+    db.exec("CREATE INDEX IF NOT EXISTS conversation_turns_world_time ON conversation_turns(world_id, created_at)");
+    const after = (db.prepare("SELECT COUNT(*) AS c FROM conversation_turns").get() as { c: number }).c;
+    if (after !== before) throw new Error(`turn count mismatch: ${before} before vs ${after} after`);
+    db.exec("PRAGMA user_version = 11");
     verifyIntegrity(db);
     db.exec("COMMIT");
   } catch (error) {

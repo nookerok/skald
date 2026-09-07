@@ -48,6 +48,7 @@ import {
   buildActionConversationTurn,
   buildReadSideConversationTurn,
   conversationRequestHash,
+  isWorldChangingTurn,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
 import {
@@ -99,8 +100,8 @@ function persistReadSideTurn(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
-  inputClass: "inquiry" | "clarification",
-  responseKind: "inquiry_answer" | "clarification",
+  inputClass: "inquiry" | "meta" | "clarification",
+  responseKind: "inquiry_answer" | "meta_answer" | "clarification",
   responseText: string,
 ): ReturnType<typeof toConversationTurnDTO> {
   const worldTime = runtime.projection.getSnapshot().time;
@@ -120,7 +121,7 @@ function duplicateConversationResponse(runtime: WorldRuntime, input: string, ide
   if (!existing) return null;
   if (existing.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
   const conversationTurn = toConversationTurnDTO(existing);
-  if (existing.inputClass === "action") {
+  if (isWorldChangingTurn(existing.inputClass)) {
     return json({ ok: false, error: { code: "duplicate_request", message: "duplicate idempotencyKey" }, conversationTurn }, 409);
   }
   return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn });
@@ -612,8 +613,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
     if (existingConversation.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
     return json({
       ok: true,
-      resolution: existingConversation.inputClass === "action" ? "already_processed" : existingConversation.inputClass,
-      message: existingConversation.inputClass === "action" ? "Это намерение уже было обработано." : null,
+      resolution: isWorldChangingTurn(existingConversation.inputClass) ? "already_processed" : existingConversation.inputClass,
+      message: isWorldChangingTurn(existingConversation.inputClass) ? "Это намерение уже было обработано." : null,
       reason: null,
       conversationTurn: toConversationTurnDTO(existingConversation),
     });

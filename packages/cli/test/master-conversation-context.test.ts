@@ -159,6 +159,26 @@ describe("master conversation context", () => {
     expect(reloaded).toBe(first);
   });
 
+  it("takes focus from executed mixed turns like actions", () => {
+    const context = buildMasterConversationContext([
+      row(1, { playerText: "осматриваю реку", inputClass: "mixed", responseKind: "mixed_outcome", responseText: "Подошёл. Вижу реку." }),
+    ], "w1");
+
+    expect(context.recentFocus).toEqual([{ kind: "target", surface: "реку", turnSeq: 1 }]);
+  });
+
+  it("resolves pending clarification on mixed and speech turns", () => {
+    const clarified = row(1, { playerText: "сделай что-нибудь", inputClass: "clarification", responseKind: "clarification", responseText: "Что именно сделать?" });
+    expect(buildMasterConversationContext([
+      clarified,
+      row(2, { playerText: "подхожу и смотрю", inputClass: "mixed", responseKind: "mixed_outcome", responseText: "Подошёл." }),
+    ], "w1").pendingClarification).toBeNull();
+    expect(buildMasterConversationContext([
+      clarified,
+      row(2, { playerText: "прошу о помощи", inputClass: "speech", responseKind: "speech_reaction", responseText: "Кивает." }),
+    ], "w1").pendingClarification).toBeNull();
+  });
+
   it("carries player text verbatim as untrusted data", () => {
     const tricky = "осмотри реку'; DROP TABLE--";
     const context = buildMasterConversationContext([row(1, { playerText: tricky })], "w1");

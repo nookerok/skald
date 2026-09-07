@@ -1,4 +1,4 @@
-export const USER_VERSION = 9;
+export const USER_VERSION = 11;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");

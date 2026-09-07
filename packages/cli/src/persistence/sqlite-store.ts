@@ -5,7 +5,7 @@ const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
 import { narrationKey } from "@skald/world";
-import { migrateV9ToV10 } from "./migrations.js";
+import { migrateV10ToV11, migrateV9ToV10 } from "./migrations.js";
 import { configureDatabase, execSchemaV9 } from "./schema.js";
 import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, migrateV8ToV9, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
@@ -245,14 +245,22 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   } else if (versionAction === "migrateV9") {
     migrateV8ToV9(db);
     console.log("[persistence] migrated v8->v9: conversation_turns table added");
+  } else if (versionAction === "migrateV11") {
+    migrateV10ToV11(db);
+    console.log("[persistence] migrated v10->v11: conversation turn classes widened");
   } else {
-    // Already v9 — verify
+    // Already v10+ — verify
     verifyIntegrity(db);
   }
 
   // All supported older paths converge at v9 before the read-side identity migration.
   if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 9) {
     migrateV9ToV10(db);
+  }
+  // Speech/mixed/meta turn classes arrive without touching stored rows.
+  if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 10) {
+    migrateV10ToV11(db);
+    console.log("[persistence] migrated v10->v11: conversation turn classes widened");
   }
 
   // Prepared statements

@@ -116,13 +116,17 @@ export function buildMasterConversationContext(
   });
 }
 
-/** Surface focus from accepted action turns, most recent first, deduplicated. */
+/**
+ * Surface focus from accepted action turns, most recent first, deduplicated.
+ * Mixed turns executed their primary like actions, so their targets count.
+ */
 function collectFocus(window: readonly ConversationTurn[]): readonly ConversationReferent[] {
   const focus: ConversationReferent[] = [];
   const seen = new Set<string>();
   for (let index = window.length - 1; index >= 0; index -= 1) {
     const turn = window[index]!;
-    if (turn.inputClass !== "action" || turn.responseKind !== "action_outcome") continue;
+    if ((turn.inputClass !== "action" && turn.inputClass !== "mixed")
+      || (turn.responseKind !== "action_outcome" && turn.responseKind !== "mixed_outcome")) continue;
     const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq);
     if (!candidate) continue;
     const key = `${candidate.kind}:${candidate.surface}`;
@@ -155,11 +159,16 @@ function focusFromPlayerText(playerText: string, turnSeq: number): ConversationR
   return null;
 }
 
-/** The latest clarification turn with no accepted action/inquiry after it. */
+/**
+ * The latest clarification turn with no accepted action/inquiry after it.
+ * Executed action, mixed and speech turns resolve it; read-only meta turns
+ * do not answer the pending question.
+ */
 function collectPendingClarification(window: readonly ConversationTurn[]): PendingClarification | null {
   for (let index = window.length - 1; index >= 0; index -= 1) {
     const turn = window[index]!;
-    if (turn.responseKind === "action_outcome" || turn.responseKind === "inquiry_answer") return null;
+    if (turn.responseKind === "action_outcome" || turn.responseKind === "mixed_outcome" || turn.responseKind === "inquiry_answer") return null;
+    if (turn.responseKind === "speech_reaction") return null;
     if (turn.responseKind !== "clarification") continue;
     return freeze({
       question: truncate(turn.responseText, MASTER_CONVERSATION_MAX_TEXT),

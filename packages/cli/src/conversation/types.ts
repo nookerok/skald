@@ -1,9 +1,18 @@
-export type ConversationInputClass = "action" | "inquiry" | "clarification";
+export type ConversationInputClass =
+  | "action"
+  | "inquiry"
+  | "speech"
+  | "mixed"
+  | "meta"
+  | "clarification";
 
 export type ConversationResponseKind =
   | "action_outcome"
   | "action_rejection"
   | "inquiry_answer"
+  | "speech_reaction"
+  | "mixed_outcome"
+  | "meta_answer"
   | "clarification";
 
 export interface ConversationTurn {
