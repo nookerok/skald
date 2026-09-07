@@ -71,6 +71,22 @@ export type {
 } from "./observation/types.js";
 export { buildPlayerGuidance, buildObserverGuidanceContext, GUIDANCE_ACTIONS } from "./guidance/index.js";
 export type * from "./guidance/types.js";
+export {
+  MASTER_TURN_AVAILABLE_ACTIONS,
+  MASTER_TURN_MAX_TOPICS,
+  buildMasterTurnSceneContext,
+} from "./master-turn/observer-context.js";
+export type {
+  MasterAvailableAction,
+  MasterKnowledgeTopic,
+  MasterSceneItem,
+  MasterSceneReferent,
+  MasterSceneReferentKind,
+  MasterSceneReference,
+  MasterSceneSituation,
+  MasterTurnSceneContext,
+  MasterTurnSceneSnapshot,
+} from "./master-turn/observer-context.js";
 export { CHARACTER_BACKGROUNDS, CHARACTER_PRESETS, WORLD_TEMPLATES, getCharacterBackground, getCharacterPreset, getWorldTemplate, listCharacterBackgrounds, listCharacterPresets, listWorldTemplates, listPlayerWorldTemplates, buildBootstrapEvents, listRegionEntrypoints, getRegionEntrypoint, getDefaultRegionEntrypoint, buildPrologue, buildPrologueFromFirstEntry } from "./setup/index.js";
 export type { CharacterBackground, CharacterPreset, WorldTemplate, WorldTemplateAudience, RegionEntrypoint, PrologueDTO } from "./setup/types.js";
 export type { BootstrapSelection } from "./setup/bootstrap-builder.js";
