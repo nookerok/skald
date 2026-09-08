@@ -305,4 +305,24 @@ describe("TurnProposalV2 schema", () => {
     expect(parseTurnProposal({ schemaVersion: 1, kind: "action" })).toBeNull();
     expect(validateTurnProposal({ schemaVersion: 1, kind: "action" }).status).toBe("invalid");
   });
+
+  it("rejects a hostile model payload before any command mapping", () => {
+    const hostile = {
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осмотри башню" },
+      supportingClauses: [],
+      target: { role: "target", surface: "secret_location", entityId: "hidden_tower" },
+      referents: [],
+      success: true,
+      difficulty: 3,
+      events: ["DoorOpened"],
+      consequence: "collapse",
+    };
+    expect(parseTurnProposal(hostile)).toBeNull();
+    const result = validateTurnProposal(hostile);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") expect(result.reason).toMatch(/authority/);
+    expect(findAuthorityField(hostile)).not.toBeNull();
+  });
 });

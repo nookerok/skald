@@ -12,8 +12,13 @@
  * Priority implemented here:
  * 1. No pronouns in the replica — nothing to bind.
  * 2. Mentioned candidates first: conversation focus surfaces (newest first)
- *    stem-matched against scene labels, so "перевозчику" boosts person_1.
+ *    stem-matched word-wise against scene labels, so "перевозчику" boosts
+ *    a "Перевозчик у переправы" candidate.
  * 3. Remaining scene candidates of the pronoun class, in scene order.
+ *
+ * Boundary: mentions come from deterministically re-parseable accepted
+ * actions. Slang verb forms the deterministic parser cannot read (such as
+ * "подхожу") contribute no mention until validation focus persists.
  *
  * Resolution follows the count rule: one candidate resolves, several ask
  * for clarification, none means missing (stale when a mention exists but
@@ -152,8 +157,8 @@ function rankCandidates(
     if (focusStem.length < 2) continue;
     for (const referent of [...people, ...objects]) {
       if (boosted.includes(referent.observerRef)) continue;
-      const labels = [referent.label, ...referent.knownAs].map((label) => stem(normalizeWord(label)));
-      if (labels.some((label) => label === focusStem)) boosted.push(referent.observerRef);
+      const words = [referent.label, ...referent.knownAs].flatMap((label) => splitWords(label).map(stem));
+      if (words.some((word) => word === focusStem)) boosted.push(referent.observerRef);
     }
   }
 

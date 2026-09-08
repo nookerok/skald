@@ -168,6 +168,16 @@ describe("intent gateway", () => {
     expect((result as any).status).not.toBe("accepted");
   });
 
+  it("never exposes technical validator internals to the player", async () => {
+    const result = await interpretPlayerInput("осматриваюсь и иду к реке", routerReturning("{}"));
+
+    expect(result.status).toBe("clarification");
+    const exposed = JSON.stringify(result);
+    for (const marker of ["unknown", "confidence", "observerRef", "additionalClauses", "schema", "validator", "entityId", "eventId", "одна цель"]) {
+      expect(exposed).not.toContain(marker);
+    }
+  });
+
   it("returns clarification for unknown verbs without creating events", async () => {
     const result = await interpretPlayerInput("лететь к башне", routerReturning("{}"));
 
