@@ -1,3 +1,23 @@
+# Current work (2026-09-08 — P0 deployed to Orange Pi, smoke PASS)
+
+- Updater run as `nooker` (no sudo): backup
+  `backup-6a720ed4c4c44017962bbefe810667332df205d5-pre-update-20260908-222552.sqlite`
+  created+verified, fast-forward `6a720ed` → `de906c7`, on-device suite
+  168 files / 2024 passed / 1 skipped, restart, health gate PASS.
+  `skald.service`, healthcheck and backup timers active; `/api/health` ok.
+- Ten-turn smoke on the `/api/continue` world (`world-097b4463`, T1→T11):
+  all 200 + `ok:true` + non-null `presentation.primary` + state + exact +1
+  per turn through the new gateway path; final state matches; duplicate key
+  returns 409. First live execution of the P0 wiring.
+- Anomalies (pre-existing data conditions, not regressions): no primary
+  world entrypoint, so unscoped `/api/state` and `/api/command` answer 404
+  `world_not_found: legacy-world`; smoke ran on the scoped route instead.
+  No entrypoint was created or changed in this session.
+- `POST /api/ops/ai-probe` still `unavailable` after deploy (Zen routes
+  fail; 400 pre-deploy, configuration-phase failure post-deploy). Live
+  TurnProposalV2 model verification stays blocked on provider transport.
+- Rollback was not needed. Local `main` == `origin/main` == `de906c7`.
+
 # Current work (2026-09-08 — live provider check for TurnProposalV2: BLOCKED)
 
 - Device `orangepi4-lts` reachable, `skald.service` active, deployed commit
