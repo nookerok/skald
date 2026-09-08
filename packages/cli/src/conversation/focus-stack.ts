@@ -11,10 +11,12 @@
  *
  * Priority implemented here:
  * 1. No pronouns in the replica — nothing to bind.
- * 2. Mentioned candidates first: conversation focus surfaces (newest first)
+ * 2. A speech-governed replica ("спрошу у него") narrows dual pronouns to
+ *    person: one addresses people, not fences.
+ * 3. Mentioned candidates first: conversation focus surfaces (newest first)
  *    stem-matched word-wise against scene labels, so "перевозчику" boosts
  *    a "Перевозчик у переправы" candidate.
- * 3. Remaining scene candidates of the pronoun class, in scene order.
+ * 4. Remaining scene candidates of the pronoun class, in scene order.
  *
  * Boundary: mentions come from deterministically re-parseable accepted
  * actions. Slang verb forms the deterministic parser cannot read (such as
@@ -74,6 +76,20 @@ const PREPOSITIONS: ReadonlySet<string> = new Set([
   "перед", "между", "про", "через", "из", "от", "до", "для",
 ]);
 
+/**
+ * Speech-verb stems (any conjugation): a replica governed by one addresses
+ * a person, so dual-class pronouns narrow to person. "Осмотрю её" keeps both
+ * classes; "спрошу у него" does not.
+ */
+const SPEECH_STEMS: readonly string[] = [
+  "спрош", "спроси", "скаж", "сказа", "обращ", "обрати",
+  "позов", "позва", "позову", "оклик", "говор", "шепч", "шепт", "прошепт",
+];
+
+function isSpeechGoverned(words: readonly string[]): boolean {
+  return words.some((word) => SPEECH_STEMS.some((stem) => word.startsWith(stem)));
+}
+
 /** Russian declension tails stripped longest-first for stem matching. */
 const STEM_TAILS: readonly string[] = [
   "ей", "ой", "ую", "юю", "его", "ого", "ому", "ем", "ом",
@@ -114,13 +130,19 @@ export function bindTurnPronouns(
   scene: MasterTurnSceneContext,
 ): readonly PronounBinding[] {
   const words = splitWords(input);
+  const speechGoverned = isSpeechGoverned(words);
   const seen = new Set<string>();
   const bindings: PronounBinding[] = [];
   for (let index = 0; index < words.length; index += 1) {
     const pronoun = words[index]!;
     if (seen.has(pronoun)) continue;
-    const classes = classesFor(pronoun);
-    if (!classes) continue;
+    const rawClasses = classesFor(pronoun);
+    if (!rawClasses) continue;
+    // A speech-governed replica addresses a person: narrow dual forms.
+    const classes = speechGoverned && rawClasses.includes("person")
+      ? rawClasses.filter((kind) => kind !== "thing")
+      : rawClasses;
+    if (classes.length === 0) continue;
     seen.add(pronoun);
     const previous = index > 0 ? words[index - 1]! : null;
     bindings.push(freeze({

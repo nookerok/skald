@@ -774,12 +774,22 @@ function buildInteractionCommand(
  * (empty target, give without recipient, compound intents) through
  * interpretation meta or UnsupportedIntent — never through world checks.
  */
+/**
+ * A single closing mark ends the sentence and is not a target: "Я
+ * осматриваюсь." reads as ambient observe. An ellipsis or a longer run
+ * stays content: "осмотреть ..." remains a malformed target for the
+ * structural validator to clarify.
+ */
+function stripSentenceFinal(text: string): string {
+  return /[.?!]$/.test(text) && !/[.?!]{2,}$/.test(text) ? text.slice(0, -1).trim() : text;
+}
+
 function buildCanonical(
   verb: InteractionVerb,
   afterVerb: string,
   context: { instrument: IntentReference | undefined; goal: string | undefined; rawText: string },
 ): InteractionCommand | UnsupportedIntent | ClarificationRequest {
-  const remainder = afterVerb.trim();
+  const remainder = stripSentenceFinal(afterVerb.trim());
   const compound = false;
 
   let parts: CanonicalParts;

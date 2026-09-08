@@ -238,7 +238,10 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
       rawText,
       interpretation: freeze({ source: "llm" as const, confidence: 1, ambiguities: freeze([]) }),
     });
-    const structural = validateActionProposal(intent);
+    // Structural scope is the primary span: the full replica legitimately
+    // holds deferred clauses and questions (explicitly preserved, never
+    // silent), so SECOND_ACTION must not scan it.
+    const structural = validateActionProposal({ ...intent, rawText: proposal.primaryIntent.sourceText });
     if (!structural.ok) {
       return { status: "clarification", question: structural.clarification, options: [{ optionId: "rephrase", label: "Переформулировать" }] };
     }
@@ -269,7 +272,8 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
 
   const mapped = mapPrimaryAction(primary, proposal, scene, world, rawText, track);
   if (mapped.status !== "accepted") return mapped;
-  const structural = validateActionProposal(mapped.intent);
+  // Structural scope is the primary span (see the speech branch above).
+  const structural = validateActionProposal({ ...mapped.intent, rawText: primary.sourceText });
   if (!structural.ok) {
     return { status: "clarification", question: structural.clarification, options: [{ optionId: "rephrase", label: "Переформулировать" }] };
   }

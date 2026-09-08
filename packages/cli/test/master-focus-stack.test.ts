@@ -93,6 +93,13 @@ describe("turn focus stack", () => {
     expect(binding?.resolution).toBe("ambiguous");
   });
 
+  it("narrows dual pronouns to people in speech-governed replicas", () => {
+    const [binding] = bindTurnPronouns("спрошу у него", EMPTY_CONVERSATION, scene());
+
+    expect(binding?.classes).toEqual(["person"]);
+    expect(binding?.candidates).toEqual(["person_1", "person_2"]);
+  });
+
   it("captures the spatial preposition of an inquiry pronoun", () => {
     const [binding] = bindTurnPronouns("а что за ней?", EMPTY_CONVERSATION, scene());
 
