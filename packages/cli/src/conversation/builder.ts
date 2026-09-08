@@ -82,6 +82,33 @@ export function buildActionConversationTurn(params: {
   };
 }
 
+export function buildSpeechConversationTurn(params: {
+  worldId: string;
+  correlationId: string;
+  idempotencyKey: string;
+  playerText: string;
+  worldTimeBefore: number;
+  stagedEvents: readonly DomainEvent[];
+  projectedWorld: ReadonlyWorld;
+}): ConversationTurnDraft {
+  const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
+  const correlationId = params.stagedEvents.some((event) => event.correlationId === params.correlationId)
+    ? params.correlationId
+    : params.stagedEvents[params.stagedEvents.length - 1]?.correlationId ?? params.correlationId;
+  return {
+    worldId: params.worldId,
+    correlationId,
+    idempotencyKey: params.idempotencyKey,
+    requestHash: conversationRequestHash(params.playerText),
+    playerText: params.playerText,
+    inputClass: "speech",
+    worldTimeBefore: params.worldTimeBefore,
+    worldTimeAfter: params.projectedWorld.time,
+    responseKind: "speech_reaction",
+    responseText: outcome.text,
+  };
+}
+
 export function buildReadSideConversationTurn(params: {
   worldId: string;
   idempotencyKey: string;

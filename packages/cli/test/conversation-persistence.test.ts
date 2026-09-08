@@ -134,4 +134,20 @@ describe("conversation turn persistence", () => {
     expect(store.getConversationTurnBySeq(LEGACY_WORLD_ID, second.turnSeq)?.playerText).toBe("second");
     store.close();
   });
+
+  it("returns the newest turns oldest-first via listRecentConversationTurns", () => {
+    const store = createMultiWorldStore(tmpDb());
+    for (let index = 1; index <= 5; index += 1) {
+      store.recordConversationTurn(draft(`k-${index}`, `replica ${index}`, index));
+    }
+    // Legacy limit returns the oldest rows (documented ASC LIMIT behavior).
+    expect(store.listConversationTurns(LEGACY_WORLD_ID, { limit: 2 }).map((row) => row.playerText))
+      .toEqual(["replica 1", "replica 2"]);
+    // Recent query returns the newest rows, ordered oldest-first for the caller.
+    expect(store.listRecentConversationTurns(LEGACY_WORLD_ID, { limit: 2 }).map((row) => row.playerText))
+      .toEqual(["replica 4", "replica 5"]);
+    expect(store.listRecentConversationTurns(LEGACY_WORLD_ID).map((row) => row.playerText))
+      .toEqual(["replica 1", "replica 2", "replica 3", "replica 4", "replica 5"]);
+    store.close();
+  });
 });

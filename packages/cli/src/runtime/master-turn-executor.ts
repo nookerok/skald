@@ -42,6 +42,7 @@ import type {
   TurnKind,
   ValidatedMasterTurnPlan,
 } from "./master-turn-validator.js";
+import type { ConversationTurnDraft } from "../conversation/types.js";
 
 /** Engine-level context for one execution. */
 export interface MasterTurnExecutionContext {
@@ -52,6 +53,20 @@ export interface MasterTurnExecutionContext {
   /** Shell DTO owner, used for read models only. */
   readonly worldId: string;
   readonly diagnostics?: AIDiagnosticSink | undefined;
+  /**
+   * Optional atomic commit: when present, staged Events and the built
+   * ConversationTurn commit in one durable batch (top-level invariant).
+   * Without it the engine still commits Events; the caller persists the
+   * transcript separately (tests, harnesses).
+   */
+  readonly commit?: {
+    readonly idempotencyKey: string;
+    readonly buildDraft: (
+      staged: readonly DomainEvent[],
+      projectedWorld: ReadonlyWorld,
+      preEvents: readonly DomainEvent[],
+    ) => ConversationTurnDraft;
+  } | undefined;
 }
 
 /** World-changing outcome of one executed primary action. */
@@ -151,10 +166,22 @@ export function executeMasterTurnPlan(
   const interrupt = intent.type === "ActionIntentCommand" && intent.operation === "interrupt";
   const wait = intent.type === "ActionIntentCommand" && intent.operation === "wait";
   const suppressTick = intent.type === "JourneyIntent" || interrupt || (!!before.activeJourneyId && !wait);
+  const preEvents = context.events;
+  const commit = context.commit;
   const { committed } = context.engine.processSequence(suppressTick ? [firstEvent] : [firstEvent, tickEvent], {
     deriveEvents: (staged) => staged
       .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
       .map((event) => rollCriticalCheck(event)),
+    ...(commit
+      ? {
+          prepareCommitContext: (staged: readonly DomainEvent[], projectedWorld: ReadonlyWorld) => ({
+            idempotencyKey: commit.idempotencyKey,
+            requestKind: "command",
+            correlationId,
+            conversationTurn: commit.buildDraft(staged, projectedWorld, preEvents),
+          }),
+        }
+      : {}),
   });
 
   const after = context.projection.getSnapshot();

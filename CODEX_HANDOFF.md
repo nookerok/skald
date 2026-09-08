@@ -1,3 +1,56 @@
+# Current work (2026-09-08 — live provider check for TurnProposalV2: BLOCKED)
+
+- Device `orangepi4-lts` reachable, `skald.service` active, deployed commit
+  `6a720ed` is 16 commits behind local `main` (`5b39610`): no TurnProposalV2
+  code (gateway, prompt, validator, production wiring) exists on the device.
+- Live `POST /api/ops/ai-probe` (19:18 UTC, non-mutating): readiness
+  `unavailable`. Both Zen routes (`muse-spark-1.3-contributor-free` primary,
+  `ling-3.0-flash-fin-free` backup) fail interpret+narrate with HTTP 400 at
+  `response_status`. Providers are down at transport level right now.
+- V2-specific live checks (model schema compliance on TurnProposalV2,
+  Russian V2 input end-to-end, hidden-ID scan of the live prompt, live
+  timeout) cannot run anywhere: no provider keys in the local environment,
+  and deploying needs commit+push authorization plus the updater run.
+- Unblock sequence: authorize commit+push of P0, run the skill update
+  workflow, re-run ai-probe until `ready`, then probe V2 over
+  `/api/worlds/:id/command` on a test world (never the canonical save).
+  No mutation was performed in this session; working tree still carries the
+  uncommitted P0.
+
+# Current work (2026-09-08 — P0 Master Turn Gateway production wiring)
+
+- Status correction for the previous milestone: the V2 contracts, builders,
+  validators, executor and persistence were implemented and component-tested,
+  but production `/api/worlds/:worldId/command` still used the old
+  `interpretPlayerInput` path without ConversationContext, scene, focus or
+  TurnProposalV2. That was foundation, not a gateway.
+- P0 now connects the gateway in `handleWorldCommand`: short queue snapshot
+  (events/world/recent turns/scene/conversation), `interpretMasterTurn`
+  outside the queue (deterministic fast path or closed TurnProposalV2 with
+  static + contextual validation), then queue execution with revalidation and
+  atomic Events + ConversationTurn commit. The legacy V1 LLM proposal path is
+  no longer called from production; `intent-gateway.ts` remains only for
+  test/REPL compatibility.
+- New: `runtime/master-turn-gateway.ts`, `listRecentConversationTurns`
+  (newest-first fix for the ASC LIMIT behavior), atomic commit hook in
+  `master-turn-executor.ts`, `buildSpeechConversationTurn`, validated-plan
+  execution (action/mixed/speech/inquiry/meta) in `world-handlers.ts`.
+- Milestone state: Implemented: contracts/builders/validators/executor/
+  persistence/gateway/production wiring. Integrated: yes (single production
+  path: fast path vs V2, no V1 LLM fallback). Validated: repository gate
+  (see below). Externally verified: no (live provider probe and browser QA
+  still required). Player-ready: no (awaits live probe + human playthrough).
+- Repository gate: PASS (`npm run validate`, Node v22.23.1; 168 test files,
+  2024 passed, 1 skipped; typecheck, Canon, simulation/eval, adventure
+  acceptance and diff checks). Focused suites added by this stage: master-turn
+  gateway (9), master-turn HTTP production path (7), speech turns (2) and
+  recent-transcript ordering (1).
+- Next: live TurnProposalV2 provider probe (schema compliance, Russian
+  input, timeout/fallback, no hidden IDs in prompt), NTFS browser QA through
+  `$skald-ntfs-browser-qa` with an authorized click budget (15-20 replica
+  human scenario), then Orange Pi deploy via `$skald-orange-pi-deploy`.
+  `plan_1.md`–`plan_7.md` remain untracked working notes, not commits.
+
 # Current work (2026-09-03 — plan_5 AI liveness/readiness/deployment contract)
 
 - Simulation liveness remains separate from AI readiness: `/api/health` does

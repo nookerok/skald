@@ -66,6 +66,12 @@ export interface MultiWorldStore {
   getConversationTurnBySeq(worldId: WorldId, turnSeq: number): ConversationTurnRecord | null;
   /** List conversation turns for a world, ordered by turn_seq ASC. */
   listConversationTurns(worldId: WorldId, opts?: { limit?: number; beforeTurnSeq?: number }): ConversationTurnRecord[];
+  /**
+   * List the most recent conversation turns, returned oldest-first.
+   * Unlike listConversationTurns with limit (which returns the oldest rows),
+   * this selects the newest rows first and re-orders them ASC for the caller.
+   */
+  listRecentConversationTurns(worldId: WorldId, opts?: { limit?: number }): ConversationTurnRecord[];
   close(): void;
 }
 
@@ -834,6 +840,20 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         params.push(opts.limit);
       }
       const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
+      return rows.map(mapConversationTurn);
+    },
+
+    listRecentConversationTurns(worldId: WorldId, opts?: { limit?: number }): ConversationTurnRecord[] {
+      const columns = "turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at";
+      if (opts?.limit === undefined) {
+        const rows = db.prepare(
+          `SELECT ${columns} FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq ASC`,
+        ).all(worldId) as Record<string, unknown>[];
+        return rows.map(mapConversationTurn);
+      }
+      const rows = db.prepare(
+        `SELECT ${columns} FROM (SELECT ${columns} FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq DESC LIMIT ?) ORDER BY turn_seq ASC`,
+      ).all(worldId, opts.limit) as Record<string, unknown>[];
       return rows.map(mapConversationTurn);
     },
 

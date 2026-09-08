@@ -318,7 +318,7 @@ function readMode(): IntentGatewayMode {
   return process.env["SKALD_INTENT_LLM_MODE"] === "off" ? "off" : "fallback";
 }
 
-function isSafeDeterministic(result: IntentResult): result is ExecutableIntent {
+export function isSafeDeterministic(result: IntentResult): result is ExecutableIntent {
   if (result.type === "InteractionCommand") {
     return result.interpretation.source === "deterministic"
       && (result.interpretation.ambiguities.length === 0 || ((result.verb === "observe" || result.verb === "listen") && result.interpretation.ambiguities.every((item) => item === "no clear target identified")))
@@ -362,7 +362,7 @@ function needsLLMForNaturalPhrase(input: string, result: ExecutableIntent): bool
  * clarification is not checked here yet: the gateway has no conversation
  * context (Stage 4); that check arrives with MasterTurnContext.
  */
-function isSimpleSafeDeterministic(input: string, result: IntentResult): boolean {
+export function isSimpleSafeDeterministic(input: string, result: IntentResult): boolean {
   if (result.type !== "ActionIntentCommand" && result.type !== "InteractionCommand" && result.type !== "JourneyIntent") return false;
   if (!isSafeDeterministic(result)) return false;
   if (needsLLMForNaturalPhrase(input, result)) return false;
@@ -419,7 +419,7 @@ function isQuestionLikeForFastPath(input: string): boolean {
   return /^(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)/iu.test(normalized);
 }
 
-function clarificationFromDeterministic(result: IntentResult): IntentGatewayResult | null {
+export function clarificationFromDeterministic(result: IntentResult): IntentGatewayResult | null {
   if (result.type !== "ClarificationRequired") return null;
   return {
     status: "clarification",
@@ -428,7 +428,7 @@ function clarificationFromDeterministic(result: IntentResult): IntentGatewayResu
   };
 }
 
-function fallbackForDeterministic(result: IntentResult, message = "Я не уверен, что правильно понял действие. Скажи, что ты хочешь сделать в первую очередь."): IntentGatewayResult {
+export function fallbackForDeterministic(result: IntentResult, message = "Я не уверен, что правильно понял действие. Скажи, что ты хочешь сделать в первую очередь."): IntentGatewayResult {
   if (result.type === "UnsupportedButUnderstood") return { status: "unsupported", message: result.message };
   if (result.type === "ClarificationRequired") {
     return { status: "clarification", question: result.question, options: result.interpretations.map((label, index) => ({ optionId: `deterministic-${index + 1}`, label })) };
