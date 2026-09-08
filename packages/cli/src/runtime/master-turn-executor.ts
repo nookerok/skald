@@ -28,12 +28,14 @@ import {
   buildInquiryAnswer,
   commandEventId,
   handleCommand as worldHandleCommand,
+  type AIDiagnosticSink,
   type InquiryAnswerDTO,
   type MasterTurnSceneSnapshot,
   type ReadonlyWorld,
   type WorldProjector,
 } from "@skald/world";
 import { rollCriticalCheck } from "../dice-roller.js";
+import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
 import { revalidateMasterTurnPlan } from "./master-turn-revalidation.js";
 import type {
   DeferredClause,
@@ -49,6 +51,7 @@ export interface MasterTurnExecutionContext {
   readonly events: readonly DomainEvent[];
   /** Shell DTO owner, used for read models only. */
   readonly worldId: string;
+  readonly diagnostics?: AIDiagnosticSink | undefined;
 }
 
 /** World-changing outcome of one executed primary action. */
@@ -99,11 +102,24 @@ export function executeMasterTurnPlan(
   const before = context.projection.getSnapshot();
   const revisionBefore = freeze({ worldTime: before.time, eventNumber: before.eventNumber });
 
-  const revalidation = revalidateMasterTurnPlan({ plan, scene, world: before });
+  const revalidation = revalidateMasterTurnPlan({ plan, scene, world: before, diagnostics: context.diagnostics });
   if (revalidation.status === "stale") return revalidation;
 
   if (!plan.execution) {
     const postEvents = [...context.events];
+    const inquiryAnswer = answerPostActionInquiry(plan, postEvents, before, context.worldId);
+    if (inquiryAnswer) {
+      emitMasterTurnDiagnostic(context.diagnostics, {
+        category: "post_action_inquiry_answered",
+        outcome: "answered",
+        phase: "execution",
+        turnKind: plan.kind,
+        queryId: inquiryAnswer.queryId,
+        contextWorldTime: plan.contextRevision.worldTime,
+        contextEventNumber: plan.contextRevision.eventNumber,
+        worldTime: before.time,
+      });
+    }
     return freeze({
       status: "executed" as const,
       planKind: plan.kind,
@@ -112,7 +128,7 @@ export function executeMasterTurnPlan(
       commandEvents: freeze([]),
       tickEvents: freeze([]),
       postEvents: freeze(postEvents),
-      inquiryAnswer: answerPostActionInquiry(plan, postEvents, before, context.worldId),
+      inquiryAnswer,
       deferred: plan.deferredClauses,
       revisionBefore,
       revisionAfter: revisionBefore,
@@ -145,6 +161,28 @@ export function executeMasterTurnPlan(
   const commandEvents = freeze(committed.filter((event) => event.correlationId === correlationId));
   const tickEvents = freeze(committed.filter((event) => event.correlationId === `tick-${ts}`));
   const postEvents = freeze([...context.events, ...committed]);
+  const inquiryAnswer = answerPostActionInquiry(plan, postEvents, after, context.worldId);
+  emitMasterTurnDiagnostic(context.diagnostics, {
+    category: "primary_executed",
+    outcome: commandEvents.some((event) => REJECTION_EVENTS.has(event.type)) ? "rejected" : "accepted",
+    phase: "execution",
+    turnKind: plan.kind,
+    contextWorldTime: plan.contextRevision.worldTime,
+    contextEventNumber: plan.contextRevision.eventNumber,
+    worldTime: after.time,
+  });
+  if (inquiryAnswer) {
+    emitMasterTurnDiagnostic(context.diagnostics, {
+      category: "post_action_inquiry_answered",
+      outcome: "answered",
+      phase: "execution",
+      turnKind: plan.kind,
+      queryId: inquiryAnswer.queryId,
+      contextWorldTime: plan.contextRevision.worldTime,
+      contextEventNumber: plan.contextRevision.eventNumber,
+      worldTime: after.time,
+    });
+  }
   return freeze({
     status: "executed" as const,
     planKind: plan.kind,
@@ -153,7 +191,7 @@ export function executeMasterTurnPlan(
     commandEvents,
     tickEvents,
     postEvents,
-    inquiryAnswer: answerPostActionInquiry(plan, postEvents, after, context.worldId),
+    inquiryAnswer,
     deferred: plan.deferredClauses,
     revisionBefore,
     revisionAfter: freeze({ worldTime: after.time, eventNumber: after.eventNumber }),

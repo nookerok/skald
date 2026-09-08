@@ -19,6 +19,7 @@
 import {
   isItemAccessible,
   resolveInteractionTarget,
+  type AIDiagnosticSink,
   type MasterTurnSceneSnapshot,
   type ReadonlyWorld,
 } from "@skald/world";
@@ -32,6 +33,7 @@ import {
   type TurnProposalKind,
   type TurnProposalV2,
 } from "@skald/intent-parser";
+import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
 
 /** Turn kinds a validated plan may carry. */
 export type TurnKind = TurnProposalKind;
@@ -92,6 +94,7 @@ export interface MasterTurnValidationInput {
   readonly scene: MasterTurnSceneSnapshot;
   readonly world: ReadonlyWorld;
   readonly rawText: string;
+  readonly diagnostics?: AIDiagnosticSink | undefined;
 }
 
 /** Non-accepted outcomes shared by the mapping helpers below. */
@@ -138,8 +141,28 @@ function staleClarification(surface: string): MasterTurnStaleClarification {
 /**
  * Validates one replica plan against the current scene table and world.
  * Pure and read-only: no Events, no Projection writes, no network calls.
+ * The optional diagnostics sink receives one taxonomy event per
+ * non-accepted outcome; accepted plans stay silent.
  */
 export function validateMasterTurnPlan(input: MasterTurnValidationInput): MasterTurnValidation {
+  const result = validateMasterTurnPlanInner(input);
+  if (input.diagnostics && result.status === "clarification") {
+    emitMasterTurnDiagnostic(input.diagnostics, {
+      category: input.proposal.ambiguity ? "clarification_returned" : "referent_rejected",
+      outcome: "clarification",
+      phase: "context_validation",
+      turnKind: input.proposal.kind,
+      referentCount: input.proposal.referents.length,
+      clauseCount: input.proposal.supportingClauses.length,
+      contextWorldTime: input.world.time,
+      contextEventNumber: input.world.eventNumber,
+      worldTime: input.world.time,
+    });
+  }
+  return result;
+}
+
+function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTurnValidation {
   const { proposal, scene, world, rawText } = input;
 
   if (proposal.ambiguity) {

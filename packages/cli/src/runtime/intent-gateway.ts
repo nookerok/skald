@@ -13,6 +13,7 @@ import {
 } from "@skald/intent-parser";
 import { toProviderFailure } from "@skald/world";
 import type { AIDiagnosticSink, ModelRouter, ProviderId } from "@skald/world";
+import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
 
 export type IntentGatewayMode = "off" | "fallback";
 
@@ -135,6 +136,13 @@ export async function interpretPlayerInput(
       };
     }
     const startedAt = performance.now();
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "context_required",
+      outcome: "accepted",
+      phase: "routing",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
     let rawInquiry: unknown;
     try {
       rawInquiry = await withTimeout(proposeInquiry(router, input, options), options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -201,6 +209,13 @@ export async function interpretPlayerInput(
           options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
         };
       }
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "deterministic_fast_path",
+        outcome: "accepted",
+        phase: "fast_path",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+      });
       return { status: "accepted", intent: deterministic, source: "deterministic" };
     }
   }
@@ -219,6 +234,13 @@ export async function interpretPlayerInput(
   }
 
   const startedAt = performance.now();
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "context_required",
+    outcome: "accepted",
+    phase: "routing",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+  });
   let raw: unknown;
   try {
     raw = await withTimeout(proposeIntent(router, input, options), options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);

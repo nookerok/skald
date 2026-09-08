@@ -22,6 +22,7 @@ import {
   isItemAccessible,
   resolveInteractionTarget,
   spatialKnowledgeRank,
+  type AIDiagnosticSink,
   type MasterTurnSceneSnapshot,
   type ReadonlyWorld,
 } from "@skald/world";
@@ -29,6 +30,7 @@ import type {
   ValidatedConversationReferent,
   ValidatedMasterTurnPlan,
 } from "./master-turn-validator.js";
+import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
 
 /** Pre-execution revalidation outcome. Stale plans must not execute. */
 export type MasterTurnRevalidation =
@@ -45,6 +47,7 @@ export interface MasterTurnRevalidationInput {
   readonly plan: ValidatedMasterTurnPlan;
   readonly scene: MasterTurnSceneSnapshot;
   readonly world: ReadonlyWorld;
+  readonly diagnostics?: AIDiagnosticSink | undefined;
 }
 
 function stale(question: string): MasterTurnRevalidation {
@@ -60,6 +63,22 @@ function stale(question: string): MasterTurnRevalidation {
  * Events, no Projection writes, no network calls, no model invocation.
  */
 export function revalidateMasterTurnPlan(input: MasterTurnRevalidationInput): MasterTurnRevalidation {
+  const result = revalidateMasterTurnPlanInner(input);
+  if (input.diagnostics && result.status === "stale") {
+    emitMasterTurnDiagnostic(input.diagnostics, {
+      category: "stale_context",
+      outcome: "stale",
+      phase: "queue_revalidation",
+      turnKind: input.plan.kind,
+      contextWorldTime: input.plan.contextRevision.worldTime,
+      contextEventNumber: input.plan.contextRevision.eventNumber,
+      worldTime: input.world.time,
+    });
+  }
+  return result;
+}
+
+function revalidateMasterTurnPlanInner(input: MasterTurnRevalidationInput): MasterTurnRevalidation {
   const { plan, scene, world } = input;
   if (!plan.execution) {
     // Inquiry and meta plans mutate nothing; the question is answered from
