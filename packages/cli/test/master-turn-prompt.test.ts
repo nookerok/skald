@@ -5,6 +5,7 @@ import {
   buildMasterTurnPrompt,
 } from "../src/runtime/master-turn-prompt.js";
 import type { MasterTurnSceneContext } from "@skald/world";
+import { EMPTY_MASTER_CONVERSATION } from "../src/conversation/context-builder.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
 
 const SCENE: MasterTurnSceneContext = {
@@ -21,6 +22,7 @@ const SCENE: MasterTurnSceneContext = {
 };
 
 const CONVERSATION: MasterConversationContext = {
+  ...EMPTY_MASTER_CONVERSATION,
   recentTurns: [{ speaker: "player", text: "осматриваюсь", turnSeq: 1 }],
   recentFocus: [],
   pendingClarification: null,

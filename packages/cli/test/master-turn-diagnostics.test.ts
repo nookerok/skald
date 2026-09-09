@@ -55,11 +55,12 @@ function routerReturning(text: string) {
 }
 
 describe("master turn diagnostic taxonomy", () => {
-  it("fixes the thirteen plan categories", () => {
+  it("fixes the fourteen plan categories", () => {
     expect(MASTER_TURN_DIAGNOSTIC_CATEGORIES).toEqual([
       "deterministic_fast_path",
       "context_required",
       "context_built",
+      "conversation_context",
       "turn_proposal_requested",
       "turn_proposal_received",
       "proposal_schema_rejected",
@@ -99,6 +100,36 @@ describe("master turn diagnostic taxonomy", () => {
     expect(json).not.toContain("system prompt");
     expect(json).not.toContain("model text");
     expect(json).not.toContain("referenceTable");
+  });
+
+  it("carries conversation_context counts without dialogue content", () => {
+    const seen: unknown[] = [];
+    emitMasterTurnDiagnostic((event) => seen.push(event), {
+      category: "conversation_context",
+      outcome: "degraded",
+      phase: "snapshot",
+      messageCount: 12,
+      mentionCount: 2,
+      hasPendingClarification: true,
+      hasGoal: false,
+      hasDramaticThread: true,
+      truncated: true,
+      question: "С кем?",
+    } as any);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      kind: "intent",
+      category: "conversation_context",
+      outcome: "degraded",
+      messageCount: 12,
+      mentionCount: 2,
+      hasPendingClarification: true,
+      hasGoal: false,
+      hasDramaticThread: true,
+      truncated: true,
+    });
+    expect(JSON.stringify(seen)).not.toContain("С кем?");
   });
 
   it("never throws and no-ops without a sink", () => {

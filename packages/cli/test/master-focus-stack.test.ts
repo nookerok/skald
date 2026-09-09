@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bindTurnPronouns } from "../src/conversation/focus-stack.js";
+import { EMPTY_MASTER_CONVERSATION } from "../src/conversation/context-builder.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
 import type { MasterTurnSceneContext } from "@skald/world";
 
@@ -31,6 +32,7 @@ function scene(overrides: Partial<MasterTurnSceneContext> = {}): MasterTurnScene
 
 function conversation(overrides: Partial<MasterConversationContext> = {}): MasterConversationContext {
   return {
+    ...EMPTY_MASTER_CONVERSATION,
     recentTurns: [],
     recentFocus: [],
     pendingClarification: null,

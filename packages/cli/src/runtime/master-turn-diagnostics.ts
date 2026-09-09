@@ -12,7 +12,9 @@
  * Producer map (reserved entries await gateway-V2 wiring or parser sinks):
  * - deterministic_fast_path: gateway fast-path accept;
  * - context_required: gateway diverts to the LLM proposal path;
- * - context_built: reserved (scene assembly in the V2 gateway path);
+ * - context_built: scene assembly in the V2 gateway path;
+ * - conversation_context: context build outcome (built|degraded|failed) with
+ *   secret-free counts; failed falls back to an empty conversation;
  * - turn_proposal_requested/received: reserved (V2 proposal fetch);
  * - proposal_schema_rejected: reserved (static parser validation has no sink);
  * - referent_rejected: contextual validation stale-clarification;
@@ -31,6 +33,7 @@ export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freez
   "deterministic_fast_path",
   "context_required",
   "context_built",
+  "conversation_context",
   "turn_proposal_requested",
   "turn_proposal_received",
   "proposal_schema_rejected",
@@ -60,6 +63,12 @@ export interface MasterTurnDiagnosticDimensions {
   readonly contextEventNumber?: number | undefined;
   readonly queryId?: string | undefined;
   readonly failureCategory?: string | undefined;
+  readonly messageCount?: number | undefined;
+  readonly mentionCount?: number | undefined;
+  readonly hasPendingClarification?: boolean | undefined;
+  readonly hasGoal?: boolean | undefined;
+  readonly hasDramaticThread?: boolean | undefined;
+  readonly truncated?: boolean | undefined;
 }
 
 function freeze<T>(value: T): T {
@@ -105,6 +114,12 @@ export function emitMasterTurnDiagnostic(
       ...(asCount(dimensions.contextEventNumber) !== undefined ? { contextEventNumber: asCount(dimensions.contextEventNumber)! } : {}),
       ...(asText(dimensions.queryId, 80) ? { queryId: asText(dimensions.queryId, 80)! } : {}),
       ...(asText(dimensions.failureCategory, 80) ? { failureCategory: asText(dimensions.failureCategory, 80)! } : {}),
+      ...(asCount(dimensions.messageCount) !== undefined ? { messageCount: asCount(dimensions.messageCount)! } : {}),
+      ...(asCount(dimensions.mentionCount) !== undefined ? { mentionCount: asCount(dimensions.mentionCount)! } : {}),
+      ...(typeof dimensions.hasPendingClarification === "boolean" ? { hasPendingClarification: dimensions.hasPendingClarification } : {}),
+      ...(typeof dimensions.hasGoal === "boolean" ? { hasGoal: dimensions.hasGoal } : {}),
+      ...(typeof dimensions.hasDramaticThread === "boolean" ? { hasDramaticThread: dimensions.hasDramaticThread } : {}),
+      ...(typeof dimensions.truncated === "boolean" ? { truncated: dimensions.truncated } : {}),
       recordedAt: new Date().toISOString(),
     }));
   } catch {

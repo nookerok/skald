@@ -54,9 +54,10 @@ import {
   isWorldChangingTurn,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
-import { buildMasterConversationContext } from "../conversation/context-builder.js";
+import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
+import { emitMasterTurnDiagnostic } from "../runtime/master-turn-diagnostics.js";
 import { executeMasterTurnPlan } from "../runtime/master-turn-executor.js";
 import type { ValidatedMasterTurnPlan } from "../runtime/master-turn-validator.js";
 import {
@@ -506,9 +507,32 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
     const snapshot = await runtime.queue.enqueue(async () => {
       const events = runtime.bus.query();
       const world = runtime.projection.getSnapshot();
-      const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 10 });
+      const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 30 });
       const scene = buildMasterTurnSceneContext(events, world);
-      const conversation = buildMasterConversationContext(turns, runtime.worldId);
+      const narrations = runtime.store.getTurnNarrations(runtime.worldId);
+      const record = runtime.store.getWorldRecord(runtime.worldId);
+      const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+      let conversation;
+      try {
+        conversation = buildMasterConversationContext(turns, runtime.worldId, {
+          narrations,
+          scene: scene.context,
+          personalHook: profile?.promise ?? null,
+        });
+      } catch {
+        // The world never changes on a context failure: diagnose and fall
+        // back to an empty conversation. Simple commands still take the
+        // deterministic path; contextual input becomes a natural
+        // clarification downstream. Never a stack trace to the player.
+        emitMasterTurnDiagnostic(runtime.diagnostics, {
+          category: "conversation_context",
+          outcome: "failed",
+          phase: "snapshot",
+          correlationId: `intent-${idempotencyKey}`,
+          worldTime: world.time,
+        });
+        conversation = EMPTY_MASTER_CONVERSATION;
+      }
       return { events, world, scene, conversation };
     });
     // Single production interpretation entry: deterministic fast path or
