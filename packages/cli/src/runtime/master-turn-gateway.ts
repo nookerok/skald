@@ -22,7 +22,8 @@ import {
   type InquiryRequest,
 } from "@skald/intent-parser";
 import type { AIDiagnosticSink, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
-import type { MasterConversationContext } from "../conversation/context-builder.js";
+import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
+import { bindTurnPronouns } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
 import { validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
 import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
@@ -56,7 +57,11 @@ export type MasterTurnGatewayOutcome =
   | { readonly status: "deterministic"; readonly intent: ExecutableIntent }
   | { readonly status: "inquiry"; readonly inquiry: InquiryRequest }
   | { readonly status: "plan"; readonly plan: ValidatedMasterTurnPlan; readonly scene: MasterTurnSceneSnapshot }
-  | { readonly status: "clarification"; readonly question: string; readonly options: readonly { readonly optionId: string; readonly label: string }[] }
+  | {
+    readonly status: "clarification";
+    readonly question: string;
+    readonly options: readonly { readonly optionId: string; readonly label: string }[];
+  }
   | { readonly status: "unsupported"; readonly message: string }
   | { readonly status: "unavailable"; readonly message: string };
 
@@ -139,6 +144,22 @@ export async function interpretMasterTurn(
     worldTime: options?.worldTime,
     contextWorldTime: snapshot.world.time,
     contextEventNumber: snapshot.world.eventNumber,
+  });
+  const contextSummary = describeConversationContext(snapshot.conversation);
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "conversation_context",
+    outcome: contextSummary.truncated ? "degraded" : "built",
+    phase: "snapshot",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+    contextWorldTime: snapshot.world.time,
+    contextEventNumber: snapshot.world.eventNumber,
+    messageCount: contextSummary.messageCount,
+    mentionCount: contextSummary.mentionCount,
+    hasPendingClarification: contextSummary.hasPendingClarification,
+    hasGoal: contextSummary.hasGoal,
+    hasDramaticThread: contextSummary.hasDramaticThread,
+    truncated: contextSummary.truncated,
   });
 
   let raw: unknown;
@@ -246,10 +267,14 @@ async function proposeTurn(
   snapshot: MasterTurnSnapshot,
   options?: MasterTurnGatewayOptions,
 ): Promise<unknown> {
+  // Pronoun bindings resolve against the same snapshot the model sees;
+  // the validator and the queue revalidate every referent afterwards.
+  const pronounBindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context);
   const prompt = buildMasterTurnPrompt({
     playerText: input,
     scene: snapshot.scene.context,
     conversation: snapshot.conversation,
+    pronounBindings,
   });
   const response = await router.chat("interpret", [
     { role: "system", content: MASTER_TURN_SYSTEM_PROMPT },

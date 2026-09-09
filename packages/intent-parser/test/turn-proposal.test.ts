@@ -306,6 +306,17 @@ describe("TurnProposalV2 schema", () => {
     expect(validateTurnProposal({ schemaVersion: 1, kind: "action" }).status).toBe("invalid");
   });
 
+  it("accepts an optional conversationRelation within the closed set", () => {
+    for (const relation of ["continuation", "new_topic", "cancel_pending"]) {
+      const result = validateTurnProposal({ ...actionProposal(), conversationRelation: relation });
+      expect(result.status).toBe("accepted");
+      if (result.status === "accepted") expect(result.proposal.conversationRelation).toBe(relation);
+    }
+    expect(parseTurnProposal({ ...actionProposal(), conversationRelation: "maybe" })).toBeNull();
+    expect(validateTurnProposal({ ...actionProposal(), conversationRelation: "maybe" }).status).toBe("invalid");
+    expect(parseTurnProposal({ ...actionProposal(), conversationRelation: 1 })).toBeNull();
+  });
+
   it("rejects a hostile model payload before any command mapping", () => {
     const hostile = {
       schemaVersion: 2,

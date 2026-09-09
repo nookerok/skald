@@ -192,6 +192,13 @@ export interface ProposedAmbiguity {
   readonly candidates: readonly string[];
 }
 
+/**
+ * How this replica relates to the pending clarification, as reported by the
+ * model. Non-authoritative interpretation: the server resolves and persists
+ * the link, and schema validation keeps the closed set.
+ */
+export type TurnConversationRelation = "continuation" | "new_topic" | "cancel_pending";
+
 /** Untrusted model output for one player replica. Never handed to the Command Handler. */
 export interface TurnProposalV2 {
   readonly schemaVersion: 2;
@@ -205,6 +212,7 @@ export interface TurnProposalV2 {
   readonly question?: ProposedQuestion;
   readonly referents: readonly ProposedReferent[];
   readonly ambiguity?: ProposedAmbiguity;
+  readonly conversationRelation?: TurnConversationRelation;
 }
 
 /**
@@ -254,6 +262,10 @@ function isInquiryRelation(value: unknown): value is TurnInquiryRelation {
 
 function isAmbiguityKind(value: unknown): value is TurnAmbiguityKind {
   return value === "referent" || value === "action" || value === "question" || value === "destination";
+}
+
+function isConversationRelation(value: unknown): value is TurnConversationRelation {
+  return value === "continuation" || value === "new_topic" || value === "cancel_pending";
 }
 
 function parseReferent(raw: unknown): ProposedReferent | null {
@@ -445,7 +457,7 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
   const candidate = raw as Record<string, unknown>;
   if (candidate.schemaVersion !== 2) return null;
   if (candidate.kind !== "action" && candidate.kind !== "inquiry" && candidate.kind !== "speech" && candidate.kind !== "mixed" && candidate.kind !== "meta") return null;
-  if (!hasOnlyKeys(candidate, ["schemaVersion", "kind", "primaryIntent", "supportingClauses", "addressedEntity", "target", "goal", "manner", "question", "referents", "ambiguity"])) return null;
+  if (!hasOnlyKeys(candidate, ["schemaVersion", "kind", "primaryIntent", "supportingClauses", "addressedEntity", "target", "goal", "manner", "question", "referents", "ambiguity", "conversationRelation"])) return null;
   if (!("primaryIntent" in candidate) || !("supportingClauses" in candidate) || !("referents" in candidate)) return null;
   const primaryIntent = parsePrimary(candidate.primaryIntent);
   if (primaryIntent === undefined) return null;
@@ -466,6 +478,7 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
   }
   if (candidate.goal !== undefined && !isCleanString(candidate.goal, TURN_MAX_STRING, false)) return null;
   if (candidate.manner !== undefined && !isCleanString(candidate.manner, TURN_MAX_STRING, false)) return null;
+  if (candidate.conversationRelation !== undefined && !isConversationRelation(candidate.conversationRelation)) return null;
   if (candidate.question !== undefined) {
     if (!parseQuestion(candidate.question)) return null;
   }
@@ -484,6 +497,7 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
     ...(candidate.question !== undefined ? { question: parseQuestion(candidate.question)! } : {}),
     referents,
     ...(candidate.ambiguity !== undefined ? { ambiguity: parseAmbiguity(candidate.ambiguity)! } : {}),
+    ...(candidate.conversationRelation !== undefined ? { conversationRelation: candidate.conversationRelation as TurnConversationRelation } : {}),
   });
 }
 

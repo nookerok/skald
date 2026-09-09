@@ -98,6 +98,33 @@ describe("master turn gateway V2", () => {
     expect(messages[0].content).not.toContain("Подхожу к ограде.");
   });
 
+  it("sends the master_turn envelope with bindings bound to the snapshot scene", async () => {
+    const snap = snapshot();
+    const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    expect(fence).toBeDefined();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ней." },
+      supportingClauses: [],
+      target: { role: "target", observerRef: fence!.observerRef, surface: fence!.label },
+      referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
+      ambiguity: { kind: "referent", question: "К чему именно подойти?", candidates: ["Ограда", "Двор"] },
+    }));
+
+    await interpretMasterTurn("Подхожу к ней.", snap, router);
+
+    const [, messages] = router.chat.mock.calls[0] as any[];
+    const block = JSON.parse(messages[1].content) as Record<string, any>;
+    expect(block.kind).toBe("master_turn");
+    expect(block.currentInput).toBe("Подхожу к ней.");
+    expect(block.conversationContext.currentScene).toMatchObject({ schemaVersion: 1 });
+    expect(block.pronounBindings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ pronoun: "ней" })]),
+    );
+    expect(JSON.stringify(block)).not.toMatch(/worldId|entityId|eventId/);
+  });
+
   it("returns model-reported ambiguity as clarification", async () => {
     // Pronoun-bearing input skips the deterministic fast path by design,
     // so the model ambiguity reaches the player instead of a structural gate.
@@ -175,9 +202,17 @@ describe("master turn gateway V2", () => {
     expect(events.length).toBeGreaterThan(0);
     expect(events.map((event) => event.category)).toEqual(expect.arrayContaining([
       "context_required",
+      "conversation_context",
       "turn_proposal_requested",
       "turn_proposal_received",
     ]));
+    const contextEvent = events.find((event) => event.category === "conversation_context");
+    expect(contextEvent).toMatchObject({ outcome: expect.any(String) });
+    expect(contextEvent).toEqual(expect.objectContaining({
+      messageCount: expect.any(Number),
+      mentionCount: expect.any(Number),
+      truncated: expect.any(Boolean),
+    }));
     expect(JSON.stringify(events)).not.toContain("Подхожу к ограде.");
   });
 });

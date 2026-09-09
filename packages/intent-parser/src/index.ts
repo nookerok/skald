@@ -88,6 +88,7 @@ export type {
   ProposedSpeech,
   SupportingClause,
   TurnAmbiguityKind,
+  TurnConversationRelation,
   TurnInquiryRelation,
   TurnInteractionVerb,
   TurnLegacyOperation,

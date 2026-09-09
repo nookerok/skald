@@ -1,5 +1,5 @@
 /**
- * Master Turn prompt contract (ADR-0028, plan_6 Stage 13).
+ * Master Turn prompt contract (ADR-0028, plan_6 Stage 13, plan_7 §6).
  *
  * Builds the two LLM chat parts for a TurnProposalV2 request: a static
  * system prompt carrying only instructions and closed registries, and one
@@ -20,6 +20,7 @@ import {
 } from "@skald/intent-parser";
 import type { MasterTurnSceneContext } from "@skald/world";
 import type { MasterConversationContext } from "../conversation/context-builder.js";
+import type { PronounBinding } from "../conversation/focus-stack.js";
 
 /** Turn kinds the model may return, kept in sync with the V2 type. */
 const TURN_KINDS: readonly TurnProposalKind[] = ["action", "inquiry", "speech", "mixed", "meta"];
@@ -39,10 +40,13 @@ export const MASTER_TURN_SYSTEM_PROMPT: string = [
   "- classify the turn;",
   "- select registered intent/query kinds;",
   "- connect pronouns to supplied observerRef values;",
+  "- report how this replica relates to the pending clarification via conversationRelation (continuation, new_topic, cancel_pending);",
   "- preserve goal, manner and supporting clauses.",
   "",
   "You may not:",
   "- decide success;",
+  "- execute more than one action for one replica — extra noticed actions stay deferred_action clauses;",
+  "- answer a follow-up question by changing the world — questions stay read-only;",
   "- invent entities or world facts;",
   "- reveal hidden data;",
   "- create routes;",
@@ -79,6 +83,7 @@ export interface MasterTurnPromptInput {
   readonly playerText: string;
   readonly scene: MasterTurnSceneContext;
   readonly conversation: MasterConversationContext;
+  readonly pronounBindings?: readonly PronounBinding[] | undefined;
 }
 
 /** The two chat parts: static instructions plus one JSON data block. */
@@ -89,13 +94,25 @@ export interface MasterTurnPrompt {
 
 /**
  * Assembles the prompt. Pure and total: the system part is constant, the
- * user part is one JSON block. Inputs are only read, never mutated.
+ * user part is one JSON block with the plan_7 §6 envelope (kind,
+ * currentInput, conversationContext). Inputs are only read, never mutated.
  */
 export function buildMasterTurnPrompt(input: MasterTurnPromptInput): MasterTurnPrompt {
+  const conversation = input.conversation;
   const user = JSON.stringify({
-    playerText: input.playerText,
-    scene: input.scene,
-    conversation: input.conversation,
+    kind: "master_turn",
+    currentInput: input.playerText,
+    conversationContext: {
+      lastTurns: conversation.lastTurns,
+      currentScene: input.scene,
+      pendingClarification: conversation.pendingClarification,
+      recentlyMentionedEntities: conversation.recentlyMentionedEntities,
+      activePlayerGoal: conversation.activePlayerGoal,
+      currentDramaticThread: conversation.currentDramaticThread,
+      knownFacts: conversation.knownFacts,
+      knownUncertainties: conversation.knownUncertainties,
+    },
+    pronounBindings: input.pronounBindings ?? [],
     capabilities: MASTER_TURN_PROMPT_CAPABILITIES,
   });
   return Object.freeze({ system: MASTER_TURN_SYSTEM_PROMPT, user });
