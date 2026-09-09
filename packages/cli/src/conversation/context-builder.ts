@@ -17,8 +17,9 @@
  *   degrades fail-closed to the legacy heuristic when a row has none.
  * - `observerRef` handles are transient: they are re-matched against the
  *   current scene on every build and never read from stored rows.
- * - Closing rules for clarification live here; K4 narrows the inquiry case
- *   (a foreign inquiry stops closing the pending question).
+ * - Closing rules for clarification live here: explicit continuation links
+ *   resolve or abandon the question, a foreign inquiry never closes it, and
+ *   a world-changing outcome closes it by the legacy rule.
  */
 
 import { parseIntent } from "@skald/intent-parser";
@@ -356,23 +357,40 @@ function shownNarrationText(
 }
 
 /**
- * Surface focus from accepted action turns, most recent first, deduplicated.
- * Mixed turns executed their primary like actions, so their targets count.
+ * Surface focus, most recent first, deduplicated. Structured mentions from
+ * validated plans (persisted metadata, any turn kind — inquiry focus and
+ * speech addressees count on par with action targets) come first; the
+ * deterministic re-parse of accepted action text remains as the legacy
+ * fallback for rows written before metadata existed.
  */
 function collectFocus(window: readonly ConversationTurn[]): readonly ConversationReferent[] {
   const focus: ConversationReferent[] = [];
   const seen = new Set<string>();
+  const push = (candidate: ConversationReferent): void => {
+    if (focus.length >= MASTER_CONVERSATION_MAX_FOCUS) return;
+    const key = `${candidate.kind}:${candidate.surface}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    focus.push(candidate);
+  };
   for (let index = window.length - 1; index >= 0; index -= 1) {
     const turn = window[index]!;
+    const stored = recordMetadata(turn)?.mentions;
+    if (stored) {
+      for (const entry of stored) {
+        push(freeze({
+          kind: entry.role === "instrument" ? ("target" as const) : entry.role as ConversationReferent["kind"],
+          surface: truncate(entry.label, MASTER_CONVERSATION_MAX_SURFACE),
+          turnSeq: turn.turnSeq,
+        }));
+      }
+      continue;
+    }
     if ((turn.inputClass !== "action" && turn.inputClass !== "mixed")
       || (turn.responseKind !== "action_outcome" && turn.responseKind !== "mixed_outcome")) continue;
     const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq);
     if (!candidate) continue;
-    const key = `${candidate.kind}:${candidate.surface}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    focus.push(candidate);
-    if (focus.length >= MASTER_CONVERSATION_MAX_FOCUS) break;
+    push(candidate);
   }
   return freeze(focus);
 }
@@ -399,20 +417,35 @@ function focusFromPlayerText(playerText: string, turnSeq: number): ConversationR
 }
 
 /**
- * The latest clarification turn with no accepted action/inquiry after it.
- * Executed action, mixed and speech turns resolve it; read-only meta turns
- * do not answer the pending question. Structured question/options restore
- * from memory metadata when the row carries them (K4 narrows the inquiry
- * case so a foreign inquiry no longer closes the question).
+ * The latest clarification turn still open. Newest-first walk over the scan:
+ * - an explicit continuation link (resolves/continues) closes its target;
+ * - an explicit cancel/new-topic link abandons it;
+ * - a newer clarification supersedes older ones;
+ * - a world-changing outcome (action/mixed/speech) without an explicit link
+ *   closes it by the legacy rule — the replica acted instead of talking;
+ * - a foreign inquiry, meta answer or rejection never closes it: answering
+ *   something else is not answering the question.
+ * Closing creates no Domain Event and moves no time. Technical master texts
+ * never enter LLM context, not even as questions.
  */
 function collectPendingClarification(scan: readonly ConversationTurn[]): PendingClarification | null {
+  const links = new Map<number, string>();
+  let actedAfter = false;
   for (let index = scan.length - 1; index >= 0; index -= 1) {
     const turn = scan[index]!;
-    if (turn.responseKind === "action_outcome" || turn.responseKind === "mixed_outcome" || turn.responseKind === "inquiry_answer") return null;
-    if (turn.responseKind === "speech_reaction") return null;
+    const continuation = recordMetadata(turn)?.continuation;
+    if (continuation?.clarificationTurnSeq !== undefined && !links.has(continuation.clarificationTurnSeq)) {
+      links.set(continuation.clarificationTurnSeq, continuation.relation);
+    }
+    if (turn.responseKind === "action_outcome" || turn.responseKind === "mixed_outcome" || turn.responseKind === "speech_reaction") {
+      actedAfter = true;
+    }
     if (turn.responseKind !== "clarification") continue;
-    // Technical master texts never enter LLM context, not even as questions.
     if (isTechnicalMasterText(turn.responseText)) continue;
+    const relation = links.get(turn.turnSeq);
+    if (relation === "resolves" || relation === "continues") return null;
+    if (relation === "cancels" || relation === "new_topic") return null;
+    if (actedAfter) return null;
     const stored = recordMetadata(turn)?.clarification;
     return freeze({
       question: truncate(stored?.question ?? turn.responseText, MASTER_CONVERSATION_MAX_TEXT),

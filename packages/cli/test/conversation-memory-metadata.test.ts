@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createMultiWorldStore, DuplicateRequestError } from "../src/persistence/sqlite-store.js";
 import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
-import { buildReadSideConversationTurn, toConversationTurnDTO } from "../src/conversation/builder.js";
+import { buildReadSideConversationTurn, buildTurnMemoryMetadata, toConversationTurnDTO } from "../src/conversation/builder.js";
 import {
   parseConversationMemoryMetadata,
   serializeConversationMemoryMetadata,
@@ -224,6 +224,41 @@ describe("conversation memory metadata", () => {
     expect(next.turnSeq).toBe(2);
     expect(next.contextMetadata).toEqual({ schemaVersion: 1, goal: { summary: "Дойти" } });
     store.close();
+  });
+
+  it("assembles turn memory from validated focus, goal and relation", () => {
+    expect(buildTurnMemoryMetadata({})).toBeNull();
+    expect(buildTurnMemoryMetadata({ focus: [], goal: null, relation: null })).toBeNull();
+    expect(buildTurnMemoryMetadata({
+      focus: [
+        { observerRef: "person_1", surface: "перевозчик", kind: "addressee" },
+        { observerRef: null, surface: "куда-то", kind: "destination" },
+        { observerRef: null, surface: "что-то", kind: "target" },
+        { observerRef: "object_9", surface: "", kind: "target" },
+      ],
+      goal: "  Найти русло  ",
+      relation: "continuation",
+      pendingClarificationSeq: 4,
+    })).toEqual({
+      schemaVersion: 1,
+      mentions: [
+        { kind: "person", role: "addressee", label: "перевозчик" },
+        { kind: "route", role: "destination", label: "куда-то" },
+      ],
+      goal: { summary: "Найти русло" },
+      continuation: { relation: "continues", clarificationTurnSeq: 4 },
+      dramaticThread: { source: "player_goal", title: "Найти русло" },
+    });
+    expect(buildTurnMemoryMetadata({ relation: "cancel_pending", pendingClarificationSeq: null })).toEqual({
+      schemaVersion: 1,
+      continuation: { relation: "cancels" },
+    });
+    expect(buildTurnMemoryMetadata({
+      clarification: { question: "Кто?", options: [{ optionId: "rephrase", label: "Уточнить" }] },
+    })).toEqual({
+      schemaVersion: 1,
+      clarification: { question: "Кто?", options: [{ optionId: "rephrase", label: "Уточнить" }] },
+    });
   });
 
   it("commits events and metadata atomically and replays idempotent keys", () => {

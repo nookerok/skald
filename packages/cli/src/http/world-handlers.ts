@@ -40,7 +40,7 @@ import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterCon
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { classifyPlayerInput, parseIntent, validateActionProposal } from "@skald/intent-parser";
-import type { ExecutableIntent } from "@skald/intent-parser";
+import type { ExecutableIntent, TurnConversationRelation } from "@skald/intent-parser";
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { buildMasterTurnSceneContext } from "@skald/world";
 import type { MasterTurnSceneSnapshot } from "@skald/world";
@@ -50,10 +50,12 @@ import {
   buildMixedConversationTurn,
   buildReadSideConversationTurn,
   buildSpeechConversationTurn,
+  buildTurnMemoryMetadata,
   conversationRequestHash,
   isWorldChangingTurn,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
+import type { ConversationMemoryMetadataV1 } from "../conversation/types.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
@@ -112,6 +114,7 @@ function persistReadSideTurn(
   inputClass: "inquiry" | "meta" | "clarification",
   responseKind: "inquiry_answer" | "meta_answer" | "clarification",
   responseText: string,
+  contextMetadata?: ConversationMemoryMetadataV1 | null,
 ): ReturnType<typeof toConversationTurnDTO> {
   const worldTime = runtime.projection.getSnapshot().time;
   return toConversationTurnDTO(runtime.store.recordConversationTurn(buildReadSideConversationTurn({
@@ -122,6 +125,7 @@ function persistReadSideTurn(
     responseKind,
     responseText,
     worldTime,
+    ...(contextMetadata ? { contextMetadata } : {}),
   })));
 }
 
@@ -136,15 +140,39 @@ function duplicateConversationResponse(runtime: WorldRuntime, input: string, ide
   return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn });
 }
 
+function readClarificationOptions(payload: Record<string, unknown>): { readonly optionId: string; readonly label: string }[] {
+  const fallback = [{ optionId: "rephrase", label: "Уточнить намерение" }];
+  if (!Array.isArray(payload.options)) return fallback;
+  const options: { optionId: string; label: string }[] = [];
+  for (const entry of payload.options.slice(0, 6)) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const record = entry as Record<string, unknown>;
+    if (typeof record.optionId !== "string" || record.optionId.length === 0) continue;
+    if (typeof record.label !== "string" || record.label.length === 0) continue;
+    options.push({ optionId: record.optionId.slice(0, 40), label: record.label.slice(0, 80) });
+  }
+  return options.length > 0 ? options : fallback;
+}
+
 function withClarificationConversation(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
   response: JsonResponse,
+  memory?: {
+    readonly relation?: TurnConversationRelation | null | undefined;
+    readonly pendingClarificationSeq?: number | null | undefined;
+  },
 ): JsonResponse {
   const payload = JSON.parse(response.body) as Record<string, unknown>;
   const question = typeof payload.question === "string" ? payload.question : "Уточни намерение.";
-  const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", question);
+  const options = readClarificationOptions(payload);
+  const metadata = buildTurnMemoryMetadata({
+    clarification: { question, options },
+    relation: memory?.relation ?? null,
+    pendingClarificationSeq: memory?.pendingClarificationSeq ?? null,
+  });
+  const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", question, metadata);
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
@@ -500,6 +528,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   let resolvedIntent: ExecutableIntent | undefined;
   let masterPlan: ValidatedMasterTurnPlan | undefined;
   let masterScene: MasterTurnSceneSnapshot | undefined;
+  let pendingClarificationSeq: number | null = null;
 
   if (input !== "wait" && !input.startsWith("advance ")) {
     // Short consistent snapshot inside the queue; the LLM call below runs
@@ -557,8 +586,16 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });
       });
     }
+    pendingClarificationSeq = snapshot.conversation.pendingClarification?.turnSeq ?? null;
     if (interpretation.status === "clarification") {
-      return runtime.queue.enqueue(async () => withClarificationConversation(runtime, input, idempotencyKey, json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options })));
+      const relation = interpretation.relation ?? null;
+      return runtime.queue.enqueue(async () => withClarificationConversation(
+        runtime,
+        input,
+        idempotencyKey,
+        json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options }),
+        { relation, pendingClarificationSeq },
+      ));
     }
     if (interpretation.status === "unsupported" || interpretation.status === "unavailable") {
       return runtime.queue.enqueue(async () => withClarificationConversation(runtime, input, idempotencyKey, json({ ok: true, status: "clarification", question: interpretation.message, options: [{ optionId: "rephrase", label: "Уточнить намерение" }] })));
@@ -607,7 +644,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       if (masterPlan && masterScene) {
         return await runValidatedMasterTurnResponse(runtime, input, idempotencyKey, masterPlan, masterScene, (turn) => {
           narrationTurn = turn;
-        });
+        }, { pendingClarificationSeq });
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
@@ -1298,17 +1335,24 @@ async function runValidatedMasterTurnResponse(
   plan: ValidatedMasterTurnPlan,
   scene: MasterTurnSceneSnapshot,
   setNarration: (turn: NarrationTurn | null) => void,
+  memory?: { readonly pendingClarificationSeq?: number | null | undefined },
 ): Promise<JsonResponse> {
   if (runtime.processedKeys.has(idempotencyKey)) {
     return error("duplicate_request", "duplicate idempotencyKey", 409);
   }
+  const planMemory = buildTurnMemoryMetadata({
+    focus: plan.focus,
+    goal: plan.goal ?? null,
+    relation: plan.conversationRelation ?? null,
+    pendingClarificationSeq: memory?.pendingClarificationSeq ?? null,
+  });
 
   if (!plan.execution) {
     if (plan.kind === "meta" && plan.metaInquiry) {
       const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 10 });
       const conversation = buildMasterConversationContext(turns, runtime.worldId);
       const answer = answerMetaRequest(plan.metaInquiry.operation, { recentTurns: conversation.recentTurns });
-      const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "meta", "meta_answer", answer.text);
+      const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "meta", "meta_answer", answer.text, planMemory);
       const events = runtime.bus.query();
       const world = runtime.projection.getSnapshot();
       const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
@@ -1325,7 +1369,7 @@ async function runValidatedMasterTurnResponse(
     const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
     const background = buildBackgroundNarrativeContext(events, world, profile);
     const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background });
-    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
+    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer, planMemory);
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
     return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });
   }
@@ -1369,6 +1413,7 @@ async function runValidatedMasterTurnResponse(
               characterProfile,
               inquiry: postInquiry,
               deferred,
+              contextMetadata: planMemory,
             });
           }
           if (kind === "speech") {
@@ -1380,6 +1425,7 @@ async function runValidatedMasterTurnResponse(
               worldTimeBefore,
               stagedEvents: staged,
               projectedWorld,
+              contextMetadata: planMemory,
             });
           }
           return buildActionConversationTurn({
@@ -1390,6 +1436,7 @@ async function runValidatedMasterTurnResponse(
             worldTimeBefore,
             stagedEvents: staged,
             projectedWorld,
+            contextMetadata: planMemory,
           });
         },
       },

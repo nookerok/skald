@@ -29,6 +29,7 @@ import {
   type ExecutableIntent,
   type InquiryRequest,
   type ProposedReferent,
+  type TurnConversationRelation,
   type TurnMetaOperation,
   type TurnProposalKind,
   type TurnProposalV2,
@@ -60,6 +61,11 @@ export interface RegisteredMetaRequest {
 /**
  * Transient execution plan for one replica: at most one primary intent
  * plus an optional read-only question. Owned by the request, never stored.
+ *
+ * Memory handoff (plan_7 §7): the model's stated goal and its reported
+ * relation to the pending clarification travel with the plan so the HTTP
+ * layer can persist them as read-side metadata. Both stay non-authoritative
+ * interpretations — neither drives Rules nor moves time by itself.
  */
 export interface ValidatedMasterTurnPlan {
   readonly contextRevision: {
@@ -74,6 +80,8 @@ export interface ValidatedMasterTurnPlan {
   readonly metaInquiry: RegisteredMetaRequest | null;
   readonly deferredClauses: readonly DeferredClause[];
   readonly focus: readonly ValidatedConversationReferent[];
+  readonly goal?: string | null | undefined;
+  readonly conversationRelation?: TurnConversationRelation | null | undefined;
 }
 
 /** Player-facing clarification option. */
@@ -162,6 +170,19 @@ export function validateMasterTurnPlan(input: MasterTurnValidationInput): Master
   return result;
 }
 
+/**
+ * Copies the model's non-authoritative memory handoff onto the plan: the
+ * stated goal (capped prose) and the reported relation to the pending
+ * clarification. Validation of both already happened statically.
+ */
+function planMemory(proposal: TurnProposalV2): Pick<ValidatedMasterTurnPlan, "goal" | "conversationRelation"> {
+  const goal = proposal.goal !== undefined ? proposal.goal.slice(0, 140) : null;
+  return freeze({
+    goal: goal && goal.length > 0 ? goal : null,
+    conversationRelation: proposal.conversationRelation ?? null,
+  });
+}
+
 function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTurnValidation {
   const { proposal, scene, world, rawText } = input;
 
@@ -177,6 +198,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
   }
 
   const revision = freeze({ worldTime: world.time, eventNumber: world.eventNumber });
+  const memory = planMemory(proposal);
   const focus: ValidatedConversationReferent[] = [];
   const track = (entry: ValidatedConversationReferent): void => {
     const key = entry.observerRef ?? `surface:${entry.kind}:${entry.surface}`;
@@ -197,6 +219,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         metaInquiry: freeze({ type: "MetaRequest" as const, operation: proposal.primaryIntent.operation }),
         deferredClauses: freeze([]),
         focus: freeze(focus),
+        ...memory,
       }),
     };
   }
@@ -217,6 +240,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         metaInquiry: null,
         deferredClauses: collectDeferred(proposal, track),
         focus: freeze(focus),
+        ...memory,
       }),
     };
   }
@@ -255,6 +279,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         metaInquiry: null,
         deferredClauses: collectDeferred(proposal, track),
         focus: freeze(focus),
+        ...memory,
       }),
     };
   }
@@ -289,6 +314,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
       metaInquiry: null,
       deferredClauses: collectDeferred(proposal, track),
       focus: freeze(focus),
+      ...memory,
     }),
   };
 }

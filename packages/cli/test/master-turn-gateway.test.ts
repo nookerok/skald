@@ -147,6 +147,26 @@ describe("master turn gateway V2", () => {
     expect(result).toMatchObject({ status: "clarification", question: "К чему именно подойти?" });
   });
 
+  it("carries the model relation on ambiguity clarifications", async () => {
+    const snap = snapshot();
+    const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    expect(fence).toBeDefined();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ней." },
+      supportingClauses: [],
+      target: { role: "target", observerRef: fence!.observerRef, surface: fence!.label },
+      referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
+      ambiguity: { kind: "referent", question: "К чему именно подойти?", candidates: ["Ограда", "Двор"] },
+      conversationRelation: "continuation",
+    }));
+
+    const result = await interpretMasterTurn("Подхожу к ней.", snap, router);
+
+    expect(result).toMatchObject({ status: "clarification", relation: "continuation" });
+  });
+
   it("turns invalid model JSON into clarification without leaking internals", async () => {
     const result = await interpretMasterTurn("сделай нечто странное", snapshot(), routerReturning("not json"), { timeoutMs: 100 });
 

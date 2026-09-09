@@ -77,6 +77,39 @@ function actionProposal(
 }
 
 describe("master turn contextual validation", () => {
+  it("carries the goal and conversation relation onto the accepted plan", () => {
+    const { world, scene, target } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: actionProposal(target, { goal: "Осмотреть весь лагерь", conversationRelation: "continuation" }),
+      scene,
+      world,
+      rawText: "Осматриваю факел, чтобы осмотреть весь лагерь.",
+    });
+
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") return;
+    expect(result.plan.goal).toBe("Осмотреть весь лагерь");
+    expect(result.plan.conversationRelation).toBe("continuation");
+    expect(result.plan.focus).toEqual(
+      expect.arrayContaining([expect.objectContaining({ surface: "факел" })]),
+    );
+  });
+
+  it("leaves goal and relation null when the model states none", () => {
+    const { world, scene, target } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: actionProposal(target),
+      scene,
+      world,
+      rawText: "Осматриваю факел.",
+    });
+
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") return;
+    expect(result.plan.goal).toBeNull();
+    expect(result.plan.conversationRelation).toBeNull();
+  });
+
   it("maps a declared target to a transient command with revision", () => {
     const { world, scene, target } = campWithPlacedTorch();
     const result = validateMasterTurnPlan({

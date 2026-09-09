@@ -11,10 +11,19 @@ import {
   selectTurnPresentation,
 } from "@skald/world";
 import type { ReadonlyWorld } from "@skald/world";
-import type { InquiryRequest } from "@skald/intent-parser";
+import type { InquiryRequest, TurnConversationRelation } from "@skald/intent-parser";
 import { composeMasterTurnResponse } from "./master-turn-response.js";
 import type { DeferredClause } from "../runtime/master-turn-validator.js";
-import type { ConversationInputClass, ConversationMemoryMetadataV1, ConversationResponseKind, ConversationTurn, ConversationTurnDraft, ConversationTurnRecord } from "./types.js";
+import type {
+  ConversationContinuationRelation,
+  ConversationInputClass,
+  ConversationMemoryMention,
+  ConversationMemoryMetadataV1,
+  ConversationResponseKind,
+  ConversationTurn,
+  ConversationTurnDraft,
+  ConversationTurnRecord,
+} from "./types.js";
 
 /**
  * True for turns that change the world: their idempotency keys replay as
@@ -197,6 +206,89 @@ export function buildMixedConversationTurn(params: {
     responseKind: "mixed_outcome",
     responseText: response.text,
     contextMetadata: params.contextMetadata ?? null,
+  };
+}
+
+/**
+ * Assembles the read-side memory metadata for one persisted turn (plan_7 §3).
+ *
+ * Pure and total: validated-plan focus becomes mentions (the observerRef
+ * prefix recovers the person/object/route/topic category; a surfaceless
+ * destination without a handle falls back to route, anything else without a
+ * handle is skipped rather than invented), the stated goal becomes the
+ * goal plus its dramatic thread, and the model-reported relation to the
+ * pending clarification becomes the continuation link. Returns null when
+ * the turn establishes no memory.
+ */
+export interface TurnMemoryFocus {
+  readonly observerRef: string | null;
+  readonly surface: string;
+  readonly kind: "target" | "addressee" | "topic" | "destination";
+}
+
+export interface TurnMemoryInput {
+  readonly focus?: readonly TurnMemoryFocus[] | undefined;
+  readonly goal?: string | null | undefined;
+  readonly relation?: TurnConversationRelation | null | undefined;
+  readonly pendingClarificationSeq?: number | null | undefined;
+  readonly clarification?: {
+    readonly question: string;
+    readonly options: readonly { readonly optionId: string; readonly label: string }[];
+  } | null | undefined;
+}
+
+const MEMORY_RELATION_MAP: Record<TurnConversationRelation, ConversationContinuationRelation> = {
+  continuation: "continues",
+  new_topic: "new_topic",
+  cancel_pending: "cancels",
+};
+
+function memoryMentionCategory(
+  observerRef: string | null,
+  kind: TurnMemoryFocus["kind"],
+): ConversationMemoryMention["kind"] | null {
+  if (observerRef) {
+    const prefix = observerRef.split("_")[0];
+    if (prefix === "person" || prefix === "object" || prefix === "route" || prefix === "topic") return prefix;
+  }
+  // A destination without a handle is still a route by construction.
+  if (kind === "destination") return "route";
+  return null;
+}
+
+export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMemoryMetadataV1 | null {
+  const mentions: ConversationMemoryMention[] = [];
+  for (const entry of input.focus ?? []) {
+    if (mentions.length >= 8) break;
+    const label = entry.surface.trim();
+    if (!label) continue;
+    const category = memoryMentionCategory(entry.observerRef, entry.kind);
+    if (!category) continue;
+    mentions.push({ kind: category, role: entry.kind, label });
+  }
+  const goal = (input.goal ?? "").trim();
+  const clarification = input.clarification;
+  const relation = input.relation ?? null;
+  if (mentions.length === 0 && !goal && !clarification && !relation) return null;
+  return {
+    schemaVersion: 1,
+    ...(mentions.length > 0 ? { mentions } : {}),
+    ...(goal ? { goal: { summary: goal.slice(0, 140) } } : {}),
+    ...(clarification ? {
+      clarification: {
+        question: clarification.question,
+        options: clarification.options.slice(0, 6).map((option) => ({ ...option })),
+      },
+    } : {}),
+    ...(relation ? {
+      continuation: {
+        relation: MEMORY_RELATION_MAP[relation],
+        ...(input.pendingClarificationSeq !== undefined && input.pendingClarificationSeq !== null
+          ? { clarificationTurnSeq: input.pendingClarificationSeq }
+          : {}),
+      },
+    } : {}),
+    ...(goal ? { dramaticThread: { source: "player_goal" as const, title: goal.slice(0, 140) } } : {}),
   };
 }
 

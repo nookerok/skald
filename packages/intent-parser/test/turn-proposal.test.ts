@@ -317,6 +317,24 @@ describe("TurnProposalV2 schema", () => {
     expect(parseTurnProposal({ ...actionProposal(), conversationRelation: 1 })).toBeNull();
   });
 
+  it("carries the relation on ambiguity clarifications", () => {
+    const ambiguous = {
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "interaction", verb: "observe", sourceText: "смотрю на него" },
+      supportingClauses: [],
+      referents: [],
+      ambiguity: { kind: "referent", question: "На кого именно?", candidates: ["Перевозчик", "Страж"] },
+      conversationRelation: "continuation",
+    };
+    const result = validateTurnProposal(ambiguous);
+    expect(result.status).toBe("clarification");
+    if (result.status === "clarification") expect(result.relation).toBe("continuation");
+    const plain = validateTurnProposal({ ...ambiguous, conversationRelation: undefined });
+    expect(plain.status).toBe("clarification");
+    if (plain.status === "clarification") expect(plain.relation).toBeUndefined();
+  });
+
   it("rejects a hostile model payload before any command mapping", () => {
     const hostile = {
       schemaVersion: 2,

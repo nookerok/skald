@@ -20,6 +20,7 @@ import {
   validateTurnProposal,
   type ExecutableIntent,
   type InquiryRequest,
+  type TurnConversationRelation,
 } from "@skald/intent-parser";
 import type { AIDiagnosticSink, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
 import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
@@ -61,6 +62,7 @@ export type MasterTurnGatewayOutcome =
     readonly status: "clarification";
     readonly question: string;
     readonly options: readonly { readonly optionId: string; readonly label: string }[];
+    readonly relation?: TurnConversationRelation | null | undefined;
   }
   | { readonly status: "unsupported"; readonly message: string }
   | { readonly status: "unavailable"; readonly message: string };

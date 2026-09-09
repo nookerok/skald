@@ -143,13 +143,14 @@ describe("master conversation context", () => {
     expect(context.pendingClarification).toEqual({ question: "Что именно сделать?", options: [], turnSeq: 1 });
   });
 
-  it("clears pending once an action or inquiry is accepted", () => {
+  it("clears pending once an action is accepted but keeps it past a foreign inquiry", () => {
     const clarified = row(1, { playerText: "сделать что-нибудь", inputClass: "clarification", responseKind: "clarification", responseText: "Что именно сделать?" });
     expect(buildMasterConversationContext([clarified, row(2)], "w1").pendingClarification).toBeNull();
-    expect(buildMasterConversationContext([
+    const foreign = buildMasterConversationContext([
       clarified,
       row(2, { playerText: "где я?", inputClass: "inquiry", responseKind: "inquiry_answer", responseText: "У реки." }),
-    ], "w1").pendingClarification).toBeNull();
+    ], "w1");
+    expect(foreign.pendingClarification?.turnSeq).toBe(1);
   });
 
   it("keeps the newest clarification when several are open", () => {
@@ -450,6 +451,72 @@ describe("plan_7 transcript memory", () => {
       truncated: false,
     });
     expect(JSON.stringify(describeConversationContext(context))).not.toContain("перевозчик");
+  });
+
+  it("resolves and abandons clarification through continuation links", () => {
+    const clarified = (seq: number, question: string): ConversationTurn => row(seq, {
+      playerText: "сделать что-нибудь",
+      inputClass: "clarification",
+      responseKind: "clarification",
+      responseText: question,
+    });
+    const linked = (seq: number, relation: "resolves" | "continues" | "new_topic" | "cancels", target: number): ConversationTurn =>
+      metaRow(seq, { schemaVersion: 1, continuation: { relation, clarificationTurnSeq: target } });
+    // An explicit answer resolves the question even without acting.
+    expect(buildMasterConversationContext([
+      clarified(1, "Что именно?"),
+      linked(2, "continues", 1),
+    ], "w1").pendingClarification).toBeNull();
+    // A topic change abandons it without answering.
+    expect(buildMasterConversationContext([
+      clarified(1, "Что именно?"),
+      linked(2, "new_topic", 1),
+    ], "w1").pendingClarification).toBeNull();
+    // An unrelated link on a read-only turn leaves it open.
+    expect(buildMasterConversationContext([
+      clarified(1, "Что именно?"),
+      {
+        ...linked(2, "continues", 9),
+        playerText: "где я?",
+        inputClass: "inquiry",
+        responseKind: "inquiry_answer",
+        responseText: "У реки.",
+      },
+    ], "w1").pendingClarification?.turnSeq).toBe(1);
+    // A newer clarification supersedes the older one.
+    expect(buildMasterConversationContext([
+      clarified(1, "Первый вопрос?"),
+      clarified(2, "Второй вопрос?"),
+    ], "w1").pendingClarification?.turnSeq).toBe(2);
+  });
+
+  it("takes focus from inquiry and speech metadata on par with actions", () => {
+    const context = buildMasterConversationContext([
+      metaRow(1, {
+        schemaVersion: 1,
+        mentions: [{ kind: "person", role: "addressee", label: "перевозчик" }],
+      }, { playerText: "Спрошу у него.", inputClass: "inquiry", responseKind: "inquiry_answer", responseText: "Он молчит." }),
+      metaRow(2, {
+        schemaVersion: 1,
+        mentions: [{ kind: "object", role: "target", label: "весло" }],
+      }, { playerText: "Прошу весло.", inputClass: "speech", responseKind: "speech_reaction", responseText: "Держи." }),
+    ], "w1");
+
+    expect(context.recentFocus).toEqual([
+      { kind: "target", surface: "весло", turnSeq: 2 },
+      { kind: "addressee", surface: "перевозчик", turnSeq: 1 },
+    ]);
+  });
+
+  it("prefers structured mentions over the legacy heuristic", () => {
+    const context = buildMasterConversationContext([
+      metaRow(1, {
+        schemaVersion: 1,
+        mentions: [{ kind: "person", role: "target", label: "перевозчик" }],
+      }, { playerText: "осматриваю реку" }),
+    ], "w1");
+
+    expect(context.recentFocus).toEqual([{ kind: "target", surface: "перевозчик", turnSeq: 1 }]);
   });
 
   it("isolates worlds and stays deterministic across reloads", () => {

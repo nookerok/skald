@@ -16,13 +16,19 @@ import {
   TURN_AUTHORITY_FIELDS,
   parseTurnProposal,
   type ProposedReferent,
+  type TurnConversationRelation,
   type TurnProposalV2,
 } from "./turn-proposal.js";
 
 /** Static validation outcome for a TurnProposalV2. */
 export type TurnProposalValidation =
   | { readonly status: "accepted"; readonly proposal: TurnProposalV2 }
-  | { readonly status: "clarification"; readonly question: string; readonly options: readonly ClarificationOption[] }
+  | {
+    readonly status: "clarification";
+    readonly question: string;
+    readonly options: readonly ClarificationOption[];
+    readonly relation?: TurnConversationRelation | null | undefined;
+  }
   | { readonly status: "invalid"; readonly reason: string };
 
 /**
@@ -50,6 +56,7 @@ export function validateTurnProposal(raw: unknown): TurnProposalValidation {
       status: "clarification",
       question: proposal.ambiguity.question,
       options: proposal.ambiguity.candidates.map((label, index) => ({ optionId: `option-${index + 1}`, label })),
+      ...(proposal.conversationRelation !== undefined ? { relation: proposal.conversationRelation } : {}),
     };
   }
   if (proposal.primaryIntent === null) {

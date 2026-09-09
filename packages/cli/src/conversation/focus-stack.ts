@@ -18,9 +18,11 @@
  *    a "Перевозчик у переправы" candidate.
  * 4. Remaining scene candidates of the pronoun class, in scene order.
  *
- * Boundary: mentions come from deterministically re-parseable accepted
- * actions. Slang verb forms the deterministic parser cannot read (such as
- * "подхожу") contribute no mention until validation focus persists.
+ * Boundary: mentions come from validated-plan metadata first (persisted on
+ * every V2 turn, including inquiry focus and speech addressees) and fall
+ * back to deterministically re-parseable accepted actions for legacy rows.
+ * Slang verb forms the deterministic parser cannot read (such as "подхожу")
+ * contribute no mention until validation focus persists.
  *
  * Resolution follows the count rule: one candidate resolves, several ask
  * for clarification, none means missing (stale when a mention exists but
