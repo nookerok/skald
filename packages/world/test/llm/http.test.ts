@@ -301,4 +301,48 @@ describe("per-model Zen wire protocol", () => {
     }).catch((error: unknown) => error);
     expect((byType as ProviderRequestError).providerCode).toBe("region_unavailable");
   });
+
+  it("surfaces free-tier session gating as free_tier_session_required", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID", message: "Error from provider (Console): OpenCode's free tier can only be used in OpenCode" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: { code: "not a code" } }),
+      }));
+
+    const byType = await chatOnce("https://opencode.ai/zen/v1", "key", "muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_responses",
+      category: "narrate",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+    expect(byType as ProviderRequestError).toMatchObject({ phase: "response_status", httpStatus: 400, providerCode: "free_tier_session_required" });
+    expect((byType as ProviderRequestError).message).not.toContain("free tier");
+
+    const byTypeOnly = await chatOnce("https://opencode.ai/zen/v1", "key", "ling-3.0-flash-fin-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_chat",
+      category: "interpret",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+    expect((byTypeOnly as ProviderRequestError).providerCode).toBe("free_tier_session_required");
+
+    const unknown = await chatOnce("https://opencode.ai/zen/v1", "key", "ling-3.0-flash-fin-free", messages, {
+      provider: "opencode_zen",
+      protocol: "openai_chat",
+      category: "interpret",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+    expect((unknown as ProviderRequestError).providerCode).toBeUndefined();
+  });
 });

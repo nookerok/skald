@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import {
-  discoverOpenCodeRoutes,
+  discoverLiveRoutes,
   liveModelSelectionFingerprint,
   LLM_CONFIG,
   ModelRouter,
   type LiveModelSelectionOptions,
   type LiveModelSelectionReport,
+  type LiveRouteDiscoveryOptions,
   type ProviderId,
   type RouteCandidate,
 } from "@skald/world";
@@ -135,6 +136,10 @@ export function createRouterConfiguration(env: NodeJS.ProcessEnv = process.env):
  * Discover the live Zen catalogue and activate only candidates that pass both
  * authenticated no-world probes. This is intentionally async and is called
  * before the production HTTP server begins accepting requests.
+ *
+ * When Zen activates nothing and an Ollama Cloud credential is configured,
+ * the pinned Ollama backup model is probed instead (Zen-first ordering is
+ * preserved: a single working Zen model always wins without touching Ollama).
  */
 export async function createLiveRouterConfiguration(
   env: NodeJS.ProcessEnv = process.env,
@@ -142,14 +147,16 @@ export async function createLiveRouterConfiguration(
 ): Promise<RouterConfiguration> {
   const base = createRouterConfiguration(env);
   const zenKey = keyValue(env, "opencode_zen");
-  const selectionOptions: LiveModelSelectionOptions = {
+  const ollamaKey = keyValue(env, "ollama_cloud");
+  const selectionOptions: LiveRouteDiscoveryOptions = {
     apiKey: zenKey,
+    ...(ollamaKey ? { ollamaKey } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.preferredModels ? { preferredModels: options.preferredModels } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     ...(options.probe ? { probe: options.probe } : {}),
   };
-  const selectionReport = await discoverOpenCodeRoutes(selectionOptions);
+  const selectionReport = await discoverLiveRoutes(selectionOptions);
   const { providers, providerKeys } = providerKeysFromEnv(env);
   const configFingerprint = selectionConfigFingerprint(env, selectionReport);
   const routes = {

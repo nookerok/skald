@@ -1,7 +1,8 @@
 import {
   OPENCODE_PREFERRED_MODELS,
-  discoverOpenCodeRoutes,
+  discoverLiveRoutes,
   type LiveModelSelectionReport,
+  type LiveRouteDiscoveryOptions,
   type ModelRouter,
 } from "@skald/world";
 import { refreshRouterSelection } from "./router-factory.js";
@@ -40,6 +41,10 @@ export interface DiscoveryRefreshEvent {
 export interface DiscoveryRefresherOptions {
   /** Zen credential captured once at wiring time; values never leave this module. */
   readonly apiKey: string;
+  /** Ollama Cloud credential for the fallback path; omitted when unconfigured. */
+  readonly ollamaKey?: string;
+  /** Override for the pinned Ollama Cloud backup model id. */
+  readonly ollamaModel?: string;
   readonly router: ModelRouter | null;
   readonly intervalMs?: number;
   readonly timeoutMs?: number;
@@ -47,7 +52,7 @@ export interface DiscoveryRefresherOptions {
   readonly fetchImpl?: typeof fetch;
   readonly checkedAt?: () => string;
   readonly onEvent?: (event: DiscoveryRefreshEvent) => void;
-  readonly discover?: typeof discoverOpenCodeRoutes;
+  readonly discover?: (options: LiveRouteDiscoveryOptions) => Promise<LiveModelSelectionReport>;
 }
 
 /**
@@ -152,12 +157,14 @@ export class DiscoveryRefresher {
     if (!router) return finish({ outcome: "skipped_no_router" });
     let selection: LiveModelSelectionReport;
     try {
-      const discover = this.options.discover ?? discoverOpenCodeRoutes;
+      const discover = this.options.discover ?? discoverLiveRoutes;
       selection = await discover({
         apiKey: this.options.apiKey,
         preferredModels: this.options.preferredModels ?? OPENCODE_PREFERRED_MODELS,
         ...(this.options.timeoutMs !== undefined ? { timeoutMs: this.options.timeoutMs } : {}),
         ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+        ...(this.options.ollamaKey ? { ollamaKey: this.options.ollamaKey } : {}),
+        ...(this.options.ollamaModel ? { ollamaModel: this.options.ollamaModel } : {}),
       });
     } catch {
       return finish({ outcome: "skipped_failed" });

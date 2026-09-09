@@ -103,4 +103,72 @@ describe("router factory", () => {
     expect(router.liveModelSelection()?.checkedAt).toBe("2026-09-06T12:00:00.000Z");
     expect(JSON.stringify(router.diagnostics())).not.toContain("zen-secret");
   });
+
+  it("falls back to Ollama Cloud when Zen activates nothing, keeping the Zen miss visible", async () => {
+    const GEMMA = "gemma4:31b-cloud";
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      }
+      if (url.startsWith("https://ollama.com/")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        const marker = body.messages?.[1]?.content ?? "";
+        const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ message: { content }, model: GEMMA }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    };
+    const config = await createLiveRouterConfiguration({
+      SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
+      SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
+      SKALD_AI_REQUIRED: "1",
+    }, { preferredModels: ["big-pickle"], fetchImpl });
+
+    expect(config.selectionReport?.provider).toBe("ollama_cloud");
+    expect(config.selectionReport?.activeModel).toBe(GEMMA);
+    expect(config.selectionReport?.excluded).toEqual(expect.arrayContaining([
+      { model: "big-pickle", reason: "model_unavailable" },
+    ]));
+    expect(config.selectionReport?.candidates[0]?.interpret).toMatchObject({ status: "ok" });
+    expect(config.router?.routeCandidates("interpret")).toEqual([
+      { provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" },
+    ]);
+    expect(config.router?.routeCandidates("narrate")).toEqual([
+      { provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" },
+    ]);
+    expect(config.router?.hasProviderKey("ollama_cloud")).toBe(true);
+    expect(JSON.stringify(config)).not.toContain("zen-secret");
+    expect(JSON.stringify(config)).not.toContain("ollama-secret");
+  });
+
+  it("keeps Zen behavior identical when no Ollama credential is configured", async () => {
+    const fetchImpl = async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/models")) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => "{}",
+      } as unknown as Response;
+    };
+    const config = await createLiveRouterConfiguration({
+      SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
+      SKALD_AI_REQUIRED: "1",
+    }, { preferredModels: ["big-pickle"], fetchImpl });
+
+    expect(config.selectionReport?.provider).toBe("opencode_zen");
+    expect(config.selectionReport?.status).toBe("unavailable");
+    expect(config.router?.routeCandidates("interpret")).toEqual([]);
+  });
 });

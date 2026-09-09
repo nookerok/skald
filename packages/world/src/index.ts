@@ -135,6 +135,8 @@ export {
 } from "./llm/http.js";
 export type { ChatOnceOptions, HttpResult } from "./llm/http.js";
 export {
+  discoverLiveRoutes,
+  discoverOllamaRoutes,
   discoverOpenCodeRoutes,
   fetchOpenCodeCatalog,
   liveModelSelectionFingerprint,
@@ -145,8 +147,10 @@ export type {
   CatalogPhase,
   LiveModelSelectionOptions,
   LiveModelSelectionReport,
+  LiveRouteDiscoveryOptions,
   ModelCandidateReport,
   ModelExclusionReason,
+  OllamaDiscoveryOptions,
   OpenCodeCatalogOptions,
   OpenCodeCatalogReport,
   OpenCodeCatalogStatus,

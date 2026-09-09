@@ -63,4 +63,47 @@ describe("AIReadinessService", () => {
     expect(report.modelSelection).toEqual(selectionReport);
     expect(report.excludedModels).toEqual(selectionReport.excluded);
   });
+
+  it("prefers the router live selection over the stale startup snapshot", async () => {
+    const staleSelection = {
+      provider: "opencode_zen" as const,
+      status: "unavailable" as const,
+      checkedAt: "2026-09-06T00:00:00.000Z",
+      durationMs: 5,
+      candidates: [],
+      excluded: [{ model: "big-pickle", reason: "model_unavailable" as const }],
+      routes: { interpret: [], narrate: [] },
+    };
+    const liveSelection = {
+      provider: "ollama_cloud" as const,
+      status: "degraded" as const,
+      checkedAt: "2026-09-08T00:00:00.000Z",
+      durationMs: 7,
+      candidates: [],
+      excluded: [],
+      routes: { interpret: [], narrate: [] },
+    };
+    const router = {
+      routeCandidates: (_category: "interpret" | "narrate") => [{
+        provider: "ollama_cloud",
+        model: "gemma4:31b-cloud",
+        protocol: "ollama_chat",
+        tier: "live_primary",
+      }],
+      configFingerprint: () => "live-fingerprint",
+      liveModelSelection: () => liveSelection,
+      hasProviderKey: () => true,
+      chatCandidate: vi.fn(async (category: "interpret" | "narrate") => ({
+        text: category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
+      })),
+    } as any;
+    const service = new AIReadinessService(router, {
+      configFingerprint: "stale-fingerprint",
+      selectionReport: staleSelection,
+    });
+    const report = await service.probe();
+    expect(report.modelSelection).toEqual(liveSelection);
+    expect(report.configFingerprint).toBe("live-fingerprint");
+    expect(report.status).toBe("degraded");
+  });
 });

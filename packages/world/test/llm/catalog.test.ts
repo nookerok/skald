@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { discoverOpenCodeRoutes, fetchOpenCodeCatalog } from "../../src/llm/catalog.js";
+import { discoverLiveRoutes, discoverOllamaRoutes, discoverOpenCodeRoutes, fetchOpenCodeCatalog } from "../../src/llm/catalog.js";
 
 function response(body: unknown, status = 200): Response {
   return {
@@ -212,5 +212,160 @@ describe("OpenCode Zen live catalogue selection", () => {
       narrate: { status: "auth_failure", httpStatus: 403, providerCode: "region_unavailable" },
     });
     expect(report.excluded).toEqual([{ model: "muse-spark-1.3-contributor-free", reason: "auth_failure" }]);
+  });
+});
+
+describe("Ollama Cloud fallback discovery", () => {
+  const GEMMA = "gemma4:31b-cloud";
+
+  it("reports a missing credential without touching the network", async () => {
+    const fetchImpl = vi.fn();
+    const report = await discoverOllamaRoutes({ fetchImpl });
+    expect(report.provider).toBe("ollama_cloud");
+    expect(report.status).toBe("misconfigured");
+    expect(report.candidates[0]).toMatchObject({ active: false, exclusionReason: "missing_credential" });
+    expect(report.routes.interpret).toEqual([]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("activates the pinned model through the Ollama chat surface with bounded budgets", async () => {
+    const seen: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      seen.push({ url, body });
+      const marker = body.messages?.[1]?.content ?? body.messages?.[0]?.content ?? "";
+      const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+        ? "SKALD_PROBE_OK"
+        : '{"schemaVersion":1,"probe":true}';
+      return response({
+        message: { content },
+        model: GEMMA,
+        prompt_eval_count: 10,
+        eval_count: 2,
+      });
+    });
+    const report = await discoverOllamaRoutes({ apiKey: "ollama-key", fetchImpl });
+    expect(report.provider).toBe("ollama_cloud");
+    expect(report.status).toBe("degraded");
+    expect(report.activeModel).toBe(GEMMA);
+    expect(report.backupModel).toBeUndefined();
+    expect(report.routes.interpret).toEqual([{ provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" }]);
+    expect(report.routes.narrate).toEqual([{ provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" }]);
+    expect(seen).toHaveLength(2);
+    expect(seen.every(({ url }) => url === "https://ollama.com/api/chat")).toBe(true);
+    expect(seen.every(({ body }) => body.model === GEMMA && body.stream === false)).toBe(true);
+    const budgets = Object.fromEntries(seen.map(({ body }) => {
+      const messages = (body as { messages?: Array<{ content?: unknown }> }).messages ?? [];
+      const marker = String(messages[1]?.content ?? messages[0]?.content ?? "");
+      return [
+        marker.includes("SKALD_PROBE_OK") || marker.includes("marker") ? "narrate" : "interpret",
+        (body.options as { num_predict?: number } | undefined)?.num_predict,
+      ];
+    }));
+    expect(budgets).toEqual({ interpret: 256, narrate: 64 });
+  });
+
+  it("classifies credential rejection as misconfigured and probe failures as unavailable", async () => {
+    const denied = await discoverOllamaRoutes({
+      apiKey: "bad-key",
+      fetchImpl: vi.fn(async () => response({ error: { message: "Unauthorized" } }, 401)),
+    });
+    expect(denied.status).toBe("misconfigured");
+    expect(denied.candidates[0]).toMatchObject({ active: false, exclusionReason: "auth_failure" });
+
+    const failing = await discoverOllamaRoutes({
+      apiKey: "ollama-key",
+      fetchImpl: vi.fn(async () => response({ error: { message: "Nope" } }, 500)),
+    });
+    expect(failing.status).toBe("unavailable");
+    expect(failing.excluded).toEqual([{ model: GEMMA, reason: "interpret_probe_failed" }]);
+  });
+});
+
+describe("provider-ordered live discovery", () => {
+  const GEMMA = "gemma4:31b-cloud";
+
+  function zenCatalog(ids: readonly string[]) {
+    return async (input: string | URL | Request) => String(input).endsWith("/models")
+      ? { ok: true, status: 200, json: async () => ({ data: ids.map((id) => ({ id })) }) } as unknown as Response
+      : { ok: false, status: 400, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+  }
+
+  function ollamaOk() {
+    return async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.startsWith("https://ollama.com/")) {
+        return { ok: false, status: 400, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      const marker = body.messages?.[1]?.content ?? "";
+      const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+        ? "SKALD_PROBE_OK"
+        : '{"schemaVersion":1,"probe":true}';
+      return { ok: true, status: 200, json: async () => ({ message: { content }, model: GEMMA }) } as unknown as Response;
+    };
+  }
+
+  it("keeps a working Zen selection without touching Ollama", async () => {
+    const probe = vi.fn(async (_category: "interpret" | "narrate", _model: string) => ({ status: "ok", phase: "schema_validation" as const }));
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      ollamaKey: "ollama-key",
+      preferredModels: ["big-pickle", "muse-spark-1.3-contributor-free"],
+      fetchImpl: zenCatalog(["big-pickle", "muse-spark-1.3-contributor-free"]),
+      probe: probe as any,
+    });
+    expect(report.provider).toBe("opencode_zen");
+    expect(report.status).toBe("ready");
+    expect(probe.mock.calls.every((call) => (call[1] as string) !== GEMMA)).toBe(true);
+  });
+
+  it("falls back to Ollama when Zen activates nothing, keeping both exclusion stories", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.startsWith("https://ollama.com/")) return ollamaOk()(input, init);
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID", message: "free tier can only be used in OpenCode" } }),
+      } as unknown as Response;
+    });
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      ollamaKey: "ollama-key",
+      preferredModels: ["big-pickle"],
+      fetchImpl,
+    });
+    expect(report.provider).toBe("ollama_cloud");
+    expect(report.status).toBe("degraded");
+    expect(report.activeModel).toBe(GEMMA);
+    expect(report.catalog?.status).toBe("ok");
+    expect(report.routes.interpret).toEqual([{ provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" }]);
+    expect(report.excluded).toEqual(expect.arrayContaining([
+      { model: "big-pickle", reason: "model_unavailable" },
+    ]));
+    expect(report.candidates).toHaveLength(1);
+    expect(report.candidates[0]).toMatchObject({
+      model: GEMMA,
+      active: true,
+      interpret: expect.objectContaining({ status: "ok" }),
+    });
+  });
+
+  it("returns the Zen report unchanged when no Ollama credential is configured", async () => {
+    const fetchImpl = vi.fn(zenCatalog(["big-pickle"]));
+    const probe = vi.fn(async () => ({ status: "model_unavailable", phase: "response_status", httpStatus: 400 }));
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      preferredModels: ["big-pickle"],
+      fetchImpl,
+      probe: probe as any,
+    });
+    expect(report.provider).toBe("opencode_zen");
+    expect(report.status).toBe("unavailable");
+    expect(report.excluded).toEqual([{ model: "big-pickle", reason: "model_unavailable" }]);
   });
 });

@@ -1,3 +1,26 @@
+# Current work (2026-09-09 — LLM selection fallback fixed, uncommitted)
+
+- Root cause confirmed: Zen locked `-free` models to OpenCode app sessions —
+  every server-side call fails 400 `MissingSessionID`
+  (`free_tier_session_required`), catalogue stays 200. Request building was
+  never the fault. With no fallback, discovery activated nothing and
+  readiness stayed `unavailable`.
+- Fix (uncommitted, in working tree): provider-ordered discovery (Zen first,
+  pinned Ollama Cloud `gemma4:31b-cloud` fallback when Zen activates
+  nothing); `MissingSessionID` mapped to `free_tier_session_required`;
+  single working model reports `degraded` (provider-probe + discovery);
+  `AIReadinessService` now reads the router live selection/fingerprint so
+  daily refresh cannot leave stale startup models in readiness; live route
+  results own the status (stale `degraded` no longer masks total failure).
+- Repository gate: PASS (`npm run validate`; 168 files, 2037 passed,
+  1 skipped; typecheck, Canon, simulation/eval, adventure, diff-check).
+  New regressions: live-selection preference, stale-degraded masking,
+  Ollama dual-probe activation, Zen-first ordering, single-model degraded.
+- Still open (no commit/push/deploy in this session): live TurnProposalV2
+  provider probe on-device (needs deploy of this tree + healthy routes),
+  NTFS browser QA with authorized click budget, human 15–20 replica
+  playthrough. Device still runs `de906c7` without this fallback.
+
 # Current work (2026-09-08 — P0 deployed to Orange Pi, smoke PASS)
 
 - Updater run as `nooker` (no sudo): backup

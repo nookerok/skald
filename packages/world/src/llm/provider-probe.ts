@@ -142,7 +142,18 @@ function summarizeStatus(
   if (configIssues.some((issue) => !issue.includes(":missing_"))) return "misconfigured";
   if (configIssues.length > 0) return "unavailable";
   if (routes.some((result) => result.status === "misconfigured")) return "misconfigured";
-  if (hasMissingRoute) return "unavailable";
+  if (hasMissingRoute) {
+    // A single working model with no backup (e.g. the Ollama Cloud fallback)
+    // is degraded, not dead. checkCandidate never emits status "unavailable"
+    // itself — only the synthetic missing-slot entries below carry it — so
+    // anything else keeps "unavailable".
+    const okCount = routes.filter((result) => result.status === "ok").length;
+    const restSynthetic = routes
+      .filter((result) => result.status !== "ok")
+      .every((result) => result.status === "unavailable");
+    if (okCount > 0 && restSynthetic) return "degraded";
+    return "unavailable";
+  }
   const required = routes.filter((result) => result.status !== "misconfigured");
   if (required.length > 0 && required.every((result) => result.status === "ok")) return "ready";
   if (required.some((result) => result.status === "ok")) return "degraded";
@@ -226,13 +237,12 @@ export async function probeAIReadiness(router: ModelRouter | null, options?: {
     routeResults.interpret.length < 2 || routeResults.narrate.length < 2,
     criticalRouteConfigIssues(),
   );
-  const status = options?.selectionReport?.status === "misconfigured"
+  // Live route results own the status. A stale startup selection must never
+  // mask a live total failure (e.g. degraded startup + now-dead routes must
+  // report unavailable). The selection report only contributes metadata below.
+  const status = options?.selectionReport?.status === "misconfigured" && routeStatus !== "misconfigured"
     ? "misconfigured"
-    : options?.selectionReport?.status === "unavailable"
-      ? "unavailable"
-      : options?.selectionReport?.status === "degraded" && routeStatus === "unavailable"
-        ? "degraded"
-        : routeStatus;
+    : routeStatus;
   return {
     status,
     checkedAt,

@@ -93,6 +93,8 @@ export class WorldRuntimeManager {
    */
   startDiscoveryRefresh(options?: {
     apiKey?: string;
+    ollamaKey?: string;
+    ollamaModel?: string;
     intervalMs?: number;
     timeoutMs?: number;
     onEvent?: (event: DiscoveryRefreshEvent) => void;
@@ -100,8 +102,11 @@ export class WorldRuntimeManager {
     this.stopDiscoveryRefresh();
     if (!this.sharedRouter) return;
     const envName = LLM_CONFIG.providers["opencode_zen"]?.apiKeyEnv ?? "";
+    const ollamaEnvName = LLM_CONFIG.providers["ollama_cloud"]?.apiKeyEnv ?? "";
     this.discoveryRefresher = new DiscoveryRefresher({
       apiKey: options?.apiKey ?? (envName ? process.env[envName] ?? "" : ""),
+      ollamaKey: options?.ollamaKey ?? (ollamaEnvName ? process.env[ollamaEnvName] ?? "" : ""),
+      ...(options?.ollamaModel !== undefined ? { ollamaModel: options.ollamaModel } : {}),
       router: this.sharedRouter,
       ...(options?.intervalMs !== undefined ? { intervalMs: options.intervalMs } : {}),
       ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),

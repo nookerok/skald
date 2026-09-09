@@ -172,8 +172,9 @@ export async function startServer(options?: {
   const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics, routerConfiguration);
   const serverApp: ServerApp = { store, runtimes };
   // Daily live-model re-discovery keeps routing aligned with the provider
-  // catalogue without restarts. It only ever narrows or refreshes the same
-  // live candidate slots that startup discovery filled.
+  // catalogue without restarts. It applies the fresh selection to the live
+  // router (Zen-first, Ollama Cloud fallback); empty selections never empty
+  // live routes (stale-while-revalidate).
   if (routerConfiguration?.selectionReport && routerConfiguration.router) {
     runtimes.startDiscoveryRefresh({
       intervalMs: resolveRefreshIntervalMs(process.env),

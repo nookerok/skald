@@ -69,4 +69,53 @@ describe("no-world AI readiness probe", () => {
     expect(report.routes.interpret[0]).toMatchObject({ status: "failed", phase: "model_selection" });
     expect(report.status).toBe("degraded");
   });
+
+  it("reports degraded for one working model with no backup instead of unavailable", async () => {
+    const router = {
+      routeCandidates: (_category: "interpret" | "narrate") => [{
+        provider: "ollama_cloud",
+        model: "gemma4:31b-cloud",
+        protocol: "ollama_chat",
+        tier: "live_primary",
+      }],
+      configFingerprint: () => "test-fingerprint",
+      hasProviderKey: () => true,
+      chatCandidate: vi.fn(async (_category: "interpret" | "narrate") => ({
+        text: _category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
+      })),
+    } as any;
+    const report = await probeAIReadiness(router);
+    expect(report.routes.interpret).toHaveLength(2);
+    expect(report.routes.interpret[0]).toMatchObject({ status: "ok", model: "gemma4:31b-cloud" });
+    expect(report.routes.interpret[1]).toMatchObject({ status: "unavailable", phase: "configuration" });
+    expect(report.status).toBe("degraded");
+  });
+
+  it("never masks a live total failure with a stale degraded selection", async () => {
+    const router = {
+      routeCandidates: (_category: "interpret" | "narrate") => [{
+        provider: "ollama_cloud",
+        model: "gemma4:31b-cloud",
+        protocol: "ollama_chat",
+        tier: "live_primary",
+      }],
+      configFingerprint: () => "test-fingerprint",
+      hasProviderKey: () => true,
+      chatCandidate: vi.fn(async () => {
+        throw new Error("HTTP 500 (phase=response_status)");
+      }),
+    } as any;
+    const staleDegraded = {
+      provider: "ollama_cloud",
+      status: "degraded",
+      checkedAt: "2026-09-08T00:00:00.000Z",
+      durationMs: 7,
+      candidates: [],
+      excluded: [],
+      routes: { interpret: [], narrate: [] },
+    } as any;
+    const report = await probeAIReadiness(router, { selectionReport: staleDegraded });
+    expect(report.status).toBe("unavailable");
+    expect(report.modelSelection).toEqual(staleDegraded);
+  });
 });

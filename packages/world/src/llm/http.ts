@@ -110,12 +110,19 @@ export async function readProviderErrorCode(
   const type = error !== null && typeof error === "object"
     ? (error as { type?: unknown }).type
     : (parsed as { type?: unknown }).type;
-  if (typeof type === "string" && type.trim().toLowerCase() === "regionerror") return "region_unavailable";
+  if (typeof type === "string") {
+    const normalizedType = type.trim().toLowerCase();
+    if (normalizedType === "regionerror") return "region_unavailable";
+    // OpenCode Zen locks free-tier models to OpenCode app sessions: every
+    // server-side call fails 400 with MissingSessionID regardless of shape.
+    if (normalizedType === "missingsessionid") return "free_tier_session_required";
+  }
   const message = error !== null && typeof error === "object"
     ? (error as { message?: unknown }).message
     : (parsed as { message?: unknown }).message;
   if (typeof message !== "string") return undefined;
   if (/not available in your country/i.test(message)) return "region_unavailable";
+  if (/free tier can only be used/i.test(message)) return "free_tier_session_required";
   const normalized = message.trim().toLowerCase();
   if (/^model\s+unavailable$/.test(normalized)) return "model_unavailable";
   if (/^model\s+not\s+found$/.test(normalized)) return "model_not_found";

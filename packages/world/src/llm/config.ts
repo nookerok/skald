@@ -33,6 +33,15 @@ export interface LLMConfig {
  * persistent 400, and both nemotron frees are too slow for route timeouts
  * (16-63s). No better free backup exists right now, so the daily
  * re-discovery keeps probing this pair and promotes whichever passes.
+ *
+ * Live recon (2026-09-08, production device, all wire shapes): Zen locked
+ * free-tier models to OpenCode app sessions — every server-side call to a
+ * `-free` model fails 400 `MissingSessionID` ("free tier can only be used
+ * in OpenCode") regardless of endpoint, shape, token budget or role layout,
+ * while the catalogue stays 200 with the same key. Request building is not
+ * the fault. Until Zen reopens server-side free use, live discovery falls
+ * back to the pinned Ollama Cloud model when Zen activates nothing; paid
+ * Zen models are deliberately never probed without operator consent.
  */
 export const OPENCODE_PREFERRED_MODELS: readonly string[] = Object.freeze([
   "muse-spark-1.3-contributor-free",

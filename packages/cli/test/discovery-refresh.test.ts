@@ -171,4 +171,49 @@ describe("DiscoveryRefresher", () => {
     await vi.advanceTimersByTimeAsync(4 * MIN_DISCOVERY_REFRESH_INTERVAL_MS);
     expect(calls).toBe(2);
   });
+
+  it("falls back to Ollama on the default path when Zen activates nothing", async () => {
+    const GEMMA = "gemma4:31b-cloud";
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      }
+      if (url.startsWith("https://ollama.com/")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        const marker = body.messages?.[1]?.content ?? "";
+        const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ message: { content }, model: GEMMA }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    };
+    const router = new ModelRouter({
+      apiKey: "zen-key",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_zen", "ollama_cloud"],
+      providerKeys: { opencode_zen: "zen-key", ollama_cloud: "ollama-key" },
+      routeCandidates: {
+        interpret: [candidate("muse-spark-1.3-contributor-free", "openai_responses")],
+        narrate: [candidate("muse-spark-1.3-contributor-free", "openai_responses")],
+      },
+    });
+    const refresher = new DiscoveryRefresher({
+      apiKey: "zen-secret",
+      ollamaKey: "ollama-secret",
+      router,
+      fetchImpl,
+    });
+    const summary = await refresher.refreshNow();
+    expect(summary.outcome).toBe("applied");
+    expect(summary.activeModel).toBe(GEMMA);
+    expect(router.routeCandidates("interpret").map((c) => c.model)).toEqual([GEMMA]);
+    expect(router.liveModelSelection()?.provider).toBe("ollama_cloud");
+  });
 });

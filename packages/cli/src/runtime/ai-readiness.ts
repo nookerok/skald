@@ -44,10 +44,18 @@ export class AIReadinessService {
     const now = this.now();
     if (this.lastReport && now - this.lastStartedAt < this.cooldownMs) return this.lastReport;
     this.lastStartedAt = now;
+    // Prefer the router's live selection/fingerprint: daily re-discovery
+    // applies fresh selections to the router, while this service only holds
+    // the startup snapshot. Reading live avoids reporting stale models after
+    // a Zen->Ollama (or back) refresh.
+    const liveSelection = (this.router as unknown as { liveModelSelection?: () => LiveModelSelectionReport | undefined })?.liveModelSelection?.();
+    const selectionReport = liveSelection ?? this.selectionReport;
+    const liveFingerprint = (this.router as unknown as { configFingerprint?: () => string })?.configFingerprint?.();
+    const configFingerprint = liveFingerprint ?? this.configFingerprint;
     const request = probeAIReadiness(this.router, {
       timeoutMs: this.timeoutMs,
-      ...(this.configFingerprint ? { configFingerprint: this.configFingerprint } : {}),
-      ...(this.selectionReport ? { selectionReport: this.selectionReport } : {}),
+      ...(configFingerprint ? { configFingerprint } : {}),
+      ...(selectionReport ? { selectionReport } : {}),
       ...(this.diagnostics ? { diagnostics: (event) => this.diagnostics?.(event) } : {}),
     });
     this.inFlight = request;
