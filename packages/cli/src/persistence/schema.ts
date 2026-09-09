@@ -1,4 +1,4 @@
-export const USER_VERSION = 11;
+export const USER_VERSION = 12;
 
 export function configureDatabase(db: { exec(sql: string): void }): void {
   db.exec("PRAGMA journal_mode = WAL");
@@ -183,6 +183,7 @@ export function execSchemaV9(db: { exec(sql: string): void; prepare?(sql: string
         CHECK (response_kind IN ('action_outcome', 'action_rejection', 'inquiry_answer', 'clarification')),
     response_text   TEXT NOT NULL,
     created_at      INTEGER NOT NULL,
+    conversation_context_json TEXT NULL,
     FOREIGN KEY (world_id) REFERENCES worlds(world_id),
     UNIQUE (world_id, idempotency_key)
   ) STRICT`);

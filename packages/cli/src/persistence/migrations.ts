@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "migrateV11" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "migrateV11" | "migrateV12" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -141,9 +141,35 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 8) return "migrateV9";
   if (v === 9) return "migrateV10";
   if (v === 10) return "migrateV11";
-  if (v === 11) return "open";
+  if (v === 11) return "migrateV12";
+  if (v === 12) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-11.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-12.`);
+}
+
+/**
+ * Adds the nullable transcript-memory column (plan_7 §3). Old rows keep
+ * NULL and degrade to the legacy heuristic; no backfill, no world facts.
+ * Idempotent: fresh schemas already carry the column via execSchemaV9.
+ */
+export function migrateV11ToV12(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    const columns = db.prepare("PRAGMA table_info(conversation_turns)").all() as { name?: string }[];
+    if (!columns.some((column) => column.name === "conversation_context_json")) {
+      const before = (db.prepare("SELECT COUNT(*) AS c FROM conversation_turns").get() as { c: number }).c;
+      db.exec("ALTER TABLE conversation_turns ADD COLUMN conversation_context_json TEXT NULL");
+      const after = (db.prepare("SELECT COUNT(*) AS c FROM conversation_turns").get() as { c: number }).c;
+      if (after !== before) throw new Error(`turn count mismatch: ${before} before vs ${after} after`);
+    }
+    db.exec("PRAGMA user_version = 12");
+    verifyIntegrity(db);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 /** Preserve old prose as uncorrelated legacy rows; do not guess a command. */

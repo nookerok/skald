@@ -14,7 +14,7 @@ import type { ReadonlyWorld } from "@skald/world";
 import type { InquiryRequest } from "@skald/intent-parser";
 import { composeMasterTurnResponse } from "./master-turn-response.js";
 import type { DeferredClause } from "../runtime/master-turn-validator.js";
-import type { ConversationInputClass, ConversationResponseKind, ConversationTurn, ConversationTurnDraft, ConversationTurnRecord } from "./types.js";
+import type { ConversationInputClass, ConversationMemoryMetadataV1, ConversationResponseKind, ConversationTurn, ConversationTurnDraft, ConversationTurnRecord } from "./types.js";
 
 /**
  * True for turns that change the world: their idempotency keys replay as
@@ -58,6 +58,7 @@ export function buildActionConversationTurn(params: {
   worldTimeBefore: number;
   stagedEvents: readonly DomainEvent[];
   projectedWorld: ReadonlyWorld;
+  contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
   const responseKind: ConversationResponseKind = outcome.rejected ? "action_rejection" : "action_outcome";
@@ -79,6 +80,7 @@ export function buildActionConversationTurn(params: {
     worldTimeAfter: params.projectedWorld.time,
     responseKind,
     responseText,
+    contextMetadata: params.contextMetadata ?? null,
   };
 }
 
@@ -90,6 +92,7 @@ export function buildSpeechConversationTurn(params: {
   worldTimeBefore: number;
   stagedEvents: readonly DomainEvent[];
   projectedWorld: ReadonlyWorld;
+  contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
   const correlationId = params.stagedEvents.some((event) => event.correlationId === params.correlationId)
@@ -106,6 +109,7 @@ export function buildSpeechConversationTurn(params: {
     worldTimeAfter: params.projectedWorld.time,
     responseKind: "speech_reaction",
     responseText: outcome.text,
+    contextMetadata: params.contextMetadata ?? null,
   };
 }
 
@@ -117,6 +121,7 @@ export function buildReadSideConversationTurn(params: {
   responseKind: Exclude<ConversationResponseKind, "action_outcome" | "action_rejection" | "mixed_outcome" | "speech_reaction">;
   responseText: string;
   worldTime: number;
+  contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   return {
     worldId: params.worldId,
@@ -129,6 +134,7 @@ export function buildReadSideConversationTurn(params: {
     worldTimeAfter: params.worldTime,
     responseKind: params.responseKind,
     responseText: params.responseText,
+    contextMetadata: params.contextMetadata ?? null,
   };
 }
 
@@ -160,6 +166,7 @@ export function buildMixedConversationTurn(params: {
   } | null;
   inquiry: InquiryRequest | null;
   deferred: readonly DeferredClause[];
+  contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
   let inquiryText: string | null = null;
@@ -189,12 +196,13 @@ export function buildMixedConversationTurn(params: {
     worldTimeAfter: params.projectedWorld.time,
     responseKind: "mixed_outcome",
     responseText: response.text,
+    contextMetadata: params.contextMetadata ?? null,
   };
 }
 
 /** Strip persistence-only requestHash before a player-facing JSON response. */
 export function toConversationTurnDTO(turn: ConversationTurnRecord): ConversationTurn & { readonly narrationHandle: string } {
-  const { requestHash: _requestHash, ...publicTurn } = turn;
+  const { requestHash: _requestHash, contextMetadata: _contextMetadata, ...publicTurn } = turn;
   const fallback = turn.responseKind === "action_rejection"
     ? "Так действовать сейчас не получится."
     : turn.responseKind === "clarification"

@@ -68,7 +68,7 @@ describe("correlated narration lifecycle", () => {
     store.close();
     const check = new DatabaseSync(dbPath);
     try {
-      expect(check.prepare("PRAGMA user_version").get()).toEqual({ user_version: 11 });
+      expect(check.prepare("PRAGMA user_version").get()).toEqual({ user_version: 12 });
       expect(check.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
       expect(check.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
       expect(check.prepare("SELECT * FROM events ORDER BY seq").all()).toEqual(before);
@@ -140,10 +140,13 @@ describe("correlated narration lifecycle", () => {
       turnSeq: 1, worldId: "w", correlationId: "event:secret", idempotencyKey: "request",
       requestHash: "private", playerText: "Осматриваюсь", inputClass: "action",
       worldTimeBefore: 0, worldTimeAfter: 1, responseKind: "action_outcome", responseText: "Ты осматриваешься.", createdAt: 2,
+      contextMetadata: { schemaVersion: 1, goal: { summary: "Секретный план" } },
     });
     expect(dto.narrationHandle).toBe(narrationHandle(1, "event:secret"));
     expect(dto.narrationHandle).toMatch(/^[a-f0-9]{64}$/);
     expect(dto).not.toHaveProperty("requestHash");
+    expect(dto).not.toHaveProperty("contextMetadata");
+    expect(JSON.stringify(dto)).not.toContain("Секретный план");
     expect(readSideHandle("turn", "x")).not.toBe(readSideHandle("thread", "x"));
     expect(narrationHandle(1, "a")).not.toBe(narrationHandle(1, "b"));
     expect(narrationHandle(1, "a")).not.toBe(narrationHandle(2, "a"));
@@ -155,6 +158,7 @@ describe("correlated narration lifecycle", () => {
       requestHash: "private", playerText: "осмотрись", inputClass: "action",
       worldTimeBefore: 1, worldTimeAfter: 2, responseKind: "action_outcome",
       responseText: "event:secret item:unknown", createdAt: 3,
+      contextMetadata: null,
     });
     expect(dto.responseText).toBe("Подробности пока неясны.");
     expect(dto).not.toHaveProperty("requestHash");

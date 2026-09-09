@@ -5,11 +5,12 @@ const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
 import { narrationKey } from "@skald/world";
-import { migrateV10ToV11, migrateV9ToV10 } from "./migrations.js";
+import { migrateV10ToV11, migrateV11ToV12, migrateV9ToV10 } from "./migrations.js";
 import { configureDatabase, execSchemaV9 } from "./schema.js";
 import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, migrateV8ToV9, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
 import type { ConversationTurn, ConversationTurnDraft, ConversationTurnRecord } from "../conversation/types.js";
+import { parseConversationMemoryMetadata, serializeConversationMemoryMetadata } from "../conversation/types.js";
 
 export type { ConversationTurn, ConversationTurnDraft, ConversationTurnRecord };
 
@@ -254,6 +255,9 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   } else if (versionAction === "migrateV11") {
     migrateV10ToV11(db);
     console.log("[persistence] migrated v10->v11: conversation turn classes widened");
+  } else if (versionAction === "migrateV12") {
+    migrateV11ToV12(db);
+    console.log("[persistence] migrated v11->v12: conversation memory metadata column added");
   } else {
     // Already v10+ — verify
     verifyIntegrity(db);
@@ -267,6 +271,11 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 10) {
     migrateV10ToV11(db);
     console.log("[persistence] migrated v10->v11: conversation turn classes widened");
+  }
+  // Transcript-memory metadata arrives as a nullable column; old rows stay NULL.
+  if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 11) {
+    migrateV11ToV12(db);
+    console.log("[persistence] migrated v11->v12: conversation memory metadata column added");
   }
 
   // Prepared statements
@@ -309,14 +318,15 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     "SELECT world_time, correlation_id, text, model, used_fallback, latency_ms FROM turn_narrations WHERE world_id = ?",
   );
 
+  const CONVERSATION_COLUMNS = "turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at, conversation_context_json";
   const insertConversationTurn = db.prepare(
-    "INSERT INTO conversation_turns (world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO conversation_turns (world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at, conversation_context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const getConversationTurnBySeq = db.prepare(
-    "SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns WHERE world_id = ? AND turn_seq = ?",
+    `SELECT ${CONVERSATION_COLUMNS} FROM conversation_turns WHERE world_id = ? AND turn_seq = ?`,
   );
   const getConversationTurnByIdempotency = db.prepare(
-    "SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns WHERE world_id = ? AND idempotency_key = ?",
+    `SELECT ${CONVERSATION_COLUMNS} FROM conversation_turns WHERE world_id = ? AND idempotency_key = ?`,
   );
   const latestConversationCreatedAt = db.prepare(
     "SELECT created_at FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq DESC LIMIT 1",
@@ -400,6 +410,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
       responseKind: r["response_kind"] as ConversationTurnRecord["responseKind"],
       responseText: r["response_text"] as string,
       createdAt: r["created_at"] as number,
+      contextMetadata: parseConversationMemoryMetadata(r["conversation_context_json"] ?? null),
     };
   }
 
@@ -413,6 +424,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
         turn.worldId, turn.correlationId, turn.idempotencyKey, turn.requestHash,
         turn.playerText, turn.inputClass, turn.worldTimeBefore, turn.worldTimeAfter,
         turn.responseKind, turn.responseText, createdAt,
+        serializeConversationMemoryMetadata(turn.contextMetadata ?? null),
       );
     } catch (insErr: unknown) {
       const msg = String(insErr);
@@ -828,7 +840,7 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     },
 
     listConversationTurns(worldId: WorldId, opts?: { limit?: number; beforeTurnSeq?: number }): ConversationTurnRecord[] {
-      let sql = "SELECT turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at FROM conversation_turns WHERE world_id = ?";
+      let sql = `SELECT ${CONVERSATION_COLUMNS} FROM conversation_turns WHERE world_id = ?`;
       const params: unknown[] = [worldId];
       if (opts?.beforeTurnSeq !== undefined) {
         sql += " AND turn_seq < ?";
@@ -844,15 +856,14 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     },
 
     listRecentConversationTurns(worldId: WorldId, opts?: { limit?: number }): ConversationTurnRecord[] {
-      const columns = "turn_seq, world_id, correlation_id, idempotency_key, request_hash, player_text, input_class, world_time_before, world_time_after, response_kind, response_text, created_at";
       if (opts?.limit === undefined) {
         const rows = db.prepare(
-          `SELECT ${columns} FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq ASC`,
+          `SELECT ${CONVERSATION_COLUMNS} FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq ASC`,
         ).all(worldId) as Record<string, unknown>[];
         return rows.map(mapConversationTurn);
       }
       const rows = db.prepare(
-        `SELECT ${columns} FROM (SELECT ${columns} FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq DESC LIMIT ?) ORDER BY turn_seq ASC`,
+        `SELECT ${CONVERSATION_COLUMNS} FROM (SELECT ${CONVERSATION_COLUMNS} FROM conversation_turns WHERE world_id = ? ORDER BY turn_seq DESC LIMIT ?) ORDER BY turn_seq ASC`,
       ).all(worldId, opts.limit) as Record<string, unknown>[];
       return rows.map(mapConversationTurn);
     },
