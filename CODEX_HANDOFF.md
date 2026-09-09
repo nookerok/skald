@@ -1,23 +1,34 @@
-# Current work (2026-09-09 — plan_7 transcript memory implemented, uncommitted)
+# Current work (2026-09-09 — plan_7 deployed to Orange Pi, smoke PASS)
 
-- plan_7 §§1,3,4,6,7,8,9,10,11 implemented in the working tree (§2 was
-  already done in P0). No new Domain Events; Rules never read the
-  transcript; LLM stays non-authoritative.
-- New: `conversation_context_json` metadata (schema v11→v12, NULL legacy
-  rows, fail-closed parse, DTO-stripped); evolved `MasterConversationContext`
-  (lastTurns ≤12, shown-narration pairing, mentions with transient scene
-  handles, goal, deterministic thread, seen-vs-uncertainty split);
-  `master_turn` prompt envelope with pronoun bindings; `conversationRelation`
-  in TurnProposalV2 with durable continuation links; structured focus first
-  (inquiry/addressee on par); foreign inquiries no longer close pending
-  clarification; `conversation_context` diagnostics with secret-free counts.
-- Validated: `npm run validate` PASS (170 files, 2073 passed, 1 skipped),
-  incl. a 10-step HTTP acceptance (replica→clarification→reload→foreign
-  inquiry→continuation→return, prompt safety scan) and the observer-safety
-  matrix. Docs: ADR-0028, ARCHITECTURE §5.10/5.13, PROJECT_MAP.
-- Not done: commit (plan_7 §12 suggests 6 commits), push, deploy of the v12
-  migration, live provider probe of the new envelope, browser QA with an
-  authorized click budget, human 15–20 replica playthrough.
+- Updater run as `nooker` (no sudo): backup
+  `backup-fc7cbbb2a5c3dee3a92144b2f23980ccaa3a3653-pre-update-20260909-235224.sqlite`
+  created+verified, fast-forward `fc7cbbb` → `0850cef` (6 plan_7 commits),
+  on-device suite 170 files / 2073 passed / 1 skipped, restart, health
+  gate PASS. `skald.service`, healthcheck and backup timers active.
+- Production DB migrated live v11→v12: `user_version=12`,
+  `conversation_context_json` present, all 26 transcript rows preserved
+  (NULL metadata, legacy heuristic applies).
+- Ten-turn smoke on `world-097b4463` (T21→T31): all 200 + `ok:true` +
+  live `presentation.primary` + state + exactly +1; duplicate key 409;
+  `/api/health` 200; final scoped state matches. First live execution of
+  the plan_7 code.
+- Live V2 probes (2, Russian pronoun input): transport+schema-probes PASS
+  (ollama_cloud/gemma4 ~950ms), but both proposals failed static schema
+  validation → safe generic clarification, no ticks, no events. Fail-closed
+  chain works as designed; model schema compliance is the open item
+  (hypothesis: fenced/non-JSON prose; raw bodies are unlogged by design).
+  Clarification metadata persists live (verified on-disc).
+- Anomaly (pre-existing): unscoped `/api/state` 404 `legacy-world`, none
+  created. Rollback was not needed. Local `main` == `origin/main`.
+
+# Current work (2026-09-09 — plan_7 implemented; superseded by deploy entry above)
+
+- plan_7 §§1,3,4,6,7,8,9,10,11 were implemented, committed as 6 commits per
+  §12 (`9fb97e6` → `0850cef`), pushed, and deployed (see entry above). No
+  new Domain Events; Rules never read the transcript; LLM stays
+  non-authoritative. Remaining open items: model schema compliance for the
+  live envelope, browser QA with an authorized click budget, human 15–20
+  replica playthrough.
 
 # Current work (2026-09-09 — LLM fallback deployed to Orange Pi, smoke PASS)
 
