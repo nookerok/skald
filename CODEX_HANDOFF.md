@@ -1,3 +1,28 @@
+# Current work (2026-09-09 — LLM fallback deployed to Orange Pi, smoke PASS)
+
+- Updater run as `nooker` (no sudo): backup
+  `backup-de906c7eefb799552e5292e8918eca754b76a044-pre-update-20260909-214901.sqlite`
+  created+verified, fast-forward `de906c7` → `fc7cbbb`, on-device suite
+  168 files / 2037 passed / 1 skipped, restart, health gate PASS.
+  `skald.service`, healthcheck and backup timers active; `/api/health` ok.
+- Live `POST /api/ops/ai-probe` after deploy: first non-`unavailable`
+  result — `degraded` (endpoint HTTP 503 by design, 200 is ready-only).
+  Ollama `gemma4:31b-cloud` passes interpret+narrate live; both Zen frees
+  excluded as `model_unavailable` (MissingSessionID lockout persists).
+  The provisional cloud tag is thereby verified live; the TODO in
+  `config.ts` can be closed on the next touch.
+- Ten-turn smoke on `world-097b4463` (T11→T21): all 10 ticking turns
+  200 + `ok:true` + live `presentation.primary` + state + exactly +1;
+  duplicate keys replay 409; `/api/health` 200; final scoped state matches
+  (T21, event 332). Movement turn reached a new location (T19 путевой
+  двор); live narration rows carry `usedFallback:false`.
+- One honest clarification inside the smoke (`поздороваться` with nobody
+  around → persisted `clarification` turnSeq 22, no tick, no events).
+  Correct V2 behavior through the live Ollama path, not a regression.
+- Anomaly (pre-existing, not a regression): unscoped `/api/state` answers
+  404 `world_not_found: legacy-world` — still no primary entrypoint, none
+  created. Rollback was not needed.
+
 # Current work (2026-09-09 — LLM selection fallback fixed, uncommitted)
 
 - Root cause confirmed: Zen locked `-free` models to OpenCode app sessions —
