@@ -1,3 +1,24 @@
+# Current work (2026-09-09 — plan_7 transcript memory implemented, uncommitted)
+
+- plan_7 §§1,3,4,6,7,8,9,10,11 implemented in the working tree (§2 was
+  already done in P0). No new Domain Events; Rules never read the
+  transcript; LLM stays non-authoritative.
+- New: `conversation_context_json` metadata (schema v11→v12, NULL legacy
+  rows, fail-closed parse, DTO-stripped); evolved `MasterConversationContext`
+  (lastTurns ≤12, shown-narration pairing, mentions with transient scene
+  handles, goal, deterministic thread, seen-vs-uncertainty split);
+  `master_turn` prompt envelope with pronoun bindings; `conversationRelation`
+  in TurnProposalV2 with durable continuation links; structured focus first
+  (inquiry/addressee on par); foreign inquiries no longer close pending
+  clarification; `conversation_context` diagnostics with secret-free counts.
+- Validated: `npm run validate` PASS (170 files, 2073 passed, 1 skipped),
+  incl. a 10-step HTTP acceptance (replica→clarification→reload→foreign
+  inquiry→continuation→return, prompt safety scan) and the observer-safety
+  matrix. Docs: ADR-0028, ARCHITECTURE §5.10/5.13, PROJECT_MAP.
+- Not done: commit (plan_7 §12 suggests 6 commits), push, deploy of the v12
+  migration, live provider probe of the new envelope, browser QA with an
+  authorized click budget, human 15–20 replica playthrough.
+
 # Current work (2026-09-09 — LLM fallback deployed to Orange Pi, smoke PASS)
 
 - Updater run as `nooker` (no sudo): backup

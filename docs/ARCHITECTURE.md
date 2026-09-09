@@ -501,6 +501,16 @@ response дополнительно сохраняются в read-side `convers
 `ConversationTurn`; эта таблица не является Projection, не создаёт Domain
 Events и не влияет на WorldState.
 
+Transcript memory (plan_7): каждая реплика может нести read-side
+`conversation_context_json` (схема v12, NULL для старых строк) —
+структурированные упоминания, цель игрока, payload уточнения, ссылку
+продолжения и драматическую нить. Мастер помнит именно показанный игроку
+ответ (готовая TurnNarration по `worldTime`+`correlationId`, иначе
+deterministic текст), контекст ограничен 8–12 репликами, уточнение живёт
+через reload (посторонний inquiry его не закрывает, явная ссылка
+продолжения разрешает или отменяет), Правила и Projection эти данные
+никогда не читают.
+
 ### 5.11 Социальный граф — Relation Edges
 
 Не `RelationshipManager`, а рёбра между сущностями со значениями, изменяемыми событиями:
@@ -541,8 +551,10 @@ Biography-граф остаётся отдельной read-side utility (§5.9)
 response, worldTime и playerPosition; Biography и background context не входят
 в его prompt. Master Turn Gateway (ADR-0028) отдельно использует bounded LLM
 TurnProposal только для интерпретации целой реплики в observer-safe
-контексте: player text, static capability manifest, bounded observer-safe
-scene, bounded recent conversation и pending clarification. Event Log,
+контексте: конверт `master_turn` с player text, static capability manifest,
+bounded observer-safe scene, bounded `ConversationContext` (последние
+реплики, упоминания, цель, нить, seen-факты отдельно от
+told/inferred/doubt) и pronoun bindings. Event Log,
 полная Projection, Canon, скрытые сущности, внутренние ID, координаты,
 недоступный инвентарь и чужие знания в prompt не передаются. Ни Narrative,
 ни Gateway не выбирают факты, исходы или состояние мира.

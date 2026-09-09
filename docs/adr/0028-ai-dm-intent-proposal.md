@@ -7,6 +7,17 @@ Gateway. It understands one whole player replica in observer-safe
 conversation context, not one isolated command. This revision replaces the
 previous contract, it does not create a competing architecture.
 
+Amended 2026-09-09 (plan_7 transcript memory): the transcript becomes a
+durable read-side memory. `conversation_turns` gains a nullable
+`conversation_context_json` column (schema v12) carrying structured
+mentions, the stated goal, clarification payloads, continuation links and
+the dramatic thread — never prompts, ids, Canon, hidden facts, confidence
+or Event fragments. The gateway prompt carries a `master_turn` envelope
+with the bounded `ConversationContext`; the model may report its relation
+to the pending clarification (`conversationRelation`), which the server
+resolves into a durable continuation link. Nothing here becomes World
+State: Rules never read the transcript.
+
 ## Context
 
 The deterministic intent parser handles the registered grammar well, but a
@@ -37,9 +48,18 @@ The LLM receives:
 - bounded observer-safe scene (visible/observed objects, known people,
   known routes, accessible items with affordances, observed situation,
   `seen/told/inferred/doubt` knowledge, current `worldTime/eventNumber`);
-- bounded recent conversation (last turns of the current `worldId`,
-  recent focus, pending clarification);
-- unresolved clarification, if any.
+- bounded recent conversation of the current `worldId`: `lastTurns`
+  (at most 12 replicas within a char budget, master side preferring the
+  shown ready narration paired by `worldTime`+`correlationId`), structured
+  `recentlyMentionedEntities` (transient `observerRef` re-matched against
+  the current scene on every build), the `activePlayerGoal` stated by the
+  player, the deterministic `currentDramaticThread` (pending clarification
+  > goal > observed situation > personal hook), and observer-safe knowledge
+  split into `knownFacts` (`seen`) vs `knownUncertainties`
+  (`told`/`inferred`/`doubt`);
+- unresolved clarification, if any, with its persisted options; a foreign
+  inquiry never closes it, an explicit continuation link resolves or
+  abandons it, and a world-changing outcome closes it by the legacy rule.
 
 The LLM does not receive:
 
@@ -89,9 +109,12 @@ to work without a network call.
 
 ## Consequences
 
-- No new Domain Event is introduced by this contract. Read-side
-  clarification/focus metadata, if persisted, is a separate migration and
-  never becomes World State.
+- No new Domain Event is introduced by this contract. Read-side memory
+  metadata persists via the v11→v12 migration (`conversation_context_json`,
+  NULL for legacy rows, fail-closed parse) and never becomes World State.
+  Focus draws structured mentions from validated plans first (inquiry focus
+  and speech addressees count on par with action targets) and falls back to
+  the deterministic re-parse for legacy rows.
 - `parseIntent` remains pure and synchronous; the network adapter lives in
   the CLI runtime gateway.
 - Runtime HTTP uses the gateway, while deterministic eval and REPL paths may

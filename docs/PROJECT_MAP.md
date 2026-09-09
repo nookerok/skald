@@ -47,12 +47,16 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 
     Browser/REPL -> Master Turn Gateway / Interpretation Gateway
     (deterministic fast path for simple commands, otherwise closed LLM
-    TurnProposalV2 in bounded observer-safe scene + conversation context)
+    TurnProposalV2 in bounded observer-safe scene + ConversationContext
+    with pronoun bindings)
     -> static schema + contextual referent validation + stale-revision
     recheck -> at most one primary command handler / read-only Inquiry
     -> RuleEngine -> staged Domain Events -> EventBus + Projection
     commit -> Presentation/Narrative -> unified Master response ->
     HTTP/CLI output
+    -> read-side transcript memory (mentions/goal/clarification/
+    continuation/thread in conversation_context_json) -> reload restores
+    the pending question; foreign inquiries never close it
 
     Journal DTO + session-scoped intents -> Conversation Feed (ТЫ → МАСТЕР)
     -> transient gateway clarification or accepted world reply; Map/You/Knowledge
