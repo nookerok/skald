@@ -138,6 +138,7 @@ export {
   discoverLiveRoutes,
   discoverOllamaRoutes,
   discoverOpenCodeRoutes,
+  discoverOpenRouterRoutes,
   fetchOpenCodeCatalog,
   liveModelSelectionFingerprint,
 } from "./llm/catalog.js";
@@ -154,12 +155,14 @@ export type {
   OpenCodeCatalogOptions,
   OpenCodeCatalogReport,
   OpenCodeCatalogStatus,
+  OpenRouterDiscoveryOptions,
 } from "./llm/catalog.js";
 export { classifyPayload, scanForSecrets, enforceDataPolicy } from "./llm/data-policy.js";
 export { loadHealth, saveHealth, checkModel, classifyModelError } from "./llm/health.js";
 export {
   LLM_CONFIG,
   OPENCODE_PREFERRED_MODELS,
+  OPENROUTER_PREFERRED_MODELS,
   OLLAMA_CLOUD_BACKUP_MODEL,
   candidateForModel,
   configuredProviders,

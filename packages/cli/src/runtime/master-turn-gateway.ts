@@ -318,14 +318,22 @@ async function requestProposal(
   if (!note) return first;
   onRepair();
   const remaining = Math.max(1, Math.floor(budgetMs - (performance.now() - startedAt)));
-  return proposeTurn(router, input, snapshot, { ...options, repairNote: note, timeoutMs: remaining });
+  return proposeTurn(router, input, snapshot, {
+    ...options,
+    repairNote: note,
+    assistantPrefill: typeof first === "string" ? first.slice(0, 2000) : null,
+    timeoutMs: remaining,
+  });
 }
 
 async function proposeTurn(
   router: ModelRouter,
   input: string,
   snapshot: MasterTurnSnapshot,
-  options?: MasterTurnGatewayOptions & { readonly repairNote?: string | undefined },
+  options?: MasterTurnGatewayOptions & {
+    readonly repairNote?: string | undefined;
+    readonly assistantPrefill?: string | null | undefined;
+  },
 ): Promise<unknown> {
   // Pronoun bindings resolve against the same snapshot the model sees;
   // the validator and the queue revalidate every referent afterwards.
@@ -340,7 +348,13 @@ async function proposeTurn(
     { role: "system", content: MASTER_TURN_SYSTEM_PROMPT },
     { role: "user", content: prompt.user },
   ];
-  if (options?.repairNote) messages.push({ role: "user", content: options.repairNote });
+  // A correction turn anchors on the model's own prior reply: the note alone
+  // tells it that the shape was wrong, the prefill shows what to correct.
+  // The prefill is echoed model output, never persisted or logged.
+  if (options?.repairNote) {
+    if (options.assistantPrefill) messages.push({ role: "assistant", content: options.assistantPrefill });
+    messages.push({ role: "user", content: options.repairNote });
+  }
   const response = await router.chat("interpret", messages, {
     dataClass: "player_input",
     ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),

@@ -22,6 +22,7 @@ export interface RouterConfiguration {
 export interface LiveRouterConfigurationOptions {
   readonly timeoutMs?: number;
   readonly preferredModels?: readonly string[];
+  readonly openrouterModels?: readonly string[];
   readonly fetchImpl?: typeof fetch;
   readonly probe?: LiveModelSelectionOptions["probe"];
 }
@@ -148,9 +149,12 @@ export async function createLiveRouterConfiguration(
   const base = createRouterConfiguration(env);
   const zenKey = keyValue(env, "opencode_zen");
   const ollamaKey = keyValue(env, "ollama_cloud");
+  const openrouterKey = keyValue(env, "openrouter");
   const selectionOptions: LiveRouteDiscoveryOptions = {
     apiKey: zenKey,
     ...(ollamaKey ? { ollamaKey } : {}),
+    ...(openrouterKey ? { openrouterKey } : {}),
+    ...(options.openrouterModels ? { openrouterModels: options.openrouterModels } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.preferredModels ? { preferredModels: options.preferredModels } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),

@@ -93,6 +93,9 @@ AI provider keys and the production acceptance policy go in `/home/nooker/skald-
 SKALD_OPENCODE_ZEN_API_KEY=your_key_here
 # Optional legacy provider key; it is not a live Zen candidate.
 SKALD_OLLAMA_CLOUD_API_KEY=
+# Optional last-resort provider key (sk-or-v1-...); probed only when Zen and
+# Ollama Cloud both activate nothing.
+SKALD_OPENROUTER_API_KEY=
 SKALD_AI_REQUIRED=1
 ```
 

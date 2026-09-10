@@ -77,7 +77,7 @@ function emitIntentDiagnostic(
 
 function diagnosticProviderFailure(error: unknown, fallbackProvider: string): ReturnType<typeof toProviderFailure> {
   const context = {
-    provider: fallbackProvider === "opencode_zen" || fallbackProvider === "ollama_cloud" ? fallbackProvider as ProviderId : undefined,
+    provider: fallbackProvider === "opencode_zen" || fallbackProvider === "ollama_cloud" || fallbackProvider === "openrouter" ? fallbackProvider as ProviderId : undefined,
     category: "interpret" as const,
   };
   const direct = toProviderFailure(error, context);

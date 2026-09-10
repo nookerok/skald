@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { discoverLiveRoutes, discoverOllamaRoutes, discoverOpenCodeRoutes, fetchOpenCodeCatalog } from "../../src/llm/catalog.js";
+import { discoverLiveRoutes, discoverOllamaRoutes, discoverOpenCodeRoutes, discoverOpenRouterRoutes, fetchOpenCodeCatalog } from "../../src/llm/catalog.js";
 
 function response(body: unknown, status = 200): Response {
   return {
@@ -283,6 +283,104 @@ describe("Ollama Cloud fallback discovery", () => {
   });
 });
 
+describe("OpenRouter last-resort discovery", () => {
+  const NEMO = "nvidia/nemotron-3-super-120b-a12b:free";
+  const LAGUNA = "poolside/laguna-s-2.1:free";
+
+  function openrouterOk(models: readonly string[] = [NEMO]) {
+    return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.startsWith("https://openrouter.ai/")) {
+        return { ok: false, status: 404, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      expect(models).toContain(body.model);
+      const marker = body.messages?.[1]?.content ?? "";
+      const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+        ? "SKALD_PROBE_OK"
+        : '{"schemaVersion":1,"probe":true}';
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content } }], model: body.model }),
+      } as unknown as Response;
+    });
+  }
+
+  it("reports a missing credential without touching the network", async () => {
+    const fetchImpl = vi.fn();
+    const report = await discoverOpenRouterRoutes({ fetchImpl });
+    expect(report.provider).toBe("openrouter");
+    expect(report.status).toBe("misconfigured");
+    expect(report.candidates.every((candidate) => candidate.exclusionReason === "missing_credential")).toBe(true);
+    expect(report.routes.interpret).toEqual([]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("activates the first dual-ok model and stops spending free quota", async () => {
+    const fetchImpl = openrouterOk([NEMO, LAGUNA]);
+    const report = await discoverOpenRouterRoutes({ apiKey: "or-key", models: [NEMO, LAGUNA], fetchImpl });
+    expect(report.provider).toBe("openrouter");
+    expect(report.status).toBe("degraded");
+    expect(report.activeModel).toBe(NEMO);
+    expect(report.backupModel).toBeUndefined();
+    expect(report.routes.interpret).toEqual([{ provider: "openrouter", model: NEMO, protocol: "openai_chat", tier: "live_primary" }]);
+    expect(report.routes.narrate).toEqual([{ provider: "openrouter", model: NEMO, protocol: "openai_chat", tier: "live_primary" }]);
+    // Exactly one interpret+narrate pair: the winner stops further probes.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls.every((call) => String(call[0]).startsWith("https://openrouter.ai/api/v1/chat/completions"))).toBe(true);
+    expect(report.excluded).toEqual([]);
+  });
+
+  it("skips a dead first model and activates the next one", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      if (body.model === NEMO) {
+        return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      return openrouterOk([LAGUNA])(input, init);
+    });
+    const report = await discoverOpenRouterRoutes({ apiKey: "or-key", models: [NEMO, LAGUNA], fetchImpl });
+    expect(report.status).toBe("degraded");
+    expect(report.activeModel).toBe(LAGUNA);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(report.excluded).toEqual([{ model: NEMO, reason: "interpret_probe_failed" }]);
+  });
+
+  it("maps credential rejection to misconfigured and empty balance to quota_exceeded", async () => {
+    const denied = await discoverOpenRouterRoutes({
+      apiKey: "bad-key",
+      models: [NEMO],
+      fetchImpl: vi.fn(async () => response({ error: { message: "Unauthorized" } }, 401)),
+    });
+    expect(denied.status).toBe("misconfigured");
+    expect(denied.candidates[0]).toMatchObject({ active: false, exclusionReason: "auth_failure" });
+
+    const broke = await discoverOpenRouterRoutes({
+      apiKey: "or-key",
+      models: [NEMO],
+      fetchImpl: vi.fn(async () => response({ error: { message: "Insufficient credits. Please add funds." } }, 402)),
+    });
+    expect(broke.status).toBe("unavailable");
+    expect(broke.candidates[0]).toMatchObject({
+      active: false,
+      exclusionReason: "quota_exceeded",
+      interpret: { status: "failed", httpStatus: 402, providerCode: "insufficient_credits" },
+    });
+  });
+
+  it("rejects a swapped response model instead of routing it", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: "SKALD_PROBE_OK" } }], model: "openrouter/free" }),
+    } as unknown as Response));
+    const report = await discoverOpenRouterRoutes({ apiKey: "or-key", models: [NEMO], fetchImpl });
+    expect(report.status).toBe("unavailable");
+    expect(report.candidates[0]?.narrate).toMatchObject({ status: "failed", phase: "model_selection", responseModel: "openrouter/free" });
+  });
+});
+
 describe("provider-ordered live discovery", () => {
   const GEMMA = "gemma4:31b-cloud";
 
@@ -367,5 +465,130 @@ describe("provider-ordered live discovery", () => {
     expect(report.provider).toBe("opencode_zen");
     expect(report.status).toBe("unavailable");
     expect(report.excluded).toEqual([{ model: "big-pickle", reason: "model_unavailable" }]);
+  });
+
+  it("falls through to OpenRouter only after Zen and Ollama both fail", async () => {
+    const NEMO = "nvidia/nemotron-3-super-120b-a12b:free";
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.startsWith("https://ollama.com/")) {
+        return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      if (url.startsWith("https://openrouter.ai/")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        const marker = body.messages?.[1]?.content ?? "";
+        const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }], model: NEMO }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    });
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      ollamaKey: "ollama-key",
+      openrouterKey: "or-key",
+      openrouterModels: [NEMO],
+      preferredModels: ["big-pickle"],
+      fetchImpl,
+    });
+    expect(report.provider).toBe("openrouter");
+    expect(report.status).toBe("degraded");
+    expect(report.activeModel).toBe(NEMO);
+    expect(report.catalog?.status).toBe("ok");
+    expect(report.routes.interpret).toEqual([{ provider: "openrouter", model: NEMO, protocol: "openai_chat", tier: "live_primary" }]);
+    expect(report.excluded).toEqual(expect.arrayContaining([
+      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "gemma4:31b-cloud", reason: "interpret_probe_failed" },
+    ]));
+    const openrouterCalls = fetchImpl.mock.calls.filter((call) => String(call[0]).startsWith("https://openrouter.ai/"));
+    expect(openrouterCalls).toHaveLength(2);
+  });
+
+  it("returns the Zen report when every rung including OpenRouter fails", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.startsWith("https://ollama.com/") || url.startsWith("https://openrouter.ai/")) {
+        return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    });
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      ollamaKey: "ollama-key",
+      openrouterKey: "or-key",
+      preferredModels: ["big-pickle"],
+      fetchImpl,
+    });
+    // Zen dead, Ollama dead, OpenRouter dead: Zen report wins after trying all rungs.
+    expect(report.provider).toBe("opencode_zen");
+    expect(report.status).toBe("unavailable");
+    expect(fetchImpl.mock.calls.some((call) => String(call[0]).startsWith("https://openrouter.ai/"))).toBe(true);
+  });
+
+  it("never spends OpenRouter quota while Ollama answers", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.startsWith("https://openrouter.ai/")) throw new Error("OpenRouter quota must not be spent while Ollama answers");
+      if (url.startsWith("https://ollama.com/")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        const marker = body.messages?.[1]?.content ?? "";
+        const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ message: { content }, model: "gemma4:31b-cloud" }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    });
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      ollamaKey: "ollama-key",
+      openrouterKey: "or-key",
+      preferredModels: ["big-pickle"],
+      fetchImpl,
+    });
+    expect(report.provider).toBe("ollama_cloud");
+  });
+
+  it("returns the Zen report unchanged when no OpenRouter credential is configured", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.startsWith("https://openrouter.ai/")) throw new Error("OpenRouter must not be touched without a credential");
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    });
+    const probe = vi.fn(async () => ({ status: "model_unavailable", phase: "response_status", httpStatus: 400 }));
+    const report = await discoverLiveRoutes({
+      apiKey: "zen-key",
+      ollamaKey: "ollama-key",
+      preferredModels: ["big-pickle"],
+      fetchImpl,
+      probe: probe as any,
+    });
+    expect(report.provider).toBe("opencode_zen");
+    expect(report.status).toBe("unavailable");
   });
 });

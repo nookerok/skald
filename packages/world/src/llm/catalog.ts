@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { LLM_CONFIG, OLLAMA_CLOUD_BACKUP_MODEL, OPENCODE_PREFERRED_MODELS, openCodeProtocolForModel } from "./config.js";
+import { LLM_CONFIG, OLLAMA_CLOUD_BACKUP_MODEL, OPENCODE_PREFERRED_MODELS, OPENROUTER_PREFERRED_MODELS, openCodeProtocolForModel } from "./config.js";
 import { chatOnce, readProviderErrorCode } from "./http.js";
 import { isProviderScopedFailure, toProviderFailure } from "./errors.js";
 import type { ChatMessage, ProviderId, ProviderPhase, ProviderProtocol, RouteCandidate } from "./types.js";
@@ -47,6 +47,7 @@ export type ModelExclusionReason =
   | "missing_credential"
   | "auth_failure"
   | "model_unavailable"
+  | "quota_exceeded"
   | "interpret_probe_failed"
   | "narrate_probe_failed";
 
@@ -423,20 +424,150 @@ export async function discoverOllamaRoutes(options: OllamaDiscoveryOptions = {})
   );
 }
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_INTERPRET_MAX_TOKENS = 256;
+const OPENROUTER_NARRATE_MAX_TOKENS = 64;
+
+export interface OpenRouterDiscoveryOptions {
+  readonly apiKey?: string;
+  readonly models?: readonly string[];
+  readonly baseUrl?: string;
+  readonly timeoutMs?: number;
+  readonly fetchImpl?: typeof fetch;
+  readonly probe?: LiveModelSelectionOptions["probe"];
+  readonly checkedAt?: () => string;
+}
+
+async function probeOpenRouterModel(category: "interpret" | "narrate", model: string, options: { apiKey: string; baseUrl: string; timeoutMs: number; fetchImpl?: typeof fetch }): Promise<CandidateProbeResult> {
+  try {
+    const maxTokens = category === "interpret" ? OPENROUTER_INTERPRET_MAX_TOKENS : OPENROUTER_NARRATE_MAX_TOKENS;
+    const result = await chatOnce(options.baseUrl, options.apiKey, model, category === "interpret" ? INTERPRET_MESSAGES : NARRATE_MESSAGES, {
+      provider: "openrouter",
+      protocol: "openai_chat",
+      category,
+      maxTokens,
+      timeoutMs: options.timeoutMs,
+      ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+    });
+    const checked = probeText(category, result.text.trim());
+    if (!checked) return { status: "failed", phase: "response_shape" };
+    if (result.responseModel && result.responseModel !== model) return { status: "failed", phase: "model_selection", responseModel: result.responseModel };
+    return { ...checked, ...(result.responseModel ? { responseModel: result.responseModel } : {}) };
+  } catch (error) {
+    const failure = toProviderFailure(error, { provider: "openrouter", model, category });
+    if (failure && (isProviderScopedFailure(failure.httpStatus, failure.providerCode) || failure.httpStatus === 400 || failure.httpStatus === 404)) {
+      if (failure.httpStatus === 401 || failure.httpStatus === 403) return { status: "auth_failure", phase: failure.phase, httpStatus: failure.httpStatus, ...(failure.providerCode ? { providerCode: failure.providerCode } : {}) };
+      if (failure.httpStatus === 400 || failure.httpStatus === 404) return { status: "model_unavailable", phase: failure.phase, httpStatus: failure.httpStatus, ...(failure.providerCode ? { providerCode: failure.providerCode } : {}) };
+    }
+    return {
+      status: "failed",
+      phase: failure?.phase ?? "request",
+      ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
+      ...(failure?.providerCode ? { providerCode: failure.providerCode } : {}),
+    };
+  }
+}
+
+function openRouterRoute(model: string): readonly RouteCandidate[] {
+  return Object.freeze([{
+    provider: "openrouter" as const,
+    model,
+    protocol: "openai_chat" as const,
+    tier: "live_primary" as const,
+  }]);
+}
+
+function openRouterExclusion(interpret: CandidateProbeResult, narrate: CandidateProbeResult): ModelExclusionReason {
+  if (interpret.status === "auth_failure" || narrate.status === "auth_failure") return "auth_failure";
+  if (interpret.providerCode === "insufficient_credits" || narrate.providerCode === "insufficient_credits"
+    || interpret.httpStatus === 402 || narrate.httpStatus === 402) return "quota_exceeded";
+  if (interpret.status === "model_unavailable" || narrate.status === "model_unavailable") return "model_unavailable";
+  return interpret.status !== "ok" ? "interpret_probe_failed" : "narrate_probe_failed";
+}
+
+/**
+ * Probe the pinned OpenRouter free models in preference order, first
+ * dual-ok model wins. Models are probed SEQUENTIALLY (not in parallel):
+ * free quota is 20 req/min and 50 req/day account-wide with failed attempts
+ * counting, so a winner must stop further spending. No catalogue gate —
+ * the preference list is operator-pinned from live recon and probes are
+ * authoritative; dead ids are excluded, never retried indefinitely.
+ * A single model can never satisfy the primary+backup contract, so full
+ * success reports `degraded` (works, no redundancy), never `ready`.
+ */
+export async function discoverOpenRouterRoutes(options: OpenRouterDiscoveryOptions = {}): Promise<LiveModelSelectionReport> {
+  const startedAt = performance.now();
+  const checkedAt = options.checkedAt ?? (() => new Date().toISOString());
+  const timeoutMs = boundedTimeout(options.timeoutMs);
+  const apiKey = options.apiKey ?? "";
+  const models = Object.freeze([...(options.models ?? OPENROUTER_PREFERRED_MODELS)]);
+  const baseUrl = (options.baseUrl ?? LLM_CONFIG.providers.openrouter?.baseUrl ?? OPENROUTER_BASE_URL).replace(/\/+$/, "");
+  const finish = (
+    status: LiveModelSelectionReport["status"],
+    candidates: readonly ModelCandidateReport[],
+    activeModel: string | undefined,
+  ): LiveModelSelectionReport => ({
+    provider: "openrouter",
+    status,
+    checkedAt: checkedAt(),
+    durationMs: Math.round(performance.now() - startedAt),
+    ...(activeModel ? { activeModel } : {}),
+    candidates: Object.freeze([...candidates]),
+    excluded: Object.freeze(candidates.filter((candidate) => !candidate.active && candidate.exclusionReason).map((candidate) => ({ model: candidate.model, reason: candidate.exclusionReason! }))),
+    routes: activeModel ? { interpret: openRouterRoute(activeModel), narrate: openRouterRoute(activeModel) } : { interpret: Object.freeze([]), narrate: Object.freeze([]) },
+  });
+  if (!apiKey) {
+    const inactive = { status: "not_run" as const, phase: "configuration" as const };
+    return finish("misconfigured", Object.freeze(models.map((model) => ({
+      model, inCatalog: false, interpret: inactive, narrate: inactive, active: false, exclusionReason: "missing_credential" as const,
+    }))), undefined);
+  }
+  const candidates: ModelCandidateReport[] = [];
+  for (const model of models) {
+    const runner = options.probe
+      ? (category: "interpret" | "narrate") => options.probe!(category, model, { apiKey, baseUrl, timeoutMs })
+      : (category: "interpret" | "narrate") => probeOpenRouterModel(category, model, { apiKey, baseUrl, timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
+    const [interpret, narrate] = await Promise.all([runner("interpret"), runner("narrate")]);
+    const active = interpret.status === "ok" && narrate.status === "ok";
+    candidates.push({
+      model,
+      inCatalog: false,
+      interpret,
+      narrate,
+      active,
+      ...(active ? {} : { exclusionReason: openRouterExclusion(interpret, narrate) }),
+    });
+    // Stop at the first dual-ok model: every further probe spends free quota.
+    if (active) {
+      return finish("degraded", candidates, model);
+    }
+  }
+  const status = candidates.length === 0
+    ? "unavailable"
+    : candidates.some((candidate) => candidate.interpret.status === "auth_failure" || candidate.narrate.status === "auth_failure")
+      ? "misconfigured"
+      : "unavailable";
+  return finish(status, candidates, undefined);
+}
+
 export interface LiveRouteDiscoveryOptions extends LiveModelSelectionOptions {
   /** Ollama Cloud credential for the fallback path; Zen discovery never sees it. */
   readonly ollamaKey?: string;
   /** Override for the pinned Ollama Cloud backup model id. */
   readonly ollamaModel?: string;
+  /** OpenRouter credential for the last-resort path; earlier rungs never see it. */
+  readonly openrouterKey?: string;
+  /** Override for the pinned OpenRouter free-model preference order. */
+  readonly openrouterModels?: readonly string[];
 }
 
 /**
- * Provider-ordered live discovery: Zen first, Ollama Cloud fallback.
- * Zen keeps absolute priority — any active Zen model wins without touching
- * Ollama, preserving current behavior and latency. Only when Zen activates
- * nothing and an Ollama credential is configured does the pinned Ollama
- * model get probed; its report keeps the Zen catalogue snapshot for context
- * and merges both exclusion lists so readiness keeps explaining the Zen miss.
+ * Provider-ordered live discovery: Zen first, Ollama Cloud fallback,
+ * OpenRouter last resort. Each rung wins without touching the next —
+ * OpenRouter's free quota (20 req/min, 50 req/day account-wide) is only
+ * spent when Zen and Ollama both activate nothing. Reports keep the Zen
+ * catalogue snapshot for context and merge every exclusion list so
+ * readiness keeps explaining each miss.
  */
 export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}): Promise<LiveModelSelectionReport> {
   const startedAt = performance.now();
@@ -444,28 +575,56 @@ export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}
   const zenActive = zen.candidates.filter((candidate) => candidate.active);
   if (zenActive.length > 0) return zen;
   const ollamaKey = options.ollamaKey ?? "";
-  if (!ollamaKey) return zen;
-  const ollama = await discoverOllamaRoutes({
-    apiKey: ollamaKey,
-    ...(options.ollamaModel ? { model: options.ollamaModel } : {}),
+  let ollamaExcluded: LiveModelSelectionReport["excluded"] = Object.freeze([]);
+  if (ollamaKey) {
+    const ollama = await discoverOllamaRoutes({
+      apiKey: ollamaKey,
+      ...(options.ollamaModel ? { model: options.ollamaModel } : {}),
+      ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+      ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      ...(options.probe ? { probe: options.probe } : {}),
+      ...(options.checkedAt ? { checkedAt: options.checkedAt } : {}),
+    });
+    const ollamaActive = ollama.candidates.filter((candidate) => candidate.active);
+    if (ollamaActive.length > 0) {
+      return {
+        provider: "ollama_cloud",
+        status: ollama.status,
+        checkedAt: ollama.checkedAt,
+        durationMs: Math.round(performance.now() - startedAt),
+        ...(zen.catalog ? { catalog: zen.catalog } : {}),
+        ...(ollama.activeModel ? { activeModel: ollama.activeModel } : {}),
+        ...(ollama.backupModel ? { backupModel: ollama.backupModel } : {}),
+        candidates: ollama.candidates,
+        excluded: Object.freeze([...zen.excluded, ...ollama.excluded]),
+        routes: ollama.routes,
+      };
+    }
+    ollamaExcluded = ollama.excluded;
+  }
+  const openrouterKey = options.openrouterKey ?? "";
+  if (!openrouterKey) return zen;
+  const openrouter = await discoverOpenRouterRoutes({
+    apiKey: openrouterKey,
+    ...(options.openrouterModels ? { models: options.openrouterModels } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     ...(options.probe ? { probe: options.probe } : {}),
     ...(options.checkedAt ? { checkedAt: options.checkedAt } : {}),
   });
-  const ollamaActive = ollama.candidates.filter((candidate) => candidate.active);
-  if (ollamaActive.length === 0) return zen;
+  const openrouterActive = openrouter.candidates.filter((candidate) => candidate.active);
+  if (openrouterActive.length === 0) return zen;
   return {
-    provider: "ollama_cloud",
-    status: ollama.status,
-    checkedAt: ollama.checkedAt,
+    provider: "openrouter",
+    status: openrouter.status,
+    checkedAt: openrouter.checkedAt,
     durationMs: Math.round(performance.now() - startedAt),
     ...(zen.catalog ? { catalog: zen.catalog } : {}),
-    ...(ollama.activeModel ? { activeModel: ollama.activeModel } : {}),
-    ...(ollama.backupModel ? { backupModel: ollama.backupModel } : {}),
-    candidates: ollama.candidates,
-    excluded: Object.freeze([...zen.excluded, ...ollama.excluded]),
-    routes: ollama.routes,
+    ...(openrouter.activeModel ? { activeModel: openrouter.activeModel } : {}),
+    ...(openrouter.backupModel ? { backupModel: openrouter.backupModel } : {}),
+    candidates: openrouter.candidates,
+    excluded: Object.freeze([...zen.excluded, ...ollamaExcluded, ...openrouter.excluded]),
+    routes: openrouter.routes,
   };
 }
 

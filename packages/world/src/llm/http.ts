@@ -123,6 +123,10 @@ export async function readProviderErrorCode(
   if (typeof message !== "string") return undefined;
   if (/not available in your country/i.test(message)) return "region_unavailable";
   if (/free tier can only be used/i.test(message)) return "free_tier_session_required";
+  // OpenRouter answers empty/negative balance with HTTP 402 even for free
+  // models. Distinct from auth_failure: the credential is valid, the account
+  // needs funding. Never retryable per call.
+  if (/insufficient credit/i.test(message)) return "insufficient_credits";
   const normalized = message.trim().toLowerCase();
   if (/^model\s+unavailable$/.test(normalized)) return "model_unavailable";
   if (/^model\s+not\s+found$/.test(normalized)) return "model_not_found";

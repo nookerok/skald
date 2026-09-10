@@ -1,4 +1,4 @@
-export type ProviderId = "opencode_zen" | "ollama_cloud";
+export type ProviderId = "opencode_zen" | "ollama_cloud" | "openrouter";
 export type Category = "narrate" | "analyze" | "interpret";
 export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "network_error" | "server_error" | "unknown";
 

@@ -196,7 +196,7 @@ function defaultProvider(): ProviderId {
 }
 
 function isProviderId(value: unknown): value is ProviderId {
-  return value === "opencode_zen" || value === "ollama_cloud";
+  return value === "opencode_zen" || value === "ollama_cloud" || value === "openrouter";
 }
 
 /**

@@ -198,9 +198,10 @@ describe("master turn gateway V2", () => {
     expect(result.status).toBe("plan");
     expect(router.chat).toHaveBeenCalledTimes(2);
     const [, secondMessages] = router.chat.mock.calls[1] as any[];
-    expect(secondMessages).toHaveLength(3);
-    expect(secondMessages[2].content).toContain("rejected");
-    expect(secondMessages[2].content).not.toContain("Подхожу к ограде.");
+    expect(secondMessages.map((message: any) => message.role)).toEqual(["system", "user", "assistant", "user"]);
+    expect(secondMessages[2].content).toBe(enveloped);
+    expect(secondMessages[3].content).toContain("rejected");
+    expect(secondMessages[3].content).not.toContain("Подхожу к ограде.");
     expect(events.map((event) => event.category)).toContain("proposal_repair_requested");
   });
 

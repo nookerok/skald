@@ -27,9 +27,22 @@ describe("router factory", () => {
 
     expect(config.router?.hasProviderKey("opencode_zen")).toBe(true);
     expect(config.router?.hasProviderKey("ollama_cloud")).toBe(false);
+    expect(config.router?.hasProviderKey("openrouter")).toBe(false);
     expect(config.missingProviders).toEqual([]);
     expect(config.router?.configFingerprint()).toBe(config.configFingerprint);
     expect(JSON.stringify(config)).not.toContain("zen-secret");
+  });
+
+  it("captures the OpenRouter key alongside the other providers", () => {
+    const config = createRouterConfiguration({
+      SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
+      SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
+      SKALD_OPENROUTER_API_KEY: "or-secret",
+      SKALD_AI_REQUIRED: "0",
+    });
+
+    expect(config.router?.hasProviderKey("openrouter")).toBe(true);
+    expect(JSON.stringify(config)).not.toContain("or-secret");
   });
 
   it("fingerprints key presence, not key values", () => {
@@ -147,6 +160,47 @@ describe("router factory", () => {
     expect(config.router?.hasProviderKey("ollama_cloud")).toBe(true);
     expect(JSON.stringify(config)).not.toContain("zen-secret");
     expect(JSON.stringify(config)).not.toContain("ollama-secret");
+  });
+
+  it("falls through to OpenRouter when Zen and Ollama both activate nothing", async () => {
+    const NEMO = "nvidia/nemotron-3-super-120b-a12b:free";
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      }
+      if (url.startsWith("https://ollama.com/")) {
+        return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      if (url.startsWith("https://openrouter.ai/")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        const marker = body.messages?.[1]?.content ?? "";
+        const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }], model: NEMO }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    };
+    const config = await createLiveRouterConfiguration({
+      SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
+      SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
+      SKALD_OPENROUTER_API_KEY: "or-secret",
+      SKALD_AI_REQUIRED: "1",
+    }, { preferredModels: ["big-pickle"], openrouterModels: [NEMO], fetchImpl });
+
+    expect(config.selectionReport?.provider).toBe("openrouter");
+    expect(config.selectionReport?.activeModel).toBe(NEMO);
+    expect(config.router?.routeCandidates("interpret")).toEqual([
+      { provider: "openrouter", model: NEMO, protocol: "openai_chat", tier: "live_primary" },
+    ]);
+    expect(config.router?.hasProviderKey("openrouter")).toBe(true);
+    expect(JSON.stringify(config)).not.toContain("or-secret");
   });
 
   it("keeps Zen behavior identical when no Ollama credential is configured", async () => {

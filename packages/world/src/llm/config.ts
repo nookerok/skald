@@ -80,6 +80,33 @@ export function openCodeProtocolForModel(model: string): ProviderProtocol {
  */
 export const OLLAMA_CLOUD_BACKUP_MODEL = "gemma4:31b-cloud";
 
+/**
+ * Pinned OpenRouter free-model preferences, last-resort rung after Ollama.
+ * OpenAI-compatible `/chat/completions`, so no new wire protocol is needed.
+ *
+ * Live recon (2026-09-10, production device, throwaway Go probe, 8 calls):
+ * `nvidia/nemotron-3-super-120b-a12b:free` passed interpret+ narrate in
+ * 726/342ms; `poolside/laguna-s-2.1:free` passed interpret in 697ms
+ * (narrate hit a 429 burst cap); `nvidia/nemotron-3.5-lightning:free`
+ * answered HTTP 200 but ignored both probe markers; `google/gemma-4-31b-it:free`
+ * was 429-capped at probe time. Probes are authoritative; unlisted or dead
+ * ids are excluded, never retried indefinitely.
+ *
+ * Quota note: free models share 20 req/min and 50 req/day account-wide
+ * (1000/day after a $10 top-up), and failed attempts count. Discovery only
+ * touches OpenRouter when Zen and Ollama both activate nothing, so the
+ * daily re-discovery normally spends zero of that budget.
+ *
+ * Privacy note: free OpenRouter endpoints may retain or train on prompts
+ * per provider policy. Routing `player_input` there is an explicit operator
+ * decision made by configuring the key; revisit if a no-train requirement
+ * appears (paid/ZDR endpoints).
+ */
+export const OPENROUTER_PREFERRED_MODELS: readonly string[] = Object.freeze([
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "poolside/laguna-s-2.1:free",
+]);
+
 const CATEGORIES: readonly Category[] = ["narrate", "analyze", "interpret"];
 
 function preferredCandidates(): readonly RouteCandidate[] {
@@ -160,6 +187,12 @@ export const LLM_CONFIG: LLMConfig = {
       apiKeyEnv: "SKALD_OLLAMA_CLOUD_API_KEY",
       usageScope: "remote",
       protocol: "ollama_chat",
+    },
+    openrouter: {
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKeyEnv: "SKALD_OPENROUTER_API_KEY",
+      usageScope: "remote",
+      protocol: "openai_chat",
     },
   },
   routes,

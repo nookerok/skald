@@ -1,3 +1,57 @@
+# Current work (2026-09-10 — OpenRouter wired as last-resort rung, uncommitted)
+
+- Operator inserted `SKALD_OPENROUTER_API_KEY`; throwaway Go probe (8 calls,
+  server-side, key never left the Pi): nemotron-3-super-120b-a12b:free
+  interpret+ narrate ok in 726/342ms; laguna-s-2.1:free interpret ok in
+  697ms; lightning:free answers 200 but ignores both markers; gemma-4-31b-it
+  429-capped at probe time. Temp files removed.
+- Wired `openrouter` provider end to end (uncommitted, gate PASS, 2094
+  passed): ProviderId, config entry + pinned free list, discovery rung
+  Zen → Ollama → OpenRouter with sequential probing (quota-safe: winner
+  stops further calls; rung untouched while earlier ones answer), 402 →
+  `insufficient_credits` + `quota_exceeded` exclusion, key plumbing through
+  factory/refresh/manager, intent-gateway allowlist, env examples, deploy
+  README. Tests for every new export.
+- Open decisions for operator: free-endpoint training exposure on
+  `player_input` (accepted for testing; revisit ZDR/paid if it matters),
+  and 50/day quota (OpenRouter stays last resort, so daily refresh spends
+  zero while Ollama answers).
+- Still uncommitted (same tree): assistant-prefill repair refinement.
+
+# Current work (2026-09-10 — paid Zen probe verdict: 401, accept fail-closed)
+
+- With operator consent, probed 3 paid Zen routes synthetically (no player
+  data, temp test deleted after, device repo verified clean): catalogue GET
+  200 with all three PRESENT, but POST /chat/completions 401 on
+  deepseek-v4-flash, glm-5.3-flash and minimax-m3 alike. The credential has
+  no paid entitlement (catalogue-valid key, billing not enabled) — an
+  account-level block, not a per-model or code issue. Spend: $0.
+- Decision: accept fail-closed clarifications for complex input. Coverage
+  stays: deterministic fast path for simple commands, natural clarification
+  without mutation for the rest, Ollama narration. Revisit only if the
+  operator enables Zen billing (then re-probe) or free server-side use
+  reopens. No model roulette, no blind tag guessing.
+- Still uncommitted: assistant-prefill repair refinement (gate PASS) —
+  worth committing regardless as validated hardening.
+
+# Current work (2026-09-10 — repair loop deployed, rescue unproven; prefill ready)
+
+- Deployed `3cb08ba` via updater (backup verified, on-device 170/2073
+  PASS, health gate PASS). No ten-turn smoke this round (no gameplay
+  changes); two live V2 probes instead.
+- Live V2 probes after deploy (2 inputs, 4 model replies): repair loop
+  fires mechanically (`proposal_repair_requested` → second interpret call
+  → still `proposal_schema_rejected` → safe generic clarification, no
+  ticks, no events). One correction round does not rescue gemma4 contract
+  adherence on these inputs.
+- Refinement (uncommitted, in working tree, gate PASS): the repair turn now
+  anchors on the model's own prior reply (assistant prefill, truncated,
+  never persisted/logged) instead of a bare note. Hypothesis: the note
+  alone cannot show what to correct. Tests pin the 4-message shape.
+- Open decision: commit+push+deploy the prefill and re-probe once; if the
+  rescue still fails, stop tuning and decide on the model (paid Zen probe
+  needs operator consent; no blind tag roulette).
+
 # Current work (2026-09-10 — V2 schema compliance fix, uncommitted)
 
 - Live evidence (synthetic probe, no player data): Ollama Cloud accepts

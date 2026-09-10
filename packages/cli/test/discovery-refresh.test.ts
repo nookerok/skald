@@ -216,4 +216,55 @@ describe("DiscoveryRefresher", () => {
     expect(router.routeCandidates("interpret").map((c) => c.model)).toEqual([GEMMA]);
     expect(router.liveModelSelection()?.provider).toBe("ollama_cloud");
   });
+
+  it("reaches OpenRouter on refresh only after Zen and Ollama fail", async () => {
+    const NEMO = "nvidia/nemotron-3-super-120b-a12b:free";
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/models")) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      }
+      if (url.startsWith("https://ollama.com/")) {
+        return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      if (url.startsWith("https://openrouter.ai/")) {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+        const marker = body.messages?.[1]?.content ?? "";
+        const content = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
+          ? "SKALD_PROBE_OK"
+          : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }], model: NEMO }) } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+        text: async () => JSON.stringify({ error: { type: "MissingSessionID" } }),
+      } as unknown as Response;
+    };
+    const router = new ModelRouter({
+      apiKey: "zen-key",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_zen", "ollama_cloud", "openrouter"],
+      providerKeys: { opencode_zen: "zen-key", ollama_cloud: "ollama-key", openrouter: "or-key" },
+      routeCandidates: {
+        interpret: [candidate("muse-spark-1.3-contributor-free", "openai_responses")],
+        narrate: [candidate("muse-spark-1.3-contributor-free", "openai_responses")],
+      },
+    });
+    const refresher = new DiscoveryRefresher({
+      apiKey: "zen-secret",
+      ollamaKey: "ollama-secret",
+      openrouterKey: "or-secret",
+      openrouterModels: [NEMO],
+      router,
+      fetchImpl,
+    });
+    const summary = await refresher.refreshNow();
+    expect(summary.outcome).toBe("applied");
+    expect(summary.activeModel).toBe(NEMO);
+    expect(router.routeCandidates("interpret").map((c) => c.model)).toEqual([NEMO]);
+    expect(router.liveModelSelection()?.provider).toBe("openrouter");
+    expect(JSON.stringify(summary)).not.toContain("or-secret");
+  });
 });

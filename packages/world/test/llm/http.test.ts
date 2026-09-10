@@ -346,6 +346,24 @@ describe("per-model Zen wire protocol", () => {
     expect((unknown as ProviderRequestError).providerCode).toBeUndefined();
   });
 
+  it("maps empty-balance 402 to insufficient_credits without retry", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 402,
+      text: async () => JSON.stringify({ error: { message: "Insufficient credits. Please add funds.", code: 402 } }),
+    }));
+
+    const denied = await chatOnce("https://openrouter.ai/api/v1", "key", "nvidia/nemotron-3-super-120b-a12b:free", messages, {
+      provider: "openrouter",
+      protocol: "openai_chat",
+      category: "interpret",
+      maxTokens: 16,
+    }).catch((error: unknown) => error);
+    expect(denied as ProviderRequestError).toMatchObject({ phase: "response_status", httpStatus: 402, providerCode: "insufficient_credits" });
+    expect((denied as ProviderRequestError).retryable).toBe(false);
+    expect((denied as ProviderRequestError).message).not.toContain("Insufficient credits");
+  });
+
   it("pins temperature 0 for Ollama interpret calls only", async () => {
     const seen: { url: unknown; body: Record<string, any> }[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: unknown, init: any) => {
