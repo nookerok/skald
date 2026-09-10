@@ -1,3 +1,21 @@
+# Current work (2026-09-10 — OpenRouter rung deployed, ai-probe PASS)
+
+- Updater run as `nooker` (no sudo): backup
+  `backup-3cb08baa7b2e3c8be4a7816481ac9416427c9662-pre-update-20260910-232419.sqlite`
+  created+verified, fast-forward `3cb08ba` → `3e9cdce`, on-device suite
+  171 files / 2094 passed / 1 skipped, restart, health gate PASS.
+  `skald.service`, healthcheck and backup timers active; `/api/health` ok;
+  scoped `/api/worlds/world-097b4463/state` 200 (T31, event 451). Unscoped
+  `/api/state` 404 `legacy-world` unchanged (pre-existing, no primary
+  entrypoint).
+- Live `POST /api/ops/ai-probe`: HTTP 503 by design, status `degraded` —
+  Ollama `gemma4:31b-cloud` passes interpret+narrate live; Zen frees stay
+  `model_unavailable`. OpenRouter rung correctly idle (no free quota spent
+  while Ollama answers); deployed tree verified to contain the wiring.
+- Post-deploy Go re-probe of the pinned primary (2 calls, quota now 10/50):
+  `nemotron-3-super` interpret+ narrate ok in 682/369ms. Temp files removed.
+- Rollback was not needed. Local `main` == `origin/main` == `3e9cdce`.
+
 # Current work (2026-09-10 — OpenRouter wired as last-resort rung, uncommitted)
 
 - Operator inserted `SKALD_OPENROUTER_API_KEY`; throwaway Go probe (8 calls,
