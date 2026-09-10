@@ -16,6 +16,8 @@
  * - conversation_context: context build outcome (built|degraded|failed) with
  *   secret-free counts; failed falls back to an empty conversation;
  * - turn_proposal_requested/received: reserved (V2 proposal fetch);
+ * - proposal_repair_requested: one correction round after a statically
+ *   invalid reply, carrying only the sanitized rejection reason;
  * - proposal_schema_rejected: reserved (static parser validation has no sink);
  * - referent_rejected: contextual validation stale-clarification;
  * - stale_context: queue revalidation refusal;
@@ -36,6 +38,7 @@ export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freez
   "conversation_context",
   "turn_proposal_requested",
   "turn_proposal_received",
+  "proposal_repair_requested",
   "proposal_schema_rejected",
   "referent_rejected",
   "stale_context",

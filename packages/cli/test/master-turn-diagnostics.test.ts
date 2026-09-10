@@ -55,7 +55,7 @@ function routerReturning(text: string) {
 }
 
 describe("master turn diagnostic taxonomy", () => {
-  it("fixes the fourteen plan categories", () => {
+  it("fixes the fifteen plan categories", () => {
     expect(MASTER_TURN_DIAGNOSTIC_CATEGORIES).toEqual([
       "deterministic_fast_path",
       "context_required",
@@ -63,6 +63,7 @@ describe("master turn diagnostic taxonomy", () => {
       "conversation_context",
       "turn_proposal_requested",
       "turn_proposal_received",
+      "proposal_repair_requested",
       "proposal_schema_rejected",
       "referent_rejected",
       "stale_context",

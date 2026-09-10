@@ -1,3 +1,21 @@
+# Current work (2026-09-10 — V2 schema compliance fix, uncommitted)
+
+- Live evidence (synthetic probe, no player data): Ollama Cloud accepts
+  `format:"json"` (HTTP 200) but it only guarantees well-formed JSON, and
+  Cloud docs state structured outputs are unsupported. The model returns
+  parseable JSON in an invented envelope (`proposal`/`interpretation`)
+  instead of the flat TurnProposalV2 — so fence-tolerant parsing would not
+  help; the gap is contract adherence.
+- Fix (uncommitted, in working tree): exact top-level key list plus a
+  compact action example in the system prompt; one repair round in the
+  gateway carrying only the sanitized rejection reason (accepted and
+  clarification replies never repair; still-invalid follows the normal
+  invalid path; shared overall timeout budget); `temperature: 0` for
+  Ollama interpret calls (narrate untouched). New `proposal_repair_requested`
+  diagnostic; validation still owns acceptance.
+- Repository gate: PASS (`npm run validate`; 2077 passed, 1 skipped).
+  Still open: commit+push, deploy, live V2 re-probe with the repair loop.
+
 # Current work (2026-09-09 — plan_7 deployed to Orange Pi, smoke PASS)
 
 - Updater run as `nooker` (no sudo): backup

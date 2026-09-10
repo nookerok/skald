@@ -167,6 +167,80 @@ describe("master turn gateway V2", () => {
     expect(result).toMatchObject({ status: "clarification", relation: "continuation" });
   });
 
+  it("repairs one statically invalid reply with the rejection reason", async () => {
+    const snap = snapshot();
+    const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    expect(fence).toBeDefined();
+    // Live shape observed on Ollama Cloud: valid JSON in an invented envelope.
+    const enveloped = JSON.stringify({
+      schemaVersion: 2,
+      proposal: { action: { type: "interaction", verb: "observe", target: "object_1" } },
+    });
+    const fixed = JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ограде." },
+      supportingClauses: [],
+      target: { role: "target", observerRef: fence!.observerRef, surface: fence!.label },
+      referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
+    });
+    const events: any[] = [];
+    const router = {
+      chat: vi.fn()
+        .mockResolvedValueOnce({ text: enveloped })
+        .mockResolvedValueOnce({ text: fixed }),
+    } as any;
+
+    const result = await interpretMasterTurn("Подхожу к ограде.", snap, router, {
+      diagnostics: (event) => events.push(event),
+    });
+
+    expect(result.status).toBe("plan");
+    expect(router.chat).toHaveBeenCalledTimes(2);
+    const [, secondMessages] = router.chat.mock.calls[1] as any[];
+    expect(secondMessages).toHaveLength(3);
+    expect(secondMessages[2].content).toContain("rejected");
+    expect(secondMessages[2].content).not.toContain("Подхожу к ограде.");
+    expect(events.map((event) => event.category)).toContain("proposal_repair_requested");
+  });
+
+  it("clarifies after a still-invalid repair without a third call", async () => {
+    const router = {
+      chat: vi.fn()
+        .mockResolvedValueOnce({ text: "{\"schemaVersion\":2,\"nope\":true}" })
+        .mockResolvedValueOnce({ text: "still not json {{{" }),
+    } as any;
+
+    const result = await interpretMasterTurn("сделай нечто странное", snapshot(), router, { timeoutMs: 500 });
+
+    expect(result.status).toBe("clarification");
+    expect(router.chat).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(result)).not.toMatch(/schema|observerRef|TurnProposal/i);
+  });
+
+  it("never repairs usable replies", async () => {
+    const snap = snapshot();
+    const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    expect(fence).toBeDefined();
+    const ambiguous = {
+      chat: vi.fn(async () => ({
+        text: JSON.stringify({
+          schemaVersion: 2,
+          kind: "action",
+          primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ней." },
+          supportingClauses: [],
+          target: { role: "target", observerRef: fence!.observerRef, surface: fence!.label },
+          referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
+          ambiguity: { kind: "referent", question: "К чему именно подойти?", candidates: ["Ограда", "Двор"] },
+        }),
+      })),
+    } as any;
+    const clarification = await interpretMasterTurn("Подхожу к ней.", snap, ambiguous);
+
+    expect(clarification.status).toBe("clarification");
+    expect(ambiguous.chat).toHaveBeenCalledTimes(1);
+  });
+
   it("turns invalid model JSON into clarification without leaking internals", async () => {
     const result = await interpretMasterTurn("сделай нечто странное", snapshot(), routerReturning("not json"), { timeoutMs: 100 });
 

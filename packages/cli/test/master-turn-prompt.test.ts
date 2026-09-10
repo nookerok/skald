@@ -36,6 +36,8 @@ describe("master turn prompt contract", () => {
     for (const item of ["classify the turn", "connect pronouns to supplied observerRef values", "conversationRelation"]) {
       expect(MASTER_TURN_SYSTEM_PROMPT).toContain(item);
     }
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("Never wrap the proposal");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain('"schemaVersion":2');
     for (const item of [
       "decide success",
       "more than one action for one replica",

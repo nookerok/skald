@@ -22,7 +22,7 @@ import {
   type InquiryRequest,
   type TurnConversationRelation,
 } from "@skald/intent-parser";
-import type { AIDiagnosticSink, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
+import type { AIDiagnosticSink, ChatMessage, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
 import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
 import { bindTurnPronouns } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
@@ -172,8 +172,20 @@ export async function interpretMasterTurn(
     correlationId: options?.correlationId,
     worldTime: options?.worldTime,
   });
+  const budgetMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    raw = await withTimeout(proposeTurn(router, input, snapshot, options), options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    raw = await withTimeout(
+      requestProposal(router, input, snapshot, options, budgetMs, startedAt, () => {
+        emitMasterTurnDiagnostic(options?.diagnostics, {
+          category: "proposal_repair_requested",
+          outcome: "requested",
+          phase: "response",
+          correlationId: options?.correlationId,
+          worldTime: options?.worldTime,
+        });
+      }),
+      budgetMs,
+    );
   } catch {
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "deterministic_fallback",
@@ -263,11 +275,57 @@ function mapLegacyFallback(result: { readonly status: string; readonly question?
   return null;
 }
 
+/**
+ * Derives a repair note for one raw proposal, or null when the reply is
+ * usable as-is. Accepted and clarification outcomes never repair; only a
+ * statically invalid reply gets exactly one correction round carrying the
+ * sanitized rejection reason (closed server vocabulary, never player text).
+ */
+function repairNoteFor(raw: unknown): string | null {
+  let parsed: unknown;
+  try {
+    parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return "Your previous reply was not JSON. Return ONLY corrected TurnProposalV2 JSON.";
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return "Your previous reply was not a JSON object. Return ONLY corrected TurnProposalV2 JSON.";
+  }
+  const check = validateTurnProposal(parsed);
+  if (check.status === "invalid") {
+    return `Your previous reply was rejected (${check.reason}). Return ONLY corrected TurnProposalV2 JSON with the exact top-level keys.`;
+  }
+  return null;
+}
+
+/**
+ * Requests one proposal with at most one repair round. The repair reuses
+ * the same snapshot and prompt plus the rejection note, squeezed into the
+ * remaining overall budget. Validation afterwards is unchanged: a still
+ * invalid reply follows the normal invalid path.
+ */
+async function requestProposal(
+  router: ModelRouter,
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options: MasterTurnGatewayOptions | undefined,
+  budgetMs: number,
+  startedAt: number,
+  onRepair: () => void,
+): Promise<unknown> {
+  const first = await proposeTurn(router, input, snapshot, options);
+  const note = repairNoteFor(first);
+  if (!note) return first;
+  onRepair();
+  const remaining = Math.max(1, Math.floor(budgetMs - (performance.now() - startedAt)));
+  return proposeTurn(router, input, snapshot, { ...options, repairNote: note, timeoutMs: remaining });
+}
+
 async function proposeTurn(
   router: ModelRouter,
   input: string,
   snapshot: MasterTurnSnapshot,
-  options?: MasterTurnGatewayOptions,
+  options?: MasterTurnGatewayOptions & { readonly repairNote?: string | undefined },
 ): Promise<unknown> {
   // Pronoun bindings resolve against the same snapshot the model sees;
   // the validator and the queue revalidate every referent afterwards.
@@ -278,10 +336,12 @@ async function proposeTurn(
     conversation: snapshot.conversation,
     pronounBindings,
   });
-  const response = await router.chat("interpret", [
+  const messages: ChatMessage[] = [
     { role: "system", content: MASTER_TURN_SYSTEM_PROMPT },
     { role: "user", content: prompt.user },
-  ], {
+  ];
+  if (options?.repairNote) messages.push({ role: "user", content: options.repairNote });
+  const response = await router.chat("interpret", messages, {
     dataClass: "player_input",
     ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options?.diagnostics ? { diagnostics: options.diagnostics } : {}),

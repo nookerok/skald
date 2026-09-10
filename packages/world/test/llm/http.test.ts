@@ -345,4 +345,32 @@ describe("per-model Zen wire protocol", () => {
     }).catch((error: unknown) => error);
     expect((unknown as ProviderRequestError).providerCode).toBeUndefined();
   });
+
+  it("pins temperature 0 for Ollama interpret calls only", async () => {
+    const seen: { url: unknown; body: Record<string, any> }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: unknown, init: any) => {
+      seen.push({ url, body: JSON.parse(init.body) });
+      return { ok: true, status: 200, json: async () => ({ message: { content: "ok" }, model: "gemma4:31b-cloud" }) };
+    }));
+
+    await chatOnce("https://ollama.com", "key", "gemma4:31b-cloud", messages, {
+      provider: "ollama_cloud",
+      protocol: "ollama_chat",
+      category: "interpret",
+      maxTokens: 64,
+    });
+    await chatOnce("https://ollama.com", "key", "gemma4:31b-cloud", messages, {
+      provider: "ollama_cloud",
+      protocol: "ollama_chat",
+      category: "narrate",
+      maxTokens: 16,
+    });
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]!.url).toBe("https://ollama.com/api/chat");
+    expect(seen[0]!.body.options).toMatchObject({ num_predict: 64, temperature: 0 });
+    expect(seen[1]!.body.options).toMatchObject({ num_predict: 16 });
+    expect(seen[1]!.body.options).not.toHaveProperty("temperature");
+    expect(seen[0]!.body).not.toHaveProperty("format");
+  });
 });

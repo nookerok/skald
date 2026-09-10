@@ -217,8 +217,19 @@ export async function chatOnce(
       : protocol === "openai_responses"
         ? `${baseUrl}/responses`
         : `${baseUrl}/chat/completions`;
+    // Interpret calls carry a closed JSON contract: ask Ollama for
+    // deterministic output (temperature 0). Narrate keeps the default
+    // sampling so prose stays natural and the probe marker is unaffected.
     const body = protocol === "ollama_chat"
-      ? { model, messages: messages as unknown as Array<{ role: string; content: string }>, stream: false, options: { num_predict: opts.maxTokens ?? 600 } }
+      ? {
+        model,
+        messages: messages as unknown as Array<{ role: string; content: string }>,
+        stream: false,
+        options: {
+          num_predict: opts.maxTokens ?? 600,
+          ...(category === "interpret" ? { temperature: 0 } : {}),
+        },
+      }
       : protocol === "openai_responses"
         ? { model, input: toResponsesInput(messages), max_output_tokens: opts.maxTokens ?? 600 }
         : { model, messages: messages as unknown as Array<{ role: string; content: string }>, max_tokens: opts.maxTokens ?? 600 };
