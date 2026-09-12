@@ -13,6 +13,10 @@ describe("player input inquiry classification", () => {
     ["что у меня с собой?", "inventory"],
     ["с кем я знаком?", "known_contacts"],
     ["почему карта показывает это место?", "map_position"],
+    ["кто рядом?", "who_is_nearby"],
+    ["кто находится рядом со мной?", "who_is_nearby"],
+    ["есть ли кто-нибудь рядом?", "who_is_nearby"],
+    ["хочу узнать, кто рядом.", "who_is_nearby"],
   ] as const)("maps %j to %s", (input, queryId) => {
     const result = classifyPlayerInput(input, parseIntent);
     expect(result.kind).toBe("inquiry");

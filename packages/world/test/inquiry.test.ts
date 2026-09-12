@@ -102,3 +102,45 @@ describe("focused scene questions", () => {
     expect(result.answer).toContain("Переправа у Чёрного леса");
   });
 });
+
+describe("who is nearby", () => {
+  function whoRequest() {
+    return {
+      type: "InquiryRequest" as const,
+      queryId: "who_is_nearby" as const,
+      rawText: "кто рядом?",
+      confidence: 1 as const,
+      source: "deterministic" as const,
+    };
+  }
+
+  function sceneWithPeople(labels: readonly string[]) {
+    return {
+      knownPeople: labels.map((label, index) => ({ observerRef: `person_${index + 1}`, kind: "person" as const, label, knownAs: [label] })),
+    } as any;
+  }
+
+  it("lists observer-safe scene people by label", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(whoRequest(), { shell, background, scene: sceneWithPeople(["Перевозчик у переправы", "Страж"]) });
+
+    expect(result.queryId).toBe("who_is_nearby");
+    expect(result.answer).toContain("Перевозчик у переправы");
+    expect(result.answer).toContain("Страж");
+    expect(result.answer).not.toContain("person_1");
+  });
+
+  it("honestly reports nobody distinguishable without a scene", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(whoRequest(), { shell, background });
+
+    expect(result.answer).toMatch(/никого различимого нет/);
+  });
+
+  it("honestly reports nobody distinguishable with an empty scene", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(whoRequest(), { shell, background, scene: sceneWithPeople([]) });
+
+    expect(result.answer).toMatch(/никого различимого нет/);
+  });
+});

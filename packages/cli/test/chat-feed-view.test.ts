@@ -109,6 +109,25 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(children[2].className).toBe("chat-world-narrated");
   });
 
+  it("renders a single bubble when narration duplicates the outcome", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const item = turn(5, "Перед тобой нет свободного прохода.");
+    item.narrativeLLM = { text: "Перед тобой нет свободного прохода.", usedFallback: false };
+    renderChatFeed([item], []);
+    const text = allText(doc.feed);
+    expect(text.match(/Перед тобой нет свободного прохода/g)).toHaveLength(1);
+  });
+
+  it("keeps both paragraphs when narration expands the outcome", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const item = turn(5, "Небольшой путевой двор у реки и кромки леса.");
+    item.narrativeLLM = { text: "Взору открылся небольшой путевой двор. Двор располагался у реки и кромки леса.", usedFallback: false };
+    renderChatFeed([item], []);
+    const text = allText(doc.feed);
+    expect(text).toContain("Небольшой путевой двор у реки и кромки леса.");
+    expect(text).toContain("Взору открылся небольшой путевой двор.");
+  });
+
   it("keeps the newest journal window and renders it chronologically", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const turns = Array.from({ length: 13 }, (_, i) => turn(296 - i, "ход " + (296 - i)));

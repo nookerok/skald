@@ -1,7 +1,41 @@
 import type { JourneyResolution } from "./types.js";
-import type { SpatialWorldProjection, TravelRelation, SpatialRelationKind, CrossingState } from "../region/types.js";
+import type { SpatialReadView, SpatialWorldProjection, TravelRelation, SpatialRelationKind, CrossingState } from "../region/types.js";
 import type { ObserverMapDTO } from "../region/types.js";
+import type { ObserverSpatialKnowledge } from "../region/observer-knowledge.js";
 import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
+import { sameRussianStem, stemRussianToken } from "@skald/intent-parser";
+
+/**
+ * Endpoints of observer-known travel relations leaving a location: the one
+ * shared predicate behind both the Game Shell advertised routes and journey
+ * validation. A road the observer knows implies its named endpoint, even
+ * when the endpoint location itself was never observed — advertising the
+ * road while rejecting its destination would be a visible contradiction.
+ * Passability is NOT filtered here: blocked relations still resolve so the
+ * caller can answer "blocked" instead of "unknown".
+ */
+export function observedRouteEndpoints(
+  spatial: SpatialReadView | null | undefined,
+  spatialKnowledge: ObserverSpatialKnowledge | null | undefined,
+  currentLocationId: string | null,
+): Array<{ id: string; name: string; relationId: string }> {
+  const endpoints: Array<{ id: string; name: string; relationId: string }> = [];
+  if (!spatial || !currentLocationId) return endpoints;
+  const seen = new Set<string>();
+  for (const relation of spatial.travelRelations.values()) {
+    const targetId = relation.fromId === currentLocationId ? relation.toId
+      : relation.toId === currentLocationId ? relation.fromId
+      : null;
+    if (!targetId || seen.has(targetId)) continue;
+    const target = spatial.locations?.get(targetId);
+    if (!target) continue;
+    const observation = spatialKnowledge?.relations.get(relation.id);
+    if (!observation || spatialKnowledgeRank(observation.knowledge) < spatialKnowledgeRank("observed")) continue;
+    seen.add(targetId);
+    endpoints.push({ id: targetId, name: target.name, relationId: relation.id });
+  }
+  return endpoints;
+}
 
 /**
  * Pure function: resolves a journey destination from observer-scoped
@@ -17,6 +51,7 @@ export function resolveJourneyRoute(
   spatial: SpatialWorldProjection,
   observerMap: ObserverMapDTO,
   routeHint?: string,
+  knownEndpoints?: readonly { id: string; name: string }[],
 ): JourneyResolution {
   if (!currentLocationId) {
     return { kind: "blocked", reason: "no_route", playerText: "Ты не знаешь, где находишься." };
@@ -61,6 +96,20 @@ export function resolveJourneyRoute(
       .map(normalizeLocationText);
     if (names.some((name) => locationTextMatches(name, normalizedDest))) {
       candidateLocations.push({ id: location.id, name: location.name });
+    }
+  }
+
+  // Endpoints of observed relations are known destinations even when the
+  // endpoint location itself was never observed: the Game Shell advertises
+  // exactly these roads, so rejecting their names here would contradict it.
+  // Geometry still resolves through spatial truth; names never leak it.
+  for (const endpoint of knownEndpoints ?? []) {
+    if (candidateLocations.some((candidate) => candidate.id === endpoint.id)) continue;
+    const target = spatial.locations.get(endpoint.id);
+    if (!target) continue;
+    const names = [target.name, endpoint.name].map(normalizeLocationText);
+    if (names.some((name) => locationTextMatches(name, normalizedDest))) {
+      candidateLocations.push({ id: target.id, name: target.name });
     }
   }
 
@@ -151,8 +200,11 @@ function normalizeLocationText(value: string): string {
 /**
  * Player-facing destinations are naturally inflected («к Речному Стражу»),
  * while Canon stores the reviewed nominative toponym («Речной Страж»).
- * Match whole token sequences by a deliberately small Russian case-folding
- * stemmer; this never creates a location or exposes hidden geometry.
+ * Token matching shares the canonical stemmer with the interaction target
+ * resolver (@skald/intent-parser): exact and substring hits win first, then
+ * whole-token stem equality rescues inflection. One stemmer everywhere, so
+ * declined forms behave identically on every route. This never creates a
+ * location or exposes hidden geometry.
  */
 function locationTextMatches(candidate: string, query: string): boolean {
   if (candidate === query || candidate.includes(query) || query.includes(candidate)) return true;
@@ -161,9 +213,7 @@ function locationTextMatches(candidate: string, query: string): boolean {
   if (queryTokens.length === 0 || queryTokens.length > candidateTokens.length) return false;
   return queryTokens.every((queryToken) =>
     candidateTokens.some((candidateToken) =>
-      candidateToken === queryToken
-      || candidateToken.startsWith(queryToken)
-      || queryToken.startsWith(candidateToken),
+      candidateToken === queryToken || sameRussianStem(candidateToken, queryToken),
     ),
   );
 }
@@ -171,24 +221,8 @@ function locationTextMatches(candidate: string, query: string): boolean {
 function locationTextTokens(value: string): string[] {
   return value
     .split(/\s+/u)
-    .map((token) => russianCaseStem(token))
+    .map((token) => stemRussianToken(token))
     .filter((token) => token.length > 0);
-}
-
-function russianCaseStem(token: string): string {
-  const endings = [
-    "иями", "ами", "ями", "ового", "евому", "ому", "ему", "ого", "его",
-    "ыми", "ими", "ами", "ями", "ах", "ях", "ов", "ев", "ей",
-    "ого", "ему", "ому", "ая", "яя", "ое", "ее", "ые", "ие",
-    "ую", "юю", "ой", "ый", "ий", "ью", "ию", "ия", "ие",
-    "ам", "ям", "ом", "ем", "ы", "и", "а", "я", "у", "ю", "е", "о", "ь", "м",
-  ];
-  for (const ending of endings) {
-    if (token.length - ending.length >= 3 && token.endsWith(ending)) {
-      return token.slice(0, -ending.length);
-    }
-  }
-  return token;
 }
 
 function routeKindMatchesHint(kind: SpatialRelationKind, routeHint: string | undefined): boolean {

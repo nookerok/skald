@@ -123,17 +123,17 @@ describe("status-view", () => {
       expect(controlsEl._attrs["aria-busy"]).toBe("false");
     });
 
-    it("disables buttons when busy (PENDING or BOOTING or RECONNECTING)", () => {
+    it("leaves disabled state to the atomic composer setter", () => {
+      // renderStatus owns aria-busy only; ui-state setComposerBusy owns every
+      // disabled flag, so two writers can never split the composer again.
       renderStatus({ application: APP.READY, command: CMD.PENDING });
-      expect(btnMocks.every((b) => b.disabled)).toBe(true);
+      expect(btnMocks.every((b) => b.disabled)).toBe(false);
 
-      btnMocks.forEach((b) => (b.disabled = false));
       renderStatus({ application: APP.BOOTING, command: CMD.IDLE });
-      expect(btnMocks.every((b) => b.disabled)).toBe(true);
+      expect(btnMocks.every((b) => b.disabled)).toBe(false);
 
-      btnMocks.forEach((b) => (b.disabled = false));
       renderStatus({ application: APP.RECONNECTING, command: CMD.IDLE });
-      expect(btnMocks.every((b) => b.disabled)).toBe(true);
+      expect(btnMocks.every((b) => b.disabled)).toBe(false);
     });
   });
 

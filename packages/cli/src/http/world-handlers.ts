@@ -580,7 +580,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
         const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
         const background = buildBackgroundNarrativeContext(events, world, profile);
-        const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background });
+        const scene = buildMasterTurnSceneContext(events, world).context;
+        const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });
@@ -733,7 +734,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
         const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
         const background = buildBackgroundNarrativeContext(events, world, profile);
-        const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background });
+        const scene = buildMasterTurnSceneContext(events, world).context;
+        const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background, scene });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
         return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn });
       }
@@ -1368,7 +1370,8 @@ async function runValidatedMasterTurnResponse(
     const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
     const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
     const background = buildBackgroundNarrativeContext(events, world, profile);
-    const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background });
+    const scene = buildMasterTurnSceneContext(events, world).context;
+    const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
     const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer, planMemory);
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
     return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });

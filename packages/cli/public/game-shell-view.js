@@ -1,4 +1,5 @@
 import { renderLivingWorld } from "./living-world-shell.js";
+import { setComposerBusy } from "./ui-state.js";
 import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, addLocalInquiry as addLocalInquiryModel, removeLocalIntent as removeLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, setIntentStatus as setIntentStatusModel, addClarification as addClarificationModel, clearLocalIntents as clearLocalIntentsModel } from "./chat-feed-view.js";
 import { initActivityView } from "./activity-view.js";
 const overlayOpeners = new Map();
@@ -23,9 +24,7 @@ function setText(id, value) { const element = document.getElementById(id); if (e
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
 export function setShellBusy(busy, stage = "МАСТЕР отвечает…") {
   document.body.classList.toggle("shell-busy", busy);
-  const form = document.getElementById("command-form"); if (form) form.setAttribute("aria-busy", String(busy));
-  const input = document.getElementById("command-input"); const send = document.getElementById("send-btn");
-  if (input) input.disabled = busy; if (send) send.disabled = busy; const voice = document.getElementById("voice-btn"); if (voice) voice.disabled = busy;
+  setComposerBusy(busy);
   const loadingStage = document.getElementById("loading-stage");
   if (loadingStage) loadingStage.textContent = busy ? stage : "Мир готов.";
 }

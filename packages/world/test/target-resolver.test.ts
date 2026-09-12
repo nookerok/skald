@@ -3,6 +3,7 @@ import { rebuildProjection } from "../src/projection.js";
 import { resolveInteractionTarget, targetFromObject } from "../src/index.js";
 import { buildBootstrapEvents } from "../src/setup/index.js";
 import { bootstrapWorldEvents } from "../src/bootstrap.js";
+import { parseIntent } from "@skald/intent-parser";
 import type { ReadonlyWorld } from "../src/projection.js";
 
 function gridWorld(): ReadonlyWorld {
@@ -132,6 +133,56 @@ describe("resolveInteractionTarget — location scope (WorldObjects)", () => {
     expect(r).toEqual({ kind: "environment", locationId: "tower_approach" });
     const l = resolveInteractionTarget(world, "listen", "");
     expect(l.kind).toBe("environment");
+  });
+});
+
+describe("resolveInteractionTarget — declined Russian forms (QA3)", () => {
+  function waterWorld(): ReadonlyWorld {
+    return rebuildProjection([
+      ...buildBootstrapEvents("old_tower"),
+      {
+        eventId: "water-1",
+        type: "WorldObjectPlaced",
+        schemaVersion: 1,
+        payload: {
+          id: "river_water",
+          name: "Вода",
+          aliases: ["река", "реку", "реке", "реки"],
+          description: "Холодная речная вода.",
+          material: "water",
+          locationId: "tower_approach",
+          integrity: 100,
+          temperature: 10,
+          state: {},
+        },
+        timestamp: 1,
+        correlationId: "c",
+        causationId: null,
+      },
+    ]).getSnapshot();
+  }
+
+  it.each(["вода", "воду", "воде", "водой", "воды", "реку", "реке"])("listen resolves declined form %j to the observed water", (form) => {
+    const world = waterWorld();
+    const r = resolveInteractionTarget(world, "listen", form);
+    expect(r.kind).toBe("resolved");
+    if (r.kind !== "resolved") throw new Error("unreachable");
+    expect(r.target.id).toBe("river_water");
+  });
+
+  it("does not link a similar-sounding unknown target", () => {
+    expect(resolveInteractionTarget(waterWorld(), "listen", "водовоз").kind).toBe("missing");
+  });
+
+  it("resolves the replica target of «Прислушаться к воде»", () => {
+    const parsed = parseIntent("Прислушаться к воде");
+    expect(parsed.type).toBe("InteractionCommand");
+    if (parsed.type !== "InteractionCommand") throw new Error("unreachable");
+    expect(parsed.verb).toBe("listen");
+    const r = resolveInteractionTarget(waterWorld(), "listen", parsed.target?.raw ?? "");
+    expect(r.kind).toBe("resolved");
+    if (r.kind !== "resolved") throw new Error("unreachable");
+    expect(r.target.id).toBe("river_water");
   });
 });
 

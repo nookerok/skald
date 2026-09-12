@@ -26,6 +26,7 @@ import {
   buildBackgroundNarrativeContext,
   buildGameShellSnapshot,
   buildInquiryAnswer,
+  buildMasterTurnSceneContext,
   commandEventId,
   handleCommand as worldHandleCommand,
   type AIDiagnosticSink,
@@ -235,5 +236,6 @@ function answerPostActionInquiry(
   if (!plan.postActionInquiry) return null;
   const shell = buildGameShellSnapshot(events, world, null, worldId, undefined);
   const background = buildBackgroundNarrativeContext(events, world, null);
-  return buildInquiryAnswer(plan.postActionInquiry, { shell, background });
+  const scene = buildMasterTurnSceneContext(events, world).context;
+  return buildInquiryAnswer(plan.postActionInquiry, { shell, background, scene });
 }

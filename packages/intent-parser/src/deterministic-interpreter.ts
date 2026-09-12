@@ -84,6 +84,12 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "обойти", mode: "relocate", operation: "approach", target: "required" },
   { verb: "обхожу", mode: "relocate", operation: "approach", target: "required" },
   { verb: "подход", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подойду", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подойд", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "обойду", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "обойд", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "приближусь", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "приближ", mode: "relocate", operation: "approach", target: "required" },
   // enter
   { verb: "войти", mode: "relocate", operation: "enter", target: "optional" },
   { verb: "входить", mode: "relocate", operation: "enter", target: "optional" },
@@ -226,6 +232,11 @@ const VERBS: readonly VerbEntry[] = [
   // speak
   { verb: "сказать", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "спросить", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спрошу", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спросишь", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спросит", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спросим", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "спросите", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "прошептать", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "произнести", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "обратиться", mode: "communicate", operation: "speak", target: "optional" },
@@ -258,6 +269,7 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "подождать", mode: "wait", operation: "wait", target: "forbidden" },
   { verb: "остановиться", mode: "travel", operation: "interrupt", target: "forbidden" },
   { verb: "жду", mode: "wait", operation: "wait", target: "forbidden" },
+  { verb: "подожду", mode: "wait", operation: "wait", target: "forbidden" },
   { verb: "жди", mode: "wait", operation: "wait", target: "forbidden" },
   { verb: "ждем", mode: "wait", operation: "wait", target: "forbidden" },
   { verb: "ждете", mode: "wait", operation: "wait", target: "forbidden" },
@@ -484,7 +496,7 @@ function extractUtterance(text: string): { utterance: string | undefined; cleane
 }
 
 function extractTarget(text: string): IntentReference | undefined {
-  const cleaned = text.trim();
+  const cleaned = stripMannerAdverb(text.trim());
   if (cleaned.length === 0) return undefined;
 
   const withoutPrep = cleaned
@@ -618,7 +630,7 @@ function splitGiveTargets(afterVerb: string): CanonicalParts {
 /** Concrete-target extraction with trailing punctuation and leading preposition stripped. */
 function canonicalTarget(afterVerb: string): IntentReference | undefined {
   const original = afterVerb.trim();
-  const cleaned = original.replace(/[?!.,;:]+$/u, "");
+  const cleaned = stripMannerAdverb(original.replace(/[?!.,;:]+$/u, ""));
   // Preserve punctuation-only input as malformed target; do not silently
   // reinterpret a concrete command as an ambient observation.
   if (cleaned.length === 0) return original.length > 0 ? { raw: original } : undefined;
@@ -627,6 +639,40 @@ function canonicalTarget(afterVerb: string): IntentReference | undefined {
     .trim();
   if (withoutPrep.length > 0 && withoutPrep !== cleaned) return { raw: withoutPrep };
   return { raw: cleaned };
+}
+
+/**
+ * Manner adverbs («осмотри переправу внимательнее») modify HOW the action is
+ * done, never WHAT it targets. They are stripped from the target tail so
+ * resolution sees the referent; the raw text keeps them for the transcript.
+ * Never strips the whole target: a lone adverb stays an (unresolvable) target
+ * instead of becoming an ambient observation.
+ */
+const MANNER_ADVERBS: readonly string[] = [
+  "внимательно",
+  "внимательнее",
+  "осторожно",
+  "тихо",
+  "тише",
+  "медленно",
+  "медленнее",
+  "быстро",
+  "быстрее",
+  "аккуратно",
+  "тщательно",
+  "тщательней",
+  "незаметно",
+  "молча",
+  "пристально",
+  "зорко",
+];
+
+function stripMannerAdverb(text: string): string {
+  const words = text.trim().split(/\s+/u);
+  while (words.length > 1 && MANNER_ADVERBS.includes(words[words.length - 1]!.toLowerCase())) {
+    words.pop();
+  }
+  return words.join(" ");
 }
 function isAmbientModifier(target: IntentReference | undefined): boolean {
   if (!target) return false;

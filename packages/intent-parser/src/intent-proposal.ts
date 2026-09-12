@@ -51,6 +51,7 @@ export const INQUIRY_CAPABILITIES: InquiryCapabilitiesManifest = Object.freeze({
     "inventory",
     "known_contacts",
     "map_position",
+    "who_is_nearby",
   ] as const,
   readOnly: true,
 });

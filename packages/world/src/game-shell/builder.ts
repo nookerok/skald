@@ -14,7 +14,7 @@ import { buildPlayerKnowledgePresentation } from "./knowledge-view.js";
 import { buildBeliefModel } from "../observation/builder.js";
 import { blockedReasonLabel, localizedPlayerText, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 import { buildObservedResources } from "../resource/observer.js";
-import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
+import { observedRouteEndpoints } from "../journey/route-resolver.js";
 import type { NarrativeAdapterContext } from "../setup/background-context.js";
 
 interface CharacterProfileRecord {
@@ -191,14 +191,15 @@ function buildWorldContextView(world: ReadonlyWorld): WorldContextView {
   // player can act on, with the crossing condition surfaced honestly.
   if (world.spatial && locationId) {
     const seen = new Set(connectedLocations.map((c) => c.id));
-    for (const relation of world.spatial.travelRelations.values()) {
-      if (relation.passability === "blocked") continue;
-      const targetId = relation.fromId === locationId ? relation.toId : relation.toId === locationId ? relation.fromId : null;
+    // One shared predicate with journey validation (observedRouteEndpoints):
+    // every advertised road endpoint is a known destination there too.
+    for (const endpoint of observedRouteEndpoints(world.spatial, world.spatialKnowledge, locationId)) {
+      const relation = world.spatial.travelRelations.get(endpoint.relationId);
+      if (!relation || relation.passability === "blocked") continue;
+      const targetId = endpoint.id;
       if (!targetId || seen.has(targetId)) continue;
       const target = world.locations.get(targetId);
       if (!target) continue;
-      const observation = world.spatialKnowledge?.relations.get(relation.id);
-      if (!observation || spatialKnowledgeRank(observation.knowledge) < spatialKnowledgeRank("observed")) continue;
       const crossing = relation.kind === "crossing"
         ? world.spatial.crossingStates.get(relation.id) ?? [...world.spatial.crossingStates.values()].find((c) => c.crossingId === relation.id)
         : undefined;

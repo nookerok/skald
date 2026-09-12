@@ -3,6 +3,7 @@ import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
 import { ruleEventId } from "../ids.js";
 import { resolveJourneyRoute } from "../journey/route-resolver.js";
+import { observedRouteEndpoints } from "../journey/route-resolver.js";
 import type { SpatialWorldProjection } from "../region/types.js";
 import type { ObserverMapDTO } from "../region/types.js";
 
@@ -39,6 +40,9 @@ export function createJourneyValidationRule(
 
       // Resolve against the observers current knowledge. The registry is
       // static, but observer-scoped route knowledge grows as events arrive.
+      // Endpoints of observed relations count as known destinations — the
+      // same predicate the Game Shell advertises — so an advertised road
+      // can never be rejected as an unknown destination.
       const currentObserverMap = typeof observerMap === "function" ? observerMap() : observerMap;
 
       // Resolve the route
@@ -48,6 +52,7 @@ export function createJourneyValidationRule(
         spatial,
         currentObserverMap,
         payload.routeHint ?? undefined,
+        observedRouteEndpoints(world.spatial, world.spatialKnowledge, world.currentLocationId),
       );
 
       if (resolution.kind === "resolved") {

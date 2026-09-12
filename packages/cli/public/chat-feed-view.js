@@ -145,6 +145,30 @@ function conversationPlayerNode(turn) {
   return player;
 }
 
+function normalizeBubbleText(value) {
+  return String(value || "").toLowerCase().replace(/ё/gu, "е").replace(/[?!.,;:\-—()"«»\s]+/gu, " ").trim();
+}
+
+/**
+ * One stable master bubble: when the narrated decoration says the same as
+ * the deterministic outcome (equal or contained after normalization), only
+ * the longer original renders. Genuine expansions keep both paragraphs.
+ */
+function dedupeNarratedText(responseText, narrativeText) {
+  const response = String(responseText || "");
+  const narrated = String(narrativeText || "");
+  if (!response || !narrated) return { primary: response, narrated };
+  const left = normalizeBubbleText(response);
+  const right = normalizeBubbleText(narrated);
+  if (!left || !right) return { primary: response, narrated };
+  if (left === right || left.includes(right) || right.includes(left)) {
+    return narrated.length >= response.length
+      ? { primary: "", narrated }
+      : { primary: response, narrated: "" };
+  }
+  return { primary: response, narrated };
+}
+
 function turnNode(turn, conversationTurn = null) {
   const presentation = turn.presentation || {};
   const node = makeNode("article", { className: "chat-turn" });
@@ -157,15 +181,23 @@ function turnNode(turn, conversationTurn = null) {
   const narrative = turn.narrativeLLM;
   const response = conversationTurn ? { text: conversationTurn.responseText, kind: conversationTurn.responseKind } : presentation.response || null;
   const primary = presentation.primary || null;
-  const responseText = response?.text || primary?.text || "";
+  const merged = dedupeNarratedText(response?.text || primary?.text || "", narrative && !narrative.usedFallback ? narrative.text || "" : "");
+  // Suppressed primary stays suppressed: fall back to the presentation
+  // primary only when narration added nothing either.
+  const responseText = merged.primary || (merged.narrated ? "" : primary?.text || "");
   if (responseText) {
     const primaryRow = makeNode("p", { className: "chat-world-primary", text: responseText });
     const label = markLabel(primary?.discoveryMark);
     if (label) primaryRow.appendChild(makeNode("span", { className: "chat-mark", text: label }));
     node.appendChild(primaryRow);
   }
-  if (narrative && !narrative.usedFallback && narrative.text) {
-    node.appendChild(makeNode("p", { className: "chat-world-narrated", text: narrative.text }));
+  if (merged.narrated) {
+    const narratedRow = makeNode("p", { className: "chat-world-narrated", text: merged.narrated });
+    if (!responseText) {
+      const label = markLabel(primary?.discoveryMark);
+      if (label) narratedRow.appendChild(makeNode("span", { className: "chat-mark", text: label }));
+    }
+    node.appendChild(narratedRow);
   }
   const narrationState = turn.narrationState;
   if (narrationState === "pending") {

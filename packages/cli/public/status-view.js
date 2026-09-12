@@ -59,14 +59,13 @@ export function renderStatus(state) {
   statusEl.textContent = text;
   statusEl.setAttribute("aria-live", ariaLive);
 
-  // Busy indicator on controls section
+  // Busy indicator on controls section. Disabled state is owned exclusively
+  // by the atomic ui-state composer setter: writing it here as well let two
+  // writers fight over #send-btn on different ticks (busy form, live button).
   const controls = document.getElementById("controls-section");
   if (controls) {
     const busy = state.command === CMD.PENDING || state.application === APP.BOOTING || state.application === APP.RECONNECTING;
     controls.setAttribute("aria-busy", String(busy));
-    document.querySelectorAll("#send-btn, #retry-btn").forEach((el) => {
-      el.disabled = busy;
-    });
   }
 }
 

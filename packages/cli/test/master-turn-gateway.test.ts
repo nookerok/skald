@@ -310,4 +310,74 @@ describe("master turn gateway V2", () => {
     }));
     expect(JSON.stringify(events)).not.toContain("Подхожу к ограде.");
   });
+
+  it("asks a specific question for a pronoun with no scene candidates without calling the model", async () => {
+    const snap = snapshot();
+    const empty: MasterTurnSnapshot = {
+      ...snap,
+      scene: {
+        context: {
+          ...snap.scene.context,
+          visibleObjects: [],
+          knownPeople: [],
+          knownRoutes: [],
+          knownTopics: [],
+        },
+        references: snap.scene.references,
+      },
+    };
+    const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
+    const result = await interpretMasterTurn("Подойду к ней.", empty, slow, { timeoutMs: 50 });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(slow.chat).not.toHaveBeenCalled();
+    expect(result.question).toMatch(/Кого или что/);
+    expect(result.question).not.toContain("чего ты хочешь добиться");
+  });
+
+  it("falls back to a specific pronoun question on timeout instead of executing", async () => {
+    const snap = snapshot();
+    const slow = { chat: vi.fn(() => new Promise(() => undefined)) } as any;
+    const result = await interpretMasterTurn("Подойду к ней.", snap, slow, { timeoutMs: 5 });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toMatch(/Кого или что/);
+    expect(result.question).not.toContain("чего ты хочешь добиться");
+  });
+
+  it("answers a pronoun-rewritten follow-up question without a model call", async () => {
+    // "А что за ней?" is only a candidate until the focus stack binds "ней".
+    // With a settled mention the rewrite is a direct inquiry, which must take
+    // the read-only inquiry path — never action validation with a null intent.
+    const snap = snapshot();
+    const prior = {
+      turnSeq: 1,
+      worldId: "test-world",
+      correlationId: "cmd-1",
+      idempotencyKey: "prior-1",
+      playerText: "Осматриваю ограду.",
+      inputClass: "action",
+      worldTimeBefore: 0,
+      worldTimeAfter: 1,
+      responseKind: "action_outcome",
+      responseText: "Ты осматриваешь ограду.",
+      createdAt: 1,
+      contextMetadata: {
+        schemaVersion: 1,
+        mentions: [{ kind: "object", role: "target", label: "Ограда" }],
+      },
+    } as unknown as import("../src/conversation/types.js").ConversationTurn;
+    const conversation = buildMasterConversationContext([prior], "test-world", { scene: snap.scene.context });
+    const mentioned: MasterTurnSnapshot = { ...snap, conversation };
+    const router = { chat: vi.fn() } as any;
+    const result = await interpretMasterTurn("А что за ней?", mentioned, router, { timeoutMs: 50 });
+
+    expect(result.status).toBe("inquiry");
+    if (result.status !== "inquiry") return;
+    expect(result.inquiry.queryId).toBe("visible_scene");
+    expect(result.inquiry.focus?.surface).toMatch(/оград/iu);
+    expect(router.chat).not.toHaveBeenCalled();
+  });
 });

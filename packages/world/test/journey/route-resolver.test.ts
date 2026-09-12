@@ -69,6 +69,25 @@ describe("resolveJourneyRoute", () => {
     if (result.kind === "resolved") expect(result.toLocationId).toBe("riverwatch_city");
   });
 
+  it.each([
+    ["Речного Стража", "riverwatch_city"],
+    ["Кромку Чёрного леса", "blackwood_edge"],
+  ] as const)("resolves declined destination form %j through the shared stemmer", (destination, toLocationId) => {
+    const result = resolveJourneyRoute(destination, "river_waystation", makeSpatial(), makeObserverMap());
+    expect(result.kind).toBe("resolved");
+    if (result.kind !== "resolved") throw new Error("unreachable");
+    expect(result.toLocationId).toBe(toLocationId);
+  });
+
+  it("does not link a similar-sounding unknown destination", () => {
+    for (const destination of ["Ручей", "Речка-сестричка"]) {
+      const result = resolveJourneyRoute(destination, "river_waystation", makeSpatial(), makeObserverMap());
+      expect(result.kind).toBe("blocked");
+      if (result.kind !== "blocked") throw new Error("unreachable");
+      expect(result.reason).toBe("unknown_destination");
+    }
+  });
+
   it("resolves a reviewed location alias", () => {
     const map = makeObserverMap({ locations: [
       { ref: "river_waystation", name: "Переправа у Чёрного леса", knowledge: "traversed" },

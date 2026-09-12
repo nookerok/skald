@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildBootstrapEvents } from "@skald/world";
+import { buildBootstrapEvents, buildMasterTurnSceneContext } from "@skald/world";
+import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
@@ -201,6 +202,87 @@ describe("master turn production path", () => {
 
       const turns = store.listConversationTurns(runtime.worldId).filter((turn) => turn.idempotencyKey === "dup-1");
       expect(turns).toHaveLength(1);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("answers a pronoun follow-up question with no model call and no events", async () => {
+    // Turn 1 persists a fence mention through a validated plan; turn 2 binds
+    // "ней" and rewrites to a direct inquiry, which must stay on the
+    // read-only path (no LLM call, no Domain Events, no tick).
+    const dbPath = join(mkdtempSync(join(tmpdir(), "skald-master-http-")), "events.sqlite");
+    const store = createMultiWorldStore(dbPath);
+    try {
+      const worldId = "http-pronoun-inquiry";
+      const camp = (type: string, eventId: string, payload: unknown): DomainEvent =>
+        ({ eventId, type, schemaVersion: 1, payload, timestamp: 0, correlationId: "bootstrap", causationId: null });
+      store.createWorld({
+        worldId,
+        idempotencyKey: `create-${worldId}`,
+        requestHash: `hash-${worldId}`,
+        saveLabel: "HTTP test",
+        characterName: "Tester",
+        characterPresetId: "wanderer",
+        worldTemplateId: "old_tower",
+        characterWound: "none",
+        characterPromise: "observe",
+        characterPrinciple: "care",
+        characterProfileVersion: 1,
+        bootstrapEvents: [
+          ...buildBootstrapEvents("old_tower"),
+          camp("PlayerSpawned", "boot-player", { x: 0, y: 0 }),
+          camp("LocationDefined", "boot-location", {
+            id: "camp", name: "Лагерь", description: "Тихий лагерь у реки.",
+            objectIds: ["fence"], connections: {},
+          }),
+          camp("PlayerLocationChanged", "boot-location-player", { locationId: "camp" }),
+          camp("WorldObjectPlaced", "boot-object-fence", {
+            id: "fence", name: "Ограда", aliases: ["ограду", "оградой"], description: "Почерневшая ограда.",
+            material: "wood", locationId: "camp", integrity: 100, temperature: 20, state: {},
+          }),
+          camp("ObjectObserved", "boot-fence-noticed", {
+            objectId: "fence", observerId: "player", description: "Почерневшая ограда.",
+          }),
+        ],
+      });
+      const manager = new WorldRuntimeManager(store, null);
+      const runtime: WorldRuntime = await manager.get(worldId);
+      const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+      const fence = scene.context.visibleObjects.find((object) => object.label === "Ограда");
+      expect(fence).toBeDefined();
+      const target = { role: "target", observerRef: fence!.observerRef, surface: fence!.label };
+      const router = {
+        apiKey: "",
+        chat: vi.fn(async (category: string) => {
+          if (category !== "interpret") return { text: "" };
+          return {
+            text: JSON.stringify({
+              schemaVersion: 2,
+              kind: "action",
+              primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Осматриваю её." },
+              supportingClauses: [],
+              target: { ...target },
+              referents: [{ ...target }],
+            }),
+          };
+        }),
+      } as any;
+      (runtime as { router: unknown }).router = router;
+
+      const first = parse(await handleWorldCommand(runtime, body("Осматриваю её.", "pq-1")));
+      expect(first.ok).toBe(true);
+      expect(router.chat).toHaveBeenCalledTimes(1);
+
+      const timeBefore = runtime.projection.getSnapshot().time;
+      const eventsBefore = runtime.bus.query().length;
+      const second = parse(await handleWorldCommand(runtime, body("А что за ней?", "pq-2")));
+
+      expect(second.status).toBe("inquiry");
+      expect(second.conversationTurn).toMatchObject({ inputClass: "inquiry" });
+      expect(router.chat).toHaveBeenCalledTimes(1);
+      expect(runtime.projection.getSnapshot().time).toBe(timeBefore);
+      expect(runtime.bus.query().length).toBe(eventsBefore);
     } finally {
       store.close();
     }

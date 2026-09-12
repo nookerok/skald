@@ -19,6 +19,7 @@ export const INQUIRY_QUERY_IDS = [
   "inventory",
   "known_contacts",
   "map_position",
+  "who_is_nearby",
 ] as const;
 
 export type InquiryQueryId = (typeof INQUIRY_QUERY_IDS)[number];
@@ -51,6 +52,13 @@ export type PlayerInputClassification =
   | { readonly kind: "speech"; readonly intent: IntentResult };
 
 const DIRECT_PREFIX = /^(?:(?:мастер|ведущий)\s*[,;:]?\s*)?(?:(?:скажи|расскажи|подскажи)\s*[,;:]?\s*)?/iu;
+
+/**
+ * "Хочу узнать, кто рядом" asks the same question as "кто рядом": strip the
+ * explicit will-to-know shell before pattern matching so paraphrases reach
+ * the same deterministic inquiry instead of the generic fallback.
+ */
+const WANT_TO_KNOW_PREFIX = /^(?:я\s+)?(?:хочу|желаю)\s+(?:узнать|понять|выяснить|знать)[,:]?\s+/iu;
 
 const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
   ["current_location", [
@@ -97,6 +105,13 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^кого\s+я\s+знаю\s+(?:здесь|в\s+этом\s+месте)?/iu,
     /^кто\s+может\s+меня\s+знать/iu,
   ]],
+  ["who_is_nearby", [
+    /^кто\s+(?:находится\s+)?рядом(?:\s+со\s+мной)?/iu,
+    /^кто\s+(?:здесь|тут|поблизости)\s+(?:есть|находится)?/iu,
+    /^(?:есть\s+ли\s+)?кто-нибудь\s+рядом/iu,
+    /^кого\s+(?:я\s+)?вижу\s+рядом/iu,
+    /^с\s+кем\s+(?:я\s+)?имею\s+дело\s+здесь/iu,
+  ]],
   ["map_position", [
     /^почему\s+карта\s+(?:показывает|отображает)\s+(?:это\s+место|меня)/iu,
     /^почему\s+я\s+вижу\s+на\s+карте\s+это\s+место/iu,
@@ -115,7 +130,7 @@ function normalizeQuestion(input: string): string {
 }
 
 function isExplicitSpeech(text: string): boolean {
-  return /^(?:спроси|спросить|скажи|сказать|обратись|обратиться|позови|позвать|окликни|окликнуть)\s+(?:к\s+)?(?:перевозчик|архивист|стражник|местн|торгов|человек|нему|ней|им|ей)/iu.test(text);
+  return /^(?:спроси|спросить|спрошу|спросишь|спросит|спросим|скажи|сказать|обратись|обратиться|позови|позвать|окликни|окликнуть)\s+(?:к\s+)?(?:перевозчик|архивист|стражник|местн|торгов|человек|нему|ней|им|ей)/iu.test(text);
 }
 
 /**
@@ -173,7 +188,7 @@ function spatialFocusInquiry(input: string, withoutPrefix: string): InquiryReque
 
 function directInquiry(input: string): InquiryRequest | null {
   const normalized = normalizeQuestion(input);
-  const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").trim();
+  const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").replace(WANT_TO_KNOW_PREFIX, "").trim();
   if (isExplicitSpeech(normalized)) return null;
   for (const [queryId, patterns] of INQUIRY_PATTERNS) {
     if (patterns.some((pattern) => pattern.test(withoutPrefix))) {

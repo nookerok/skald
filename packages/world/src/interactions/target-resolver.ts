@@ -8,23 +8,37 @@
 
 import type { Entity } from "../entities/types.js";
 import type { ReadonlyWorld } from "../projection.js";
+import { sameRussianStem } from "@skald/intent-parser";
 import { isItemAccessible } from "../action-capability/capability.js";
 import { targetFromEntity, targetFromObject } from "./target-view.js";
 import type { InteractionTarget, PlayerFacingCandidate, TargetResolution } from "./types.js";
 
 function normalized(value: string): string {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().replace(/^[?!.,;:]+|[?!.,;:]+$/gu, "");
 }
 
 function isNearby(entity: Entity, world: ReadonlyWorld): boolean {
   return Math.abs(entity.x - world.player.x) + Math.abs(entity.y - world.player.y) <= 1;
 }
 
-type MatchLevel = "exact" | "partial" | null;
+type MatchLevel = "exact" | "stem" | "partial" | null;
 
 function matchLevel(names: readonly string[], query: string): MatchLevel {
   if (!query) return null;
   for (const candidate of names) if (normalized(candidate) === query) return "exact";
+  // Russian case inflection («воде» → «вода»): stem comparison rescues
+  // declined surfaces. Exact equality always wins; see the pool rule below.
+  const queryWords = query.split(/\s+/u);
+  for (const candidate of names) {
+    const nameWords = normalized(candidate).split(/\s+/u);
+    if (queryWords.length > 0 && queryWords.length <= nameWords.length
+      && queryWords.every((word, index) => {
+        const nameWord = nameWords[index] ?? "";
+        return word.length > 0 && (word === nameWord || sameRussianStem(word, nameWord));
+      })) {
+      return "stem";
+    }
+  }
   for (const candidate of names) {
     const name = normalized(candidate);
     if (name.includes(query) || query.includes(name)) return "partial";
@@ -94,7 +108,10 @@ export function resolveInteractionTarget(world: ReadonlyWorld, verb: string, que
 
   const candidates = collectCandidates(world, object, verb);
   const exact = candidates.filter((target) => matchLevel([target.name, ...target.aliases], object) === "exact");
-  const pool = exact.length > 0 ? exact : candidates;
+  const stem = exact.length === 0
+    ? candidates.filter((target) => matchLevel([target.name, ...target.aliases], object) === "stem")
+    : [];
+  const pool = exact.length > 0 ? exact : stem.length > 0 ? stem : candidates;
   if (pool.length === 0) return { kind: "missing" };
   if (pool.length === 1) return { kind: "resolved", target: pool[0]! };
   return { kind: "ambiguous", candidates: toCandidates(pool) };

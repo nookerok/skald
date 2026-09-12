@@ -178,6 +178,23 @@ function buildMapPosition(_request: InquiryRequest, context: InquiryReadContext)
   return answer("map_position", `Маркер на карте показывает последнюю подтверждённую тобой позицию — «${locationName(shell)}». Неизвестные участки остаются скрыты туманом, пока у тебя нет наблюдения о них.`, shell);
 }
 
+/**
+ * Answers "who is nearby" from observer-safe scene people only: labels the
+ * player already knows, never hidden entities. Falls back to background
+ * relations only when no scene was passed (never invents presence).
+ */
+function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+  const { shell } = context;
+  const people = [...(context.scene?.knownPeople ?? [])]
+    .map((person) => person.label.trim())
+    .filter((label) => label.length > 0);
+  if (people.length === 0) {
+    return answer("who_is_nearby", "Рядом с тобой сейчас никого различимого нет. Осмотрись действием — может, кто-то покажется.", shell);
+  }
+  const list = people.slice(0, 5).map((label) => `«${label}»`).join(", ");
+  return answer("who_is_nearby", `Рядом с тобой: ${list}.`, shell);
+}
+
 export const INQUIRY_QUERY_HANDLERS: Readonly<Record<InquiryQueryId, InquiryQueryHandler>> = Object.freeze({
   current_location: buildCurrentLocation,
   visible_scene: buildVisibleScene,
@@ -189,6 +206,7 @@ export const INQUIRY_QUERY_HANDLERS: Readonly<Record<InquiryQueryId, InquiryQuer
   inventory: buildInventory,
   known_contacts: buildKnownContacts,
   map_position: buildMapPosition,
+  who_is_nearby: buildWhoIsNearby,
 });
 
 /** Resolves a registered query against the already-built observer read model. */
