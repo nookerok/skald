@@ -97,7 +97,7 @@ fi
 # service state are touched; the build/test/data-dir/sudoers prep above
 # already ran but serves no traffic.
 if [ -f "${ENV_FILE}" ]; then
-  if ENV_POLICY_OUT=$(node --import tsx "${SKALD_CODE}/packages/cli/deploy/env-policy.ts" "${ENV_FILE}"); then
+  if ENV_POLICY_OUT=$("${NODE_BIN_DIR}/node" --import tsx "${SKALD_CODE}/packages/cli/deploy/env-policy.ts" "${ENV_FILE}"); then
     echo "[OK] ${ENV_POLICY_OUT}"
   else
     echo "[ERROR] ${ENV_POLICY_OUT:-Containment env policy failed}"

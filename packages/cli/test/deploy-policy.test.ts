@@ -111,6 +111,8 @@ describe("Orange Pi non-interactive restart policy", () => {
     for (const script of [installer, updater]) {
       expect(script).toContain("packages/cli/deploy/env-policy.ts");
       expect(script).toContain("Containment env policy");
+      // The early env gate runs before any PATH export: absolute runtime.
+      expect(script).toContain('NODE_BIN_DIR}/node" --import tsx');
     }
     expect(updater.indexOf("env-policy.ts")).toBeLessThan(updater.indexOf("BACKUP_FILE=\"${BACKUP_DIR}"));
   });

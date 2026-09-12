@@ -66,7 +66,9 @@ fi
 # one. Fails before any mutation.
 PROD_ENV_FILE="${SKALD_DATA}/skald.env"
 if [ -f "${PROD_ENV_FILE}" ]; then
-  if ENV_POLICY_OUT=$(node --import tsx "${SKALD_CODE}/packages/cli/deploy/env-policy.ts" "${PROD_ENV_FILE}"); then
+  # NODE_BIN_DIR is used explicitly: this gate runs before the PATH export
+  # in step 7, and a missing runtime must fail closed, not silently skip.
+  if ENV_POLICY_OUT=$("${NODE_BIN_DIR}/node" --import tsx "${SKALD_CODE}/packages/cli/deploy/env-policy.ts" "${PROD_ENV_FILE}"); then
     echo "[OK] ${ENV_POLICY_OUT}"
   else
     echo "[ERROR] ${ENV_POLICY_OUT:-Containment env policy failed}"
