@@ -137,7 +137,9 @@ echo "[OK] Timers enabled."
 # answers HTTP 200 only for `ready`, so the status is read from the sanitized
 # body (grep/sed only: no jq on minimal hosts).
 echo "Checking AI readiness (loopback probe)..."
-AI_RESPONSE=$(curl --silent --show-error --max-time 30 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' http://127.0.0.1:3000/api/ops/ai-probe 2>&1 || true)
+# Worst-case probe is two sequential 20s route budgets plus overhead, so the
+# curl budget must clear ~45s or a slow-but-healthy probe fails the gate.
+AI_RESPONSE=$(curl --silent --show-error --max-time 60 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' http://127.0.0.1:3000/api/ops/ai-probe 2>&1 || true)
 AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
 AI_BODY="${AI_RESPONSE%$'\n'*}"
 AI_STATUS=$(printf '%s' "${AI_BODY}" | grep -o -E '"readiness":\{"status":"[a-z]+"' | sed 's/^"readiness":{"status":"//;s/"$//' || true)

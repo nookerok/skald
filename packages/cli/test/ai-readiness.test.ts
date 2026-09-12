@@ -41,10 +41,11 @@ describe("AIReadinessService", () => {
     expect(service.isProbing()).toBe(false);
   });
 
-  it("budgets slow local transports with a 20s per-candidate probe timeout", async () => {
-    // A cold `opencode run` subprocess needs ~15s wall on Pi-class hosts;
-    // the probe must not fail a healthy backup on startup time alone.
-    expect(AI_READINESS_PROBE_TIMEOUT_MS).toBe(20_000);
+  it("budgets slow local transports with a 25s per-candidate probe timeout", async () => {
+    // One `opencode run` roundtrip needs ~22s wall on Pi-class hosts
+    // (startup plus inference plus session cleanup); the probe must not fail
+    // a healthy backup on startup time alone.
+    expect(AI_READINESS_PROBE_TIMEOUT_MS).toBe(25_000);
     const chatCandidate = vi.fn(async (category: "interpret" | "narrate", _candidate: unknown, _messages: unknown, _opts: unknown) => ({
       text: category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
     }));

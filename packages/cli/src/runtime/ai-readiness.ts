@@ -2,12 +2,13 @@ import { probeAIReadiness, type AIReadinessReport, type ModelRouter, type AIDiag
 
 /**
  * Per-candidate budget for the operational readiness probe. Sized for the
- * slowest routed transport: a cold `opencode run` subprocess needs ~15s wall
- * on Pi-class hosts (startup plus model roundtrips), so a 10s budget would
- * fail a healthy backup on every probe. HTTP providers settle in ~1s and
- * never notice the headroom; the deploy scripts allow 30s for the probe.
+ * slowest routed transport: one `opencode run` roundtrip needs ~22s wall on
+ * Pi-class hosts (startup plus inference plus best-effort session cleanup),
+ * so a 10s budget would fail a healthy backup on every probe. HTTP providers
+ * settle in ~1s and never notice the headroom; the deploy scripts allow 60s
+ * for the whole probe (two sequential route budgets plus overhead).
  */
-export const AI_READINESS_PROBE_TIMEOUT_MS = 20_000;
+export const AI_READINESS_PROBE_TIMEOUT_MS = 25_000;
 
 export interface AIReadinessOptions {
   readonly cooldownMs?: number;
