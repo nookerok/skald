@@ -1,32 +1,35 @@
-# Current work (2026-09-12 — sandbox cause proven, gate reconciled; deploy+root pending)
+# Current work (2026-09-12 — opencode_run live in prod, gate reconciled; CLOSED)
 
-- P1 cause isolated by experiment: the exact `opencode run` call (same
-  binary/agent/model/argv/empty-dir) with the adapter's scrubbed env
-  (PATH/HOME/USER/LANG only) succeeds from a nooker shell (`PONG`, exact
-  contract events, zero tool calls, cost 0, ~7s wall). The env scrub is
-  exonerated; the systemd sandbox kills it (3.1s, exit non-zero):
-  `ProtectHome=read-only` blocks the session-db/model-cache/config writes
-  (`~/.local/share/opencode`, `~/.cache/opencode`, `~/.config/opencode` —
-  all confirmed written-to on Pi).
-- Fix in this tree: `skald.service` keeps `ProtectHome=read-only` but
-  extends `ReadWritePaths` with exactly those three opencode state dirs. No
-  provider-code change, no other sandbox weakening. Applying needs root
-  (unit copy + daemon-reload): operator step after deploy.
-- P2 reconciled in this tree: installer/updater acceptance now parses
-  `readiness.status` from the sanitized probe body (endpoint still
-  200-iff-ready) and accepts `ready`|`degraded`, failing only on
-  `unavailable`/`misconfigured`/unparsable (ADR-0036 amendment 2026-09-12;
-  ARCHITECTURE, deploy README, DECISIONS D-036 and deploy-policy pins
-  updated; extraction verified against the live degraded body plus
-  unavailable/empty negatives). The installed
-  `/usr/local/bin/update-orange-pi.sh` is stale (no AI gate, old
-  typecheck+tests validation) — needs a root re-copy from the repo.
-- Also: `skald.env.example` + root `.env.example` document
-  `SKALD_OPENCODE_RUN`/`SKALD_OPENCODE_BIN`; the manual probe session row
-  was deleted via `session delete`, `/tmp/manual-probe-01` removed.
-- Gate: local `npm run validate` PASS. Still open in this session:
-  commit+push, deploy via updater, root apply (unit + updater sync +
-  restart), live ai-probe expecting `opencode_run` ok with latency.
+- P1 CLOSED: `opencode_run` passes live (`ok`, ~20-22s) on the final code.
+  Cause chain, each proven: env scrub exonerated by a shell isolation run
+  (`PONG`, ~7s); systemd EROFS killed the child (3.1s exit non-zero);
+  opencode log revealed a fourth write dir (`~/.local/state/opencode`,
+  locks/models.dev fetch) and a hidden auto-titling model roundtrip.
+  Fixes: unit keeps `ProtectHome=read-only`, admits exactly the four
+  opencode state dirs; argv passes fixed `--title skald-narrate` (log
+  confirms `title=skald-narrate`, no title stream); probe budget 25s.
+  `~/.npm` stays read-only deliberately: the background plugin install
+  fails closed there, and admitting it could open a tool-loading path.
+- P2 CLOSED: installer/updater parse `readiness.status` and accept
+  `ready`|`degraded` (ADR-0036 amendment 2026-09-12; ARCHITECTURE, README,
+  DECISIONS D-036, deploy-policy pins updated). Installed updater re-synced
+  from repo by root; the new gate accepted `degraded` live with exit 0 on
+  the `3893614` deploy. Probe curl budget 30s→60s (worst case is two
+  sequential 25s route budgets).
+- Deploys this session: `6615abd` (gate+unit-3-dirs), `eb8952a`
+  (title+20s+4th dir), `3893614` (curl 60s, 25s budget). On-device suites
+  PASS each time; remote `main` == `origin/main` == `3893614`; service +
+  timers active. Final ai-probe: `degraded` (accepted), Ollama ok ~0.6s,
+  `opencode_run` ok 21.5s. No gameplay turns were run in this session;
+  canonical world untouched at T32/event 469.
+- Observed (external, no action): Ollama Cloud stalled ~11:29–11:33 UTC
+  (three consecutive full-budget probe timeouts; Pi egress+DNS verified
+  fine, direct fetch 0.4s; recovered spontaneously). Note for the future:
+  a hanging primary consumes the sequential route budget before the backup
+  engages — parallel racing or per-candidate caps would change that
+  trade-off, deliberately not done here.
+- Open: session-row pruning for opencode.db (orphan rows from the timed-out
+  probes were deleted manually); human playthrough still untouched.
 
 # Current work (2026-09-12 — OpenCodeRunProvider deployed, live smoke PASS, adapter fails closed under sandbox)
 
