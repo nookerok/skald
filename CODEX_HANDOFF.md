@@ -1,4 +1,33 @@
-# Current work (2026-09-12 — opencode_run live in prod, gate reconciled; CLOSED)
+# Current work (2026-09-12 — review P1+P2 implemented, verified live; CLOSED)
+
+- Implemented both P1 and all four P2 from the review (`28f6ae1`, 20 files):
+  playable per-route gate; repo-pinned agent manifest + deploy install/verify;
+  isolated per-call HOME; session cleanup on every failure path; unified
+  effective selection with transport identity in the fingerprint; hard
+  12-replica bound with player-anchor priority and field-only clarification;
+  merged fallback reports. Gate PASS; commit pushed.
+- Deployed `28f6ae1` via updater: on-device suite PASS, restart + health PASS,
+  but the AI gate FAILED on curl timeout at 30s — the installed updater still
+  carried the old curl budget (synced before the 60s fix) while Ollama stalled
+  again, pushing the probe past 30s. No rollback: the service is healthy on
+  the new code and the failure was environmental (stale budget + transient
+  stall), exactly the case the guidance exempts. The installed updater needs
+  one more root re-copy (curl-60 line only, no restart).
+- Live verification on the final code: `playable:true`,
+  `routeStatus:{interpret:ok,narrate:ok}`, Ollama ok ~0.6-0.7s,
+  `opencode_run` ok ~21s, modelSelection routes include the backup,
+  fingerprint rotated. Ollama flapped twice today (~11:29-11:33,
+  ~12:21-deploy-window; egress/DNS verified fine, self-recovered) —
+  external provider-side stalls.
+- Deliberately deferred: item 6 (legacy memory DTO removal, ladder
+  simplification — needs consumer migration + ADR, review itself says
+  "after stabilization") and item 7 (20-30 replica gameplay run — needs an
+  authorized mutation budget; no gameplay turns ran in this session,
+  canonical world untouched at T32/event 469).
+- Open: final root updater re-copy; session-row pruning observation;
+  hanging-primary-consumes-budget trade-off noted for later.
+
+# Current work (2026-09-12 — opencode_run live in prod, gate reconciled; superseded by the review-fixes entry above)
 
 - P1 CLOSED: `opencode_run` passes live (`ok`, ~20-22s) on the final code.
   Cause chain, each proven: env scrub exonerated by a shell isolation run
@@ -10,25 +39,23 @@
   confirms `title=skald-narrate`, no title stream); probe budget 25s.
   `~/.npm` stays read-only deliberately: the background plugin install
   fails closed there, and admitting it could open a tool-loading path.
-- P2 CLOSED: installer/updater parse `readiness.status` and accept
+- P2 reconciled at the time: installer/updater parse `readiness.status` and accept
   `ready`|`degraded` (ADR-0036 amendment 2026-09-12; ARCHITECTURE, README,
   DECISIONS D-036, deploy-policy pins updated). Installed updater re-synced
   from repo by root; the new gate accepted `degraded` live with exit 0 on
   the `3893614` deploy. Probe curl budget 30s→60s (worst case is two
   sequential 25s route budgets).
-- Deploys this session: `6615abd` (gate+unit-3-dirs), `eb8952a`
+- Deploys that session: `6615abd` (gate+unit-3-dirs), `eb8952a`
   (title+20s+4th dir), `3893614` (curl 60s, 25s budget). On-device suites
-  PASS each time; remote `main` == `origin/main` == `3893614`; service +
-  timers active. Final ai-probe: `degraded` (accepted), Ollama ok ~0.6s,
-  `opencode_run` ok 21.5s. No gameplay turns were run in this session;
-  canonical world untouched at T32/event 469.
+  PASS each time; service + timers active. Probe then: `degraded`
+  (accepted), Ollama ok ~0.6s, `opencode_run` ok 21.5s.
 - Observed (external, no action): Ollama Cloud stalled ~11:29–11:33 UTC
   (three consecutive full-budget probe timeouts; Pi egress+DNS verified
   fine, direct fetch 0.4s; recovered spontaneously). Note for the future:
   a hanging primary consumes the sequential route budget before the backup
   engages — parallel racing or per-candidate caps would change that
   trade-off, deliberately not done here.
-- Open: session-row pruning for opencode.db (orphan rows from the timed-out
+- Open at the time: session-row pruning for opencode.db (orphan rows from the timed-out
   probes were deleted manually); human playthrough still untouched.
 
 # Current work (2026-09-12 — OpenCodeRunProvider deployed, live smoke PASS, adapter fails closed under sandbox)
