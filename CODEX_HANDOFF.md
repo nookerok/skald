@@ -1,4 +1,27 @@
-# Current work (2026-09-12 — residual hardening verified live; CLOSED)
+# Current work (2026-09-12 — residuals fixed, deployed, one root cp pending)
+
+- Fixed all three residual defects (`df7caeb`): helper reads nested
+  `readiness.playable` + endpoint-to-helper integration test (the old unit
+  fixtures repeated the wrong shape — now pinned against drift); provider
+  serves construction-time manifest bytes (A-then-B test proves no checkout
+  re-read); env-policy helper parses the systemd subset with behavioral
+  matrix (quoted, duplicates, malformed), scripts delegate to it. Gate PASS.
+- Deployed `df7caeb`: on-device suite PASS, manifest installed
+  post-validation (log line observed), helper gate accepted degraded +
+  playable, exit 0. Remote `main` == `origin/main` == `df7caeb`.
+- Live probe after deploy: `playable:true`, Ollama ok, but `opencode_run`
+  timed out (25-30s) in an ongoing external slow episode. Exonerated the
+  unit again: shell control with identical isolated HOME (no systemd) took
+  31s wall with 1418 reasoning tokens; idle box, fast egress. Typical ~21s
+  stays inside the 25s budget; slow episodes fail closed by design (backup
+  drops, template covers) — no budget chase. No orphans (isolated db
+  removed with its dir).
+- Open: root re-copy of the updater only (helper/env-policy/reorder lines;
+  no restart — unit unchanged since last sync); session-row pruning;
+  item 6 (legacy DTO/ladder) and item 7 (gameplay run) still deferred;
+  canonical world untouched (no gameplay turns this session).
+
+# Previous session (2026-09-12 — residual hardening verified live; CLOSED)
 
 - All five residual items live in prod (`5eadc29`, service healthy): tested
   gate helper, env containment gates, atomic manifest install, skald-data-only
