@@ -24,8 +24,11 @@
   "after stabilization") and item 7 (20-30 replica gameplay run — needs an
   authorized mutation budget; no gameplay turns ran in this session,
   canonical world untouched at T32/event 469).
-- Open: final root updater re-copy; session-row pruning observation;
+- Open: session-row pruning observation;
   hanging-primary-consumes-budget trade-off noted for later.
+  (Done 2026-09-12: installed updater re-copied from repo by root —
+  `/usr/local/bin/update-orange-pi.sh` and the systemd unit both diff-clean
+  against the tree, service active.)
 
 # Current work (2026-09-12 — opencode_run live in prod, gate reconciled; superseded by the review-fixes entry above)
 
