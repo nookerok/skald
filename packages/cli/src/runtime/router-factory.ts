@@ -10,6 +10,14 @@ import {
   type ProviderId,
   type RouteCandidate,
 } from "@skald/world";
+import {
+  OPENCODE_RUN_AGENT_ENV,
+  OPENCODE_RUN_BINARY_ENV,
+  OPENCODE_RUN_MODEL_ENV,
+  OpenCodeRunProvider,
+  isOpenCodeRunEnabled,
+  openCodeRunCandidate,
+} from "./opencode-run-provider.js";
 
 export interface RouterConfiguration {
   readonly router: ModelRouter | null;
@@ -80,8 +88,20 @@ export function refreshRouterSelection(
   selection: LiveModelSelectionReport,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const configFingerprint = selectionConfigFingerprint(env, selection);
-  router.applyLiveSelection(selection, configFingerprint);
+  // The local transport is discovery-independent, so a refresh would wipe
+  // its candidate. Re-append here (same rule as startup) to keep one code
+  // path for the effective narrate route.
+  const effective = isOpenCodeRunEnabled(env)
+    ? {
+      ...selection,
+      routes: {
+        ...selection.routes,
+        narrate: [...selection.routes.narrate, openCodeRunCandidate(env)],
+      },
+    }
+    : selection;
+  const configFingerprint = selectionConfigFingerprint(env, effective);
+  router.applyLiveSelection(effective, configFingerprint);
   return configFingerprint;
 }
 
@@ -93,10 +113,29 @@ function buildRouter(
   routeCandidates?: Partial<Record<"interpret" | "narrate" | "analyze", readonly RouteCandidate[]>>,
   liveSelection?: LiveModelSelectionReport,
 ): ModelRouter | null {
-  const availableProviders = providers.filter((provider) => Boolean(providerKeys[provider]));
+  // The local-subprocess transport is keyless by design, so it never appears
+  // in providerKeys; its presence is an explicit per-host opt-in instead.
+  const useOpenCodeRun = isOpenCodeRunEnabled(env);
+  const availableProviders = [
+    ...providers.filter((provider) => Boolean(providerKeys[provider])),
+    ...(useOpenCodeRun ? ["opencode_run" as const] : []),
+  ];
   const primary = availableProviders.includes("opencode_zen") ? "opencode_zen" : availableProviders[0];
   if (!primary) return null;
-  return new ModelRouter({
+  if (!useOpenCodeRun) {
+    return new ModelRouter({
+      providerKeys,
+      ...(providerKeys[primary] !== undefined ? { apiKey: providerKeys[primary] } : {}),
+      boundedRetries: true,
+      providerId: primary,
+      availableProviders,
+      healthCachePath: env.SKALD_LLM_HEALTH_CACHE_PATH ?? "packages/cli/llm-health.json",
+      configFingerprint,
+      ...(routeCandidates ? { routeCandidates } : {}),
+      ...(liveSelection ? { liveSelection } : {}),
+    });
+  }
+  return new OpenCodeRunProvider({
     providerKeys,
     ...(providerKeys[primary] !== undefined ? { apiKey: providerKeys[primary] } : {}),
     boundedRetries: true,
@@ -106,6 +145,11 @@ function buildRouter(
     configFingerprint,
     ...(routeCandidates ? { routeCandidates } : {}),
     ...(liveSelection ? { liveSelection } : {}),
+    opencodeRun: {
+      ...(env[OPENCODE_RUN_BINARY_ENV] ? { binary: env[OPENCODE_RUN_BINARY_ENV] } : {}),
+      ...(env[OPENCODE_RUN_AGENT_ENV] ? { agent: env[OPENCODE_RUN_AGENT_ENV] } : {}),
+      ...(env[OPENCODE_RUN_MODEL_ENV] ? { model: env[OPENCODE_RUN_MODEL_ENV] } : {}),
+    },
   });
 }
 
@@ -163,9 +207,14 @@ export async function createLiveRouterConfiguration(
   const selectionReport = await discoverLiveRoutes(selectionOptions);
   const { providers, providerKeys } = providerKeysFromEnv(env);
   const configFingerprint = selectionConfigFingerprint(env, selectionReport);
+  // opencode_run goes last on narrate only: it is the newest, slowest
+  // transport, so existing candidates keep priority until data says otherwise.
+  // Interpret stays on the validated HTTP pipeline for now.
   const routes = {
     interpret: selectionReport.routes.interpret,
-    narrate: selectionReport.routes.narrate,
+    narrate: isOpenCodeRunEnabled(env)
+      ? [...selectionReport.routes.narrate, openCodeRunCandidate(env)]
+      : selectionReport.routes.narrate,
     analyze: [] as readonly RouteCandidate[],
   };
   const router = buildRouter(env, providerKeys, providers, configFingerprint, routes, selectionReport);

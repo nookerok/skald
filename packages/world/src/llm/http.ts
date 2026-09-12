@@ -211,6 +211,12 @@ export async function chatOnce(
   if (!baseUrl) {
     throw new ProviderRequestError({ provider, model, category, phase: "configuration", reason: "provider base URL is not configured" });
   }
+  // The local-subprocess transport has no HTTP surface. A candidate that
+  // reaches this branch is miswired (use OpenCodeRunProvider); fail closed
+  // instead of posting an opencode_run model id to some other endpoint.
+  if (protocol === "opencode_run") {
+    throw new ProviderRequestError({ provider, model, category, phase: "configuration", reason: "opencode_run requires OpenCodeRunProvider" });
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

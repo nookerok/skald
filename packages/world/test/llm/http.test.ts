@@ -391,4 +391,23 @@ describe("per-model Zen wire protocol", () => {
     expect(seen[1]!.body.options).not.toHaveProperty("temperature");
     expect(seen[0]!.body).not.toHaveProperty("format");
   });
+
+  it("refuses the subprocess protocol at the HTTP layer without network", async () => {
+    const fetchImpl = vi.fn();
+    const denied = await chatOnce("local://opencode-run", "key", "opencode/muse-spark-1.3-contributor-free", messages, {
+      provider: "opencode_run",
+      protocol: "opencode_run",
+      category: "narrate",
+      maxTokens: 16,
+      fetchImpl,
+    }).catch((error: unknown) => error);
+    expect(denied).toBeInstanceOf(ProviderRequestError);
+    expect(denied as ProviderRequestError).toMatchObject({
+      provider: "opencode_run",
+      phase: "configuration",
+      retryable: false,
+    });
+    expect((denied as Error).message).toContain("OpenCodeRunProvider");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });

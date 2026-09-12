@@ -1,3 +1,137 @@
+# Current work (2026-09-11 — OpenCodeRunProvider adapter implemented)
+
+- New `packages/cli/src/runtime/opencode-run-provider.ts`:
+  `OpenCodeRunProvider extends ModelRouter` serves `opencode_run` candidates
+  via one `opencode run --format json` subprocess per call; all other
+  providers flow through the base implementation untouched (same seam as
+  `FixedNarrationProvider`). `ProviderId`/`ProviderProtocol` unions gain
+  `opencode_run`; `http.ts chatOnce` rejects it fail-closed so a miswired
+  candidate can never leak into an HTTP endpoint.
+- Containment enforced in code, all tested: argv-only prompt transport (no
+  shell), scrubbed env allowlist (no `*_API_KEY` crosses), fresh empty temp
+  dir per call (removed afterwards), NDJSON parse fails closed on malformed
+  lines / run errors / any tool-shaped activity, 96KB message cap,
+  256KB stdout cap with kill, SIGTERM→SIGKILL on timeout (timeout retryable,
+  everything else fails fast), best-effort `session delete` with tight id
+  validation, prompt contract stays versioned in Skald code (agent file
+  carries containment role only).
+- Factory wiring in `router-factory.ts`, default-off behind
+  `SKALD_OPENCODE_RUN=1`: appends the `opencode_run` candidate last on the
+  narrate route only (Ollama keeps priority; interpret untouched),
+  constructs `OpenCodeRunProvider` when enabled, survives selection
+  refresh. Env overrides: `SKALD_OPENCODE_BIN` (required on Pi service —
+  `~/.opencode/bin` is not on its PATH), `_AGENT`, `_MODEL`.
+- Tests: 27 new in `opencode-run-provider.test.ts` (argv/env/NDJSON/timeout/
+  kill/caps/cleanup/delegation/diagnostics, incl. real-subprocess checks),
+  + factory append/refresh cases in `router-factory.test.ts`, + HTTP-layer
+  guard in `http.test.ts`. Full `npm run validate` PASS.
+- Not yet: Pi deployment of the agent file + service env, live
+  smoke of one narrate turn through the adapter, latency measurement in
+  prod, pruning observation.
+
+# Current work (2026-09-11 — narrative agent containment verified on Pi)
+
+- `~/.config/opencode/agents/narrative.md` created on Pi (mode primary,
+  pinned `opencode/muse-spark-1.3-contributor-free`, temperature 0.1, all
+  16 permission keys explicit deny). `agent list` resolves denies after
+  global allows (agent overrides global).
+- Behavioral bait test through the real path (`run --format json --agent
+  narrative`, prompt demands glob-then-DONE): event stream contains only
+  `step_start/text/step_finish`, zero tool calls. Containment holds.
+- Open production points: agent lives in global Pi config (not versioned,
+  not deployed via updater — decide repo-owned vs global); session-row
+  pruning for opencode.db; latency vs turn budget still unmeasured in prod.
+
+# Current work (2026-09-11 — integration decision: run-subprocess, design sketched)
+
+- Decided: Skald ↔ OpenCode via `opencode run` subprocess per narrative
+  call, NOT serve-daemon. Rationale: no daemon lifecycle/ports/secrets on
+  the Pi, crash isolation per call, stateless calls mirror the
+  never-authoritative narrative invariant (no cross-turn contamination),
+  trivial timeout+kill and fake-binary testing.
+- Measured cost: `--format json` gives NDJSON events
+  (step_start/text/step_finish with tokens/cost); one narrative call =
+  ~14.5s wall on Pi (mostly startup+session init; model span ~20ms),
+  exact `{"probe":true}` output, zero tool calls on a trivial prompt,
+  cost 0. Latency vs turn budget is the open integration checkpoint.
+- Prerequisites before production: custom tools-less `narrative` agent
+  (`agent create` supported) + empty cwd + env scrub (containment);
+  session-row pruning policy for opencode.db growth; keep deterministic
+  fallback on timeout/kill. Serve remains the fallback if latency bites.
+- PC split-tunnel still an operator-side UI action; unrelated to Pi plan.
+
+# Current work (2026-09-11 — Zen free works on Pi via app flow, no auth needed)
+
+- POC done, no daemon needed: `opencode run -m
+  opencode/muse-spark-1.3-contributor-free` on the Pi answers correctly —
+  PING verbatim, then exact `{"probe":true}` (JSON discipline holds at
+  micro level). No `serve`, no session API guessing, no LAN ports.
+- Surprise: `opencode auth list` shows 0 credentials and no `auth.json`
+  exists on the Pi — Zen free answers anyway from DE egress. The operator
+  login step turned out unnecessary; nothing secret was created or moved.
+- Standing open: integration shape (serve+session API vs `run`
+  subprocess), agentic-loop containment for narrative calls, systemd
+  wiring, PC split-tunnel fix remains operator-side UI action.
+
+# Current work (2026-09-11 — Amnezia cause found: PC split-tunnel bypass, Pi fine)
+
+- Symptom: Amnezia "up" on PC, yet muse-spark geo-block and RU egress.
+  Cause, proven: native Windows apps bypass the tunnel — `curl.exe`,
+  .NET sockets and `node`/`opencode` all egress RU (`loc=RU`), while the
+  SAME destination from WSL egresses DE. Tunnel itself is healthy
+  (tracert transits it; WSL proves exit works). So the Amnezia Windows
+  client split-tunnels native-app traffic direct — per-app exclusion,
+  not a dead tunnel, metric or proxy issue (no proxy configured,
+  AmneziaVPN metric 5 wins routing, Find-NetRoute confirms).
+- Pi is unrelated and fine: its `awg-nl` path egresses DE (`loc=DE`);
+  the Pi-side Zen failure is pure `MissingSessionID` session lockout,
+  which no VPN routing can change. No Pi network fix needed or applied.
+- Fix (operator UI action, not applied by agent): Amnezia UI → split
+  tunneling → remove exclusions / include dev tools, so `node`/`opencode`
+  ride the tunnel. Verify with one line in PowerShell:
+  `curl.exe -s https://1.1.1.1/cdn-cgi/trace | Select-String 'loc='`
+  (want non-RU), then re-run the muse-spark `opencode run` probe.
+- Nothing on the Pi was changed; no Skald code changes from this.
+
+# Current work (2026-09-11 — OpenCode-gateway POC: serve works, muse-spark geo-blocked)
+
+- POC ran on PC (no Go toolchain needed; `opencode run` covers it):
+  `opencode serve` on 127.0.0.1:4096 healthy; `opencode run -m
+  opencode/muse-spark-1.3-contributor-free` fails with "This model is not
+  available in your country" — a third, geo-shaped refusal on top of the
+  direct-API 400 `MissingSessionID`. Control `opencode/big-pickle` returns
+  PING through the identical app flow, so the flow is fine and the block is
+  model-specific. No paid calls made.
+- Consequence for the gateway idea: `serve → Zen` is not a universal fix;
+  an `OpenCodeNarrativeProvider` adapter is technically viable but needs a
+  model that answers (big-pickle does, muse-spark does not — here), plus
+  design for agentic-loop containment, PC-always-on coupling, and LAN auth.
+  Test server removed; harness :3600 untouched.
+- Note: per-call `opencode` processes do not survive between tool calls in
+  this environment — future automation must own the serve lifecycle in one
+  shot or via a supervisor.
+- Paid-check question (2026-09-11): full `opencode models` shows paid
+  candidates exist — `opencode-go/muse-spark-1.3-contributor`,
+  `opencode-go/muse-spark-1.2-contributor`, `openrouter/meta/muse-spark-1.3`
+  (+1.2/1.1). Verdict: do NOT probe yet — only needed if the adapter gets
+  built around paid muse-spark specifically; one call settles it then.
+
+# Current work (2026-09-11 — opencode-serve hypothesis refuted, Zen block confirmed provider-side)
+
+- External hypothesis checked and rejected: no `opencode` CLI exists on the
+  Pi, nothing listens that Skald could use as a serve backend, and Skald
+  never shells out to OpenCode — it calls provider HTTPS directly with the
+  key from `skald.env` (all three key names present; service reads exactly
+  that file via `EnvironmentFile`). No `auth.json` is involved anywhere.
+- Decisive isolation: byte-equivalent Zen `/responses` call from a Pi shell
+  (zero Skald code) returns the same HTTP 400 `MissingSessionID`. Same key
+  gets catalogue 200. So neither request building nor systemd-vs-shell
+  environment is at fault — the provider refuses free-tier server-side use
+  as policy. Nothing to fix on our side for Zen free.
+- Standing paths unchanged: Ollama active, OpenRouter rung idle-by-design,
+  fail-closed clarifications otherwise. Paid `muse-spark-1.3` stays an
+  operator-billing decision, not an engineering task.
+
 # Current work (2026-09-10 — OpenRouter rung deployed, ai-probe PASS)
 
 - Updater run as `nooker` (no sudo): backup

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createLiveRouterConfiguration, createRouterConfiguration, refreshRouterSelection } from "../src/runtime/router-factory.js";
+import { OpenCodeRunProvider } from "../src/runtime/opencode-run-provider.js";
 
 describe("router factory", () => {
   it("captures provider-scoped keys in the runtime router without returning them", () => {
@@ -201,6 +202,48 @@ describe("router factory", () => {
     ]);
     expect(config.router?.hasProviderKey("openrouter")).toBe(true);
     expect(JSON.stringify(config)).not.toContain("or-secret");
+  });
+
+  it("appends the opencode_run narrate backup only on explicit opt-in", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const enabled = await createLiveRouterConfiguration({
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+    }, { fetchImpl });
+    expect(enabled.router).toBeInstanceOf(OpenCodeRunProvider);
+    expect(enabled.router?.routeCandidates("narrate")).toEqual([
+      { provider: "opencode_run", model: "opencode/muse-spark-1.3-contributor-free", protocol: "opencode_run", tier: "catalog_candidate" },
+    ]);
+    expect(enabled.router?.routeCandidates("interpret")).toEqual([]);
+    expect(enabled.router?.hasProviderKey("opencode_run")).toBe(true);
+
+    const disabled = await createLiveRouterConfiguration({
+      SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
+      SKALD_AI_REQUIRED: "0",
+    }, { fetchImpl });
+    expect(disabled.router?.routeCandidates("narrate")).toEqual([]);
+    expect(disabled.router).not.toBeInstanceOf(OpenCodeRunProvider);
+  });
+
+  it("keeps the opencode_run backup across selection refresh when enabled", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const env = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1" };
+    const config = await createLiveRouterConfiguration(env, { fetchImpl });
+    const router = config.router!;
+    const refreshed = {
+      ...config.selectionReport!,
+      routes: { interpret: [], narrate: [] as const },
+    };
+    refreshRouterSelection(router, refreshed as any, env);
+    expect(router.routeCandidates("narrate").map((candidate) => candidate.provider)).toEqual(["opencode_run"]);
   });
 
   it("keeps Zen behavior identical when no Ollama credential is configured", async () => {

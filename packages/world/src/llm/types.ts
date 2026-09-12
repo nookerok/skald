@@ -1,4 +1,4 @@
-export type ProviderId = "opencode_zen" | "ollama_cloud" | "openrouter";
+export type ProviderId = "opencode_zen" | "ollama_cloud" | "openrouter" | "opencode_run";
 export type Category = "narrate" | "analyze" | "interpret";
 export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "network_error" | "server_error" | "unknown";
 
@@ -9,8 +9,11 @@ export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "n
  * `openai_chat` is `/chat/completions` with `messages`/`max_tokens` and a
  * `choices` response. `openai_responses` is `/responses` with
  * `input`/`max_output_tokens` and an `output_text`/`output` response.
+ * `opencode_run` is not HTTP at all: one local `opencode run --format json`
+ * subprocess per call, served by `OpenCodeRunProvider` in `packages/cli`.
+ * It must never reach the HTTP transport (see `chatOnce` fail-closed branch).
  */
-export type ProviderProtocol = "openai_chat" | "openai_responses" | "ollama_chat";
+export type ProviderProtocol = "openai_chat" | "openai_responses" | "ollama_chat" | "opencode_run";
 
 /**
  * Role of a candidate inside a route matrix.
