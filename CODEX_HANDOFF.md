@@ -1,3 +1,18 @@
+# Current work (2026-09-12 — served-digest fingerprint shipped and live; CLOSED)
+
+- Shipped the manifest-identity follow-up (`4aa2172`): provider pins
+  `{content, sha256}` at construction and serves it per call; startup and
+  refresh fingerprint the served digest (TRANSPORT_VERSION 2); A-then-B race
+  test proves refresh keeps identifying A while a new provider identifies B.
+  No script/unit changes — no root needed.
+- Deployed `4aa2172`: on-device suite PASS, manifest installed
+  post-validation, helper gate accepted degraded+playable, exit 0.
+- Live probe on final code: `playable:true`, Ollama ok ~0.6s,
+  `opencode_run` ok 21.5s on the tightened unit with served bytes —
+  the full containment chain works end to end. Fingerprint rotated.
+- Deferred, unchanged: item 6, item 7 (no gameplay turns this session);
+  pruning observation; hanging-primary trade-off.
+
 # Current work (2026-09-12 — residuals fixed, deployed, one root cp pending)
 
 - Fixed all three residual defects (`df7caeb`): helper reads nested
