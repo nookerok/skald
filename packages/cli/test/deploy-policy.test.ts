@@ -55,8 +55,12 @@ describe("Orange Pi non-interactive restart policy", () => {
       // (one live model, deterministic fallback covers the rest) is the
       // accepted production posture: the status is read from the sanitized
       // body, and only `unavailable`/`misconfigured`/unparsable fail.
+      // Acceptance additionally requires both routes to serve gameplay:
+      // a dead interpret route rejects the deploy even when narrate answers.
       expect(script).toContain('case "${AI_STATUS}" in');
-      expect(script).toContain("AI readiness is degraded (accepted:");
+      expect(script).toContain("AI readiness is degraded but playable (accepted:");
+      expect(script).toContain('"playable":(true|false)');
+      expect(script).toContain("but not playable: a route has no working candidate");
       expect(script).toContain("Deployment acceptance: FAILED");
     }
     expect(updater.indexOf("Deployment acceptance: FAILED")).toBeLessThan(updater.indexOf("Update complete."));
@@ -68,6 +72,25 @@ describe("Orange Pi non-interactive restart policy", () => {
 
     expect(unit).toContain("ProtectHome=read-only");
     expect(unit).toContain("ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.local/state/opencode /home/nooker/.config/opencode");
+  });
+
+  it("installs and verifies the pinned narrative agent manifest", () => {
+    const installer = read("packages/cli/deploy/install-orange-pi.sh");
+    const updater = read("packages/cli/deploy/update-orange-pi.sh");
+
+    expect(read("packages/cli/deploy/opencode-narrative-agent.md")).toContain("permission:");
+    expect(read("packages/cli/deploy/opencode-narrative-agent.md")).toContain("doom_loop: deny");
+    for (const script of [installer, updater]) {
+      // Fail-closed containment: without a verified tools-denied manifest
+      // the transport must stay disabled, so verification failure aborts.
+      expect(script).toContain("packages/cli/deploy/opencode-narrative-agent.md");
+      expect(script).toContain("sha256sum");
+      expect(script).toContain("stat -c %U");
+      expect(script).toContain("stat -c %a");
+      expect(script).toContain("chmod 600");
+    }
+    expect(updater.indexOf("agent manifest")).toBeGreaterThan(updater.indexOf("git pull --ff-only"));
+    expect(updater.indexOf("agent manifest")).toBeLessThan(updater.indexOf("sudo -n /usr/bin/systemctl restart skald.service"));
   });
 
   it("keeps HTTP liveness independent from strict SSH identity preflight", () => {

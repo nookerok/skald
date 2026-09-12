@@ -251,10 +251,62 @@ describe("plan_7 transcript memory", () => {
     expect(context.truncated).toBe(false);
   });
 
-  it("marks truncation when history may extend past the scan", () => {
+  it("marks truncation only when older rows exist past the scan", () => {
     const rows = [row(1), row(2), row(3), row(4)];
-    expect(buildMasterConversationContext(rows, "w1", { scanLimit: 4 }).truncated).toBe(true);
-    expect(buildMasterConversationContext(rows.slice(1), "w1", { scanLimit: 4 }).truncated).toBe(false);
+    expect(buildMasterConversationContext(rows, "w1", { scanLimit: 4 }).truncated).toBe(false);
+    expect(buildMasterConversationContext([...rows, row(5)], "w1", { scanLimit: 4 }).truncated).toBe(true);
+  });
+
+  it("never exceeds twelve replicas at the window edge", () => {
+    // Seven turns carry 14 replicas: the six newest pairs fill the window,
+    // the seventh turn drops out entirely, oldest-first order preserved.
+    const rows = Array.from({ length: 7 }, (_, index) => row(index + 1, { playerText: `реплика ${index + 1}` }));
+    const context = buildMasterConversationContext(rows, "w1");
+
+    expect(context.lastTurns).toHaveLength(12);
+    expect(context.lastTurns[0]).toMatchObject({ speaker: "player", text: "реплика 2", turnSeq: 2 });
+    expect(context.lastTurns[11]).toMatchObject({ speaker: "master", turnSeq: 7 });
+    expect(context.truncated).toBe(true);
+    for (const message of context.lastTurns) {
+      expect(message.text.length).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it("keeps eleven replicas untruncated when the newest master text is technical", () => {
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) => row(index + 1)),
+      row(6, { playerText: "иду", responseText: "proposal does not match schema: unknown operation" }),
+    ];
+    const context = buildMasterConversationContext(rows, "w1");
+
+    expect(context.lastTurns).toHaveLength(11);
+    expect(context.lastTurns[10]).toMatchObject({ speaker: "player", text: "иду", turnSeq: 6 });
+    expect(context.truncated).toBe(false);
+  });
+
+  it("prioritizes the player anchor when a single slot remains", () => {
+    // Six full pairs plus a newest technical turn leave one slot for the
+    // oldest turn: its player replica survives alone while the master side
+    // is honestly reported as truncated.
+    const rows = [
+      ...Array.from({ length: 6 }, (_, index) => row(index + 1)),
+      row(7, { playerText: "иду", responseText: "proposal does not match schema: unknown operation" }),
+    ];
+    const context = buildMasterConversationContext(rows, "w1");
+
+    expect(context.lastTurns).toHaveLength(12);
+    expect(context.lastTurns[0]).toMatchObject({ speaker: "player", turnSeq: 1 });
+    expect(context.lastTurns[1]).toMatchObject({ speaker: "player", turnSeq: 2 });
+    expect(context.truncated).toBe(true);
+  });
+
+  it("scans the newest rows when history overflows the default window", () => {
+    const rows = Array.from({ length: 35 }, (_, index) => row(index + 1));
+    const context = buildMasterConversationContext(rows, "w1");
+
+    expect(context.lastTurns).toHaveLength(12);
+    expect(context.lastTurns[0]).toMatchObject({ speaker: "player", turnSeq: 30 });
+    expect(context.truncated).toBe(true);
   });
 
   it("prefers the shown narration paired by worldTime and correlationId", () => {
@@ -279,7 +331,7 @@ describe("plan_7 transcript memory", () => {
       .toBe("Старый ответ.");
   });
 
-  it("appends the pending clarification past the window edge", () => {
+  it("carries the pending clarification in its field, never duplicated in lastTurns", () => {
     const open = [
       row(1, {
         playerText: "Поговорю с ним.",
@@ -297,12 +349,9 @@ describe("plan_7 transcript memory", () => {
     const context = buildMasterConversationContext(open, "w1");
 
     expect(context.pendingClarification?.turnSeq).toBe(1);
-    expect(context.lastTurns).toHaveLength(13);
-    expect(context.lastTurns[context.lastTurns.length - 1]).toMatchObject({
-      speaker: "master",
-      text: "С перевозчиком или со стражем?",
-      turnSeq: 1,
-    });
+    expect(context.pendingClarification?.question).toBe("С перевозчиком или со стражем?");
+    expect(context.lastTurns.length).toBeLessThanOrEqual(12);
+    expect(context.lastTurns.some((message) => message.turnSeq === 1)).toBe(false);
   });
 
   it("keeps the player replica when the master text is technical", () => {

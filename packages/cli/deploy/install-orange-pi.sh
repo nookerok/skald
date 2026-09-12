@@ -100,6 +100,27 @@ for script in update-orange-pi.sh backup-skald.sh restore-skald.sh skald-healthc
 done
 echo "[OK] Scripts installed."
 
+# 8b. Pinned narrative agent manifest (fail-closed containment). The
+# opencode_run transport only ever runs this tools-denied agent; without a
+# verified manifest the installation cannot be accepted.
+AGENT_SRC="${SKALD_CODE}/packages/cli/deploy/opencode-narrative-agent.md"
+AGENT_DIR="${SKALD_HOME}/.config/opencode/agents"
+AGENT_DST="${AGENT_DIR}/narrative.md"
+test -f "${AGENT_SRC}" || { echo "ERROR: agent manifest missing: ${AGENT_SRC}"; exit 1; }
+mkdir -p "${AGENT_DIR}"
+cp "${AGENT_SRC}" "${AGENT_DST}"
+chmod 600 "${AGENT_DST}"
+AGENT_SRC_HASH=$(sha256sum "${AGENT_SRC}" | cut -d ' ' -f 1)
+AGENT_DST_HASH=$(sha256sum "${AGENT_DST}" | cut -d ' ' -f 1)
+AGENT_OWNER=$(stat -c %U "${AGENT_DST}")
+AGENT_PERMS=$(stat -c %a "${AGENT_DST}")
+if [ "${AGENT_SRC_HASH}" != "${AGENT_DST_HASH}" ] || [ "${AGENT_OWNER}" != "${SKALD_USER}" ] || [ "${AGENT_PERMS}" != "600" ]; then
+  echo "ERROR: agent manifest verification failed (hash/owner/permissions). Transport stays disabled."
+  rm -f "${AGENT_DST}"
+  exit 1
+fi
+echo "[OK] Narrative agent manifest installed and verified."
+
 # 9. systemd units
 echo "Installing systemd units..."
 sudo cp "${SKALD_CODE}/packages/cli/deploy/skald.service" /etc/systemd/system/skald.service
@@ -143,12 +164,21 @@ AI_RESPONSE=$(curl --silent --show-error --max-time 60 -X POST -H "Content-Type:
 AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
 AI_BODY="${AI_RESPONSE%$'\n'*}"
 AI_STATUS=$(printf '%s' "${AI_BODY}" | grep -o -E '"readiness":\{"status":"[a-z]+"' | sed 's/^"readiness":{"status":"//;s/"$//' || true)
+AI_PLAYABLE=$(printf '%s' "${AI_BODY}" | grep -o -E '"playable":(true|false)' | sed 's/.*://' || true)
 case "${AI_STATUS}" in
-  ready)
-    echo "[OK] AI readiness is ready."
-    ;;
-  degraded)
-    echo "[OK] AI readiness is degraded (accepted: one live model serves, deterministic fallback covers the rest)."
+  ready|degraded)
+    if [ "${AI_PLAYABLE}" != "true" ]; then
+      echo "[OK] Simulation is healthy"
+      echo "[ERROR] AI readiness is ${AI_STATUS:-unknown} but not playable: a route has no working candidate"
+      echo "Deployment acceptance: FAILED"
+      echo "Sanitized readiness report: ${AI_BODY}"
+      exit 1
+    fi
+    if [ "${AI_STATUS}" = "ready" ]; then
+      echo "[OK] AI readiness is ready and playable."
+    else
+      echo "[OK] AI readiness is degraded but playable (accepted: one live model serves, deterministic fallback covers the rest)."
+    fi
     ;;
   *)
     echo "[OK] Simulation is healthy"

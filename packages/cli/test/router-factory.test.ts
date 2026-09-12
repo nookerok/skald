@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLiveRouterConfiguration, createRouterConfiguration, refreshRouterSelection } from "../src/runtime/router-factory.js";
+import { createLiveRouterConfiguration, createRouterConfiguration, openCodeRunIdentity, refreshRouterSelection } from "../src/runtime/router-factory.js";
 import { OpenCodeRunProvider } from "../src/runtime/opencode-run-provider.js";
 
 describe("router factory", () => {
@@ -229,8 +229,7 @@ describe("router factory", () => {
     expect(disabled.router).not.toBeInstanceOf(OpenCodeRunProvider);
   });
 
-  it("keeps the opencode_run backup across selection refresh when enabled", async () => {
-    const fetchImpl = async () => ({
+  it("keeps the opencode_run backup across selection refresh when enabled", async () => {    const fetchImpl = async () => ({
       ok: true,
       status: 200,
       json: async () => ({ data: [] }),
@@ -267,5 +266,54 @@ describe("router factory", () => {
     expect(config.selectionReport?.provider).toBe("opencode_zen");
     expect(config.selectionReport?.status).toBe("unavailable");
     expect(config.router?.routeCandidates("interpret")).toEqual([]);
+  });
+
+  it("changes the fingerprint when the opencode_run transport changes", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const enabled = await createLiveRouterConfiguration({
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+    }, { fetchImpl });
+    const disabled = await createLiveRouterConfiguration({ SKALD_AI_REQUIRED: "0" }, { fetchImpl });
+    expect(enabled.configFingerprint).not.toBe(disabled.configFingerprint);
+
+    const otherModel = await createLiveRouterConfiguration({
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+      SKALD_OPENCODE_RUN_MODEL: "other/model",
+    }, { fetchImpl });
+    expect(otherModel.configFingerprint).not.toBe(enabled.configFingerprint);
+
+    const otherAgent = await createLiveRouterConfiguration({
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+      SKALD_OPENCODE_RUN_AGENT: "other",
+    }, { fetchImpl });
+    expect(otherAgent.configFingerprint).not.toBe(enabled.configFingerprint);
+  });
+
+  it("keeps startup and refresh fingerprints equal for the same effective selection", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const env = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1" };
+    const config = await createLiveRouterConfiguration(env, { fetchImpl });
+    const second = refreshRouterSelection(config.router!, config.selectionReport!, env);
+    expect(second).toBe(config.configFingerprint);
+    expect(config.router!.routeCandidates("narrate").filter((candidate) => candidate.provider === "opencode_run")).toHaveLength(1);
+  });
+
+  it("keeps key values out of the transport identity", () => {
+    const identity = openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1", SKALD_OPENCODE_ZEN_API_KEY: "zen-secret" });
+    expect(identity).toContain("opencode_run:enabled");
+    expect(identity).not.toContain("zen-secret");
+    expect(identity).not.toContain("skald-data");
+    expect(identity).not.toContain(".opencode");
   });
 });

@@ -63,6 +63,18 @@ contract is unchanged (HTTP 200 iff `ready`); the installer and updater parse
 `readiness.status` from the sanitized body instead of gating on the status
 code. Everything else in this ADR still stands.
 
+## Amendment (2026-09-12, playable gate): a live route each
+
+Accepting `degraded` opened a hole: `degraded` only means *some* candidate
+answers, so a dead `interpret` route with a healthy `narrate` route still
+passes — a server whose narration works but whose free-form input is
+unintelligible. The readiness report now carries per-route aggregates
+(`routeStatus.interpret/narrate`: `ok` with at least one passing candidate)
+and a `playable` flag (both routes `ok`). Deployment acceptance requires
+`(ready|degraded) AND playable`; anything else fails, including
+`degraded`-but-not-playable. The endpoint contract is unchanged
+(HTTP 200 iff `ready`).
+
 ## Consequences
 
 The same provider configuration factory is used by gameplay, Intent, Narration

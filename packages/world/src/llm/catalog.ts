@@ -571,11 +571,14 @@ export interface LiveRouteDiscoveryOptions extends LiveModelSelectionOptions {
  */
 export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}): Promise<LiveModelSelectionReport> {
   const startedAt = performance.now();
+  const checkedAt = options.checkedAt ?? (() => new Date().toISOString());
   const zen = await discoverOpenCodeRoutes(options);
   const zenActive = zen.candidates.filter((candidate) => candidate.active);
   if (zenActive.length > 0) return zen;
   const ollamaKey = options.ollamaKey ?? "";
   let ollamaExcluded: LiveModelSelectionReport["excluded"] = Object.freeze([]);
+  let ollamaCandidates: LiveModelSelectionReport["candidates"] = Object.freeze([]);
+  let ollamaAttempted = false;
   if (ollamaKey) {
     const ollama = await discoverOllamaRoutes({
       apiKey: ollamaKey,
@@ -600,10 +603,21 @@ export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}
         routes: ollama.routes,
       };
     }
+    ollamaAttempted = true;
     ollamaExcluded = ollama.excluded;
+    ollamaCandidates = ollama.candidates;
   }
   const openrouterKey = options.openrouterKey ?? "";
-  if (!openrouterKey) return zen;
+  if (!openrouterKey) {
+    // No further rung to try: report everything that was actually checked so
+    // a total outage still explains each miss instead of hiding the fallback.
+    return mergedFallbackReport({
+      startedAt,
+      checkedAt: checkedAt(),
+      zen,
+      ...(ollamaAttempted ? { ollamaCandidates, ollamaExcluded } : {}),
+    });
+  }
   const openrouter = await discoverOpenRouterRoutes({
     apiKey: openrouterKey,
     ...(options.openrouterModels ? { models: options.openrouterModels } : {}),
@@ -613,7 +627,15 @@ export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}
     ...(options.checkedAt ? { checkedAt: options.checkedAt } : {}),
   });
   const openrouterActive = openrouter.candidates.filter((candidate) => candidate.active);
-  if (openrouterActive.length === 0) return zen;
+  if (openrouterActive.length === 0) {
+    return mergedFallbackReport({
+      startedAt,
+      checkedAt: checkedAt(),
+      zen,
+      ...(ollamaAttempted ? { ollamaCandidates, ollamaExcluded } : {}),
+      openrouter,
+    });
+  }
   return {
     provider: "openrouter",
     status: openrouter.status,
@@ -625,6 +647,51 @@ export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}
     candidates: openrouter.candidates,
     excluded: Object.freeze([...zen.excluded, ...ollamaExcluded, ...openrouter.excluded]),
     routes: openrouter.routes,
+  };
+}
+
+/**
+ * Total-failure report preserving every checked rung: all inactive
+ * candidates, all exclusions and the real fallback chain. No routes are
+ * served (nothing is active), but diagnosis keeps working exactly when it
+ * matters — during a full provider outage.
+ */
+function mergedFallbackReport(input: {
+  readonly startedAt: number;
+  readonly checkedAt: string;
+  readonly zen: LiveModelSelectionReport;
+  readonly ollamaCandidates?: LiveModelSelectionReport["candidates"];
+  readonly ollamaExcluded?: LiveModelSelectionReport["excluded"];
+  readonly openrouter?: LiveModelSelectionReport;
+}): LiveModelSelectionReport {
+  const candidates = Object.freeze([
+    ...input.zen.candidates,
+    ...(input.ollamaCandidates ?? []),
+    ...(input.openrouter?.candidates ?? []),
+  ]);
+  const excluded = Object.freeze([
+    ...input.zen.excluded,
+    ...(input.ollamaExcluded ?? []),
+    ...(input.openrouter?.excluded ?? []),
+  ]);
+  const authFailure =
+    candidates.some((candidate) =>
+      candidate.interpret.status === "auth_failure" || candidate.narrate.status === "auth_failure",
+    ) ||
+    excluded.some((entry) => entry.reason === "auth_failure" || entry.reason === "catalog_auth_failure");
+  return {
+    provider: input.openrouter !== undefined
+      ? "openrouter"
+      : input.ollamaCandidates !== undefined
+        ? "ollama_cloud"
+        : "opencode_zen",
+    status: authFailure ? "misconfigured" : "unavailable",
+    checkedAt: input.checkedAt,
+    durationMs: Math.round(performance.now() - input.startedAt),
+    ...(input.zen.catalog ? { catalog: input.zen.catalog } : {}),
+    candidates,
+    excluded,
+    routes: { interpret: Object.freeze([]), narrate: Object.freeze([]) },
   };
 }
 

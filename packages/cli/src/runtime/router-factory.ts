@@ -13,7 +13,12 @@ import {
 import {
   OPENCODE_RUN_AGENT_ENV,
   OPENCODE_RUN_BINARY_ENV,
+  OPENCODE_RUN_DEFAULT_AGENT,
+  OPENCODE_RUN_DEFAULT_MODEL,
+  OPENCODE_RUN_ISOLATE_HOME_ENV,
+  OPENCODE_RUN_MANIFEST_ENV,
   OPENCODE_RUN_MODEL_ENV,
+  OPENCODE_RUN_TRANSPORT_VERSION,
   OpenCodeRunProvider,
   isOpenCodeRunEnabled,
   openCodeRunCandidate,
@@ -44,7 +49,22 @@ function routerMaterial(env: NodeJS.ProcessEnv, providers: readonly ProviderId[]
   return [
     `required=${env.SKALD_AI_REQUIRED === "1" ? "1" : "0"}`,
     ...providers.map((provider) => `${provider}:${providerKeys[provider] ? "configured" : "missing"}`),
+    openCodeRunIdentity(env),
   ].join("|");
+}
+
+/**
+ * Secret-free transport identity for the local-subprocess narrate backup:
+ * flag, model, agent and contract version. Key values and the binary path
+ * never enter the digest. Without this, toggling the transport (or swapping
+ * its model) would keep the fingerprint — and any health cache keyed by it —
+ * stale while the effective route changes underneath.
+ */
+export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env): string {
+  const enabled = isOpenCodeRunEnabled(env);
+  const model = env[OPENCODE_RUN_MODEL_ENV] ?? OPENCODE_RUN_DEFAULT_MODEL;
+  const agent = env[OPENCODE_RUN_AGENT_ENV] ?? OPENCODE_RUN_DEFAULT_AGENT;
+  return `opencode_run:${enabled ? "enabled" : "disabled"}:${model}:${agent}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
 }
 
 function providerKeysFromEnv(env: NodeJS.ProcessEnv): { providers: readonly ProviderId[]; providerKeys: Partial<Record<ProviderId, string>> } {
@@ -90,8 +110,10 @@ export function refreshRouterSelection(
 ): string {
   // The local transport is discovery-independent, so a refresh would wipe
   // its candidate. Re-append here (same rule as startup) to keep one code
-  // path for the effective narrate route.
-  const effective = isOpenCodeRunEnabled(env)
+  // path for the effective narrate route; skip when already present so a
+  // previously-effective selection never gains a duplicate.
+  const hasRunCandidate = selection.routes.narrate.some((candidate) => candidate.provider === "opencode_run");
+  const effective = isOpenCodeRunEnabled(env) && !hasRunCandidate
     ? {
       ...selection,
       routes: {
@@ -149,6 +171,8 @@ function buildRouter(
       ...(env[OPENCODE_RUN_BINARY_ENV] ? { binary: env[OPENCODE_RUN_BINARY_ENV] } : {}),
       ...(env[OPENCODE_RUN_AGENT_ENV] ? { agent: env[OPENCODE_RUN_AGENT_ENV] } : {}),
       ...(env[OPENCODE_RUN_MODEL_ENV] ? { model: env[OPENCODE_RUN_MODEL_ENV] } : {}),
+      ...(env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? { isolateHome: false } : {}),
+      ...(env[OPENCODE_RUN_MANIFEST_ENV] ? { agentManifestPath: env[OPENCODE_RUN_MANIFEST_ENV] } : {}),
     },
   });
 }
@@ -206,24 +230,35 @@ export async function createLiveRouterConfiguration(
   };
   const selectionReport = await discoverLiveRoutes(selectionOptions);
   const { providers, providerKeys } = providerKeysFromEnv(env);
-  const configFingerprint = selectionConfigFingerprint(env, selectionReport);
+  // Build one effective selection first: the opencode_run backup belongs to
+  // the narrate route from boot (same rule as refresh), and the fingerprint,
+  // the applied routes and the reported live selection must all derive from
+  // it — otherwise startup and refresh disagree about the same state.
+  const effectiveSelection: LiveModelSelectionReport = isOpenCodeRunEnabled(env)
+    ? {
+      ...selectionReport,
+      routes: {
+        ...selectionReport.routes,
+        narrate: [...selectionReport.routes.narrate, openCodeRunCandidate(env)],
+      },
+    }
+    : selectionReport;
+  const configFingerprint = selectionConfigFingerprint(env, effectiveSelection);
   // opencode_run goes last on narrate only: it is the newest, slowest
   // transport, so existing candidates keep priority until data says otherwise.
   // Interpret stays on the validated HTTP pipeline for now.
   const routes = {
-    interpret: selectionReport.routes.interpret,
-    narrate: isOpenCodeRunEnabled(env)
-      ? [...selectionReport.routes.narrate, openCodeRunCandidate(env)]
-      : selectionReport.routes.narrate,
+    interpret: effectiveSelection.routes.interpret,
+    narrate: effectiveSelection.routes.narrate,
     analyze: [] as readonly RouteCandidate[],
   };
-  const router = buildRouter(env, providerKeys, providers, configFingerprint, routes, selectionReport);
+  const router = buildRouter(env, providerKeys, providers, configFingerprint, routes, effectiveSelection);
   return {
     router,
     required: base.required,
     missingProviders: base.missingProviders,
     configFingerprint,
-    selectionReport,
+    selectionReport: effectiveSelection,
   };
 }
 

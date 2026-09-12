@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -6,9 +6,11 @@ import {
   OPENCODE_RUN_DEFAULT_AGENT,
   OPENCODE_RUN_DEFAULT_BINARY,
   OPENCODE_RUN_DEFAULT_MODEL,
+  OPENCODE_RUN_ISOLATED_CONFIG_JSON,
   OPENCODE_RUN_SESSION_TITLE,
   OpenCodeRunProvider,
   buildOpenCodeRunArgs,
+  extractOpenCodeSessionId,
   isOpenCodeRunEnabled,
   openCodeRunCandidate,
   parseOpenCodeNdjsonEvents,
@@ -108,6 +110,7 @@ function baseInput(overrides: Partial<Parameters<typeof runOpencodeChat>[0]> = {
     killGraceMs: 10,
     maxMessageBytes: 96 * 1024,
     maxOutputBytes: 256 * 1024,
+    isolateHome: false,
     cleanupSession: false,
     cleanupTimeoutMs: 50,
     spawnImpl: fakeSpawn().fn,
@@ -403,7 +406,7 @@ describe("OpenCodeRunProvider", () => {
       providerId: "opencode_zen",
       availableProviders: ["opencode_run"],
       routeCandidates: { narrate: [candidate()] },
-      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, cleanupSession: false },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, cleanupSession: false, isolateHome: false },
     });
     const result = await router.chatCandidate("narrate", candidate(), messages("скажи"), { timeoutMs: 1000 });
     expect(result).toMatchObject({
@@ -428,7 +431,7 @@ describe("OpenCodeRunProvider", () => {
       routeCandidates: {
         narrate: [{ provider: "opencode_zen", model: "big-pickle", protocol: "openai_chat", tier: "catalog_candidate" }],
       },
-      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, isolateHome: false },
     });
     const zen = { provider: "opencode_zen", model: "big-pickle", protocol: "openai_chat", tier: "catalog_candidate" } as const;
     await expect(router.chatCandidate("narrate", zen, messages(), { timeoutMs: 50 })).rejects.toThrow("provider is not configured");
@@ -442,7 +445,7 @@ describe("OpenCodeRunProvider", () => {
       providerId: "opencode_zen",
       availableProviders: ["opencode_run"],
       routeCandidates: { narrate: [candidate()] },
-      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, cleanupSession: false },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, cleanupSession: false, isolateHome: false },
     });
     const seen: unknown[] = [];
     const result = await router.chat("narrate", messages(), {
@@ -467,12 +470,208 @@ describe("OpenCodeRunProvider", () => {
       providerId: "opencode_zen",
       availableProviders: ["opencode_zen", "opencode_run"],
       routeCandidates: { narrate: [candidate()] },
-      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, cleanupSession: false },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: fake.fn, cleanupSession: false, isolateHome: false },
     });
     const explicit = await router.chatOnce("anything", messages(), { provider: "opencode_run", timeoutMs: 1000 });
     expect(explicit.text).toBe("один");
     const pinned = await router.chatOnce(NARRATE_MODEL, messages(), { timeoutMs: 1000 });
     expect(pinned.text).toBe("два");
     expect(fake.calls).toHaveLength(2);
+  });
+});
+
+describe("home isolation and agent manifest", () => {
+  function manifestFile(content = "pinned-agent-bytes"): string {
+    const dir = mkdtempSync(join(tmpdir(), "skald-manifest-"));
+    const path = join(dir, "narrative.md");
+    writeFileSync(path, content, "utf8");
+    return path;
+  }
+
+  it("runs with an empty per-call HOME carrying only the pinned skeleton", async () => {
+    const manifest = manifestFile();
+    const fake = fakeSpawn([{ stdout: ndjsonOk("Тихо.", "ses_iso") }]);
+    const result = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fake.fn,
+      isolateHome: true,
+      agentManifestPath: manifest,
+      cleanupSession: false,
+    });
+    expect(result.text).toBe("Тихо.");
+    const call = fake.calls[0]!;
+    const home = call.env.HOME!;
+    expect(home).not.toBe(process.env.HOME);
+    expect(home.startsWith(tmpdir())).toBe(true);
+    const dirIndex = call.args.indexOf("--dir");
+    expect(call.args[dirIndex + 1]!.startsWith(home)).toBe(true);
+    expect(existsSync(home)).toBe(false);
+  });
+
+  it("copies the pinned manifest and inert config into the skeleton", async () => {
+    const manifest = manifestFile("pinned-agent-bytes");
+    let seenHome = "";
+    let skeletonOk = false;
+    const probing: SpawnFn = (_binary, _args, opts) => {
+      seenHome = opts.env.HOME ?? "";
+      skeletonOk =
+        readFileSync(join(seenHome, ".config", "opencode", "agents", "narrative.md"), "utf8") === "pinned-agent-bytes" &&
+        readFileSync(join(seenHome, ".config", "opencode", "opencode.jsonc"), "utf8") === OPENCODE_RUN_ISOLATED_CONFIG_JSON &&
+        existsSync(join(seenHome, "work"));
+      return {
+        done: Promise.resolve({ stdout: ndjsonOk("x"), exitCode: 0, signal: null, outputTruncated: false }),
+        kill: () => undefined,
+      };
+    };
+    await runOpencodeChat({ ...baseInput(), spawnImpl: probing, isolateHome: true, agentManifestPath: manifest });
+    expect(skeletonOk).toBe(true);
+    expect(existsSync(seenHome)).toBe(false);
+  });
+
+  it("fails closed when the manifest is missing", async () => {
+    const fake = fakeSpawn();
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fake.fn,
+      isolateHome: true,
+      agentManifestPath: join(tmpdir(), "definitely-no-manifest-xyz.md"),
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ provider: "opencode_run", phase: "configuration", retryable: false });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it("rejects an agent name that cannot become a skeleton path", async () => {
+    const fake = fakeSpawn();
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fake.fn,
+      isolateHome: true,
+      agent: "../evil",
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ provider: "opencode_run", phase: "configuration", retryable: false });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it("isolates HOME by default and keeps the process HOME on opt-out", async () => {
+    const manifest = manifestFile("m");
+    const isolated = fakeSpawn([{ stdout: ndjsonOk("a") }]);
+    const routerOn = new OpenCodeRunProvider({
+      apiKey: "",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_run"],
+      routeCandidates: { narrate: [candidate()] },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: isolated.fn, cleanupSession: false, agentManifestPath: manifest },
+    });
+    await routerOn.chatCandidate("narrate", candidate(), messages(), { timeoutMs: 1000 });
+    expect(isolated.calls[0]?.env.HOME).not.toBe(process.env.HOME);
+
+    const plain = fakeSpawn([{ stdout: ndjsonOk("b") }]);
+    const routerOff = new OpenCodeRunProvider({
+      apiKey: "",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_run"],
+      routeCandidates: { narrate: [candidate()] },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: plain.fn, cleanupSession: false, isolateHome: false },
+    });
+    await routerOff.chatCandidate("narrate", candidate(), messages(), { timeoutMs: 1000 });
+    expect(plain.calls[0]?.env.HOME).toBe(process.env.HOME);
+  });
+});
+
+describe("failure-path session cleanup", () => {
+  function recordingLate(stdout: string, delayMs: number, exitCode: number | null = 1) {
+    const calls: { binary: string; args: readonly string[] }[] = [];
+    const fn: SpawnFn = (binary, args) => {
+      calls.push({ binary, args: [...args] });
+      if (args[0] === "session") {
+        return { done: Promise.resolve({ stdout: "", exitCode: 0, signal: null, outputTruncated: false }), kill: () => undefined };
+      }
+      return {
+        done: new Promise((resolve) => setTimeout(
+          () => resolve({ stdout, exitCode, signal: null, outputTruncated: false }),
+          delayMs,
+        )),
+        kill: () => undefined,
+      };
+    };
+    return { fn, calls };
+  }
+
+  it("deletes the session when a timed-out child settles late with an id", async () => {
+    const { fn, calls } = recordingLate(ndjsonOk("too late", "ses_late_timeout"), 30);
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fn,
+      timeoutMs: 10,
+      killGraceMs: 500,
+      cleanupSession: true,
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ provider: "opencode_run", phase: "transport", retryable: true });
+    expect(calls.map((call) => call.args[0])).toEqual(["run", "session"]);
+    expect(calls[1]?.args).toEqual(["session", "delete", "ses_late_timeout"]);
+  });
+
+  it("deletes the session on malformed output carrying an id", async () => {
+    const { fn, calls } = recordingLate(`broken\n{"sessionID":"ses_late_malformed"}`, 0, 0);
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fn,
+      cleanupSession: true,
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ phase: "response_decode", retryable: false });
+    expect(calls.map((call) => call.args[0])).toEqual(["run", "session"]);
+    expect(calls[1]?.args).toEqual(["session", "delete", "ses_late_malformed"]);
+  });
+
+  it("deletes the session on tool activity carrying an id", async () => {
+    const { fn, calls } = recordingLate(`{"type":"tool_call","part":{"tool":"bash"}}\n${ndjsonOk("x", "ses_late_tool")}`, 0, 0);
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fn,
+      cleanupSession: true,
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ phase: "schema_validation", retryable: false });
+    expect(calls[1]?.args).toEqual(["session", "delete", "ses_late_tool"]);
+  });
+
+  it("never masks the original error with a cleanup failure", async () => {
+    const failingDelete: SpawnFn = (_binary, args) => {
+      if (args[0] === "session") {
+        return {
+          done: Promise.reject(new Error("delete exploded")),
+          kill: () => undefined,
+        };
+      }
+      return {
+        done: Promise.resolve({ stdout: ndjsonOk("x", "ses_mask_me"), exitCode: 1, signal: null, outputTruncated: false }),
+        kill: () => undefined,
+      };
+    };
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: failingDelete,
+      cleanupSession: true,
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ phase: "request", retryable: false });
+    expect((error as Error).message).toContain("exit code 1");
+  });
+
+  it("skips cleanup when no id was ever emitted", async () => {
+    const { fn, calls } = recordingLate("", 0, 0);
+    const error = await runOpencodeChat({
+      ...baseInput(),
+      spawnImpl: fn,
+      cleanupSession: true,
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ phase: "response_decode", retryable: false });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("recovers session ids from partial stdout and rejects hostile ones", () => {
+    expect(extractOpenCodeSessionId(`{"sessionID":"ses_abc123"}`)).toBe("ses_abc123");
+    expect(extractOpenCodeSessionId(`line1\n{"sessionID":"ses_partial_9"}\n{"type":"text"`)).toBe("ses_partial_9");
+    expect(extractOpenCodeSessionId(`{"sessionID":"ses a; rm -rf /"}`)).toBeUndefined();
+    expect(extractOpenCodeSessionId("no ids here")).toBeUndefined();
+    expect(extractOpenCodeSessionId("")).toBeUndefined();
   });
 });

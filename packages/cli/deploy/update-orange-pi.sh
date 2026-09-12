@@ -74,6 +74,31 @@ fi
 CURRENT_COMMIT=$(git rev-parse HEAD)
 echo "Current commit: ${CURRENT_COMMIT}"
 
+# 6b. Install the pinned narrative agent manifest (fail-closed containment).
+# The opencode_run transport only ever runs this tools-denied agent; without
+# a verified manifest the transport must stay disabled, so any failure here
+# aborts the deploy instead of running with an unknown agent.
+AGENT_SRC="packages/cli/deploy/opencode-narrative-agent.md"
+AGENT_DIR="/home/nooker/.config/opencode/agents"
+AGENT_DST="${AGENT_DIR}/narrative.md"
+if [ ! -f "${AGENT_SRC}" ]; then
+  echo "ERROR: agent manifest missing from the deployed tree: ${AGENT_SRC}"
+  exit 1
+fi
+mkdir -p "${AGENT_DIR}"
+cp "${AGENT_SRC}" "${AGENT_DST}"
+chmod 600 "${AGENT_DST}"
+AGENT_SRC_HASH=$(sha256sum "${AGENT_SRC}" | cut -d ' ' -f 1)
+AGENT_DST_HASH=$(sha256sum "${AGENT_DST}" | cut -d ' ' -f 1)
+AGENT_OWNER=$(stat -c %U "${AGENT_DST}")
+AGENT_PERMS=$(stat -c %a "${AGENT_DST}")
+if [ "${AGENT_SRC_HASH}" != "${AGENT_DST_HASH}" ] || [ "${AGENT_OWNER}" != "nooker" ] || [ "${AGENT_PERMS}" != "600" ]; then
+  echo "ERROR: agent manifest verification failed (hash/owner/permissions). Transport stays disabled."
+  rm -f "${AGENT_DST}"
+  exit 1
+fi
+echo "[OK] Narrative agent manifest installed and verified."
+
 # 7. Fix Node runtime to match systemd unit
 if [ ! -x "${NODE_BINARY}" ]; then
   echo "ERROR: Node v22.23.1 not found at ${NODE_BINARY}."
@@ -142,12 +167,24 @@ AI_RESPONSE=$(curl --silent --show-error --max-time 60 -X POST -H "Content-Type:
 AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
 AI_BODY="${AI_RESPONSE%$'\n'*}"
 AI_STATUS=$(printf '%s' "${AI_BODY}" | grep -o -E '"readiness":\{"status":"[a-z]+"' | sed 's/^"readiness":{"status":"//;s/"$//' || true)
+AI_PLAYABLE=$(printf '%s' "${AI_BODY}" | grep -o -E '"playable":(true|false)' | sed 's/.*://' || true)
 case "${AI_STATUS}" in
-  ready)
-    echo "[OK] AI readiness is ready."
-    ;;
-  degraded)
-    echo "[OK] AI readiness is degraded (accepted: one live model serves, deterministic fallback covers the rest)."
+  ready|degraded)
+    if [ "${AI_PLAYABLE}" != "true" ]; then
+      echo "[OK] Simulation is healthy"
+      echo "[ERROR] AI readiness is ${AI_STATUS:-unknown} but not playable: a route has no working candidate"
+      echo "Deployment acceptance: FAILED"
+      echo "Previous commit: ${PREV_COMMIT}"
+      echo "Current commit: ${CURRENT_COMMIT}"
+      echo "Sanitized readiness report: ${AI_BODY}"
+      echo "Rollback guidance: inspect model/configuration and restore ${PREV_COMMIT} only if the deployed code is incompatible."
+      exit 1
+    fi
+    if [ "${AI_STATUS}" = "ready" ]; then
+      echo "[OK] AI readiness is ready and playable."
+    else
+      echo "[OK] AI readiness is degraded but playable (accepted: one live model serves, deterministic fallback covers the rest)."
+    fi
     ;;
   *)
     echo "[OK] Simulation is healthy"

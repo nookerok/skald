@@ -28,6 +28,23 @@ export interface AIReadinessReport {
   readonly excludedModels?: readonly { model: string; reason: string }[];
   /** Full secret-free startup catalogue/probe report, when live discovery ran. */
   readonly modelSelection?: LiveModelSelectionReport;
+  /**
+   * Per-route aggregate: `ok` when at least one probed candidate passed,
+   * `failed` otherwise (failed, misconfigured and missing slots all count
+   * as not-ok). A route with no working candidate cannot serve gameplay,
+   * even when the sibling route is healthy.
+   */
+  readonly routeStatus: {
+    readonly interpret: "ok" | "failed";
+    readonly narrate: "ok" | "failed";
+  };
+  /**
+   * Deployment gate: true only when both routes have a working candidate.
+   * `degraded` (one live model, no backup) is still accepted for deploy,
+   * but a dead interpret route is not — without it free-form player input
+   * is unintelligible and the master degrades to a command interface.
+   */
+  readonly playable: boolean;
   readonly routes: {
     readonly interpret: readonly RouteProbeResult[];
     readonly narrate: readonly RouteProbeResult[];
@@ -189,6 +206,7 @@ export async function probeAIReadiness(router: ModelRouter | null, options?: {
   const startedAt = performance.now();
   const timeoutMs = Math.max(1, Math.floor(options?.timeoutMs ?? PROBE_TIMEOUT_MS));
   const checkedAt = new Date().toISOString();
+  const failedRouteStatus = { interpret: "failed", narrate: "failed" } as const;
   if (!router) {
     return {
       status: options?.selectionReport?.status === "unavailable" ? "unavailable" : "misconfigured",
@@ -199,6 +217,8 @@ export async function probeAIReadiness(router: ModelRouter | null, options?: {
       ...(options?.selectionReport?.backupModel ? { backupModel: options.selectionReport.backupModel } : {}),
       ...(options?.selectionReport ? { excludedModels: options.selectionReport.excluded } : {}),
       ...(options?.selectionReport ? { modelSelection: options.selectionReport } : {}),
+      routeStatus: { ...failedRouteStatus },
+      playable: false,
       routes: { interpret: [], narrate: [] },
     };
   }
@@ -243,6 +263,13 @@ export async function probeAIReadiness(router: ModelRouter | null, options?: {
   const status = options?.selectionReport?.status === "misconfigured" && routeStatus !== "misconfigured"
     ? "misconfigured"
     : routeStatus;
+  const routeOk = (results: readonly RouteProbeResult[]): boolean =>
+    results.some((result) => result.status === "ok");
+  const routeStatusBlock = {
+    interpret: routeOk(routeResults.interpret) ? "ok" : "failed",
+    narrate: routeOk(routeResults.narrate) ? "ok" : "failed",
+  } as const;
+  const playable = routeStatusBlock.interpret === "ok" && routeStatusBlock.narrate === "ok";
   return {
     status,
     checkedAt,
@@ -252,6 +279,8 @@ export async function probeAIReadiness(router: ModelRouter | null, options?: {
     ...(options?.selectionReport?.backupModel ? { backupModel: options.selectionReport.backupModel } : {}),
     ...(options?.selectionReport ? { excludedModels: options.selectionReport.excluded } : {}),
     ...(options?.selectionReport ? { modelSelection: options.selectionReport } : {}),
+    routeStatus: { ...routeStatusBlock },
+    playable,
     routes: { interpret: routeResults.interpret, narrate: routeResults.narrate },
   };
 }

@@ -37,7 +37,7 @@
 
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LLM_CONFIG, ModelRouter, ProviderRequestError } from "@skald/world";
@@ -71,6 +71,41 @@ export const OPENCODE_RUN_DEFAULT_MODEL = "opencode/muse-spark-1.3-contributor-f
  * the prompt contract and out of diagnostics.
  */
 export const OPENCODE_RUN_SESSION_TITLE = "skald-narrate";
+
+/**
+ * Transport contract version, included in router fingerprints. Bump when the
+ * spawned argv shape, the home-isolation layout or the agent manifest
+ * contract changes, so a code update can never serve stale health data.
+ */
+export const OPENCODE_RUN_TRANSPORT_VERSION = 1;
+
+/**
+ * Repo-pinned tools-denied agent manifest, copied into the isolated home on
+ * every call. Deploy installs the same file to the host agent slot and
+ * verifies hash/owner/permissions; the copy here keeps the child independent
+ * of whatever else lives in the real home directory.
+ */
+export const OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH = "packages/cli/deploy/opencode-narrative-agent.md";
+
+/** Manifest override (absolute or repo-relative path). */
+export const OPENCODE_RUN_MANIFEST_ENV = "SKALD_OPENCODE_AGENT_MANIFEST";
+
+/**
+ * Set to `0` to run with the process HOME (debugging only, never
+ * production): the child then sees the operator home instead of an
+ * empty skeleton.
+ */
+export const OPENCODE_RUN_ISOLATE_HOME_ENV = "SKALD_OPENCODE_ISOLATE_HOME";
+
+/**
+ * Minimal inert opencode config for the isolated home. Schema reference
+ * only: no plugins, no model presets, no credentials — the agent manifest
+ * carries the containment role and `-m` pins the model per call.
+ */
+export const OPENCODE_RUN_ISOLATED_CONFIG_JSON = '{"$schema":"https://opencode.ai/config.json"}';
+
+/** Agent names accepted into the skeleton path (operator-controlled input). */
+const AGENT_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Grace period between SIGTERM and SIGKILL on timeout. */
 export const OPENCODE_RUN_KILL_GRACE_MS = 2_000;
@@ -167,6 +202,20 @@ export interface OpenCodeRunTransport {
   readonly model?: string | undefined;
   /** Caller-owned directory when set; otherwise a fresh temp dir per call. */
   readonly workdir?: string | undefined;
+  /**
+   * Run the child with an empty per-call HOME containing only the pinned
+   * agent skeleton (default true). The child then has no access to the
+   * operator home, the Skald database or user files; its session database
+   * is ephemeral and removed with the home directory.
+   */
+  readonly isolateHome?: boolean | undefined;
+  /**
+   * Agent manifest source copied into the isolated home. Defaults to the
+   * repo-pinned manifest (optionally overridden by
+   * `SKALD_OPENCODE_AGENT_MANIFEST`). A missing manifest fails the call
+   * closed instead of running with an unknown agent.
+   */
+  readonly agentManifestPath?: string | undefined;
   readonly killGraceMs?: number | undefined;
   readonly maxMessageBytes?: number | undefined;
   readonly maxOutputBytes?: number | undefined;
@@ -330,6 +379,19 @@ export function sanitizeSessionId(value: unknown): string | undefined {
   return /^[A-Za-z0-9_-]{1,128}$/.test(value) ? value : undefined;
 }
 
+/**
+ * Best-effort session id recovery from raw stdout, including partial output
+ * from a timed-out or crashed child (session rows are created before the
+ * first model roundtrip). The match is re-validated by
+ * {@link sanitizeSessionId}; the result only ever flows into a shell-free
+ * `session delete` argv, never into prompts or diagnostics.
+ */
+export function extractOpenCodeSessionId(stdout: string): string | undefined {
+  const match = /"sessionID"\s*:\s*"([^"]{1,128})"/.exec(stdout);
+  if (!match?.[1]) return undefined;
+  return sanitizeSessionId(match[1]);
+}
+
 function safeKill(handle: { kill(signal?: NodeJS.Signals): void }, signal: NodeJS.Signals): void {
   try {
     handle.kill(signal);
@@ -415,6 +477,8 @@ export interface RunOpenCodeChatInput {
   /** Already-sanitized environment override; defaults to the scrubbed process env. */
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly workdir?: string | undefined;
+  readonly isolateHome: boolean;
+  readonly agentManifestPath?: string | undefined;
   readonly maxMessageBytes: number;
   readonly maxOutputBytes: number;
   readonly cleanupSession: boolean;
@@ -480,11 +544,31 @@ async function deleteSessionBestEffort(input: {
 }
 
 /**
- * One subprocess chat round-trip: build argv, spawn in a fresh empty dir,
- * enforce timeouts and output budgets, parse NDJSON, clean up the session
- * row and the temp dir. Throws `ProviderRequestError` on every failure mode
- * so the router's existing retry/failover/fallback machinery applies
- * unchanged (timeout is retryable, everything else fails fast).
+ * Bounded wait for a failed child to deliver its final stdout: a killed
+ * child usually settles right away, and its buffered output may already
+ * carry the session id needed for cleanup. Never throws and never outlives
+ * the grace period — whatever is still unknown afterwards stays unknown.
+ */
+function settleForCleanup(handle: SpawnHandle, graceMs: number): Promise<SpawnExit | undefined> {
+  return Promise.race([
+    handle.done.then(
+      (exit): SpawnExit | undefined => exit,
+      (): SpawnExit | undefined => undefined,
+    ),
+    new Promise<undefined>((resolve) => {
+      const timer = setTimeout(() => resolve(undefined), Math.max(1, Math.floor(graceMs)));
+      if (typeof timer.unref === "function") timer.unref();
+    }),
+  ]).catch((): undefined => undefined);
+}
+
+/**
+ * One subprocess chat round-trip: build an isolated home with the pinned
+ * agent skeleton, spawn in a fresh empty dir, enforce timeouts and output
+ * budgets, parse NDJSON, clean up the session row and the temp dirs. Throws
+ * `ProviderRequestError` on every failure mode so the router's existing
+ * retry/failover/fallback machinery applies unchanged (timeout is retryable,
+ * everything else fails fast).
  */
 export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunOpenCodeChatResult> {
   const startedAt = performance.now();
@@ -492,32 +576,83 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
   if (Buffer.byteLength(message, "utf8") > input.maxMessageBytes) {
     throw providerError(input.model, input.category, "configuration", "message exceeds spawn budget", false);
   }
-  const env = input.env ?? sanitizeEnv(process.env);
+  if (!AGENT_NAME_RE.test(input.agent)) {
+    throw providerError(input.model, input.category, "configuration", "invalid opencode agent name", false);
+  }
+  const manifestSrc = input.agentManifestPath
+    ?? process.env[OPENCODE_RUN_MANIFEST_ENV]
+    ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH;
+  const env = { ...(input.env ?? sanitizeEnv(process.env)) };
+  let homeDir: string | undefined;
+  let ownedHome = false;
   let workdir = input.workdir;
   let ownedWorkdir = false;
+  if (input.isolateHome) {
+    try {
+      homeDir = mkdtempSync(join(tmpdir(), "skald-opencode-home-"));
+      ownedHome = true;
+      mkdirSync(join(homeDir, ".config", "opencode", "agents"), { recursive: true });
+      mkdirSync(join(homeDir, "work"), { recursive: true });
+      copyFileSync(manifestSrc, join(homeDir, ".config", "opencode", "agents", `${input.agent}.md`));
+      writeFileSync(join(homeDir, ".config", "opencode", "opencode.jsonc"), OPENCODE_RUN_ISOLATED_CONFIG_JSON, "utf8");
+    } catch {
+      if (ownedHome && homeDir !== undefined) {
+        try {
+          rmSync(homeDir, { recursive: true, force: true });
+        } catch {
+          // Best effort; the OS reaps temp dirs eventually.
+        }
+      }
+      throw providerError(input.model, input.category, "configuration", "agent manifest unavailable", false);
+    }
+    env.HOME = homeDir;
+    if (workdir === undefined) workdir = join(homeDir, "work");
+  }
   if (workdir === undefined) {
     workdir = mkdtempSync(join(tmpdir(), "skald-narrate-"));
     ownedWorkdir = true;
   }
   const args = buildOpenCodeRunArgs({ agent: input.agent, model: input.model, workdir, message });
   const spawnImpl = input.spawnImpl ?? spawnChildProcess;
-  const child = spawnImpl(input.binary, args, { cwd: workdir, env, maxOutputBytes: input.maxOutputBytes });
+  const spawnOpts = { cwd: workdir, env, maxOutputBytes: input.maxOutputBytes };
+  // Best-effort session cleanup that never masks the narration outcome:
+  // failures are swallowed so a broken delete cannot turn success into an
+  // error or replace the original provider error.
+  const cleanupSession = async (sessionId: string | undefined): Promise<void> => {
+    const valid = sanitizeSessionId(sessionId);
+    if (!input.cleanupSession || valid === undefined) return;
+    try {
+      await deleteSessionBestEffort({
+        binary: input.binary,
+        sessionId: valid,
+        cwd: workdir,
+        env,
+        timeoutMs: input.cleanupTimeoutMs,
+        spawnImpl,
+      });
+    } catch {
+      // Best effort; the session row is opencode-internal either way.
+    }
+  };
   // The timeout must reject even when `done` never settles (a hung child
   // whose kill is a no-op in a fake, or an unkillable process): race, then
   // let the kill timers do their best-effort work in the background.
   const timeoutError = providerError(input.model, input.category, "transport", `request timeout after ${input.timeoutMs}ms`, true);
+  let child: SpawnHandle | undefined;
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined = undefined;
-  const timeoutOutcome = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      safeKill(child, "SIGTERM");
-      withTimeoutGuard(input.killGraceMs, () => safeKill(child, "SIGKILL"));
-      reject(timeoutError);
-    }, Math.max(1, Math.floor(input.timeoutMs)));
-    if (typeof timeoutHandle.unref === "function") timeoutHandle.unref();
-  });
   try {
+    child = spawnImpl(input.binary, args, spawnOpts);
+    const running = child;
+    const timeoutOutcome = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        safeKill(running, "SIGTERM");
+        withTimeoutGuard(input.killGraceMs, () => safeKill(running, "SIGKILL"));
+        reject(timeoutError);
+      }, Math.max(1, Math.floor(input.timeoutMs)));
+      if (typeof timeoutHandle.unref === "function") timeoutHandle.unref();
+    });
     // A timeout rejects the race above; reaching here means the child won.
-    const exit = await Promise.race([child.done, timeoutOutcome]);
+    const exit = await Promise.race([running.done, timeoutOutcome]);
     if (exit.outputTruncated) {
       throw providerError(input.model, input.category, "response_decode", "output budget exceeded", false);
     }
@@ -538,19 +673,16 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
     if (text.trim().length === 0) {
       throw providerError(input.model, input.category, "response_shape", "empty response", false);
     }
-    const sessionId = sanitizeSessionId(parsed.sessionId);
-    if (input.cleanupSession && sessionId !== undefined) {
-      await deleteSessionBestEffort({
-        binary: input.binary,
-        sessionId,
-        cwd: workdir,
-        env,
-        timeoutMs: input.cleanupTimeoutMs,
-        spawnImpl,
-      });
-    }
+    await cleanupSession(parsed.sessionId);
     return { text, latencyMs: Math.round(performance.now() - startedAt), usage: parsed.usage };
   } catch (error) {
+    // Every failure path still owns a session row once the child emitted
+    // anything: recover the id from whatever stdout arrived (a late-settling
+    // child included) and delete best-effort before mapping the error.
+    if (child !== undefined) {
+      const late = await settleForCleanup(child, input.killGraceMs);
+      await cleanupSession(late === undefined ? undefined : extractOpenCodeSessionId(late.stdout));
+    }
     if (error instanceof ProviderRequestError) throw error;
     const code = (error as NodeJS.ErrnoException | null)?.code;
     if (code === "ENOENT" || code === "EACCES") {
@@ -572,6 +704,13 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
         // Best effort; the OS reaps temp dirs eventually.
       }
     }
+    if (ownedHome && homeDir !== undefined) {
+      try {
+        rmSync(homeDir, { recursive: true, force: true });
+      } catch {
+        // Best effort; the OS reaps temp dirs eventually.
+      }
+    }
   }
 }
 
@@ -586,6 +725,8 @@ export class OpenCodeRunProvider extends ModelRouter {
   private readonly runAgent: string;
   private readonly runModel: string;
   private readonly runWorkdir: string | undefined;
+  private readonly runIsolateHome: boolean;
+  private readonly runAgentManifestPath: string | undefined;
   private readonly runKillGraceMs: number;
   private readonly runMaxOutputBytes: number;
   private readonly runMaxMessageBytes: number;
@@ -600,6 +741,8 @@ export class OpenCodeRunProvider extends ModelRouter {
     this.runAgent = transport?.agent ?? OPENCODE_RUN_DEFAULT_AGENT;
     this.runModel = transport?.model ?? OPENCODE_RUN_DEFAULT_MODEL;
     this.runWorkdir = transport?.workdir;
+    this.runIsolateHome = transport?.isolateHome ?? true;
+    this.runAgentManifestPath = transport?.agentManifestPath;
     this.runKillGraceMs = transport?.killGraceMs ?? OPENCODE_RUN_KILL_GRACE_MS;
     this.runMaxOutputBytes = transport?.maxOutputBytes ?? OPENCODE_RUN_MAX_OUTPUT_BYTES;
     this.runMaxMessageBytes = transport?.maxMessageBytes ?? OPENCODE_RUN_MAX_MESSAGE_BYTES;
@@ -637,6 +780,8 @@ export class OpenCodeRunProvider extends ModelRouter {
       timeoutMs,
       killGraceMs: this.runKillGraceMs,
       ...(this.runWorkdir !== undefined ? { workdir: this.runWorkdir } : {}),
+      isolateHome: this.runIsolateHome,
+      ...(this.runAgentManifestPath !== undefined ? { agentManifestPath: this.runAgentManifestPath } : {}),
       maxMessageBytes: this.runMaxMessageBytes,
       maxOutputBytes: this.runMaxOutputBytes,
       cleanupSession: this.runCleanupSession,
@@ -674,6 +819,8 @@ export class OpenCodeRunProvider extends ModelRouter {
       timeoutMs: opts.timeoutMs ?? this.timeoutSeconds * 1000,
       killGraceMs: this.runKillGraceMs,
       ...(this.runWorkdir !== undefined ? { workdir: this.runWorkdir } : {}),
+      isolateHome: this.runIsolateHome,
+      ...(this.runAgentManifestPath !== undefined ? { agentManifestPath: this.runAgentManifestPath } : {}),
       maxMessageBytes: this.runMaxMessageBytes,
       maxOutputBytes: this.runMaxOutputBytes,
       cleanupSession: this.runCleanupSession,

@@ -511,7 +511,7 @@ describe("provider-ordered live discovery", () => {
     expect(openrouterCalls).toHaveLength(2);
   });
 
-  it("returns the Zen report when every rung including OpenRouter fails", async () => {
+  it("merges every checked rung when all rungs including OpenRouter fail", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
@@ -532,9 +532,20 @@ describe("provider-ordered live discovery", () => {
       preferredModels: ["big-pickle"],
       fetchImpl,
     });
-    // Zen dead, Ollama dead, OpenRouter dead: Zen report wins after trying all rungs.
-    expect(report.provider).toBe("opencode_zen");
+    // Zen dead, Ollama dead, OpenRouter dead: no routes served, but every
+    // miss stays explainable instead of collapsing to the Zen report.
+    expect(report.provider).toBe("openrouter");
     expect(report.status).toBe("unavailable");
+    expect(report.activeModel).toBeUndefined();
+    expect(report.routes).toEqual({ interpret: [], narrate: [] });
+    expect(report.candidates.map((candidate) => candidate.model)).toEqual(
+      expect.arrayContaining(["big-pickle", "gemma4:31b-cloud"]),
+    );
+    expect(report.excluded).toEqual(expect.arrayContaining([
+      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "gemma4:31b-cloud", reason: expect.any(String) },
+    ]));
+    expect(report.catalog?.status).toBe("ok");
     expect(fetchImpl.mock.calls.some((call) => String(call[0]).startsWith("https://openrouter.ai/"))).toBe(true);
   });
 
@@ -568,7 +579,7 @@ describe("provider-ordered live discovery", () => {
     expect(report.provider).toBe("ollama_cloud");
   });
 
-  it("returns the Zen report unchanged when no OpenRouter credential is configured", async () => {
+  it("merges Zen and Ollama misses when no OpenRouter credential is configured", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
@@ -588,7 +599,15 @@ describe("provider-ordered live discovery", () => {
       fetchImpl,
       probe: probe as any,
     });
-    expect(report.provider).toBe("opencode_zen");
+    expect(report.provider).toBe("ollama_cloud");
     expect(report.status).toBe("unavailable");
+    expect(report.routes).toEqual({ interpret: [], narrate: [] });
+    expect(report.candidates.map((candidate) => candidate.model)).toEqual(
+      expect.arrayContaining(["big-pickle", "gemma4:31b-cloud"]),
+    );
+    expect(report.excluded).toEqual(expect.arrayContaining([
+      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "gemma4:31b-cloud", reason: "model_unavailable" },
+    ]));
   });
 });

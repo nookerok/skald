@@ -865,8 +865,9 @@ as active and backup; excluded IDs carry sanitized reasons. The probe has no
 ConversationTurn/narration persistence, and its report never enters
 player-facing DTOs. Deployment acceptance additionally requires this report to
 be `ready` or `degraded` (one live model serves while deterministic gameplay
-fallbacks cover the rest); `unavailable` or `misconfigured` fail acceptance.
-See ADR-0036.
+fallbacks cover the rest) AND `playable` (at least one passing candidate on
+each of the interpret and narrate routes); `unavailable`, `misconfigured`
+or a dead route fail acceptance. See ADR-0036.
 
 ### 5.3.6 Image reference -> Canon region pipeline
 

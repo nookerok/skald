@@ -132,7 +132,7 @@ export const MASTER_CONVERSATION_MAX_FOCUS = 8;
 /** Characters kept per focus surface. */
 export const MASTER_CONVERSATION_MAX_SURFACE = 120;
 
-/** Plan_7 window: replicas in lastTurns (pending clarification appends separately). */
+/** Plan_7 window: hard cap on replicas in lastTurns (pending clarification travels in its own field). */
 export const CONVERSATION_LAST_TURNS_MAX_MESSAGES = 12;
 
 /**
@@ -228,11 +228,14 @@ export function buildMasterConversationContext(
   worldId: string,
   input: ConversationContextInput = {},
 ): MasterConversationContext {
-  const scanLimit = input.scanLimit ?? CONVERSATION_SCAN_TURNS;
+  const scanLimit = Math.max(1, Math.floor(input.scanLimit ?? CONVERSATION_SCAN_TURNS));
   const rows = turns
     .filter((turn) => turn.worldId === worldId)
     .sort((left, right) => left.turnSeq - right.turnSeq);
-  const scan = rows.slice(-Math.max(1, Math.floor(scanLimit)));
+  // Over-fetch by comparison, not by content: truncation means older rows
+  // exist past the window, not that the window happens to be full.
+  const overScanned = rows.length > scanLimit;
+  const scan = overScanned ? rows.slice(-scanLimit) : rows;
   const window = scan.filter((turn) => !isTechnicalMasterText(turn.responseText)).slice(-MASTER_CONVERSATION_MAX_TURNS);
 
   const recentTurns: MasterConversationTurn[] = [];
@@ -251,18 +254,10 @@ export function buildMasterConversationContext(
 
   const pendingClarification = collectPendingClarification(scan);
   const lastTurns = collectLastTurns(scan, input.narrations);
-  let truncated = lastTurns.truncated || scan.length >= Math.max(1, Math.floor(scanLimit));
-  if (pendingClarification && !lastTurns.messages.some(
-    (message) => message.speaker === "master" && message.turnSeq === pendingClarification.turnSeq,
-  )) {
-    // The pending question stays addressable even past the window edge.
-    lastTurns.messages.push(freeze({
-      speaker: "master" as const,
-      text: truncate(pendingClarification.question, MASTER_CONVERSATION_MAX_TEXT),
-      turnSeq: pendingClarification.turnSeq,
-      responseKind: "clarification" as const,
-    }));
-  }
+  // The pending question travels in its own field (and the prompt envelope
+  // carries that field separately): duplicating it into lastTurns would
+  // break the replica budget it is supposed to protect.
+  const truncated = lastTurns.truncated || overScanned;
   const scene = input.scene ?? null;
   const mentions = collectMentions(scan, scene);
   const goal = collectGoal(scan, lastTurns.messages);
@@ -287,10 +282,13 @@ export function buildMasterConversationContext(
 
 /**
  * Plan_7 window over the scan, newest first then ascending: at most 12
- * replicas within the char budget. The master side prefers the shown
- * narration (§4): a ready TurnNarration paired by worldTime+correlationId
- * replaces the deterministic responseText; technical master texts drop the
- * replica while the player replica is always kept.
+ * replicas within the char budget, each replica checked against the residual
+ * budget on its own. The master side prefers the shown narration (§4): a
+ * ready TurnNarration paired by worldTime+correlationId replaces the
+ * deterministic responseText; technical master texts drop the replica while
+ * the player replica is always kept. At the window edge the player anchor
+ * wins over the master replica, so the oldest message may stand alone —
+ * never the reverse.
  */
 function collectLastTurns(
   scan: readonly ConversationTurn[],
@@ -300,22 +298,34 @@ function collectLastTurns(
   let chars = 0;
   let truncated = false;
   for (let index = scan.length - 1; index >= 0; index -= 1) {
-    if (ascending.length >= CONVERSATION_LAST_TURNS_MAX_MESSAGES) {
+    const remaining = CONVERSATION_LAST_TURNS_MAX_MESSAGES - ascending.length;
+    if (remaining <= 0) {
       truncated = true;
       break;
     }
     const turn = scan[index]!;
-    const replicas: ConversationMessage[] = [];
-    const masterText = shownMasterText(turn, narrations);
-    if (masterText !== null) {
-      replicas.push({ speaker: "master" as const, text: masterText, turnSeq: turn.turnSeq, responseKind: turn.responseKind });
-    }
-    replicas.push({
+    const player: ConversationMessage = {
       speaker: "player" as const,
       text: truncate(turn.playerText, MASTER_CONVERSATION_MAX_TEXT),
       turnSeq: turn.turnSeq,
-    });
-    const cost = replicas.reduce((sum, replica) => sum + replica.text.length, 0);
+    };
+    const masterText = shownMasterText(turn, narrations);
+    // Player first: with one slot left the question survives and the answer
+    // is honestly reported as truncated.
+    const keep: ConversationMessage[] = [player];
+    if (masterText !== null) {
+      if (remaining < 2) {
+        truncated = true;
+      } else {
+        keep.unshift({
+          speaker: "master" as const,
+          text: masterText,
+          turnSeq: turn.turnSeq,
+          responseKind: turn.responseKind,
+        });
+      }
+    }
+    const cost = keep.reduce((sum, replica) => sum + replica.text.length, 0);
     if (chars + cost > CONVERSATION_LAST_TURNS_MAX_CHARS && ascending.length > 0) {
       truncated = true;
       break;
@@ -323,7 +333,7 @@ function collectLastTurns(
     chars += cost;
     // Turns iterate newest-first; replicas push master-then-player so the
     // single final reverse yields ascending player-then-master order.
-    for (const replica of replicas) {
+    for (const replica of keep) {
       ascending.push(freeze(replica));
     }
   }

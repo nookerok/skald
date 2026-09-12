@@ -29,8 +29,7 @@ describe("no-world AI readiness probe", () => {
     expect(JSON.stringify(report)).not.toContain("SKALD_PROBE_OK");
   });
 
-  it("reports degraded when a paid primary fails but backup passes", async () => {
-    const router = fakeRouter({
+  it("reports degraded when a paid primary fails but backup passes", async () => {    const router = fakeRouter({
       "interpret:muse-spark-1.3-contributor-free": new Error("HTTP 503 (secret response body must not leak)"),
       "narrate:muse-spark-1.3-contributor-free": new Error("HTTP 503 (secret response body must not leak)"),
     });
@@ -117,5 +116,30 @@ describe("no-world AI readiness probe", () => {
     const report = await probeAIReadiness(router, { selectionReport: staleDegraded });
     expect(report.status).toBe("unavailable");
     expect(report.modelSelection).toEqual(staleDegraded);
+  });
+
+  it("marks playable only when both routes have a working candidate", async () => {
+    const router = fakeRouter({});
+    const report = await probeAIReadiness(router);
+    expect(report.status).toBe("ready");
+    expect(report.routeStatus).toEqual({ interpret: "ok", narrate: "ok" });
+    expect(report.playable).toBe(true);
+  });
+
+  it("rejects deployment when interpret is dead even though narrate answers", async () => {
+    const router = fakeRouter({
+      "interpret:muse-spark-1.3-contributor-free": new Error("HTTP 400 (phase=response_status)"),
+      "interpret:ling-3.0-flash-fin-free": new Error("HTTP 400 (phase=response_status)"),
+    });
+    const report = await probeAIReadiness(router);
+    expect(report.status).toBe("degraded");
+    expect(report.routeStatus).toEqual({ interpret: "failed", narrate: "ok" });
+    expect(report.playable).toBe(false);
+  });
+
+  it("reports not playable without a router", async () => {
+    const report = await probeAIReadiness(null);
+    expect(report.playable).toBe(false);
+    expect(report.routeStatus).toEqual({ interpret: "failed", narrate: "failed" });
   });
 });

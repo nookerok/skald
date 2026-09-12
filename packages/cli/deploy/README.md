@@ -36,7 +36,8 @@ The install script will:
 7. Start the server and wait for simulation liveness
 8. Require `SKALD_AI_REQUIRED=1`, run the loopback AI readiness probe, and
    refuse installation completion when readiness is `unavailable`,
-   `misconfigured` or unparsable (`ready` or `degraded` are accepted)
+   `misconfigured`, unparsable or not `playable` (both routes need a live
+   candidate; `ready` or `degraded` are accepted)
 9. Enable health check and backup timers
 
 The installer creates `skald.env` from the example on first run. Set
@@ -108,18 +109,25 @@ SKALD_AI_REQUIRED=1
 
 The systemd unit keeps `HOME` read-only but admits writes to the OpenCode
 CLI state directories (`~/.local/share/opencode`, `~/.cache/opencode`,
-`~/.config/opencode`), which the `opencode_run` transport needs for session
-rows and the model cache. After changing `skald.service`, re-install the
-unit and reload systemd before restarting (installer step, requires root).
+`~/.local/state/opencode`, `~/.config/opencode`), which the `opencode_run`
+transport needs for session rows and the model cache. Each call additionally
+runs in an empty per-call `HOME` containing only the repo-pinned
+tools-denied agent manifest
+(`packages/cli/deploy/opencode-narrative-agent.md`, installed and
+hash/owner/permission-verified by deploy), so the child never sees the
+operator home, the Skald database or user files. After changing
+`skald.service`, re-install the unit and reload systemd before restarting
+(installer step, requires root).
 
 `GET /api/health` is simulation liveness only and never calls a provider.
 `POST http://127.0.0.1:3000/api/ops/ai-probe` is loopback-only and returns 200
 only when readiness is `ready` (two probe-valid models on both routes). The
 JSON report includes `activeModel`, `backupModel` and sanitized exclusion
-reasons. Install/update acceptance reads `readiness.status` from that report
-and accepts `ready` or `degraded` (one live model serves, deterministic
-fallback covers the rest); `unavailable`, `misconfigured` or an unparsable
-probe fail acceptance. With `SKALD_AI_REQUIRED=0`, deterministic fallback
+reasons. Install/update acceptance reads `readiness.status` and `playable`
+from that report and accepts `ready` or `degraded` with both routes live
+(one live model serves, deterministic fallback covers the rest);
+`unavailable`, `misconfigured`, a dead route or an unparsable probe fail
+acceptance. With `SKALD_AI_REQUIRED=0`, deterministic fallback
 keeps the server usable but an AI readiness failure is not deployment
 acceptance.
 
@@ -181,11 +189,11 @@ The update script:
 7. Runs `npm ci` and `npm run validate` (typecheck, full test suite, Canon)
 8. Restarts the service
 9. Waits up to 60 seconds for simulation liveness
-10. Runs the loopback AI readiness probe, reads `readiness.status` from the
-    sanitized body (the endpoint answers HTTP 200 only for `ready`) and
-    accepts `ready` or `degraded`; it exits non-zero on `unavailable`,
-    `misconfigured` or an unparsable probe and prints `Update complete`
-    only after acceptance
+10. Runs the loopback AI readiness probe, reads `readiness.status` and
+    `playable` from the sanitized body (the endpoint answers HTTP 200 only
+    for `ready`) and accepts `ready` or `degraded` with both routes live;
+    it exits non-zero on `unavailable`, `misconfigured`, a dead route or an
+    unparsable probe and prints `Update complete` only after acceptance
 
 > **Do not run update-orange-pi.sh with sudo.** It refuses root.
 
