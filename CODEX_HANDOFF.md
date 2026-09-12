@@ -16,10 +16,11 @@
   stays inside the 25s budget; slow episodes fail closed by design (backup
   drops, template covers) — no budget chase. No orphans (isolated db
   removed with its dir).
-- Open: root re-copy of the updater only (helper/env-policy/reorder lines;
-  no restart — unit unchanged since last sync); session-row pruning;
+- Open: session-row pruning observation;
   item 6 (legacy DTO/ladder) and item 7 (gameplay run) still deferred;
   canonical world untouched (no gameplay turns this session).
+  (Done: installed updater re-copied from repo by root — diff-clean,
+  service active, no restart needed.)
 
 # Previous session (2026-09-12 — residual hardening verified live; CLOSED)
 
