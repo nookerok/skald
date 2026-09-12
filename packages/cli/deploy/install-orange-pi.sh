@@ -92,16 +92,13 @@ if ! grep -q '^SKALD_AI_REQUIRED=1[[:space:]]*$' "${ENV_FILE}"; then
   exit 1
 fi
 
-# Production containment policy for the opencode_run transport. When it is
-# enabled, isolation must stay on and the manifest must be the repo-pinned
-# one: a hand-edited env must never silently disarm containment.
-if grep -q -E '^[[:space:]]*SKALD_OPENCODE_RUN[[:space:]]*=[[:space:]]*1([[:space:]]*(#.*)?)?$' "${ENV_FILE}" 2>/dev/null; then
-  if grep -q -E '^[[:space:]]*SKALD_OPENCODE_ISOLATE_HOME[[:space:]]*=[[:space:]]*0([[:space:]]*(#.*)?)?$' "${ENV_FILE}" 2>/dev/null; then
-    echo "[ERROR] SKALD_OPENCODE_ISOLATE_HOME=0 is forbidden in production while SKALD_OPENCODE_RUN=1."
-    exit 1
-  fi
-  if grep -q -E '^[[:space:]]*SKALD_OPENCODE_AGENT_MANIFEST[[:space:]]*=[[:space:]]*[^[:space:]#]' "${ENV_FILE}" 2>/dev/null; then
-    echo "[ERROR] SKALD_OPENCODE_AGENT_MANIFEST override is forbidden in production; the repo-pinned manifest applies."
+# Production containment policy for the opencode_run transport (verdict from
+# the tested env-policy helper; fails before any mutation).
+if [ -f "${ENV_FILE}" ]; then
+  if ENV_POLICY_OUT=$(node --import tsx "${SKALD_CODE}/packages/cli/deploy/env-policy.ts" "${ENV_FILE}"); then
+    echo "[OK] ${ENV_POLICY_OUT}"
+  else
+    echo "[ERROR] ${ENV_POLICY_OUT:-Containment env policy failed}"
     exit 1
   fi
 fi

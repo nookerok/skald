@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { decideAiAcceptance, formatAiAcceptance } from "../deploy/ai-acceptance.js";
 
 function body(status: unknown, playable: unknown): unknown {
-  return { ok: false, readiness: { status, checkedAt: "2026-09-12T00:00:00.000Z", durationMs: 1, configFingerprint: "x", routes: { interpret: [], narrate: [] } }, playable };
+  return { ok: false, readiness: { status, playable, checkedAt: "2026-09-12T00:00:00.000Z", durationMs: 1, configFingerprint: "x", routes: { interpret: [], narrate: [] } } };
 }
 
 describe("ai-acceptance gate", () => {
@@ -31,8 +31,14 @@ describe("ai-acceptance gate", () => {
   });
 
   it("rejects a missing playable field", () => {
-    const full = body("ready", true) as { readiness: unknown };
-    expect(decideAiAcceptance({ readiness: full.readiness }).accepted).toBe(false);
+    expect(decideAiAcceptance({ readiness: { status: "ready" } }).accepted).toBe(false);
+  });
+
+  it("ignores a top-level playable outside readiness", () => {
+    // Regression pin: only readiness.playable counts. Tolerating both
+    // shapes would let the helper and the endpoint drift apart silently.
+    const decision = decideAiAcceptance({ ok: false, readiness: { status: "degraded" }, playable: true });
+    expect(decision).toEqual({ accepted: false, status: "degraded", playable: false });
   });
 
   it("rejects empty, garbage and wrong-shaped bodies fail-closed", () => {

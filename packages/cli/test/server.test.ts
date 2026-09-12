@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createPoisonExitScheduler, isLoopbackRequest, startServer } from "../src/http-server.js";
+import { decideAiAcceptance } from "../deploy/ai-acceptance.js";
 import { EventEmitter } from "node:events";
 import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
 import { LLM_CONFIG } from "@skald/world";
@@ -332,8 +333,34 @@ describe("HTTP Server", () => {
     }
   });
 
-  it("recognizes loopback forms and rejects LAN addresses", () => {
-    const request = (remoteAddress: string) => ({ socket: { remoteAddress } }) as any;
+  it("feeds the live probe DTO into the deploy acceptance helper", async () => {
+    // Contract bridge: the endpoint DTO shape and decideAiAcceptance must
+    // never drift apart silently (a unit fixture can repeat either side's
+    // mistake). A passing fake router yields an accepted verdict end to end.
+    const acceptRouter = {
+      hasProviderKey: () => true,
+      configFingerprint: () => "probe-config",
+      routeCandidates: (category: "interpret" | "narrate") => LLM_CONFIG.routes[category].candidates.slice(0, 2),
+      chatCandidate: vi.fn(async (category: "interpret" | "narrate", candidate: { model: string }) => ({
+        text: category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
+        responseModel: candidate.model,
+      })),
+    };
+    const acceptServer = await startServer({ host: "127.0.0.1", port: 0, dbPath: join(dbDir, "ai-acceptance.sqlite"), router: acceptRouter as any });
+    try {
+      const response = await fetch(`${acceptServer.url}/api/ops/ai-probe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await response.json() as unknown;
+      expect(decideAiAcceptance(body)).toEqual({ accepted: true, status: "ready", playable: true });
+    } finally {
+      await acceptServer.close();
+    }
+  });
+
+  it("recognizes loopback forms and rejects LAN addresses", () => {    const request = (remoteAddress: string) => ({ socket: { remoteAddress } }) as any;
     expect(isLoopbackRequest(request("127.0.0.1"))).toBe(true);
     expect(isLoopbackRequest(request("::1"))).toBe(true);
     expect(isLoopbackRequest(request("::ffff:127.0.0.1"))).toBe(true);

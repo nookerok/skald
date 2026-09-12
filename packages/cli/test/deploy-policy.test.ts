@@ -105,13 +105,14 @@ describe("Orange Pi non-interactive restart policy", () => {
     const updater = read("packages/cli/deploy/update-orange-pi.sh");
 
     // When the transport is enabled, ISOLATE_HOME=0 and a manifest override
-    // must fail the deploy before any mutation. See deploy-env-gate.test.ts
-    // for the behavioral matrix of these exact patterns.
+    // must fail the deploy before any mutation. The verdict comes from the
+    // tested env-policy helper (quoted values, duplicates, malformed lines);
+    // see env-policy.test.ts for the behavioral matrix.
     for (const script of [installer, updater]) {
-      expect(script).toContain("SKALD_OPENCODE_ISOLATE_HOME=0 is forbidden in production");
-      expect(script).toContain("SKALD_OPENCODE_AGENT_MANIFEST override is forbidden in production");
+      expect(script).toContain("packages/cli/deploy/env-policy.ts");
+      expect(script).toContain("Containment env policy");
     }
-    expect(updater.indexOf("forbidden in production")).toBeLessThan(updater.indexOf("BACKUP_FILE=\"${BACKUP_DIR}"));
+    expect(updater.indexOf("env-policy.ts")).toBeLessThan(updater.indexOf("BACKUP_FILE=\"${BACKUP_DIR}"));
   });
 
   it("keeps HTTP liveness independent from strict SSH identity preflight", () => {

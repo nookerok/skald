@@ -495,7 +495,7 @@ describe("home isolation and agent manifest", () => {
       ...baseInput(),
       spawnImpl: fake.fn,
       isolateHome: true,
-      agentManifestPath: manifest,
+      agentManifest: readFileSync(manifest, "utf8"),
       cleanupSession: false,
     });
     expect(result.text).toBe("Тихо.");
@@ -523,7 +523,7 @@ describe("home isolation and agent manifest", () => {
         kill: () => undefined,
       };
     };
-    await runOpencodeChat({ ...baseInput(), spawnImpl: probing, isolateHome: true, agentManifestPath: manifest });
+    await runOpencodeChat({ ...baseInput(), spawnImpl: probing, isolateHome: true, agentManifest: readFileSync(manifest, "utf8") });
     expect(skeletonOk).toBe(true);
     expect(existsSync(seenHome)).toBe(false);
   });
@@ -534,7 +534,7 @@ describe("home isolation and agent manifest", () => {
       ...baseInput(),
       spawnImpl: fake.fn,
       isolateHome: true,
-      agentManifestPath: join(tmpdir(), "definitely-no-manifest-xyz.md"),
+      agentManifest: undefined,
     }).catch((e: unknown) => e);
     expect(error).toMatchObject({ provider: "opencode_run", phase: "configuration", retryable: false });
     expect(fake.calls).toHaveLength(0);
@@ -575,6 +575,32 @@ describe("home isolation and agent manifest", () => {
     });
     await routerOff.chatCandidate("narrate", candidate(), messages(), { timeoutMs: 1000 });
     expect(plain.calls[0]?.env.HOME).toBe(process.env.HOME);
+  });
+
+  it("serves the construction-time manifest even when the file changes later", async () => {
+    // A deploy pull racing live traffic must not swap the agent mid-process:
+    // calls serve the bytes pinned at construction, never a re-read.
+    const dir = mkdtempSync(join(tmpdir(), "skald-manifest-race-"));
+    const path = join(dir, "narrative.md");
+    writeFileSync(path, "manifest-A", "utf8");
+    let served = "";
+    const probing: SpawnFn = (_binary, _args, opts) => {
+      served = readFileSync(join(opts.env.HOME!, ".config", "opencode", "agents", "narrative.md"), "utf8");
+      return {
+        done: Promise.resolve({ stdout: ndjsonOk("x"), exitCode: 0, signal: null, outputTruncated: false }),
+        kill: () => undefined,
+      };
+    };
+    const router = new OpenCodeRunProvider({
+      apiKey: "",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_run"],
+      routeCandidates: { narrate: [candidate()] },
+      opencodeRun: { binary: "opencode-test-binary", spawnImpl: probing, cleanupSession: false, agentManifestPath: path },
+    });
+    writeFileSync(path, "manifest-B", "utf8");
+    await router.chatCandidate("narrate", candidate(), messages(), { timeoutMs: 1000 });
+    expect(served).toBe("manifest-A");
   });
 });
 

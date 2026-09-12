@@ -113,9 +113,10 @@ only the repo-pinned tools-denied agent manifest
 (`packages/cli/deploy/opencode-narrative-agent.md`, installed and
 hash/owner/permission-verified by deploy), so the child never sees the
 operator home, the Skald database or user files, and the unit admits no
-OpenCode state writes at all. After changing `skald.service`, re-install
-the unit and reload systemd before restarting (installer step, requires
-root).
+OpenCode state writes at all. Installer/updater enforce the containment env
+policy through the tested `env-policy.ts` before any mutation. After changing
+`skald.service`, re-install the unit and reload systemd before restarting
+(installer step, requires root).
 
 `GET /api/health` is simulation liveness only and never calls a provider.
 `POST http://127.0.0.1:3000/api/ops/ai-probe` is loopback-only and returns 200

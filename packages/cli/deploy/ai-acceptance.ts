@@ -35,9 +35,13 @@ export function decideAiAcceptance(body: unknown): AiAcceptance {
         if (typeof inner["status"] === "string" && (inner["status"] as string).length > 0) {
           status = inner["status"] as string;
         }
+        // `playable` lives inside `readiness`, next to `status` — exactly
+        // where AIReadinessReport (and the /api/ops/ai-probe DTO wrapping
+        // it) carries it. A top-level `playable` is NOT accepted: tolerating
+        // both shapes would let the helper and the endpoint drift apart
+        // silently again.
+        playable = inner["playable"] === true;
       }
-      // `playable` is top-level on AIReadinessReport, next to `readiness`.
-      playable = record["playable"] === true;
     }
   } catch {
     status = "unknown";

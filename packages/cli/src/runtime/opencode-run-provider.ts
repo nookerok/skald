@@ -37,7 +37,7 @@
 
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LLM_CONFIG, ModelRouter, ProviderRequestError } from "@skald/world";
@@ -210,10 +210,13 @@ export interface OpenCodeRunTransport {
    */
   readonly isolateHome?: boolean | undefined;
   /**
-   * Agent manifest source copied into the isolated home. Defaults to the
-   * repo-pinned manifest (optionally overridden by
-   * `SKALD_OPENCODE_AGENT_MANIFEST`). A missing manifest fails the call
-   * closed instead of running with an unknown agent.
+   * Agent manifest source, loaded ONCE at construction into immutable bytes.
+   * The file may change under a running process (deploy pull before
+   * restart); per-call re-reads would mix an unaccepted manifest into live
+   * traffic, so calls always serve the construction-time bytes. Defaults to
+   * the repo-pinned manifest (optionally overridden by
+   * `SKALD_OPENCODE_AGENT_MANIFEST`). Unreadable at construction fails each
+   * call closed instead of running with an unknown agent.
    */
   readonly agentManifestPath?: string | undefined;
   readonly killGraceMs?: number | undefined;
@@ -478,7 +481,13 @@ export interface RunOpenCodeChatInput {
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly workdir?: string | undefined;
   readonly isolateHome: boolean;
-  readonly agentManifestPath?: string | undefined;
+  /**
+   * Manifest CONTENT bytes served into the isolated home. Loaded once by the
+   * provider at construction; `undefined` fails an isolating call closed.
+   * Passed as bytes (never a path) so a call can never re-read a changed
+   * checkout. Unused when isolation is off.
+   */
+  readonly agentManifest?: string | undefined;
   readonly maxMessageBytes: number;
   readonly maxOutputBytes: number;
   readonly cleanupSession: boolean;
@@ -579,21 +588,24 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
   if (!AGENT_NAME_RE.test(input.agent)) {
     throw providerError(input.model, input.category, "configuration", "invalid opencode agent name", false);
   }
-  const manifestSrc = input.agentManifestPath
-    ?? process.env[OPENCODE_RUN_MANIFEST_ENV]
-    ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH;
   const env = { ...(input.env ?? sanitizeEnv(process.env)) };
   let homeDir: string | undefined;
   let ownedHome = false;
   let workdir = input.workdir;
   let ownedWorkdir = false;
   if (input.isolateHome) {
+    const manifest = input.agentManifest;
+    if (manifest === undefined) {
+      throw providerError(input.model, input.category, "configuration", "agent manifest unavailable", false);
+    }
     try {
       homeDir = mkdtempSync(join(tmpdir(), "skald-opencode-home-"));
       ownedHome = true;
       mkdirSync(join(homeDir, ".config", "opencode", "agents"), { recursive: true });
       mkdirSync(join(homeDir, "work"), { recursive: true });
-      copyFileSync(manifestSrc, join(homeDir, ".config", "opencode", "agents", `${input.agent}.md`));
+      // Construction-time bytes only: never re-read the checkout here, so a
+      // deploy pull racing a live call cannot swap the agent mid-process.
+      writeFileSync(join(homeDir, ".config", "opencode", "agents", `${input.agent}.md`), manifest, "utf8");
       writeFileSync(join(homeDir, ".config", "opencode", "opencode.jsonc"), OPENCODE_RUN_ISOLATED_CONFIG_JSON, "utf8");
     } catch {
       if (ownedHome && homeDir !== undefined) {
@@ -726,7 +738,13 @@ export class OpenCodeRunProvider extends ModelRouter {
   private readonly runModel: string;
   private readonly runWorkdir: string | undefined;
   private readonly runIsolateHome: boolean;
-  private readonly runAgentManifestPath: string | undefined;
+  /**
+   * Manifest content bytes served into every isolated home. Loaded once here
+   * (never re-read per call): the file may change under a running process
+   * between deploy pull and restart, and live traffic must keep serving the
+   * accepted revision. Null when unreadable — calls then fail closed.
+   */
+  private readonly runAgentManifest: string | null;
   private readonly runKillGraceMs: number;
   private readonly runMaxOutputBytes: number;
   private readonly runMaxMessageBytes: number;
@@ -742,13 +760,27 @@ export class OpenCodeRunProvider extends ModelRouter {
     this.runModel = transport?.model ?? OPENCODE_RUN_DEFAULT_MODEL;
     this.runWorkdir = transport?.workdir;
     this.runIsolateHome = transport?.isolateHome ?? true;
-    this.runAgentManifestPath = transport?.agentManifestPath;
+    this.runAgentManifest = OpenCodeRunProvider.loadAgentManifest(transport?.agentManifestPath);
     this.runKillGraceMs = transport?.killGraceMs ?? OPENCODE_RUN_KILL_GRACE_MS;
     this.runMaxOutputBytes = transport?.maxOutputBytes ?? OPENCODE_RUN_MAX_OUTPUT_BYTES;
     this.runMaxMessageBytes = transport?.maxMessageBytes ?? OPENCODE_RUN_MAX_MESSAGE_BYTES;
     this.runCleanupSession = transport?.cleanupSession ?? true;
     this.runCleanupTimeoutMs = transport?.cleanupTimeoutMs ?? OPENCODE_RUN_CLEANUP_TIMEOUT_MS;
     this.runSpawnImpl = transport?.spawnImpl ?? spawnChildProcess;
+  }
+
+  /**
+   * Load the agent manifest once: explicit path, `SKALD_OPENCODE_AGENT_MANIFEST`
+   * override, or the repo-pinned default. Returns null when unreadable so
+   * calls fail closed instead of running with an unknown agent.
+   */
+  private static loadAgentManifest(manifestPath: string | undefined): string | null {
+    const src = manifestPath ?? process.env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH;
+    try {
+      return readFileSync(src, "utf8");
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -781,7 +813,7 @@ export class OpenCodeRunProvider extends ModelRouter {
       killGraceMs: this.runKillGraceMs,
       ...(this.runWorkdir !== undefined ? { workdir: this.runWorkdir } : {}),
       isolateHome: this.runIsolateHome,
-      ...(this.runAgentManifestPath !== undefined ? { agentManifestPath: this.runAgentManifestPath } : {}),
+      ...(this.runAgentManifest !== null ? { agentManifest: this.runAgentManifest } : {}),
       maxMessageBytes: this.runMaxMessageBytes,
       maxOutputBytes: this.runMaxOutputBytes,
       cleanupSession: this.runCleanupSession,
@@ -820,7 +852,7 @@ export class OpenCodeRunProvider extends ModelRouter {
       killGraceMs: this.runKillGraceMs,
       ...(this.runWorkdir !== undefined ? { workdir: this.runWorkdir } : {}),
       isolateHome: this.runIsolateHome,
-      ...(this.runAgentManifestPath !== undefined ? { agentManifestPath: this.runAgentManifestPath } : {}),
+      ...(this.runAgentManifest !== null ? { agentManifest: this.runAgentManifest } : {}),
       maxMessageBytes: this.runMaxMessageBytes,
       maxOutputBytes: this.runMaxOutputBytes,
       cleanupSession: this.runCleanupSession,

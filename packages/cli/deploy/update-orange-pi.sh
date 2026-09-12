@@ -59,18 +59,17 @@ if ! sudo -n -l /usr/bin/systemctl restart skald.service >/dev/null 2>&1; then
   exit 1
 fi
 
-# 3b. Production containment policy for the opencode_run transport. When it
-# is enabled, isolation must stay on and the manifest must be the repo-pinned
-# one: a hand-edited env must never silently disarm containment. Fails before
-# any mutation. Commented lines never match (anchors require line start).
+# 3b. Production containment policy for the opencode_run transport. The
+# verdict comes from the tested env-policy helper parsing the systemd
+# subset (quoted values, duplicates, malformed lines): when the transport is
+# enabled, isolation must stay on and the manifest must be the repo-pinned
+# one. Fails before any mutation.
 PROD_ENV_FILE="${SKALD_DATA}/skald.env"
-if grep -q -E '^[[:space:]]*SKALD_OPENCODE_RUN[[:space:]]*=[[:space:]]*1([[:space:]]*(#.*)?)?$' "${PROD_ENV_FILE}" 2>/dev/null; then
-  if grep -q -E '^[[:space:]]*SKALD_OPENCODE_ISOLATE_HOME[[:space:]]*=[[:space:]]*0([[:space:]]*(#.*)?)?$' "${PROD_ENV_FILE}" 2>/dev/null; then
-    echo "ERROR: SKALD_OPENCODE_ISOLATE_HOME=0 is forbidden in production while SKALD_OPENCODE_RUN=1."
-    exit 1
-  fi
-  if grep -q -E '^[[:space:]]*SKALD_OPENCODE_AGENT_MANIFEST[[:space:]]*=[[:space:]]*[^[:space:]#]' "${PROD_ENV_FILE}" 2>/dev/null; then
-    echo "ERROR: SKALD_OPENCODE_AGENT_MANIFEST override is forbidden in production; the repo-pinned manifest applies."
+if [ -f "${PROD_ENV_FILE}" ]; then
+  if ENV_POLICY_OUT=$(node --import tsx "${SKALD_CODE}/packages/cli/deploy/env-policy.ts" "${PROD_ENV_FILE}"); then
+    echo "[OK] ${ENV_POLICY_OUT}"
+  else
+    echo "[ERROR] ${ENV_POLICY_OUT:-Containment env policy failed}"
     exit 1
   fi
 fi
