@@ -5,7 +5,7 @@ export { NarrationScheduler, resolveNarrationState } from "./narration-scheduler
 export type { NarrationJob, NarrationPriority, NarrationRuntimeStatus, NarrationState } from "./narration-scheduler.js";
 export { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 export { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
-export { AIReadinessService } from "./ai-readiness.js";
+export { AIReadinessService, AI_READINESS_PROBE_TIMEOUT_MS } from "./ai-readiness.js";
 export type { AIReadinessOptions } from "./ai-readiness.js";
 export { createLiveRouterConfiguration, createRouter, createRouterConfiguration, refreshRouterSelection, selectionConfigFingerprint } from "./router-factory.js";
 export type { LiveRouterConfigurationOptions, RouterConfiguration } from "./router-factory.js";
@@ -25,6 +25,7 @@ export {
   OPENCODE_RUN_MAX_OUTPUT_BYTES,
   OPENCODE_RUN_MODEL_ENV,
   OPENCODE_RUN_PROVIDER_ID,
+  OPENCODE_RUN_SESSION_TITLE,
   OpenCodeRunProvider,
   buildOpenCodeRunArgs,
   isOpenCodeRunEnabled,

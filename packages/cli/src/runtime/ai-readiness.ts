@@ -1,5 +1,14 @@
 import { probeAIReadiness, type AIReadinessReport, type ModelRouter, type AIDiagnosticSink, type LiveModelSelectionReport } from "@skald/world";
 
+/**
+ * Per-candidate budget for the operational readiness probe. Sized for the
+ * slowest routed transport: a cold `opencode run` subprocess needs ~15s wall
+ * on Pi-class hosts (startup plus model roundtrips), so a 10s budget would
+ * fail a healthy backup on every probe. HTTP providers settle in ~1s and
+ * never notice the headroom; the deploy scripts allow 30s for the probe.
+ */
+export const AI_READINESS_PROBE_TIMEOUT_MS = 20_000;
+
 export interface AIReadinessOptions {
   readonly cooldownMs?: number;
   readonly timeoutMs?: number;
@@ -30,7 +39,7 @@ export class AIReadinessService {
     options?: AIReadinessOptions,
   ) {
     this.cooldownMs = Math.max(0, Math.floor(options?.cooldownMs ?? 15_000));
-    this.timeoutMs = Math.max(1, Math.floor(options?.timeoutMs ?? 10_000));
+    this.timeoutMs = Math.max(1, Math.floor(options?.timeoutMs ?? AI_READINESS_PROBE_TIMEOUT_MS));
     this.configFingerprint = options?.configFingerprint;
     this.selectionReport = options?.selectionReport;
     this.now = options?.now ?? (() => Date.now());

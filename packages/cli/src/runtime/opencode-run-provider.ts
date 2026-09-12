@@ -63,6 +63,15 @@ export const OPENCODE_RUN_DEFAULT_AGENT = "narrative";
 /** Pinned model; also passed explicitly via `-m` on every call. */
 export const OPENCODE_RUN_DEFAULT_MODEL = "opencode/muse-spark-1.3-contributor-free";
 
+/**
+ * Fixed session title passed via `--title`. Opencode auto-titles a session
+ * with an extra model roundtrip when no title is given; our sessions are
+ * deleted right after the call, so the title is irrelevant and the roundtrip
+ * is pure latency (seconds on Pi-class hosts). A constant keeps it out of
+ * the prompt contract and out of diagnostics.
+ */
+export const OPENCODE_RUN_SESSION_TITLE = "skald-narrate";
+
 /** Grace period between SIGTERM and SIGKILL on timeout. */
 export const OPENCODE_RUN_KILL_GRACE_MS = 2_000;
 
@@ -193,7 +202,9 @@ export function openCodeRunCandidate(env: NodeJS.ProcessEnv = process.env): Rout
 /**
  * CLI argv for one narrative call. The message travels as a single argv
  * entry with no shell in between, so prompt text can never become a shell
- * command. Shape verified live against `opencode run --help` output.
+ * command. `--title` carries a fixed value so opencode skips its
+ * auto-titling model roundtrip. Shape verified live against
+ * `opencode run --help` output.
  */
 export function buildOpenCodeRunArgs(input: {
   readonly agent: string;
@@ -209,6 +220,8 @@ export function buildOpenCodeRunArgs(input: {
     input.agent,
     "-m",
     input.model,
+    "--title",
+    OPENCODE_RUN_SESSION_TITLE,
     "--dir",
     input.workdir,
     input.message,

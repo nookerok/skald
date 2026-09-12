@@ -6,6 +6,7 @@ import {
   OPENCODE_RUN_DEFAULT_AGENT,
   OPENCODE_RUN_DEFAULT_BINARY,
   OPENCODE_RUN_DEFAULT_MODEL,
+  OPENCODE_RUN_SESSION_TITLE,
   OpenCodeRunProvider,
   buildOpenCodeRunArgs,
   isOpenCodeRunEnabled,
@@ -117,7 +118,7 @@ function baseInput(overrides: Partial<Parameters<typeof runOpencodeChat>[0]> = {
 describe("opencode run argv and environment", () => {
   it("builds the verified CLI shape with the message last", () => {
     expect(buildOpenCodeRunArgs({ agent: "narrative", model: NARRATE_MODEL, workdir: "/tmp/w", message: "hi" })).toEqual([
-      "run", "--format", "json", "--agent", "narrative", "-m", NARRATE_MODEL, "--dir", "/tmp/w", "hi",
+      "run", "--format", "json", "--agent", "narrative", "-m", NARRATE_MODEL, "--title", "skald-narrate", "--dir", "/tmp/w", "hi",
     ]);
   });
 
@@ -125,6 +126,7 @@ describe("opencode run argv and environment", () => {
     expect(OPENCODE_RUN_DEFAULT_BINARY).toBe("opencode");
     expect(OPENCODE_RUN_DEFAULT_AGENT).toBe("narrative");
     expect(OPENCODE_RUN_DEFAULT_MODEL).toBe(NARRATE_MODEL);
+    expect(OPENCODE_RUN_SESSION_TITLE).toBe("skald-narrate");
   });
 
   it("scrubs secrets from the child environment and keeps the allowlist", () => {
@@ -211,11 +213,11 @@ describe("runOpencodeChat", () => {
     expect(typeof result.latencyMs).toBe("number");
     expect(fake.calls).toHaveLength(1);
     expect(fake.calls[0]?.binary).toBe("opencode-test-binary");
-    expect(fake.calls[0]?.args.slice(0, 8)).toEqual([
-      "run", "--format", "json", "--agent", "narrative", "-m", NARRATE_MODEL, "--dir",
+    expect(fake.calls[0]?.args.slice(0, 10)).toEqual([
+      "run", "--format", "json", "--agent", "narrative", "-m", NARRATE_MODEL, "--title", "skald-narrate", "--dir",
     ]);
     // The prompt travels as one argv entry (no shell), and no secrets leak.
-    const message = fake.calls[0]?.args[9];
+    const message = fake.calls[0]?.args[11];
     expect(message).toContain("speak");
     expect(message).toContain("hello");
     expect(JSON.stringify(fake.calls[0]?.env)).not.toContain("secret");

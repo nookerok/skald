@@ -67,7 +67,7 @@ describe("Orange Pi non-interactive restart policy", () => {
     const unit = read("packages/cli/deploy/skald.service");
 
     expect(unit).toContain("ProtectHome=read-only");
-    expect(unit).toContain("ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.config/opencode");
+    expect(unit).toContain("ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.local/state/opencode /home/nooker/.config/opencode");
   });
 
   it("keeps HTTP liveness independent from strict SSH identity preflight", () => {

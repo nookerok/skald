@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AIReadinessService } from "../src/runtime/ai-readiness.js";
+import { AIReadinessService, AI_READINESS_PROBE_TIMEOUT_MS } from "../src/runtime/ai-readiness.js";
 import { LLM_CONFIG } from "@skald/world";
 
 describe("AIReadinessService", () => {
@@ -39,6 +39,26 @@ describe("AIReadinessService", () => {
     const service = new AIReadinessService(null);
     expect(service.cached()).toBeNull();
     expect(service.isProbing()).toBe(false);
+  });
+
+  it("budgets slow local transports with a 20s per-candidate probe timeout", async () => {
+    // A cold `opencode run` subprocess needs ~15s wall on Pi-class hosts;
+    // the probe must not fail a healthy backup on startup time alone.
+    expect(AI_READINESS_PROBE_TIMEOUT_MS).toBe(20_000);
+    const chatCandidate = vi.fn(async (category: "interpret" | "narrate", _candidate: unknown, _messages: unknown, _opts: unknown) => ({
+      text: category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
+    }));
+    const router = {
+      routeCandidates: () => [{ provider: "opencode_run", model: "m", protocol: "opencode_run", tier: "catalog_candidate" }],
+      hasProviderKey: () => true,
+      chatCandidate,
+    } as any;
+    const service = new AIReadinessService(router);
+    await service.probe();
+    expect(chatCandidate).toHaveBeenCalled();
+    for (const call of chatCandidate.mock.calls) {
+      expect(call[3]).toEqual({ timeoutMs: AI_READINESS_PROBE_TIMEOUT_MS });
+    }
   });
 
   it("retains the factory fingerprint even when no router is available", async () => {
