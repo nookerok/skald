@@ -1,11 +1,22 @@
-# Current work (2026-09-12 — review P1+P2 implemented, verified live; CLOSED)
+# Current work (2026-09-12 — residual hardening verified live; CLOSED)
 
-- Implemented both P1 and all four P2 from the review (`28f6ae1`, 20 files):
-  playable per-route gate; repo-pinned agent manifest + deploy install/verify;
-  isolated per-call HOME; session cleanup on every failure path; unified
-  effective selection with transport identity in the fingerprint; hard
-  12-replica bound with player-anchor priority and field-only clarification;
-  merged fallback reports. Gate PASS; commit pushed.
+- All five residual items live in prod (`5eadc29`, service healthy): tested
+  gate helper, env containment gates, atomic manifest install, skald-data-only
+  unit, manifest-aware fingerprint. Installed updater + unit re-synced by
+  root (both diff-clean), `validate` PASS throughout.
+- Decisive P2 proof got complicated, then resolved: the first probe under the
+  tightened unit timed out (25s), and so did the re-probe — with Ollama also
+  10x slow (6.6s) on an idle box with fast egress (0.45s). Control experiment
+  outside systemd (same isolated HOME, shell env) took 56s to PONG with 2223
+  reasoning tokens: the episode is external free-tier model slowness, not the
+  unit. Typical roundtrip stays ~20-22s inside the 25s budget; slow episodes
+  fail closed by design (backup drops, template fallback covers) — no budget
+  chase. Orphan session from the control run never touched the real db
+  (isolated HOME removed with its dir).
+- Deliberately deferred: item 6 (legacy memory DTO, ladder simplification)
+  and item 7 (gameplay replica run — still needs an authorized budget; no
+  gameplay turns this session, canonical world untouched at T32/event 469).
+- Open: session-row pruning observation; hanging-primary budget trade-off.
 - Deployed `28f6ae1` via updater: on-device suite PASS, restart + health PASS,
   but the AI gate FAILED on curl timeout at 30s — the installed updater still
   carried the old curl budget (synced before the 60s fix) while Ollama stalled
