@@ -32,12 +32,12 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-# The opencode_run narrative transport spawns the OpenCode CLI, which keeps
-# session state under ~/.local/share/opencode, a model cache under
-# ~/.cache/opencode, lock/state files under ~/.local/state/opencode and its
-# config under ~/.config/opencode. HOME stays read-only; exactly these state
-# directories are additionally writable.
-ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.local/state/opencode /home/nooker/.config/opencode
+# The opencode_run narrative transport spawns the OpenCode CLI in an empty
+# per-call HOME (pinned agent skeleton only), so the service needs no
+# OpenCode state writes at all: HOME stays read-only and only the game data
+# directory is writable. If isolation is ever disabled, the child fails
+# closed instead of silently gaining home access.
+ReadWritePaths=/home/nooker/skald-data
 
 StandardOutput=journal
 StandardError=journal

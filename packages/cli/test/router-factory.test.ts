@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createLiveRouterConfiguration, createRouterConfiguration, openCodeRunIdentity, refreshRouterSelection } from "../src/runtime/router-factory.js";
 import { OpenCodeRunProvider } from "../src/runtime/opencode-run-provider.js";
 
@@ -315,5 +318,37 @@ describe("router factory", () => {
     expect(identity).not.toContain("zen-secret");
     expect(identity).not.toContain("skald-data");
     expect(identity).not.toContain(".opencode");
+  });
+
+  it("rotates the fingerprint on isolation and manifest changes", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const base = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1" };
+    const isolated = await createLiveRouterConfiguration(base, { fetchImpl });
+    const shared = await createLiveRouterConfiguration({ ...base, SKALD_OPENCODE_ISOLATE_HOME: "0" }, { fetchImpl });
+    expect(shared.configFingerprint).not.toBe(isolated.configFingerprint);
+
+    const dir = mkdtempSync(join(tmpdir(), "skald-manifest-fp-"));
+    const first = join(dir, "first.md");
+    const second = join(dir, "second.md");
+    const renamed = join(dir, "renamed.md");
+    writeFileSync(first, "agent manifest one", "utf8");
+    writeFileSync(second, "agent manifest two", "utf8");
+    writeFileSync(renamed, "agent manifest one", "utf8");
+    const withFirst = await createLiveRouterConfiguration({ ...base, SKALD_OPENCODE_AGENT_MANIFEST: first }, { fetchImpl });
+    const withSecond = await createLiveRouterConfiguration({ ...base, SKALD_OPENCODE_AGENT_MANIFEST: second }, { fetchImpl });
+    const withRenamed = await createLiveRouterConfiguration({ ...base, SKALD_OPENCODE_AGENT_MANIFEST: renamed }, { fetchImpl });
+    // Content change rotates; same content under another path does not.
+    expect(withSecond.configFingerprint).not.toBe(withFirst.configFingerprint);
+    expect(withRenamed.configFingerprint).toBe(withFirst.configFingerprint);
+
+    const missing = await createLiveRouterConfiguration(
+      { ...base, SKALD_OPENCODE_AGENT_MANIFEST: join(dir, "absent.md") },
+      { fetchImpl },
+    );
+    expect(missing.configFingerprint).not.toBe(withFirst.configFingerprint);
   });
 });

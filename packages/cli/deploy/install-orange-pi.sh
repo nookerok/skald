@@ -92,6 +92,20 @@ if ! grep -q '^SKALD_AI_REQUIRED=1[[:space:]]*$' "${ENV_FILE}"; then
   exit 1
 fi
 
+# Production containment policy for the opencode_run transport. When it is
+# enabled, isolation must stay on and the manifest must be the repo-pinned
+# one: a hand-edited env must never silently disarm containment.
+if grep -q -E '^[[:space:]]*SKALD_OPENCODE_RUN[[:space:]]*=[[:space:]]*1([[:space:]]*(#.*)?)?$' "${ENV_FILE}" 2>/dev/null; then
+  if grep -q -E '^[[:space:]]*SKALD_OPENCODE_ISOLATE_HOME[[:space:]]*=[[:space:]]*0([[:space:]]*(#.*)?)?$' "${ENV_FILE}" 2>/dev/null; then
+    echo "[ERROR] SKALD_OPENCODE_ISOLATE_HOME=0 is forbidden in production while SKALD_OPENCODE_RUN=1."
+    exit 1
+  fi
+  if grep -q -E '^[[:space:]]*SKALD_OPENCODE_AGENT_MANIFEST[[:space:]]*=[[:space:]]*[^[:space:]#]' "${ENV_FILE}" 2>/dev/null; then
+    echo "[ERROR] SKALD_OPENCODE_AGENT_MANIFEST override is forbidden in production; the repo-pinned manifest applies."
+    exit 1
+  fi
+fi
+
 # 8. Helper scripts first
 echo "Installing helper scripts..."
 for script in update-orange-pi.sh backup-skald.sh restore-skald.sh skald-healthcheck.sh; do
@@ -152,42 +166,24 @@ sudo systemctl enable --now skald-backup.timer
 echo "[OK] Timers enabled."
 
 # 12. Production acceptance requires a live AI readiness probe. Accepted
-# posture (ADR-0036 amendment 2026-09-12): `ready` or `degraded` (one live
-# model serves, deterministic fallback covers the rest); fail on
-# `unavailable`, `misconfigured` or an unparsable probe. The endpoint still
-# answers HTTP 200 only for `ready`, so the status is read from the sanitized
-# body (grep/sed only: no jq on minimal hosts).
+# posture (ADR-0036 amendments 2026-09-12): `(ready|degraded) AND playable`.
+# The verdict comes from the tested ai-acceptance helper reading the
+# sanitized body (the endpoint still answers HTTP 200 only for `ready`).
 echo "Checking AI readiness (loopback probe)..."
-# Worst-case probe is two sequential 20s route budgets plus overhead, so the
-# curl budget must clear ~45s or a slow-but-healthy probe fails the gate.
+# Worst-case probe is two sequential 25s route budgets plus overhead, so the
+# curl budget must clear ~55s or a slow-but-healthy probe fails the gate.
 AI_RESPONSE=$(curl --silent --show-error --max-time 60 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' http://127.0.0.1:3000/api/ops/ai-probe 2>&1 || true)
 AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
 AI_BODY="${AI_RESPONSE%$'\n'*}"
-AI_STATUS=$(printf '%s' "${AI_BODY}" | grep -o -E '"readiness":\{"status":"[a-z]+"' | sed 's/^"readiness":{"status":"//;s/"$//' || true)
-AI_PLAYABLE=$(printf '%s' "${AI_BODY}" | grep -o -E '"playable":(true|false)' | sed 's/.*://' || true)
-case "${AI_STATUS}" in
-  ready|degraded)
-    if [ "${AI_PLAYABLE}" != "true" ]; then
-      echo "[OK] Simulation is healthy"
-      echo "[ERROR] AI readiness is ${AI_STATUS:-unknown} but not playable: a route has no working candidate"
-      echo "Deployment acceptance: FAILED"
-      echo "Sanitized readiness report: ${AI_BODY}"
-      exit 1
-    fi
-    if [ "${AI_STATUS}" = "ready" ]; then
-      echo "[OK] AI readiness is ready and playable."
-    else
-      echo "[OK] AI readiness is degraded but playable (accepted: one live model serves, deterministic fallback covers the rest)."
-    fi
-    ;;
-  *)
-    echo "[OK] Simulation is healthy"
-    echo "[ERROR] AI readiness failed (status: ${AI_STATUS:-unknown}, HTTP ${AI_HTTP_STATUS})"
-    echo "Deployment acceptance: FAILED"
-    echo "Sanitized readiness report: ${AI_BODY}"
-    exit 1
-    ;;
-esac
+if AI_GATE_OUT=$(printf '%s' "${AI_BODY}" | node --import tsx "${SKALD_CODE}/packages/cli/deploy/ai-acceptance.ts"); then
+  echo "[OK] ${AI_GATE_OUT}"
+else
+  echo "[OK] Simulation is healthy"
+  echo "[ERROR] ${AI_GATE_OUT:-AI readiness gate failed} (HTTP ${AI_HTTP_STATUS})"
+  echo "Deployment acceptance: FAILED"
+  echo "Sanitized readiness report: ${AI_BODY}"
+  exit 1
+fi
 
 echo ""
 echo "=== Installation complete ==="

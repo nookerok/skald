@@ -53,25 +53,27 @@ describe("Orange Pi non-interactive restart policy", () => {
     for (const script of [installer, updater]) {
       // The endpoint answers HTTP 200 only for `ready`, while `degraded`
       // (one live model, deterministic fallback covers the rest) is the
-      // accepted production posture: the status is read from the sanitized
-      // body, and only `unavailable`/`misconfigured`/unparsable fail.
-      // Acceptance additionally requires both routes to serve gameplay:
-      // a dead interpret route rejects the deploy even when narrate answers.
-      expect(script).toContain('case "${AI_STATUS}" in');
-      expect(script).toContain("AI readiness is degraded but playable (accepted:");
-      expect(script).toContain('"playable":(true|false)');
-      expect(script).toContain("but not playable: a route has no working candidate");
+      // accepted production posture. The verdict is delegated to the tested
+      // ai-acceptance helper reading status and playable from the sanitized
+      // body; a dead interpret route rejects the deploy even when narrate
+      // answers. See ai-acceptance.test.ts for the behavioral matrix.
+      expect(script).toContain("packages/cli/deploy/ai-acceptance.ts");
+      expect(script).toContain("node --import tsx");
       expect(script).toContain("Deployment acceptance: FAILED");
     }
     expect(updater.indexOf("Deployment acceptance: FAILED")).toBeLessThan(updater.indexOf("Update complete."));
     expect(installer.indexOf("Deployment acceptance: FAILED")).toBeLessThan(installer.indexOf("Installation complete"));
   });
 
-  it("keeps HOME read-only while admitting opencode state writes", () => {
+  it("keeps HOME fully read-only: the isolated transport needs no home writes", () => {
     const unit = read("packages/cli/deploy/skald.service");
 
     expect(unit).toContain("ProtectHome=read-only");
-    expect(unit).toContain("ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.local/state/opencode /home/nooker/.config/opencode");
+    expect(unit).toContain("ReadWritePaths=/home/nooker/skald-data");
+    expect(unit).not.toContain(".local/share/opencode");
+    expect(unit).not.toContain(".cache/opencode");
+    expect(unit).not.toContain(".local/state/opencode");
+    expect(unit).not.toContain(".config/opencode");
   });
 
   it("installs and verifies the pinned narrative agent manifest", () => {
@@ -89,8 +91,27 @@ describe("Orange Pi non-interactive restart policy", () => {
       expect(script).toContain("stat -c %a");
       expect(script).toContain("chmod 600");
     }
-    expect(updater.indexOf("agent manifest")).toBeGreaterThan(updater.indexOf("git pull --ff-only"));
-    expect(updater.indexOf("agent manifest")).toBeLessThan(updater.indexOf("sudo -n /usr/bin/systemctl restart skald.service"));
+    expect(updater.indexOf("agent manifest missing from the deployed tree")).toBeGreaterThan(updater.indexOf("git pull --ff-only"));
+    expect(updater.indexOf("agent manifest missing from the deployed tree")).toBeLessThan(updater.indexOf("sudo -n /usr/bin/systemctl restart skald.service"));
+    // The manifest installs only after the tree validated, and post-restart
+    // failures restore the previously accepted manifest (atomic boundary).
+    expect(updater.indexOf("Narrative agent manifest installed and verified")).toBeGreaterThan(updater.indexOf("npm run validate"));
+    expect(updater).toContain("restore_agent_manifest");
+    expect(updater).toContain("Previous agent manifest restored");
+  });
+
+  it("forbids disarming containment through production env", () => {
+    const installer = read("packages/cli/deploy/install-orange-pi.sh");
+    const updater = read("packages/cli/deploy/update-orange-pi.sh");
+
+    // When the transport is enabled, ISOLATE_HOME=0 and a manifest override
+    // must fail the deploy before any mutation. See deploy-env-gate.test.ts
+    // for the behavioral matrix of these exact patterns.
+    for (const script of [installer, updater]) {
+      expect(script).toContain("SKALD_OPENCODE_ISOLATE_HOME=0 is forbidden in production");
+      expect(script).toContain("SKALD_OPENCODE_AGENT_MANIFEST override is forbidden in production");
+    }
+    expect(updater.indexOf("forbidden in production")).toBeLessThan(updater.indexOf("BACKUP_FILE=\"${BACKUP_DIR}"));
   });
 
   it("keeps HTTP liveness independent from strict SSH identity preflight", () => {

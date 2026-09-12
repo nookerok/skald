@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   discoverLiveRoutes,
   liveModelSelectionFingerprint,
@@ -12,6 +13,7 @@ import {
 } from "@skald/world";
 import {
   OPENCODE_RUN_AGENT_ENV,
+  OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH,
   OPENCODE_RUN_BINARY_ENV,
   OPENCODE_RUN_DEFAULT_AGENT,
   OPENCODE_RUN_DEFAULT_MODEL,
@@ -55,16 +57,35 @@ function routerMaterial(env: NodeJS.ProcessEnv, providers: readonly ProviderId[]
 
 /**
  * Secret-free transport identity for the local-subprocess narrate backup:
- * flag, model, agent and contract version. Key values and the binary path
- * never enter the digest. Without this, toggling the transport (or swapping
- * its model) would keep the fingerprint — and any health cache keyed by it —
- * stale while the effective route changes underneath.
+ * flag, model, agent, home-isolation mode, manifest content hash and contract
+ * version. Key values and paths never enter the digest. Without this,
+ * toggling the transport (or swapping its model, isolation or manifest)
+ * would keep the fingerprint — and any health cache keyed by it — stale
+ * while the effective route changes underneath.
  */
 export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env): string {
   const enabled = isOpenCodeRunEnabled(env);
   const model = env[OPENCODE_RUN_MODEL_ENV] ?? OPENCODE_RUN_DEFAULT_MODEL;
   const agent = env[OPENCODE_RUN_AGENT_ENV] ?? OPENCODE_RUN_DEFAULT_AGENT;
-  return `opencode_run:${enabled ? "enabled" : "disabled"}:${model}:${agent}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
+  const isolate = env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? "shared" : "isolated";
+  return `opencode_run:${enabled ? "enabled" : "disabled"}:${model}:${agent}:${isolate}:${openCodeRunManifestIdentity(env)}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
+}
+
+/**
+ * Manifest identity: SHA-256 of the manifest file content when readable,
+ * `missing` otherwise. The hash (not the path) keeps two checkouts with
+ * identical content equal while any content change rotates the fingerprint.
+ * Non-secret: the manifest is versioned containment text. Relative paths
+ * resolve against the process working directory (repo root locally and in
+ * the systemd unit alike).
+ */
+function openCodeRunManifestIdentity(env: NodeJS.ProcessEnv): string {
+  const path = env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH;
+  try {
+    return createHash("sha256").update(readFileSync(path, "utf8"), "utf8").digest("hex");
+  } catch {
+    return "missing";
+  }
 }
 
 function providerKeysFromEnv(env: NodeJS.ProcessEnv): { providers: readonly ProviderId[]; providerKeys: Partial<Record<ProviderId, string>> } {
