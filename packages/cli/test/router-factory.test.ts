@@ -320,6 +320,33 @@ describe("router factory", () => {
     expect(identity).not.toContain(".opencode");
   });
 
+  it("fingerprints the served manifest bytes across file replacement", async () => {
+    // Deploy pull racing live traffic: the file changes from A to B while
+    // the old provider still serves A. Refresh must keep identifying A;
+    // only a new provider identifies B.
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const dir = mkdtempSync(join(tmpdir(), "skald-manifest-fp-race-"));
+    const file = join(dir, "narrative.md");
+    writeFileSync(file, "manifest-A", "utf8");
+    const env = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1", SKALD_OPENCODE_AGENT_MANIFEST: file };
+    const config = await createLiveRouterConfiguration(env, { fetchImpl });
+    const before = config.configFingerprint;
+    const servedA = (config.router as OpenCodeRunProvider).agentManifestDigest();
+
+    writeFileSync(file, "manifest-B", "utf8");
+    const afterRefresh = refreshRouterSelection(config.router!, config.selectionReport!, env);
+    expect(afterRefresh).toBe(before);
+    expect((config.router as OpenCodeRunProvider).agentManifestDigest()).toBe(servedA);
+
+    const rebuilt = await createLiveRouterConfiguration(env, { fetchImpl });
+    expect(rebuilt.configFingerprint).not.toBe(before);
+    expect((rebuilt.router as OpenCodeRunProvider).agentManifestDigest()).not.toBe(servedA);
+  });
+
   it("rotates the fingerprint on isolation and manifest changes", async () => {
     const fetchImpl = async () => ({
       ok: true,

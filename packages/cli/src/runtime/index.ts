@@ -35,6 +35,7 @@ export {
   buildOpenCodeRunArgs,
   extractOpenCodeSessionId,
   isOpenCodeRunEnabled,
+  loadAgentManifestSnapshot,
   openCodeRunCandidate,
   parseOpenCodeNdjsonEvents,
   runOpencodeChat,
@@ -44,6 +45,7 @@ export {
 } from "./opencode-run-provider.js";
 export type {
   NdjsonParseResult,
+  OpenCodeRunManifestSnapshot,
   OpenCodeRunProviderOptions,
   OpenCodeRunTransport,
   ParsedRunUsage,

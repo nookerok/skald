@@ -114,7 +114,8 @@ only the repo-pinned tools-denied agent manifest
 hash/owner/permission-verified by deploy), so the child never sees the
 operator home, the Skald database or user files, and the unit admits no
 OpenCode state writes at all. Installer/updater enforce the containment env
-policy through the tested `env-policy.ts` before any mutation. After changing
+policy through the tested `env-policy.ts` before service-affecting steps
+(updater: before backup; installer: before units/scripts/agent go in). After changing
 `skald.service`, re-install the unit and reload systemd before restarting
 (installer step, requires root).
 

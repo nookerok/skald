@@ -23,8 +23,10 @@ import {
   OPENCODE_RUN_TRANSPORT_VERSION,
   OpenCodeRunProvider,
   isOpenCodeRunEnabled,
+  loadAgentManifestSnapshot,
   openCodeRunCandidate,
 } from "./opencode-run-provider.js";
+import type { OpenCodeRunManifestSnapshot } from "./opencode-run-provider.js";
 
 export interface RouterConfiguration {
   readonly router: ModelRouter | null;
@@ -47,11 +49,16 @@ function keyValue(env: NodeJS.ProcessEnv, provider: ProviderId): string {
   return name ? (env[name] ?? "") : "";
 }
 
-function routerMaterial(env: NodeJS.ProcessEnv, providers: readonly ProviderId[], providerKeys: Partial<Record<ProviderId, string>>): string {
+function routerMaterial(
+  env: NodeJS.ProcessEnv,
+  providers: readonly ProviderId[],
+  providerKeys: Partial<Record<ProviderId, string>>,
+  manifestDigest?: string | null,
+): string {
   return [
     `required=${env.SKALD_AI_REQUIRED === "1" ? "1" : "0"}`,
     ...providers.map((provider) => `${provider}:${providerKeys[provider] ? "configured" : "missing"}`),
-    openCodeRunIdentity(env),
+    openCodeRunIdentity(env, manifestDigest),
   ].join("|");
 }
 
@@ -63,12 +70,17 @@ function routerMaterial(env: NodeJS.ProcessEnv, providers: readonly ProviderId[]
  * would keep the fingerprint — and any health cache keyed by it — stale
  * while the effective route changes underneath.
  */
-export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env): string {
+export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env, manifestDigest?: string | null): string {
   const enabled = isOpenCodeRunEnabled(env);
   const model = env[OPENCODE_RUN_MODEL_ENV] ?? OPENCODE_RUN_DEFAULT_MODEL;
   const agent = env[OPENCODE_RUN_AGENT_ENV] ?? OPENCODE_RUN_DEFAULT_AGENT;
   const isolate = env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? "shared" : "isolated";
-  return `opencode_run:${enabled ? "enabled" : "disabled"}:${model}:${agent}:${isolate}:${openCodeRunManifestIdentity(env)}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
+  // Explicit digest wins: callers holding the served snapshot (startup,
+  // live-router refresh) pass it so the identity describes those exact
+  // bytes. Without one, fall back to reading the file — same file the
+  // provider will load when none exists yet.
+  const digest = manifestDigest === undefined ? openCodeRunManifestIdentity(env) : manifestDigest;
+  return `opencode_run:${enabled ? "enabled" : "disabled"}:${model}:${agent}:${isolate}:${digest ?? "missing"}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
 }
 
 /**
@@ -98,22 +110,30 @@ function providerKeysFromEnv(env: NodeJS.ProcessEnv): { providers: readonly Prov
   return { providers, providerKeys };
 }
 
-function baseConfigFingerprint(env: NodeJS.ProcessEnv, providers: readonly ProviderId[], providerKeys: Partial<Record<ProviderId, string>>): string {
-  return createHash("sha256").update(routerMaterial(env, providers, providerKeys), "utf8").digest("hex");
+function baseConfigFingerprint(
+  env: NodeJS.ProcessEnv,
+  providers: readonly ProviderId[],
+  providerKeys: Partial<Record<ProviderId, string>>,
+  manifestDigest?: string | null,
+): string {
+  return createHash("sha256").update(routerMaterial(env, providers, providerKeys, manifestDigest), "utf8").digest("hex");
 }
 
 /**
  * Secret-free fingerprint for one discovery selection: combines the static
  * provider/key-presence material with the live selection. Key values never
  * enter the digest. Shared by startup discovery and scheduled refresh so both
- * produce identical fingerprints for identical inputs.
+ * produce identical fingerprints for identical inputs. Pass the served
+ * manifest digest when one is held (startup snapshot, live router) so the
+ * identity tracks served bytes instead of re-reading the file.
  */
 export function selectionConfigFingerprint(
   env: NodeJS.ProcessEnv,
   selection: LiveModelSelectionReport,
+  manifestDigest?: string | null,
 ): string {
   const { providers, providerKeys } = providerKeysFromEnv(env);
-  const baseFingerprint = baseConfigFingerprint(env, providers, providerKeys);
+  const baseFingerprint = baseConfigFingerprint(env, providers, providerKeys, manifestDigest);
   return createHash("sha256")
     .update(`${baseFingerprint}|${liveModelSelectionFingerprint(selection)}`, "utf8")
     .digest("hex");
@@ -143,7 +163,11 @@ export function refreshRouterSelection(
       },
     }
     : selection;
-  const configFingerprint = selectionConfigFingerprint(env, effective);
+  // Fingerprint what the live router actually serves: prefer its pinned
+  // manifest digest over re-reading the file, so a checkout change after
+  // startup cannot desync reporting from serving.
+  const servedDigest = router instanceof OpenCodeRunProvider ? router.agentManifestDigest() : undefined;
+  const configFingerprint = selectionConfigFingerprint(env, effective, servedDigest);
   router.applyLiveSelection(effective, configFingerprint);
   return configFingerprint;
 }
@@ -155,6 +179,7 @@ function buildRouter(
   configFingerprint: string,
   routeCandidates?: Partial<Record<"interpret" | "narrate" | "analyze", readonly RouteCandidate[]>>,
   liveSelection?: LiveModelSelectionReport,
+  transportSnapshot?: OpenCodeRunManifestSnapshot | null,
 ): ModelRouter | null {
   // The local-subprocess transport is keyless by design, so it never appears
   // in providerKeys; its presence is an explicit per-host opt-in instead.
@@ -194,6 +219,7 @@ function buildRouter(
       ...(env[OPENCODE_RUN_MODEL_ENV] ? { model: env[OPENCODE_RUN_MODEL_ENV] } : {}),
       ...(env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? { isolateHome: false } : {}),
       ...(env[OPENCODE_RUN_MANIFEST_ENV] ? { agentManifestPath: env[OPENCODE_RUN_MANIFEST_ENV] } : {}),
+      ...(transportSnapshot ? { agentManifestContent: transportSnapshot.content, agentManifestDigest: transportSnapshot.sha256 } : {}),
     },
   });
 }
@@ -251,6 +277,13 @@ export async function createLiveRouterConfiguration(
   };
   const selectionReport = await discoverLiveRoutes(selectionOptions);
   const { providers, providerKeys } = providerKeysFromEnv(env);
+  // One snapshot for everything below: the provider serves exactly these
+  // bytes and the fingerprint describes exactly these bytes, so reporting
+  // can never describe a manifest the router does not serve. The path
+  // resolves from the passed env (never process.env) for testability.
+  const transportSnapshot = isOpenCodeRunEnabled(env)
+    ? loadAgentManifestSnapshot(env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH)
+    : null;
   // Build one effective selection first: the opencode_run backup belongs to
   // the narrate route from boot (same rule as refresh), and the fingerprint,
   // the applied routes and the reported live selection must all derive from
@@ -264,7 +297,7 @@ export async function createLiveRouterConfiguration(
       },
     }
     : selectionReport;
-  const configFingerprint = selectionConfigFingerprint(env, effectiveSelection);
+  const configFingerprint = selectionConfigFingerprint(env, effectiveSelection, transportSnapshot?.sha256 ?? null);
   // opencode_run goes last on narrate only: it is the newest, slowest
   // transport, so existing candidates keep priority until data says otherwise.
   // Interpret stays on the validated HTTP pipeline for now.
@@ -273,7 +306,7 @@ export async function createLiveRouterConfiguration(
     narrate: effectiveSelection.routes.narrate,
     analyze: [] as readonly RouteCandidate[],
   };
-  const router = buildRouter(env, providerKeys, providers, configFingerprint, routes, effectiveSelection);
+  const router = buildRouter(env, providerKeys, providers, configFingerprint, routes, effectiveSelection, transportSnapshot);
   return {
     router,
     required: base.required,

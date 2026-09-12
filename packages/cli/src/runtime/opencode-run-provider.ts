@@ -37,6 +37,7 @@
 
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -76,8 +77,9 @@ export const OPENCODE_RUN_SESSION_TITLE = "skald-narrate";
  * Transport contract version, included in router fingerprints. Bump when the
  * spawned argv shape, the home-isolation layout or the agent manifest
  * contract changes, so a code update can never serve stale health data.
+ * v2: immutable construction-time manifest bytes (no per-call re-read).
  */
-export const OPENCODE_RUN_TRANSPORT_VERSION = 1;
+export const OPENCODE_RUN_TRANSPORT_VERSION = 2;
 
 /**
  * Repo-pinned tools-denied agent manifest, copied into the isolated home on
@@ -89,6 +91,32 @@ export const OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH = "packages/cli/deploy/ope
 
 /** Manifest override (absolute or repo-relative path). */
 export const OPENCODE_RUN_MANIFEST_ENV = "SKALD_OPENCODE_AGENT_MANIFEST";
+
+/**
+ * One immutable manifest snapshot: content served into isolated homes plus
+ * its SHA-256 identity. Snapshots are taken once (provider construction,
+ * router selection) and never re-read, so a deploy pull racing live traffic
+ * cannot swap the agent under a running process.
+ */
+export interface OpenCodeRunManifestSnapshot {
+  readonly content: string;
+  readonly sha256: string;
+}
+
+/**
+ * Load and hash the agent manifest: explicit path, then
+ * `SKALD_OPENCODE_AGENT_MANIFEST`, then the repo-pinned default. Returns
+ * null when unreadable so callers fail closed. Never throws.
+ */
+export function loadAgentManifestSnapshot(manifestPath?: string | undefined): OpenCodeRunManifestSnapshot | null {
+  const src = manifestPath ?? process.env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH;
+  try {
+    const content = readFileSync(src, "utf8");
+    return { content, sha256: createHash("sha256").update(content, "utf8").digest("hex") };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Set to `0` to run with the process HOME (debugging only, never
@@ -219,6 +247,13 @@ export interface OpenCodeRunTransport {
    * call closed instead of running with an unknown agent.
    */
   readonly agentManifestPath?: string | undefined;
+  /**
+   * Pre-loaded manifest snapshot (content plus digest). Takes precedence
+   * over `agentManifestPath` when set; lets the factory build the provider
+   * and the fingerprint from one identical snapshot.
+   */
+  readonly agentManifestContent?: string | undefined;
+  readonly agentManifestDigest?: string | null | undefined;
   readonly killGraceMs?: number | undefined;
   readonly maxMessageBytes?: number | undefined;
   readonly maxOutputBytes?: number | undefined;
@@ -745,6 +780,12 @@ export class OpenCodeRunProvider extends ModelRouter {
    * accepted revision. Null when unreadable — calls then fail closed.
    */
   private readonly runAgentManifest: string | null;
+  /**
+   * Digest of the served bytes. Reported into router fingerprints so the
+   * identity always describes what this process actually serves — never a
+   * file that changed afterwards. Null mirrors an unavailable manifest.
+   */
+  private readonly runAgentManifestDigest: string | null;
   private readonly runKillGraceMs: number;
   private readonly runMaxOutputBytes: number;
   private readonly runMaxMessageBytes: number;
@@ -760,7 +801,18 @@ export class OpenCodeRunProvider extends ModelRouter {
     this.runModel = transport?.model ?? OPENCODE_RUN_DEFAULT_MODEL;
     this.runWorkdir = transport?.workdir;
     this.runIsolateHome = transport?.isolateHome ?? true;
-    this.runAgentManifest = OpenCodeRunProvider.loadAgentManifest(transport?.agentManifestPath);
+    // One immutable snapshot for the process lifetime: explicit content wins
+    // (factory path, fingerprint built from the same object), otherwise the
+    // manifest file is read exactly once here and never per call.
+    const snapshot = transport?.agentManifestContent !== undefined
+      ? {
+        content: transport.agentManifestContent,
+        sha256: transport.agentManifestDigest
+          ?? createHash("sha256").update(transport.agentManifestContent, "utf8").digest("hex"),
+      }
+      : loadAgentManifestSnapshot(transport?.agentManifestPath);
+    this.runAgentManifest = snapshot?.content ?? null;
+    this.runAgentManifestDigest = snapshot?.sha256 ?? null;
     this.runKillGraceMs = transport?.killGraceMs ?? OPENCODE_RUN_KILL_GRACE_MS;
     this.runMaxOutputBytes = transport?.maxOutputBytes ?? OPENCODE_RUN_MAX_OUTPUT_BYTES;
     this.runMaxMessageBytes = transport?.maxMessageBytes ?? OPENCODE_RUN_MAX_MESSAGE_BYTES;
@@ -770,17 +822,12 @@ export class OpenCodeRunProvider extends ModelRouter {
   }
 
   /**
-   * Load the agent manifest once: explicit path, `SKALD_OPENCODE_AGENT_MANIFEST`
-   * override, or the repo-pinned default. Returns null when unreadable so
-   * calls fail closed instead of running with an unknown agent.
+   * Digest of the manifest bytes this process serves (null when unavailable).
+   * Router fingerprints read this — never the file — so the reported identity
+   * cannot describe a manifest that changed after construction.
    */
-  private static loadAgentManifest(manifestPath: string | undefined): string | null {
-    const src = manifestPath ?? process.env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH;
-    try {
-      return readFileSync(src, "utf8");
-    } catch {
-      return null;
-    }
+  agentManifestDigest(): string | null {
+    return this.runAgentManifestDigest;
   }
 
   /**
