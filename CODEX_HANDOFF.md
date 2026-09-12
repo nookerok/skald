@@ -1,3 +1,70 @@
+# Current work (2026-09-12 — sandbox cause proven, gate reconciled; deploy+root pending)
+
+- P1 cause isolated by experiment: the exact `opencode run` call (same
+  binary/agent/model/argv/empty-dir) with the adapter's scrubbed env
+  (PATH/HOME/USER/LANG only) succeeds from a nooker shell (`PONG`, exact
+  contract events, zero tool calls, cost 0, ~7s wall). The env scrub is
+  exonerated; the systemd sandbox kills it (3.1s, exit non-zero):
+  `ProtectHome=read-only` blocks the session-db/model-cache/config writes
+  (`~/.local/share/opencode`, `~/.cache/opencode`, `~/.config/opencode` —
+  all confirmed written-to on Pi).
+- Fix in this tree: `skald.service` keeps `ProtectHome=read-only` but
+  extends `ReadWritePaths` with exactly those three opencode state dirs. No
+  provider-code change, no other sandbox weakening. Applying needs root
+  (unit copy + daemon-reload): operator step after deploy.
+- P2 reconciled in this tree: installer/updater acceptance now parses
+  `readiness.status` from the sanitized probe body (endpoint still
+  200-iff-ready) and accepts `ready`|`degraded`, failing only on
+  `unavailable`/`misconfigured`/unparsable (ADR-0036 amendment 2026-09-12;
+  ARCHITECTURE, deploy README, DECISIONS D-036 and deploy-policy pins
+  updated; extraction verified against the live degraded body plus
+  unavailable/empty negatives). The installed
+  `/usr/local/bin/update-orange-pi.sh` is stale (no AI gate, old
+  typecheck+tests validation) — needs a root re-copy from the repo.
+- Also: `skald.env.example` + root `.env.example` document
+  `SKALD_OPENCODE_RUN`/`SKALD_OPENCODE_BIN`; the manual probe session row
+  was deleted via `session delete`, `/tmp/manual-probe-01` removed.
+- Gate: local `npm run validate` PASS. Still open in this session:
+  commit+push, deploy via updater, root apply (unit + updater sync +
+  restart), live ai-probe expecting `opencode_run` ok with latency.
+
+# Current work (2026-09-12 — OpenCodeRunProvider deployed, live smoke PASS, adapter fails closed under sandbox)
+
+- Updater run as `nooker` (no sudo): backup
+  `backup-3e9cdceedf54cddbc4f25080b8d4744767db1d2c-pre-update-20260912-130231.sqlite`
+  created+verified, fast-forward `3e9cdce` → `617547e`, on-device suite
+  172 files / 2124 passed / 1 skipped, restart, health gate PASS,
+  `Update complete`. Remote `main` == `origin/main` == `617547e`;
+  `skald.service`, healthcheck and backup timers active.
+- Service env set before restart (backup
+  `skald-data/skald.env.bak-pre-opencode-20260912`): `SKALD_OPENCODE_RUN=1`
+  and `SKALD_OPENCODE_BIN=/home/nooker/.opencode/bin/opencode` appended to
+  `/home/nooker/skald-data/skald.env` (`opencode` is on neither the service
+  PATH nor the shell PATH; narrative agent file present). Service restart via
+  updater picked them up; file stays 600/nooker.
+- Live `POST /api/ops/ai-probe` after deploy: `ok:false`, status `degraded`
+  (pre-existing shape: interpret Ollama ok + synthetic unavailable slot).
+  Narrate slot proves the adapter is live in the route: `ollama_cloud`
+  ok in 651ms, `opencode_run` failed in `request` phase after 3136ms —
+  the binary spawns under the service but exits non-zero fast. Prime
+  suspect: `ProtectHome=read-only` blocks opencode session-state writes
+  under the sandbox; fail-closed holds, gameplay narration unaffected
+  (Ollama keeps priority). Sandbox fix needs an installer-level unit change
+  (read-write state dir + daemon-reload) — not done here.
+- One narrate smoke on `world-097b4463` (T31→T32, event 451→469):
+  `осмотреться` 200 + `ok:true` + live `presentation.primary` + state +
+  exactly +1; same-key replay HTTP 409 `duplicate_request` with no new tick;
+  `/api/health` 200; final scoped state matches (T32, event 469).
+- Note: the installed `/usr/local/bin/update-orange-pi.sh` has no AI
+  readiness gate (prints `Update complete` right after the health gate);
+  the repo copy carries step 11 (loopback ai-probe must be 200). With the
+  current provider shape (Ollama single model + opencode_run backup-only on
+  narrate) readiness stays `degraded` by design, so the repo gate would fail
+  where the installed updater passes. Reconcile the two scripts before the
+  next deploy.
+- Open: sandbox write access for opencode state, successful adapter-call
+  latency in prod (blocked on the above), session-row pruning observation.
+
 # Current work (2026-09-11 — OpenCodeRunProvider adapter implemented)
 
 - New `packages/cli/src/runtime/opencode-run-provider.ts`:

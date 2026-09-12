@@ -44,7 +44,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 
 | D-034 | FirstEntryDTO separates checkpoint-missing first launch from valid/incompatible return Presence; onboarding and Presence share a deterministic observer-safe scene, with idempotent one-click acknowledge | accepted | docs/adr/0034-first-entry-presence-modes.md |
 | D-035 | Player questions use a read-only Inquiry registry over observer-scoped Game Shell DTO; Actions and in-world speech remain on the existing command pipeline, and LLM may only select a registered query | accepted | docs/adr/0035-read-only-inquiry-gateway.md |
-| D-036 | Simulation liveness, AI readiness and deployment acceptance are separate; no-world AI probes are read-only and deployment fails when required routes are not ready, while `/api/health` remains simulation-only | accepted | docs/adr/0036-ai-liveness-readiness-deployment-acceptance.md |
+| D-036 | Simulation liveness, AI readiness and deployment acceptance are separate; no-world AI probes are read-only and deployment fails on `unavailable`/`misconfigured`, while `/api/health` remains simulation-only. Amendment 2026-09-12: `degraded` (one live model) is accepted because `ready` is unreachable by architecture | accepted | docs/adr/0036-ai-liveness-readiness-deployment-acceptance.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

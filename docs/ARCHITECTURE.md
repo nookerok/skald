@@ -864,8 +864,9 @@ as active and backup; excluded IDs carry sanitized reasons. The probe has no
 `worldId`, does not read or mutate Event Log/Projection/time or
 ConversationTurn/narration persistence, and its report never enters
 player-facing DTOs. Deployment acceptance additionally requires this report to
-be `ready`; deterministic gameplay fallbacks may continue while acceptance is
-failed. See ADR-0036.
+be `ready` or `degraded` (one live model serves while deterministic gameplay
+fallbacks cover the rest); `unavailable` or `misconfigured` fail acceptance.
+See ADR-0036.
 
 ### 5.3.6 Image reference -> Canon region pipeline
 

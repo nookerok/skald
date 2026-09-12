@@ -35,7 +35,8 @@ The install script will:
 6. Install systemd units
 7. Start the server and wait for simulation liveness
 8. Require `SKALD_AI_REQUIRED=1`, run the loopback AI readiness probe, and
-   refuse installation completion when the required routes are not ready
+   refuse installation completion when readiness is `unavailable`,
+   `misconfigured` or unparsable (`ready` or `degraded` are accepted)
 9. Enable health check and backup timers
 
 The installer creates `skald.env` from the example on first run. Set
@@ -97,15 +98,30 @@ SKALD_OLLAMA_CLOUD_API_KEY=
 # Ollama Cloud both activate nothing.
 SKALD_OPENROUTER_API_KEY=
 SKALD_AI_REQUIRED=1
+# Optional local-subprocess narrative transport (off by default; narrate-route
+# backup only). Requires the containment `narrative` agent on the host; the
+# absolute path is required because `~/.opencode/bin` is not on the service
+# PATH. See packages/cli/deploy/skald.env.example.
+# SKALD_OPENCODE_RUN=1
+# SKALD_OPENCODE_BIN=/home/nooker/.opencode/bin/opencode
 ```
+
+The systemd unit keeps `HOME` read-only but admits writes to the OpenCode
+CLI state directories (`~/.local/share/opencode`, `~/.cache/opencode`,
+`~/.config/opencode`), which the `opencode_run` transport needs for session
+rows and the model cache. After changing `skald.service`, re-install the
+unit and reload systemd before restarting (installer step, requires root).
 
 `GET /api/health` is simulation liveness only and never calls a provider.
 `POST http://127.0.0.1:3000/api/ops/ai-probe` is loopback-only and returns 200
-only when the live Zen catalogue has at least two models that pass both
-authenticated no-world probes. The JSON report includes `activeModel`,
-`backupModel` and sanitized exclusion reasons. With `SKALD_AI_REQUIRED=0`,
-deterministic fallback keeps the server usable but an AI readiness failure is
-not deployment acceptance.
+only when readiness is `ready` (two probe-valid models on both routes). The
+JSON report includes `activeModel`, `backupModel` and sanitized exclusion
+reasons. Install/update acceptance reads `readiness.status` from that report
+and accepts `ready` or `degraded` (one live model serves, deterministic
+fallback covers the rest); `unavailable`, `misconfigured` or an unparsable
+probe fail acceptance. With `SKALD_AI_REQUIRED=0`, deterministic fallback
+keeps the server usable but an AI readiness failure is not deployment
+acceptance.
 
 ## Daily model re-discovery
 
@@ -162,12 +178,14 @@ The update script:
 4. Rejects detached HEAD
 5. Creates and verifies a SQLite backup
 6. Fetches and merges via `git pull --ff-only`
-7. Runs `npm ci`, typecheck, and tests
+7. Runs `npm ci` and `npm run validate` (typecheck, full test suite, Canon)
 8. Restarts the service
 9. Waits up to 60 seconds for simulation liveness
-10. Runs the loopback AI readiness probe and exits non-zero on `degraded`,
-    `unavailable` or `misconfigured`; it prints `Update complete` only after
-    readiness is `ready`
+10. Runs the loopback AI readiness probe, reads `readiness.status` from the
+    sanitized body (the endpoint answers HTTP 200 only for `ready`) and
+    accepts `ready` or `degraded`; it exits non-zero on `unavailable`,
+    `misconfigured` or an unparsable probe and prints `Update complete`
+    only after acceptance
 
 > **Do not run update-orange-pi.sh with sudo.** It refuses root.
 
@@ -257,5 +275,5 @@ sudo ufw enable
 - **Node 22.23.1 required.** `node:sqlite` is experimental and the service hardcodes this path.
 - **AI readiness is separate from liveness.** Without a Zen key, the server
   remains usable with deterministic fallback when `SKALD_AI_REQUIRED=0`;
-  production acceptance requires a live Zen catalogue and two passing model
-  probes.
+  production acceptance requires readiness `ready` or `degraded` (one live
+  model serves, deterministic fallback covers the rest).

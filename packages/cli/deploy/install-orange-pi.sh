@@ -130,19 +130,32 @@ sudo systemctl enable --now skald-healthcheck.timer
 sudo systemctl enable --now skald-backup.timer
 echo "[OK] Timers enabled."
 
-# 12. Production acceptance requires a live AI readiness probe.
+# 12. Production acceptance requires a live AI readiness probe. Accepted
+# posture (ADR-0036 amendment 2026-09-12): `ready` or `degraded` (one live
+# model serves, deterministic fallback covers the rest); fail on
+# `unavailable`, `misconfigured` or an unparsable probe. The endpoint still
+# answers HTTP 200 only for `ready`, so the status is read from the sanitized
+# body (grep/sed only: no jq on minimal hosts).
 echo "Checking AI readiness (loopback probe)..."
 AI_RESPONSE=$(curl --silent --show-error --max-time 30 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' http://127.0.0.1:3000/api/ops/ai-probe 2>&1 || true)
 AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
 AI_BODY="${AI_RESPONSE%$'\n'*}"
-if [ "${AI_HTTP_STATUS}" != "200" ]; then
-  echo "[OK] Simulation is healthy"
-  echo "[ERROR] AI readiness failed"
-  echo "Deployment acceptance: FAILED"
-  echo "Sanitized readiness report: ${AI_BODY}"
-  exit 1
-fi
-echo "[OK] AI readiness is ready."
+AI_STATUS=$(printf '%s' "${AI_BODY}" | grep -o -E '"readiness":\{"status":"[a-z]+"' | sed 's/^"readiness":{"status":"//;s/"$//' || true)
+case "${AI_STATUS}" in
+  ready)
+    echo "[OK] AI readiness is ready."
+    ;;
+  degraded)
+    echo "[OK] AI readiness is degraded (accepted: one live model serves, deterministic fallback covers the rest)."
+    ;;
+  *)
+    echo "[OK] Simulation is healthy"
+    echo "[ERROR] AI readiness failed (status: ${AI_STATUS:-unknown}, HTTP ${AI_HTTP_STATUS})"
+    echo "Deployment acceptance: FAILED"
+    echo "Sanitized readiness report: ${AI_BODY}"
+    exit 1
+    ;;
+esac
 
 echo ""
 echo "=== Installation complete ==="

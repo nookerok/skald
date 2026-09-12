@@ -32,7 +32,11 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/nooker/skald-data
+# The opencode_run narrative transport spawns the OpenCode CLI, which keeps
+# session state under ~/.local/share/opencode, a model cache under
+# ~/.cache/opencode and its config under ~/.config/opencode. HOME stays
+# read-only; exactly these state directories are additionally writable.
+ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.config/opencode
 
 StandardOutput=journal
 StandardError=journal

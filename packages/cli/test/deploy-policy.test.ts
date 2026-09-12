@@ -45,16 +45,29 @@ describe("Orange Pi non-interactive restart policy", () => {
     expect(installer).toContain('-m 440 "${SUDOERS_SOURCE}"');
   });
 
-  it("requires AI readiness for Orange Pi installation acceptance", () => {
+  it("accepts ready or degraded AI readiness and fails otherwise", () => {
     const installer = read("packages/cli/deploy/install-orange-pi.sh");
     const updater = read("packages/cli/deploy/update-orange-pi.sh");
 
     expect(installer).toContain("SKALD_AI_REQUIRED=1");
-    expect(installer).toContain('if [ "${AI_HTTP_STATUS}" != "200" ]; then');
-    expect(installer).toContain("Deployment acceptance: FAILED");
-    expect(updater).toContain('if [ "${AI_HTTP_STATUS}" != "200" ]; then');
-    expect(updater).toContain("Deployment acceptance: FAILED");
+    for (const script of [installer, updater]) {
+      // The endpoint answers HTTP 200 only for `ready`, while `degraded`
+      // (one live model, deterministic fallback covers the rest) is the
+      // accepted production posture: the status is read from the sanitized
+      // body, and only `unavailable`/`misconfigured`/unparsable fail.
+      expect(script).toContain('case "${AI_STATUS}" in');
+      expect(script).toContain("AI readiness is degraded (accepted:");
+      expect(script).toContain("Deployment acceptance: FAILED");
+    }
     expect(updater.indexOf("Deployment acceptance: FAILED")).toBeLessThan(updater.indexOf("Update complete."));
+    expect(installer.indexOf("Deployment acceptance: FAILED")).toBeLessThan(installer.indexOf("Installation complete"));
+  });
+
+  it("keeps HOME read-only while admitting opencode state writes", () => {
+    const unit = read("packages/cli/deploy/skald.service");
+
+    expect(unit).toContain("ProtectHome=read-only");
+    expect(unit).toContain("ReadWritePaths=/home/nooker/skald-data /home/nooker/.local/share/opencode /home/nooker/.cache/opencode /home/nooker/.config/opencode");
   });
 
   it("keeps HTTP liveness independent from strict SSH identity preflight", () => {

@@ -49,6 +49,20 @@ state, journals and conversation transcripts. The loopback-only
 HTTP 200 only for `ready`; all other readiness states return HTTP 503. A cached
 readiness report may be exposed without invoking a provider.
 
+## Amendment (2026-09-12): `degraded` is accepted for deployment
+
+Since 2026-09-09 production runs a single probe-valid model (Ollama Cloud
+fallback): the Zen free tier is server-side locked out of non-app sessions,
+OpenRouter stays idle by design while earlier providers answer, and the
+keyless `opencode_run` candidate is a narrate-only backup. `ready` (two valid
+candidates on both routes) is therefore unreachable by architecture, not by
+outage — demanding it blocks every future deploy without making the game
+safer. Deployment acceptance now accepts `ready` or `degraded` and fails only
+on `unavailable`, `misconfigured` or an unparsable probe. The endpoint
+contract is unchanged (HTTP 200 iff `ready`); the installer and updater parse
+`readiness.status` from the sanitized body instead of gating on the status
+code. Everything else in this ADR still stands.
+
 ## Consequences
 
 The same provider configuration factory is used by gameplay, Intent, Narration

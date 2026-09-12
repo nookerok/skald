@@ -128,21 +128,36 @@ if ! curl --fail --silent --max-time 2 http://127.0.0.1:3000/api/health > /dev/n
 fi
 
 # 11. Deployment acceptance: liveness is necessary but not sufficient.
+# Accepted production posture (ADR-0036 amendment 2026-09-12): `ready` needs
+# two probe-valid candidates on both routes, which the current provider shape
+# cannot produce (Zen free tier is server-side locked, OpenRouter stays idle
+# by design, opencode_run is a narrate-only backup). Accept `ready` or
+# `degraded`; fail on `unavailable`, `misconfigured` or an unparsable probe.
+# The endpoint still answers HTTP 200 only for `ready`, so the status is read
+# from the sanitized body (grep/sed only: no jq on minimal hosts).
 echo "Checking AI readiness (loopback probe)..."
 AI_RESPONSE=$(curl --silent --show-error --max-time 30 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' "${AI_PROBE_URL}" 2>&1 || true)
 AI_HTTP_STATUS="${AI_RESPONSE##*$'\n'}"
 AI_BODY="${AI_RESPONSE%$'\n'*}"
-if [ "${AI_HTTP_STATUS}" != "200" ]; then
-  echo "[OK] Simulation is healthy"
-  echo "[ERROR] AI readiness failed"
-  echo "Deployment acceptance: FAILED"
-  echo "Previous commit: ${PREV_COMMIT}"
-  echo "Current commit: ${CURRENT_COMMIT}"
-  echo "Sanitized readiness report: ${AI_BODY}"
-  echo "Rollback guidance: inspect model/configuration and restore ${PREV_COMMIT} only if the deployed code is incompatible."
-  exit 1
-fi
-echo "[OK] AI readiness is ready."
+AI_STATUS=$(printf '%s' "${AI_BODY}" | grep -o -E '"readiness":\{"status":"[a-z]+"' | sed 's/^"readiness":{"status":"//;s/"$//' || true)
+case "${AI_STATUS}" in
+  ready)
+    echo "[OK] AI readiness is ready."
+    ;;
+  degraded)
+    echo "[OK] AI readiness is degraded (accepted: one live model serves, deterministic fallback covers the rest)."
+    ;;
+  *)
+    echo "[OK] Simulation is healthy"
+    echo "[ERROR] AI readiness failed (status: ${AI_STATUS:-unknown}, HTTP ${AI_HTTP_STATUS})"
+    echo "Deployment acceptance: FAILED"
+    echo "Previous commit: ${PREV_COMMIT}"
+    echo "Current commit: ${CURRENT_COMMIT}"
+    echo "Sanitized readiness report: ${AI_BODY}"
+    echo "Rollback guidance: inspect model/configuration and restore ${PREV_COMMIT} only if the deployed code is incompatible."
+    exit 1
+    ;;
+esac
 
 # The fast-forward must still point at the commit that was validated.
 if [ "$(git rev-parse HEAD)" != "${CURRENT_COMMIT}" ]; then
