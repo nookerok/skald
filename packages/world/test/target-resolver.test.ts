@@ -134,6 +134,18 @@ describe("resolveInteractionTarget — location scope (WorldObjects)", () => {
     const l = resolveInteractionTarget(world, "listen", "");
     expect(l.kind).toBe("environment");
   });
+
+  it("observe naming the current location resolves to the environment", () => {
+    // "Осмотреть переправу" where you stand is legitimate perception, never
+    // an "unknown target" rejection.
+    const world = towerWorld();
+    expect(resolveInteractionTarget(world, "observe", "башню"))
+      .toEqual({ kind: "environment", locationId: "tower_approach" });
+  });
+
+  it("inspect stays strict: close examination still needs the object", () => {
+    expect(resolveInteractionTarget(towerWorld(), "inspect", "башню").kind).toBe("missing");
+  });
 });
 
 describe("resolveInteractionTarget — declined Russian forms (QA3)", () => {
@@ -174,15 +186,23 @@ describe("resolveInteractionTarget — declined Russian forms (QA3)", () => {
     expect(resolveInteractionTarget(waterWorld(), "listen", "водовоз").kind).toBe("missing");
   });
 
-  it("resolves the replica target of «Прислушаться к воде»", () => {
+  it("routes the replica «Прислушаться к воде» to ambient listening", () => {
+    // Water is heard, not observed first: for listen it is ambience, so the
+    // replica never becomes an "unknown target" rejection. The table above
+    // still guarantees an observed water object resolves when one exists.
     const parsed = parseIntent("Прислушаться к воде");
     expect(parsed.type).toBe("InteractionCommand");
     if (parsed.type !== "InteractionCommand") throw new Error("unreachable");
     expect(parsed.verb).toBe("listen");
-    const r = resolveInteractionTarget(waterWorld(), "listen", parsed.target?.raw ?? "");
-    expect(r.kind).toBe("resolved");
-    if (r.kind !== "resolved") throw new Error("unreachable");
-    expect(r.target.id).toBe("river_water");
+    expect(parsed.target).toBeUndefined();
+  });
+
+  it("keeps observe strict: looking at water still needs the object", () => {
+    const parsed = parseIntent("Смотрю на воду");
+    expect(parsed.type).toBe("InteractionCommand");
+    if (parsed.type !== "InteractionCommand") throw new Error("unreachable");
+    expect(parsed.verb).toBe("observe");
+    expect(parsed.target?.raw).toBe("воду");
   });
 });
 

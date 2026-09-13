@@ -112,7 +112,35 @@ export function resolveInteractionTarget(world: ReadonlyWorld, verb: string, que
     ? candidates.filter((target) => matchLevel([target.name, ...target.aliases], object) === "stem")
     : [];
   const pool = exact.length > 0 ? exact : stem.length > 0 ? stem : candidates;
-  if (pool.length === 0) return { kind: "missing" };
+  if (pool.length === 0) {
+    // Observing where you stand is always legitimate: a perception target
+    // naming the current location ("осмотреть переправу" at the crossing)
+    // resolves to the environment instead of an "unknown target" rejection.
+    // inspect stays strict: close examination still needs the object.
+    if ((verb === "observe" || verb === "listen") && matchesCurrentLocation(world, object)) {
+      const locationId = world.currentLocationId;
+      if (locationId) return { kind: "environment", locationId };
+    }
+    return { kind: "missing" };
+  }
   if (pool.length === 1) return { kind: "resolved", target: pool[0]! };
   return { kind: "ambiguous", candidates: toCandidates(pool) };
+}
+
+/**
+ * True when every word of the query stem-matches a word of the current
+ * location name ("переправу" meets "Переправа у Чёрного леса"). Word-wise
+ * and unordered: location names carry filler words ("у") the player omits.
+ * Shared stemmer, same conservatism as object matching.
+ */
+function matchesCurrentLocation(world: ReadonlyWorld, query: string): boolean {
+  const locationId = world.currentLocationId;
+  const location = locationId ? world.locations.get(locationId) : undefined;
+  if (!location) return false;
+  const queryWords = query.split(/\s+/u).filter((word) => word.length > 0);
+  if (queryWords.length === 0) return false;
+  const nameWords = normalized(location.name).split(/\s+/u).filter((word) => word.length > 0);
+  return queryWords.every((queryWord) =>
+    nameWords.some((nameWord) => queryWord === nameWord || sameRussianStem(queryWord, nameWord)),
+  );
 }

@@ -347,8 +347,93 @@ describe("master turn gateway V2", () => {
     expect(result.question).not.toContain("чего ты хочешь добиться");
   });
 
-  it("answers a pronoun-rewritten follow-up question without a model call", async () => {
-    // "А что за ней?" is only a candidate until the focus stack binds "ней".
+  it("names the mentioned referent instead of quoting topics", async () => {
+    // "Сделаю это" with a settled mention means the discussed referent, not
+    // one of the knowledge sentences: ask about it directly, no model call.
+    const snap = snapshot();
+    const conversation = buildMasterConversationContext([{
+      turnSeq: 1,
+      worldId: "test-world",
+      correlationId: "cmd-1",
+      idempotencyKey: "prior-1",
+      playerText: "Осматриваю ограду.",
+      inputClass: "action",
+      worldTimeBefore: 0,
+      worldTimeAfter: 1,
+      responseKind: "action_outcome",
+      responseText: "Ты осматриваешь ограду.",
+      createdAt: 1,
+      contextMetadata: {
+        schemaVersion: 1,
+        mentions: [{ kind: "object", role: "target", label: "Ограда" }],
+      },
+    } as unknown as import("../src/conversation/types.js").ConversationTurn], "test-world", { scene: snap.scene.context });
+    const topical: MasterTurnSnapshot = {
+      ...snap,
+      conversation,
+      scene: {
+        context: {
+          ...snap.scene.context,
+          knownTopics: [
+            { observerRef: "topic_1", category: "told", text: "Старое русло открывает путь через лес.", status: "current" },
+            { observerRef: "topic_2", category: "told", text: "Перевозчик знает все тропы у реки.", status: "current" },
+          ],
+        },
+        references: snap.scene.references,
+      },
+    };
+    const router = { chat: vi.fn() } as any;
+    const result = await interpretMasterTurn("Сделаю это.", topical, router, { timeoutMs: 50 });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toBe("«Ограда» — что именно ты хочешь сделать?");
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("names the mentioned referent for a speech topic pronoun", async () => {
+    const snap = snapshot();
+    const conversation = buildMasterConversationContext([{
+      turnSeq: 1,
+      worldId: "test-world",
+      correlationId: "cmd-1",
+      idempotencyKey: "prior-1",
+      playerText: "Осматриваю ограду.",
+      inputClass: "action",
+      worldTimeBefore: 0,
+      worldTimeAfter: 1,
+      responseKind: "action_outcome",
+      responseText: "Ты осматриваешь ограду.",
+      createdAt: 1,
+      contextMetadata: {
+        schemaVersion: 1,
+        mentions: [{ kind: "object", role: "target", label: "Ограда" }],
+      },
+    } as unknown as import("../src/conversation/types.js").ConversationTurn], "test-world", { scene: snap.scene.context });
+    const topical: MasterTurnSnapshot = {
+      ...snap,
+      conversation,
+      scene: {
+        context: {
+          ...snap.scene.context,
+          knownTopics: [
+            { observerRef: "topic_1", category: "told", text: "Старое русло открывает путь через лес.", status: "current" },
+            { observerRef: "topic_2", category: "told", text: "Перевозчик знает все тропы у реки.", status: "current" },
+          ],
+        },
+        references: snap.scene.references,
+      },
+    };
+    const router = { chat: vi.fn() } as any;
+    const result = await interpretMasterTurn("Спрошу об этом.", topical, router, { timeoutMs: 50 });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toBe("У кого спросить про «Ограда»? Назови, к кому обратиться.");
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("answers a pronoun-rewritten follow-up question without a model call", async () => {    // "А что за ней?" is only a candidate until the focus stack binds "ней".
     // With a settled mention the rewrite is a direct inquiry, which must take
     // the read-only inquiry path — never action validation with a null intent.
     const snap = snapshot();

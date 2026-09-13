@@ -567,7 +567,7 @@ function buildClarification(
  * A single-action parser cannot silently execute only the first part.
  */
 function hasCompoundConjunction(text: string): boolean {
-  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|рассмотр|огля|посмотр|взгляд|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп)/iu.test(text)
+  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|взгляд|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп)/iu.test(text)
     || /(?:^|\s)(?:потом|затем|после|одновременно)\s+/iu.test(text);
 }
 
@@ -678,6 +678,24 @@ function isAmbientModifier(target: IntentReference | undefined): boolean {
   if (!target) return false;
   const value = target.raw.trim().toLowerCase();
   return ["звук", "звуки", "звуков", "шум", "шумы", "окружение", "окрестности", "вокруг", "тишина"].includes(value);
+}
+
+/**
+ * Water words name ambience, not a graspable object: at a river, "water" is
+ * heard without being observed first. For listen they always resolve to the
+ * environment (the domain answers with ambient sound or honest silence), so
+ * a declined form never becomes an "unknown target" rejection. Observe and
+ * inspect stay strict: looking at water still needs the observed object.
+ */
+const WATER_AMBIENT: readonly string[] = [
+  "вода", "воды", "воде", "воду", "водой", "водою",
+  "река", "реки", "реке", "реку", "рекой", "рекою",
+  "волна", "волны", "волне", "волну", "волной", "волною",
+];
+
+function isWaterAmbient(target: IntentReference | undefined): boolean {
+  if (!target) return false;
+  return WATER_AMBIENT.includes(target.raw.trim().toLowerCase());
 }
 
 
@@ -860,7 +878,10 @@ function buildCanonical(
     }
   } else {
     const target = canonicalTarget(remainder);
-    parts = (verb === "listen" || verb === "observe" || verb === "inspect") && isAmbientModifier(target) ? {} : target ? { target } : {};
+    const ambient = (verb === "listen" || verb === "observe" || verb === "inspect") && isAmbientModifier(target);
+    // Water is heard, not observed first: listen treats it as ambience.
+    const waterAmbient = verb === "listen" && isWaterAmbient(target);
+    parts = ambient || waterAmbient ? {} : target ? { target } : {};
   }
 
   const ambiguities: string[] = [];
@@ -944,7 +965,20 @@ export function interpretIntent(
   }
 
   const verb = verbMatch.entry;
+  const beforeVerb = text.slice(0, verbMatch.wordStart).trim();
   const afterVerbRaw = text.slice(verbMatch.wordEnd).trim();
+
+  // The longest stem wins anywhere in the replica, so a travel-first phrase
+  // ("иду к реке и осматриваюсь") can match its SECOND verb. Whatever half
+  // matched, a second action verb before it means the single-action parser
+  // cannot silently execute one half.
+  if (beforeVerb.length > 0 && findBestVerb(beforeVerb)) {
+    return buildClarification(
+      rawText,
+      [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${beforeVerb || afterVerbRaw || "окружение"}` }],
+      `compound-${Date.now()}`,
+    );
+  }
 
   // Compound phrase detection: "осматриваюсь и иду к реке", "слушать перевозчика, потом перейти мост".
   // Check BEFORE stripping conjunctions so "и иду" is still visible.
@@ -963,6 +997,17 @@ export function interpretIntent(
     .trim();
 
   if (verb.operation === "approach" || verb.operation === "enter") {
+    // A compound replica ("подойду к ограде и осмотрюсь") must not execute
+    // only its first clause: report it like the canonical verbs do, so the
+    // LLM path can still plan it and a degraded model falls back to a
+    // specific question instead of the generic fallback.
+    if (hasCompoundConjunction(afterVerbRaw)) {
+      return buildClarification(
+        rawText,
+        [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${afterVerbRaw || "окружение"}` }],
+        `compound-${Date.now()}`,
+      );
+    }
     // «обойти башню с запада» names a target plus an approach direction;
     // do not mistake the directional modifier for the target itself.
     const approachTarget = extractApproachTarget(afterVerb);
@@ -1014,8 +1059,18 @@ export function interpretIntent(
   }
 
   // Spatial Movement: travel verbs produce JourneyIntent (ADR-0015)
-  // But direction words ("на север") still produce legacy relocate
+  // But direction words ("на север") still produce legacy relocate.
+  // A compound replica ("иду к реке и осматриваюсь") reports like any
+  // other compound: the LLM path may still plan it, a degraded model
+  // clarifies specifically instead of executing half the phrase.
   if (verb.mode === "travel") {
+    if (hasCompoundConjunction(afterVerbRaw)) {
+      return buildClarification(
+        rawText,
+        [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${afterVerbRaw || "окружение"}` }],
+        `compound-${Date.now()}`,
+      );
+    }
     const dir = extractDirectionFromText(afterVerb);
     if (dir) {
       return {

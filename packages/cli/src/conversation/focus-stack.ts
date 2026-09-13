@@ -13,10 +13,14 @@
  * 1. No pronouns in the replica — nothing to bind.
  * 2. A speech-governed replica ("спрошу у него") narrows dual pronouns to
  *    person: one addresses people, not fences.
- * 3. Mentioned candidates first: conversation focus surfaces (newest first)
+ * 3. Grammatical number agreement: a singular "нему" never competes with a
+ *    plural label ("принадлежности"), so irrelevant candidates never reach
+ *    the question. Bare "им" stays unfiltered (case-ambiguous); "ним" is
+ *    disambiguated by its preposition ("к ним" plural, "с ним" singular).
+ * 4. Mentioned candidates first: conversation focus surfaces (newest first)
  *    stem-matched word-wise against scene labels, so "перевозчику" boosts
  *    a "Перевозчик у переправы" candidate.
- * 4. Remaining scene candidates of the pronoun class, in scene order.
+ * 5. Remaining scene candidates of the pronoun class, in scene order.
  *
  * Boundary: mentions come from validated-plan metadata first (persisted on
  * every V2 turn, including inquiry focus and speech addressees) and fall
@@ -123,6 +127,76 @@ function classesFor(pronoun: string): readonly FocusReferenceClass[] | null {
 }
 
 /**
+ * Grammatical number from a closed form list. Bare "им"/"ним" are
+ * case-ambiguous (instrumental singular vs dative plural) and stay neutral;
+ * a preposition disambiguates "ним" ("к ним" is plural, "с ним" singular).
+ */
+type PronounNumber = "singular" | "plural" | null;
+
+const SINGULAR_PRONOUNS: ReadonlySet<string> = new Set([
+  "он", "она", "оно",
+  "его", "ее",
+  "ему", "ей",
+  "нем", "ней",
+  "него", "нее", "нему",
+]);
+
+const PLURAL_PRONOUNS: ReadonlySet<string> = new Set([
+  "они", "их", "ими", "них", "ними",
+]);
+
+const PLURAL_NIM_PREPOSITIONS: ReadonlySet<string> = new Set(["к", "ко"]);
+const SINGULAR_NIM_PREPOSITIONS: ReadonlySet<string> = new Set(["с", "со", "под", "над", "перед", "между"]);
+
+function pronounNumber(pronoun: string, preposition: string | null): PronounNumber {
+  if (SINGULAR_PRONOUNS.has(pronoun)) return "singular";
+  if (PLURAL_PRONOUNS.has(pronoun)) return "plural";
+  if (pronoun === "ним" && preposition) {
+    if (PLURAL_NIM_PREPOSITIONS.has(preposition)) return "plural";
+    if (SINGULAR_NIM_PREPOSITIONS.has(preposition)) return "singular";
+  }
+  return null;
+}
+
+/**
+ * Clearly-plural head words: plural adjectives and plural noun tails. Bare
+ * -а/-я never counts (feminine-singular shaped: "ограда", "вода"), so the
+ * filter only ever drops genuine plurals like "принадлежности".
+ */
+const PLURAL_HEAD_TAILS: readonly string[] = [
+  "ые", "ие", "ей", "ов", "ев", "ами", "ями", "ах", "ях", "ам", "ям", "ы", "и",
+];
+
+function isPluralHead(head: string): boolean {
+  return PLURAL_HEAD_TAILS.some((tail) => head.length > tail.length + 2 && head.endsWith(tail));
+}
+
+/** Clearly masculine-singular heads (bare consonant). Feminine/neuter endings stay neutral. */
+function isMasculineSingularHead(head: string): boolean {
+  return /[бвгджзйклмнпрстфхцчшщ]$/u.test(head);
+}
+
+/** Head word of a label: noun phrases here are head-first ("Архивист ..."). */
+function headWord(label: string): string {
+  return splitWords(label)[0] ?? "";
+}
+
+/**
+ * Grammatical agreement between a pronoun and a candidate label. A singular
+ * "нему" never means plural "принадлежности"; a plural "их" never means a
+ * lone "перевозчик". Neutral when either side is ambiguous — the filter
+ * removes only clear mismatches, never guesses.
+ */
+function agreesInNumber(pronoun: string, preposition: string | null, label: string): boolean {
+  const number = pronounNumber(pronoun, preposition);
+  if (!number) return true;
+  const head = headWord(label);
+  if (head.length === 0) return true;
+  if (number === "singular") return !isPluralHead(head);
+  return !isMasculineSingularHead(head);
+}
+
+/**
  * Binds every distinct bindable pronoun form in the replica to ranked
  * scene candidates. Returns [] when the replica needs no binding.
  */
@@ -147,17 +221,20 @@ export function bindTurnPronouns(
     if (classes.length === 0) continue;
     seen.add(pronoun);
     const previous = index > 0 ? words[index - 1]! : null;
+    const preposition = previous && PREPOSITIONS.has(previous) ? previous : null;
     bindings.push(freeze({
       pronoun,
       classes,
-      preposition: previous && PREPOSITIONS.has(previous) ? previous : null,
-      ...rankCandidates(classes, conversation, scene),
+      preposition,
+      ...rankCandidates(pronoun, preposition, classes, conversation, scene),
     }));
   }
   return freeze(bindings);
 }
 
 function rankCandidates(
+  pronoun: string,
+  preposition: string | null,
   classes: readonly FocusReferenceClass[],
   conversation: MasterConversationContext,
   scene: MasterTurnSceneContext,
@@ -167,8 +244,12 @@ function rankCandidates(
   const wantsTopic = classes.includes("topic");
   const wantsPlace = classes.includes("place");
 
-  const people = wantsPerson ? scene.knownPeople : [];
-  const objects = wantsThing ? scene.visibleObjects : [];
+  // Grammatical agreement first: a singular "нему" never competes with a
+  // plural label, so irrelevant candidates never reach the question.
+  const people = (wantsPerson ? scene.knownPeople : [])
+    .filter((referent) => agreesInNumber(pronoun, preposition, referent.label));
+  const objects = (wantsThing ? scene.visibleObjects : [])
+    .filter((referent) => agreesInNumber(pronoun, preposition, referent.label));
   const topics = wantsTopic ? scene.knownTopics : [];
   const routes = wantsPlace ? scene.knownRoutes : [];
 

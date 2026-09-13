@@ -800,4 +800,17 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     const result = interpretIntent(input);
     expect(result.type).toBe("ClarificationRequired");
   });
+
+  it.each([
+    "Подойду к ограде и осмотрюсь",
+    "подойду к ней и осмотрюсь",
+    "Иду к реке и осматриваюсь",
+  ])("returns clarification for approach/travel-first compounds: %j", (input) => {
+    expect(interpretIntent(input).type).toBe("ClarificationRequired");
+  });
+
+  it("keeps a single travel replica executable (no false compound)", () => {
+    const result = interpretIntent("Иду к Речному Стражу");
+    expect(result.type).toBe("JourneyIntent");
+  });
 });

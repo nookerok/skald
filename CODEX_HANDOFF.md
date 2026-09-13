@@ -1,3 +1,82 @@
+# Current work (2026-09-13 — QA-0913 FAIL triaged, fixes implemented, gate PASS; uncommitted)
+
+- Production QA-0913 (`world-3cc433f4`, 19/25 replicas, T0→T6) verdict FAIL:
+  PASS who_is_nearby + journey-to-Речной-Страж consistency; FAIL pronoun
+  candidate pollution (plural item offered for «нему», knowledge sentences
+  offered for «сделаю это»/«спрошу об этом»), FAIL «Прислушаться к воде»
+  (morphology fine, water not observer-scoped), FAIL generic fallback on
+  both mixed replicas + «Осмотреть переправу» rejected; items 5/6/8 BLOCKED
+  on missing DOM evidence (persistence shows exactly one ConversationTurn
+  per replica, reload restores the transcript).
+- Fixes (this tree, `npm run validate` PASS):
+  - QA-0913/2a: grammatical number agreement in the focus stack — singular
+    pronouns drop plural labels («нему» never offers «принадлежности»),
+    plural pronouns drop masculine-singular heads, bare «им»/«ним» stay
+    neutral («к ним»/«с ним» disambiguated by preposition). Tests added.
+  - QA-0913/2b: a topic pronoun whose mention names a scene person/object
+    asks about that referent (««Ограда» — что именно ты хочешь сделать?»)
+    instead of quoting knowledge sentences. Tests added, no LLM call.
+  - QA-0913/3: water words are ambience for listen («Прислушаться к воде»
+    → ambient listen → SoundObserved/honest silence, never "unknown
+    target"); observe/inspect stay strict. Parser + resolver tests updated.
+  - QA-0913/7b: observing the location you stand in resolves to the
+    environment («Осмотреть переправу» at the crossing); inspect strict.
+  - QA-0913/7a: compound detection extended to approach/enter/travel-first
+    replicas (before-verb check for longest-stem-second-verb wins, «осмотр»
+    stem in both compound lists), so degraded-LLM timeouts yield the
+    specific deterministic clarification instead of the generic fallback;
+    single travel («Иду к Речному Стражу») still parses to JourneyIntent.
+- Items 5/6 need no code change: identical-text dedupe is unit-tested
+  (chat-feed-view), atomic `setComposerBusy` is unit-tested (ui-state,
+  status-view pins the split-writer fix); the final-1440x900 screenshot
+  shows the differing-text two-paragraph rendering as designed with idle
+  controls restored. They stay BLOCKED pending DOM evidence from the next
+  browser run, not pending fixes.
+- Deferred, unchanged: «смотрю на воду» (observe stays strict — needs the
+  observed object; flag for a follow-up, not cited in QA-0913); item 6,
+  item 7 still await a real gameplay confirmation run.
+- Next: commit/push → Orange Pi deploy via `$skald-orange-pi-deploy` →
+  new scratch browser QA (25-replica budget) with DOM evidence for 5/6/8.
+
+# Current work (2026-09-12 — contextual master turns deployed as d776f24; browser QA BLOCKED)
+
+- Shipped `d776f24` ("fix: resolve contextual master turns consistently"):
+  P1 pronoun-rewrite inquiry crash fixed (rewritten direct questions return
+  on the read-only inquiry path, no null-intent cast), journey stemmer
+  unified on shared `sameRussianStem`/`stemRussianToken` (local
+  `russianCaseStem` deleted), direct regressions for QA3 (declined «воде»
+  resolves to observed water) and QA4 (shared `observedRouteEndpoints`
+  predicate: shell-advertised road endpoint accepted by journey validation
+  in declined form). No new Domain Events; simulation authority unchanged.
+- Push done, `main == origin/main`; production checkout clean on `d776f24`;
+  `skald.service`, healthcheck and backup timers active; `/api/health` 200
+  `ok`; world-scoped `/state` 200 (unscoped `/api/state` 404 as designed).
+- Remote `npm run validate` PASS: 176 files, 2221 passed, 1 skipped;
+  typecheck, Canon, Simulation, Eval, acceptance PASS. Local tree matches
+  (`HEAD == d776f24`, only untracked `plan_1.md`–`plan_8.md` remain).
+- AI readiness `degraded but playable`: one live model, rest covered by
+  deterministic fallback (fail-closed by design).
+- Browser QA BLOCKED: the fixed NTFS task was dispatched twice, both turns
+  came back empty — no browser opened, no screenshots/DOM/console evidence,
+  no game sessions touched, production Event Log unchanged. Fixes are live
+  but NOT yet confirmed by a real gameplay run. Local qa-evidence/ shows
+  nothing newer than the earlier QA-0901 run.
+- Noted, no action: `npm install` reports 6 dependency vulnerabilities
+  (3 moderate, 2 high, 1 critical); no `npm audit fix` run. Triaged
+  2026-09-12 against the same lockfile: `npm audit --omit=dev` reports 0 —
+  all 6 live in the dev-only vitest toolchain (`vitest@2.1.9` critical
+  GHSA-5xrq needs a listening Vitest UI server we never start; `vite@5.4.21`
+  high GHSA-fx2h is a Windows-only dev-server bypass, Pi is Linux and the
+  service never starts vite; `esbuild` moderate, `@vitest/mocker` moderate
+  and `vite-node` moderate are the same dev-server/test-code scope;
+  `nanoid@3.3.16` high GHSA-2v37 needs a zero-size custom generator while
+  postcss calls `nanoid(6)` and app code never calls nanoid at all).
+  No separate fix: 5 of 6 require the breaking `vitest@2.1.9 → 5.0.0`
+  migration for zero production exposure; the nanoid patch range is
+  unreachable. Revisit bundled with the next vitest major migration.
+- Next: re-dispatch browser QA through the fixed NTFS task with a 25-replica
+  scratch budget, then record PASS/FAIL independently from `validate`.
+
 # Current work (2026-09-12 — served-digest fingerprint shipped and live; CLOSED)
 
 - Shipped the manifest-identity follow-up (`4aa2172`): provider pins

@@ -17,6 +17,7 @@ import {
   classifyPlayerInput,
   isUnresolvedFocusSurface,
   parseIntent,
+  sameRussianStem,
   validateActionProposal,
   validateTurnProposal,
   type ExecutableIntent,
@@ -129,9 +130,34 @@ function pronounFallbackClarification(): MasterTurnGatewayOutcome {
   };
 }
 
+/**
+ * True when a mention surface names a scene person or object (stem word
+ * match over labels and known aliases). Used for topic pronouns ("сделаю
+ * это"): the recent mention usually means the discussed referent, not one
+ * of the knowledge sentences, so the follow-up names it directly.
+ */
+function mentionNamesSceneReferent(surface: string, scene: MasterTurnSceneContext): boolean {
+  const words = surface
+    .toLowerCase()
+    .replace(/ё/gu, "е")
+    .split(/[^a-zа-я0-9]+/iu)
+    .filter((word) => word.length > 0);
+  if (words.length === 0) return false;
+  const labels = [...scene.knownPeople, ...scene.visibleObjects, ...scene.accessibleItems]
+    .flatMap((entry) => [entry.label, ...(entry.knownAs ?? [])]);
+  return words.some((word) =>
+    labels.some((label) =>
+      label
+        .toLowerCase()
+        .replace(/ё/gu, "е")
+        .split(/[^a-zа-я0-9]+/iu)
+        .some((labelWord) => labelWord.length > 0 && sameRussianStem(word, labelWord)),
+    ),
+  );
+}
+
 /** Player-visible label for an observerRef, or null when it left the scene. */
-function sceneLabelForRef(scene: MasterTurnSceneContext, observerRef: string): string | null {
-  const lists: ReadonlyArray<{ observerRef: string; label?: string; text?: string }> = [
+function sceneLabelForRef(scene: MasterTurnSceneContext, observerRef: string): string | null {  const lists: ReadonlyArray<{ observerRef: string; label?: string; text?: string }> = [
     ...scene.knownPeople,
     ...scene.visibleObjects,
     ...scene.accessibleItems,
@@ -164,7 +190,9 @@ function rephraseOption(): readonly [{ readonly optionId: string; readonly label
  * LLM prompt (the caller keeps it off the fast path so validated plans
  * retain focus/goal/ambiguity metadata), or answers immediately when the
  * rewritten replica is a direct inquiry; an ambiguous binding asks a
- * specific question naming scene candidates; a missing binding asks
+ * specific question naming scene candidates — except a topic pronoun whose
+ * mention names a scene person/object, which asks about that referent
+ * instead of quoting knowledge sentences; a missing binding asks
  * specifically when the turn addresses it, and stays on the LLM path
  * inside larger compounds. Topic bindings on speak ask who to address,
  * other topics nudge with the named topic. Anything else (no pronouns,
@@ -183,6 +211,29 @@ function resolvePronounsDeterministic(
   const scene = snapshot.scene.context;
 
   if (binding.resolution === "ambiguous") {
+    // A topic pronoun ("сделаю это") with a mention naming a scene
+    // person/object means the discussed referent — not one of the knowledge
+    // sentences. Ask about it with the same wording as a settled topic.
+    if (
+      binding.classes.length === 1
+      && binding.classes[0] === "topic"
+      && binding.mention
+      && mentionNamesSceneReferent(binding.mention.surface, scene)
+    ) {
+      const surface = binding.mention.surface;
+      const isSpeak = deterministic.type === "ActionIntentCommand" && deterministic.operation === "speak";
+      const question = isSpeak
+        ? `У кого спросить про «${surface}»? Назови, к кому обратиться.`
+        : `«${surface}» — что именно ты хочешь сделать?`;
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "pronoun_topic",
+        outcome: "clarification",
+        phase: "routing",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+      });
+      return { kind: "clarification", outcome: { status: "clarification", question, options: rephraseOption() } };
+    }
     const labels = binding.candidates
       .map((candidate) => sceneLabelForRef(scene, candidate))
       .filter((label): label is string => label !== null)

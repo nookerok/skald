@@ -61,6 +61,54 @@ describe("turn focus stack", () => {
     expect(binding?.resolution).toBe("single");
   });
 
+  it("drops plural labels for a singular pronoun", () => {
+    const mixed = scene({
+      visibleObjects: [
+        { observerRef: "object_1", kind: "object", label: "Письменные принадлежности", knownAs: ["Письменные принадлежности"] },
+        { observerRef: "object_2", kind: "object", label: "Ограда", knownAs: ["Ограда"] },
+      ],
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Перевозчик", knownAs: ["Перевозчик"] },
+      ],
+    });
+    const [binding] = bindTurnPronouns("подойду к нему", EMPTY_CONVERSATION, mixed);
+
+    expect(binding?.candidates).toEqual(["object_2", "person_1"]);
+    expect(binding?.candidates).not.toContain("object_1");
+  });
+
+  it("drops masculine-singular labels for a plural pronoun", () => {
+    const mixed = scene({
+      visibleObjects: [
+        { observerRef: "object_1", kind: "object", label: "Ограда", knownAs: ["Ограда"] },
+      ],
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Перевозчик", knownAs: ["Перевозчик"] },
+      ],
+    });
+    const [binding] = bindTurnPronouns("подойду к ним", EMPTY_CONVERSATION, mixed);
+
+    expect(binding?.candidates).toEqual(["object_1"]);
+  });
+
+  it("leaves case-ambiguous pronouns unfiltered", () => {
+    const mixed = scene({
+      visibleObjects: [
+        { observerRef: "object_1", kind: "object", label: "Письменные принадлежности", knownAs: ["Письменные принадлежности"] },
+      ],
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Перевозчик", knownAs: ["Перевозчик"] },
+      ],
+    });
+    // Bare "им"/"ним" can be instrumental singular or dative plural: no
+    // filtering. A preposition disambiguates ("к ним" is plural).
+    for (const input of ["доволен им", "горжусь ним"]) {
+      const [binding] = bindTurnPronouns(input, EMPTY_CONVERSATION, mixed);
+      expect(binding?.candidates).toContain("object_1");
+      expect(binding?.candidates).toContain("person_1");
+    }
+  });
+
   it("boosts the mentioned candidate but stays ambiguous with several people", () => {
     const mentioned = conversation({
       recentFocus: [{ kind: "target", surface: "перевозчику", turnSeq: 4 }],
