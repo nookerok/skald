@@ -6,7 +6,7 @@ function input(overrides: Partial<MasterTurnResponseInput> = {}): MasterTurnResp
   return {
     kind: "action",
     actionPresentation: null,
-    inquiryAnswer: null,
+    inquiryAnswers: [],
     speechReaction: null,
     metaAnswer: null,
     deferredClauses: [],
@@ -23,7 +23,7 @@ describe("master turn response composer", () => {
 
     expect(composeMasterTurnResponse(input({
       kind: "inquiry",
-      inquiryAnswer: { text: "Виден пустой двор." },
+      inquiryAnswers: [{ text: "Виден пустой двор." }],
     }))).toMatchObject({ kind: "inquiry_answer", text: "Виден пустой двор." });
 
     expect(composeMasterTurnResponse(input({
@@ -47,7 +47,7 @@ describe("master turn response composer", () => {
     const response = composeMasterTurnResponse(input({
       kind: "mixed",
       actionPresentation: { text: "Ты подходишь к ограде.", rejected: false },
-      inquiryAnswer: { text: "За жердями виден пустой двор." },
+      inquiryAnswers: [{ text: "За жердями виден пустой двор." }],
       deferredClauses: [{ text: "осмотреть двор", reason: "secondary_action" }],
     }));
 
@@ -58,11 +58,28 @@ describe("master turn response composer", () => {
     expect(response.options).toEqual([]);
   });
 
+  it("joins every understood question into one mixed answer (plan_9 §1)", () => {
+    const response = composeMasterTurnResponse(input({
+      kind: "mixed",
+      actionPresentation: { text: "Ты осматриваешь переправу.", rejected: false },
+      inquiryAnswers: [
+        { text: "Из твоих наблюдений доступны такие направления: «Речной Страж»." },
+        { text: "Что подсказывает округа: переправа трудна." },
+      ],
+      deferredClauses: [],
+    }));
+
+    expect(response.kind).toBe("mixed_outcome");
+    expect(response.text).toBe(
+      "Ты осматриваешь переправу. Из твоих наблюдений доступны такие направления: «Речной Страж». Что подсказывает округа: переправа трудна.",
+    );
+  });
+
   it("keeps rejected actions inside mixed answers", () => {
     const response = composeMasterTurnResponse(input({
       kind: "mixed",
       actionPresentation: { text: "Подойти не вышло.", rejected: true },
-      inquiryAnswer: { text: "Со своего места видно немногое." },
+      inquiryAnswers: [{ text: "Со своего места видно немногое." }],
       deferredClauses: [],
     }));
 
@@ -74,7 +91,7 @@ describe("master turn response composer", () => {
     const response = composeMasterTurnResponse(input({
       kind: "mixed",
       actionPresentation: { text: "Ты подходишь к ограде.", rejected: false },
-      inquiryAnswer: { text: "Виден двор." },
+      inquiryAnswers: [{ text: "Виден двор." }],
       deferredClauses: [],
     }));
 
@@ -105,7 +122,7 @@ describe("master turn response composer", () => {
     const response = composeMasterTurnResponse(input({
       kind: "mixed",
       actionPresentation: { text: "Ты подходишь к ограде.", rejected: false },
-      inquiryAnswer: { text: "Схема двора проста: забор, сарай, плеск воды." },
+      inquiryAnswers: [{ text: "Схема двора проста: забор, сарай, плеск воды." }],
       deferredClauses: [],
     }));
 

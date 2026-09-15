@@ -5,6 +5,7 @@ export type AdventureStep =
   | { readonly choose: string }
   | { readonly answerClarification: string }
   | { readonly inspect: AdventureInspection }
+  | { readonly prologue: true }
   | { readonly offlineTicks: number }
   | { readonly acknowledge: true }
   | { readonly restartServer: true }
@@ -18,6 +19,19 @@ export type AdventureCheck =
   | "world_is_living_region"
   | "map_has_current_position"
   | "conversation_has_master_reply"
+  | "hero_created"
+  | "prologue_matches_background"
+  | "free_inquiry_answered"
+  | "speech_got_reaction"
+  | "obstacle_named_cause"
+  | "knowledge_applied"
+  | "no_generic_fallback"
+  | "replies_are_linked"
+  | "memory_survives_restart"
+  | "transcript_covers_every_command"
+  | "no_stranded_journey"
+  | "consequences_persist"
+  | "autonomous_consequence_fired"
   | "rumour_does_not_reveal_coordinates"
   | "route_alternative_available"
   | "rumour_was_received"
@@ -50,6 +64,10 @@ export interface AdventureScenario {
   readonly saveLabel: string;
   readonly characterName: string;
   readonly characterPresetId: string;
+  /** Prologue background; defaults to characterPresetId (legacy background id). */
+  readonly backgroundId?: string;
+  /** Prologue entrypoint; defaults to the living-region default arrival. */
+  readonly entrypointId?: string;
   readonly description?: string;
   readonly turns: readonly AdventureStep[];
 }

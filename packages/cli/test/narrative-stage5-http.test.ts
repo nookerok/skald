@@ -218,8 +218,9 @@ describe("Stage 5 narrative context HTTP path", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: "осмотреться", idempotencyKey: "stage5-restart-command" }),
       });
-      expect(replay.status).toBe(409);
+      expect(replay.status).toBe(200);
       const replayBody = await replay.json() as any;
+      expect(replayBody.replayed).toBe(true);
       expect(replayBody.conversationTurn).toMatchObject({
         idempotencyKey: "stage5-restart-command",
         playerText: "осмотреться",

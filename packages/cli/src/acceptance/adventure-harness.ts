@@ -183,6 +183,23 @@ const get = async (path: string): Promise<Json> => (await this.request(path)).bo
     return this.request(`/api/worlds/${this.worldId}/observer-session`);
   }
 
+  /**
+   * Read-only personal prologue for the scenario hero (plan_9 §14 beat 2):
+   * background + entrypoint compose the opening without creating a world
+   * or an event. Runs before the first command so the background shapes
+   * the opening.
+   */
+  async fetchPrologue(): Promise<{ statusCode: number; body: Json }> {
+    return this.request("/api/new-game/prologue", {
+      method: "POST",
+      body: JSON.stringify({
+        characterName: this.scenario.characterName,
+        backgroundId: this.scenario.backgroundId ?? this.scenario.characterPresetId,
+        entrypointId: this.scenario.entrypointId ?? "river_waystation_arrival",
+      }),
+    });
+  }
+
   async answerClarification(input: string): Promise<{ statusCode: number; body: Json }> {
     return this.say(input);
   }
@@ -251,11 +268,19 @@ const get = async (path: string): Promise<Json> => (await this.request(path)).bo
 
   private async probeIdempotency(): Promise<void> {
     if (!this.lastCommand) return;
+    // Unified replay contract (plan_9 §5): an identical retry returns the
+    // saved envelope with HTTP 200 — never a duplicate execution (409 is
+    // reserved for a reused key with a different payload).
+    const eventsBefore = (await this.capture()).events?.length ?? 0;
     const replay = await this.request(`/api/worlds/${this.worldId}/command`, {
       method: "POST",
       body: JSON.stringify(this.lastCommand),
     });
-    this.idempotencyPassed = replay.statusCode === 409 && replay.body.error !== undefined;
+    const snapshot = await this.capture();
+    this.idempotencyPassed =
+      replay.statusCode === 200 &&
+      replay.body.replayed === true &&
+      (snapshot.events?.length ?? 0) === eventsBefore;
   }
 
   private context(current: AdventureSnapshot) {
@@ -275,6 +300,7 @@ const get = async (path: string): Promise<Json> => (await this.request(path)).bo
     if ("say" in step) return this.say(step.say);
     if ("choose" in step) return this.say(step.choose);
     if ("answerClarification" in step) return this.answerClarification(step.answerClarification);
+    if ("prologue" in step) return this.fetchPrologue();
     if ("offlineTicks" in step) return this.advanceOffline(step.offlineTicks);
     if ("acknowledge" in step) return this.acknowledgePresence();
     if ("restartServer" in step) { await this.restart(); return { statusCode: 200, body: { ok: true, restarted: true } }; }

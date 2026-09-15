@@ -68,4 +68,41 @@ describe("journey presentation", () => {
     ], world());
     expect(presentation.primary?.text).toBe("Нет известной дороги к северному проходу.");
   });
+
+  it("restates a standing block without a new verdict", () => {
+    const blockedWorld = {
+      ...world(),
+      activeJourneyId: "journey-1",
+      journeys: new Map([
+        ["journey-1", { journeyId: "journey-1", relationId: "road-1", fromLocationId: "home", toLocationId: "pass", startedAt: 4, plannedTicks: 3, elapsedTicks: 3, status: "blocked", blockedReason: "crossing_closed" }],
+      ]),
+    } as unknown as ReadonlyWorld;
+    const presentation = selectTurnPresentation([
+      event("ActionAttempted", "wait", { operation: "wait", target: null }),
+      event("TickPassed", "tick", { delta: 1 }),
+    ], blockedWorld);
+    expect(presentation.response?.kind).toBe("action_outcome");
+    expect(presentation.primary?.text).toContain("всё ещё перекрыт");
+    expect(presentation.primary?.text).toContain("переправа закрыта");
+  });
+
+  it("stays silent about blocks on open journeys and offline ticks", () => {
+    const travellingWorld = {
+      ...world(),
+      activeJourneyId: "journey-1",
+      journeys: new Map([
+        ["journey-1", { journeyId: "journey-1", relationId: "road-1", fromLocationId: "home", toLocationId: "pass", startedAt: 4, plannedTicks: 3, elapsedTicks: 1, status: "active", blockedReason: null }],
+      ]),
+    } as unknown as ReadonlyWorld;
+    const open = selectTurnPresentation([event("TickPassed", "tick", { delta: 1 })], travellingWorld);
+    expect(open.primary?.text ?? "").not.toContain("перекрыт");
+    const blockedWorld = {
+      ...travellingWorld,
+      journeys: new Map([
+        ["journey-1", { journeyId: "journey-1", relationId: "road-1", fromLocationId: "home", toLocationId: "pass", startedAt: 4, plannedTicks: 3, elapsedTicks: 3, status: "blocked", blockedReason: "crossing_closed" }],
+      ]),
+    } as unknown as ReadonlyWorld;
+    const offline = selectTurnPresentation([event("TickPassed", "tick-off", { delta: 1, playerOffline: true })], blockedWorld);
+    expect(offline.primary?.text ?? "").not.toContain("перекрыт");
+  });
 });

@@ -123,7 +123,7 @@ export function selectTurnPresentation(
   const eventTypesById = new Map(events.map((event) => [event.eventId, event.type]));
   const rejectionCandidates = merged.filter((candidate) => isOneOf(candidate, eventTypesById, TERMINAL_REJECTION_EVENTS)).sort((a, b) => b.rank - a.rank || a.timestamp - b.timestamp);
   const outcomeCandidates = merged
-    .filter((candidate) => isOneOf(candidate, eventTypesById, TERMINAL_OUTCOME_EVENTS) || candidate.templateId === "journey_waited")
+    .filter((candidate) => isOneOf(candidate, eventTypesById, TERMINAL_OUTCOME_EVENTS) || candidate.templateId === "journey_waited" || candidate.templateId === "journey_still_blocked")
     .sort((a, b) => b.rank - a.rank || a.timestamp - b.timestamp);
 
   let response: TurnResponse | null = null;
@@ -142,9 +142,22 @@ export function selectTurnPresentation(
       const operation = attemptedEvent && typeof (attemptedEvent.payload as { operation?: unknown }).operation === "string"
         ? (attemptedEvent.payload as { operation: string }).operation
         : "действие";
-      responseCandidate = attempted
-        ? { ...attempted, templateId: "command_neutral_outcome", text: actionFallbackText(operation) }
-        : {
+      // Addressed speech is already specific ("Ты обращаешься к «X»"):
+      // neutralizing it would discard the only honest outcome the
+      // deterministic pipeline produces for a bound addressee.
+      const attemptedPayload = attemptedEvent?.payload as { target?: unknown } | undefined;
+      const attemptedTarget = attemptedPayload?.target;
+      const addressedSpeech = attempted !== undefined
+        && (operation === "speak" || operation === "call")
+        && (typeof attemptedTarget === "string"
+          ? attemptedTarget.trim().length > 0
+          : typeof (attemptedTarget as { raw?: unknown; normalized?: unknown } | null)?.raw === "string"
+            || typeof (attemptedTarget as { raw?: unknown; normalized?: unknown } | null)?.normalized === "string");
+      responseCandidate = addressedSpeech
+        ? attempted!
+        : attempted
+          ? { ...attempted, templateId: "command_neutral_outcome", text: actionFallbackText(operation) }
+          : {
             templateId: "command_neutral_outcome", kind: "action", defaultImportance: "primary", rank: 1,
             discoveryMark: null, epistemicClass: "established_fact",
             text: actionFallbackText(operation),

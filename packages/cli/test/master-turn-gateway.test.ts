@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EventBus, type DomainEvent } from "@skald/event-bus";
 import { WorldProjector, buildMasterTurnSceneContext, createRules } from "@skald/world";
 import { RuleEngine } from "@skald/rule-engine";
+import { isGenericFallbackText } from "@skald/intent-parser";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
 import { interpretMasterTurn, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
 
@@ -464,5 +465,123 @@ describe("master turn gateway V2", () => {
     expect(result.inquiry.queryId).toBe("visible_scene");
     expect(result.inquiry.focus?.surface).toMatch(/оград/iu);
     expect(router.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe("mixed-corpus generic-fallback gate (plan_9 §1-2)", () => {
+  function mentionSnapshot(): MasterTurnSnapshot {
+    const snap = snapshot();
+    const prior = {
+      turnSeq: 1,
+      worldId: "test-world",
+      correlationId: "cmd-1",
+      idempotencyKey: "prior-1",
+      playerText: "Осматриваю ограду.",
+      inputClass: "action",
+      worldTimeBefore: 0,
+      worldTimeAfter: 1,
+      responseKind: "action_outcome",
+      responseText: "Ты осматриваешь ограду.",
+      createdAt: 1,
+      contextMetadata: {
+        schemaVersion: 1,
+        mentions: [{ kind: "object", role: "target", label: "Ограда" }],
+      },
+    } as unknown as import("../src/conversation/types.js").ConversationTurn;
+    return { ...snap, conversation: buildMasterConversationContext([prior], "test-world", { scene: snap.scene.context }) };
+  }
+
+  /** Failing model: every replica must resolve without it (degraded-AI path). */
+  function deadRouter() {
+    return { chat: vi.fn(() => { throw new Error("model down"); }) } as any;
+  }
+
+  interface CorpusEntry {
+    readonly input: string;
+    readonly snap: "empty" | "mention";
+    /** Only genuine garbage may use the generic last resort (≤2% budget). */
+    readonly allowGeneric?: boolean;
+  }
+
+  const CORPUS: readonly CorpusEntry[] = [
+    // Compounds: specific clarification, options name the parts.
+    { input: "осматриваюсь и иду к реке", snap: "empty" },
+    { input: "Подойду к ограде и осмотрюсь", snap: "empty" },
+    { input: "Иду к реке и осматриваюсь", snap: "empty" },
+    { input: "слушаю перевозчика, потом перехожу мост", snap: "empty" },
+    { input: "сначала смотрю на воду, затем зову лодочника", snap: "empty" },
+    { input: "открою дверь и возьму ключ", snap: "empty" },
+    { input: "осмотреть дверь и взять пепел", snap: "empty" },
+    { input: "Подойду к ней и осмотрюсь", snap: "empty" },
+    // Pronouns: settled mentions rewrite or ask specifically.
+    { input: "Подойду к ней.", snap: "empty" },
+    { input: "Осмотрю её внимательно.", snap: "empty" },
+    { input: "А что за ней?", snap: "mention" },
+    { input: "Сделаю это.", snap: "mention" },
+    { input: "Спрошу об этом.", snap: "mention" },
+    { input: "Подойду к нему.", snap: "mention" },
+    { input: "Осмотрю её ещё раз.", snap: "mention" },
+    // Journeys: executable or specific destination questions.
+    { input: "Иду к Речному Стражу", snap: "empty" },
+    { input: "Иду к башне", snap: "empty" },
+    { input: "Иду.", snap: "empty" },
+    // Inquiries: read-only answers, no model needed.
+    { input: "Куда можно пойти?", snap: "empty" },
+    { input: "Что я вижу?", snap: "empty" },
+    { input: "Кто рядом?", snap: "empty" },
+    { input: "что подсказывает вода?", snap: "empty" },
+    { input: "где я?", snap: "empty" },
+    { input: "Кто я?", snap: "empty" },
+    { input: "Что у меня есть?", snap: "empty" },
+    { input: "Что произошло?", snap: "empty" },
+    { input: "Почему карта показывает это место?", snap: "empty" },
+    // Plain actions: deterministic or specific world answers.
+    { input: "Осматриваюсь.", snap: "empty" },
+    { input: "прислушайся", snap: "empty" },
+    { input: "Прислушайся к воде", snap: "empty" },
+    { input: "Осмотреть переправу", snap: "empty" },
+    { input: "возьми факел", snap: "empty" },
+    { input: "открой дверь", snap: "empty" },
+    { input: "подойди к ограде", snap: "empty" },
+    { input: "иди на север", snap: "empty" },
+    { input: "ждать", snap: "empty" },
+    { input: "остановиться", snap: "empty" },
+    { input: "Смотрю на реку.", snap: "empty" },
+    { input: "Слушаю перевозчика.", snap: "empty" },
+    { input: "Изучи петли.", snap: "empty" },
+    { input: "Положи камень в сумку.", snap: "empty" },
+    { input: "Отдай пепел торговцу.", snap: "empty" },
+    { input: "Ждать дверь.", snap: "empty" },
+    { input: "Смотрю на карася.", snap: "empty" },
+    { input: "посмотрю на старую кладку", snap: "empty" },
+    { input: "прислушиваюсь к шуму воды", snap: "empty" },
+    { input: "слушаю перевозчика", snap: "empty" },
+    { input: "Осматриваю двор.", snap: "empty" },
+    { input: "иду за лосем", snap: "empty" },
+    // Genuine garbage: the only allowed generic fallback (2% budget).
+    { input: "абракадабра", snap: "empty", allowGeneric: true },
+  ];
+
+  it("holds fifty replicas with at most one generic fallback", async () => {
+    expect(CORPUS).toHaveLength(50);
+    const diagnostics: any[] = [];
+    let generic = 0;
+    for (const entry of CORPUS) {
+      const snap = entry.snap === "mention" ? mentionSnapshot() : snapshot();
+      const result = await interpretMasterTurn(entry.input, snap, deadRouter(), {
+        timeoutMs: 50,
+        diagnostics: (event: any) => diagnostics.push(event),
+      });
+      if (result.status === "clarification" && isGenericFallbackText(result.question)) {
+        generic += 1;
+        expect(entry.allowGeneric, `unexpected generic fallback for ${JSON.stringify(entry.input)}`).toBe(true);
+      }
+      if (result.status === "clarification") {
+        // No silent loss: every clarification carries options.
+        expect(result.options.length, entry.input).toBeGreaterThan(0);
+      }
+    }
+    expect(generic).toBeLessThanOrEqual(1);
+    expect(diagnostics.filter((event) => event.category === "generic_clarification_fallback").length).toBe(generic);
   });
 });

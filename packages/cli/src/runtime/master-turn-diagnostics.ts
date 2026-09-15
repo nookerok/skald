@@ -26,6 +26,10 @@
  * - post_action_inquiry_answered: executor answered the plan question;
  * - clarification_returned: contextual validation ambiguity clarification;
  * - deterministic_fallback: existing P0 gateway fallback (unchanged).
+ * - generic_clarification_fallback: last-resort generic wording (plan_9
+ *   §2) — always an interpretation defect, never a normal outcome.
+ * - speak_addressee_bound: degraded-path speak/call addressee bound
+ *   deterministically to one scene person (plan_9 §14 beat 4).
  */
 
 import type { AIDiagnosticSink } from "@skald/world";
@@ -47,6 +51,8 @@ export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freez
   "post_action_inquiry_answered",
   "clarification_returned",
   "deterministic_fallback",
+  "generic_clarification_fallback",
+  "speak_addressee_bound",
 ]);
 
 /** Sanitized operational dimensions only. No text, prompts or tables. */

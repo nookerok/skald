@@ -5,7 +5,7 @@ const _require = createRequire(import.meta.url);
 import type { DomainEvent } from "@skald/event-bus";
 import type { ObserverCheckpoint, TurnNarration } from "@skald/world";
 import { narrationKey } from "@skald/world";
-import { migrateV10ToV11, migrateV11ToV12, migrateV9ToV10 } from "./migrations.js";
+import { migrateV10ToV11, migrateV11ToV12, migrateV12ToV13, migrateV9ToV10 } from "./migrations.js";
 import { configureDatabase, execSchemaV9 } from "./schema.js";
 import { migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7, migrateV7ToV8, migrateV8ToV9, validateUserVersion, verifyIntegrity } from "./migrations.js";
 import { LEGACY_WORLD_ID, type WorldId, type WorldRecord } from "./types.js";
@@ -53,6 +53,23 @@ export interface MultiWorldStore {
     worldId: WorldId,
     idempotencyKey: string,
   ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null;
+  /**
+   * Saved idempotent response envelope (plan_9 §5): the original status code
+   * plus the full response DTO of a processed command/wait/offline request.
+   * The turn id, correlation and world times travel inside the saved DTO.
+   */
+  getCommandReplay(
+    worldId: WorldId,
+    idempotencyKey: string,
+  ): { requestHash: string; statusCode: number; responseBody: string } | null;
+  /** First write wins: replays never overwrite the original envelope. */
+  saveCommandReplay(
+    worldId: WorldId,
+    idempotencyKey: string,
+    requestHash: string,
+    statusCode: number,
+    responseBody: string,
+  ): void;
   /** Persist one turn's non-authoritative literary narration (read-side). */
   saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration, correlationId?: string): void;
   /** All stored narrations for a world, keyed by turn worldTime. Idempotent. */
@@ -258,6 +275,9 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   } else if (versionAction === "migrateV12") {
     migrateV11ToV12(db);
     console.log("[persistence] migrated v11->v12: conversation memory metadata column added");
+  } else if (versionAction === "migrateV13") {
+    migrateV12ToV13(db);
+    console.log("[persistence] migrated v12->v13: command response envelopes added");
   } else {
     // Already v10+ — verify
     verifyIntegrity(db);
@@ -276,6 +296,12 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 11) {
     migrateV11ToV12(db);
     console.log("[persistence] migrated v11->v12: conversation memory metadata column added");
+  }
+  // Saved idempotent response envelopes arrive as an empty table; old keys
+  // keep the legacy conversation-turn fallback until recorded here.
+  if ((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version === 12) {
+    migrateV12ToV13(db);
+    console.log("[persistence] migrated v12->v13: command response envelopes added");
   }
 
   // Prepared statements
@@ -307,6 +333,12 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
   );
   const getAcknowledgeRequest = db.prepare(
     "SELECT world_id, idempotency_key, request_hash, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at FROM acknowledge_requests WHERE world_id = ? AND idempotency_key = ?",
+  );
+  const getCommandResponse = db.prepare(
+    "SELECT request_hash, status_code, response_body FROM command_responses WHERE world_id = ? AND idempotency_key = ?",
+  );
+  const insertCommandResponse = db.prepare(
+    "INSERT OR IGNORE INTO command_responses (world_id, idempotency_key, request_hash, status_code, response_body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
   );
   const insertAcknowledgeRequest = db.prepare(
     "INSERT INTO acknowledge_requests (world_id, idempotency_key, request_hash, correlation_id, changed, last_presence_world_time, last_presence_event_number, belief_revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -776,6 +808,29 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
     ): { requestHash: string; result: AcknowledgeObserverCheckpointResult } | null {
       const row = getAcknowledgeRequest.get(worldId, idempotencyKey) as Record<string, unknown> | undefined;
       return row ? mapAcknowledgeReplay(row) : null;
+    },
+
+    getCommandReplay(
+      worldId: WorldId,
+      idempotencyKey: string,
+    ): { requestHash: string; statusCode: number; responseBody: string } | null {
+      const row = getCommandResponse.get(worldId, idempotencyKey) as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return {
+        requestHash: row["request_hash"] as string,
+        statusCode: row["status_code"] as number,
+        responseBody: row["response_body"] as string,
+      };
+    },
+
+    saveCommandReplay(
+      worldId: WorldId,
+      idempotencyKey: string,
+      requestHash: string,
+      statusCode: number,
+      responseBody: string,
+    ): void {
+      insertCommandResponse.run(worldId, idempotencyKey, requestHash, statusCode, responseBody, Date.now());
     },
 
     saveTurnNarration(worldId: WorldId, worldTime: number, narration: TurnNarration, correlationId?: string): void {

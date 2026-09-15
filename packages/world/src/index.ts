@@ -11,6 +11,7 @@ export {
   edgeAwareness,
   impatience,
   worldReactionFear,
+  journeyRisk,
   observationRules,
 } from "./rules/observations.js";
 export { repercussion, expire, fire } from "./rules/consequences.js";
@@ -311,3 +312,8 @@ export type {
   NarrativeAdapterContext,
   NarrativeAdapterContextOptions,
 } from "./setup/background-context.js";
+
+// Game director read-side model (plan_9 §§9-11, §13): observer-safe scene
+// rhythm, director context, continuation momentum and narration quality
+// guard. Pure derivations only — no Domain Events, Rules or persistence.
+export * from "./game-director/index.js";

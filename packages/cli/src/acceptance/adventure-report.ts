@@ -5,6 +5,19 @@ const REQUIRED_BEATS = [
   "world_is_living_region",
   "map_has_current_position",
   "conversation_has_master_reply",
+  "hero_created",
+  "prologue_matches_background",
+  "free_inquiry_answered",
+  "speech_got_reaction",
+  "obstacle_named_cause",
+  "knowledge_applied",
+  "no_generic_fallback",
+  "replies_are_linked",
+  "memory_survives_restart",
+  "transcript_covers_every_command",
+  "no_stranded_journey",
+  "consequences_persist",
+  "autonomous_consequence_fired",
   "rumour_does_not_reveal_coordinates",
   "route_alternative_available",
   "rumour_was_received",
@@ -98,6 +111,12 @@ export function buildAdventureReport(ctx: AdventureContext, idempotency = true):
   const commandSteps = ctx.steps.filter((step) => "say" in step.step || "choose" in step.step || "answerClarification" in step.step);
   const chatAlternationIntegrity = commandSteps.every((step) => {
     if (step.body.status === "clarification") return true;
+    // An answered inquiry is a complete master reply on the read-only
+    // path: it carries no turn presentation by design, only the answer.
+    if (step.body.status === "inquiry") {
+      const answer = (step.body.inquiry as Json | undefined)?.answer;
+      return typeof answer === "string" && answer.trim().length > 0;
+    }
     const presentation = step.body.presentation as Json | undefined;
     return Boolean(presentation?.primary || (Array.isArray(presentation?.notable) && presentation.notable.length > 0) || (Array.isArray(presentation?.background) && presentation.background.length > 0));
   });
@@ -107,7 +126,7 @@ export function buildAdventureReport(ctx: AdventureContext, idempotency = true):
   const narrationDuplicateRate = worldTimes.length === 0 ? 0 : 1 - new Set(worldTimes).size / worldTimes.length;
   const playerFacingTurns = [ctx.current, ...ctx.steps.map((step) => step.snapshot)].map(playerFacing).join(" ");
   const truthLeakCount = /(?:JourneyStarted|PlayerLocationChanged|old_ruins|river_waystation|correlationId|eventId|undefined)/u.test(playerFacingTurns) ? 1 : 0;
-  const orphanResponseCount = commandSteps.filter((step) => step.body.status !== "clarification" && !step.body.presentation).length;
+  const orphanResponseCount = commandSteps.filter((step) => step.body.status !== "clarification" && step.body.status !== "inquiry" && !step.body.presentation).length;
   const meaningfulChoices = ctx.steps.filter((step) => "choose" in step.step || "answerClarification" in step.step).length;
   const persistenceRestart = Boolean(ctx.restartBefore)
     && evaluateAdventureCheck("restart_preserved_journal", ctx) === ""

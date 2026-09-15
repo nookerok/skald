@@ -7,6 +7,7 @@ import {
   wallCaution,
   edgeAwareness,
   impatience,
+  journeyRisk,
 } from "@skald/world";
 
 function world(): ReadonlyWorld {
@@ -122,6 +123,26 @@ describe("observations.impatience", () => {
     const w = world();
     const event = evt("CommandRejected", "cr-1", { reason: "unknown" });
     impatience.handle(event, w);
+    expect(w.observations.size).toBe(0);
+  });
+});
+
+describe("observations.journey_risk", () => {
+  it("produces ObservationUpdated { key: 'risk_taken', delta: 1 } on JourneyCompleted", () => {
+    const event = evt("JourneyCompleted", "jc-1", { journeyId: "j-1" });
+    const out = journeyRisk.handle(event, world());
+
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe("ObservationUpdated");
+    expect(out[0]!.payload).toEqual({ key: "risk_taken", delta: 1 });
+    expect(out[0]!.causationId).toBe("jc-1");
+    expect(out[0]!.eventId).toBe("jc-1>ObservationUpdated#0");
+  });
+
+  it("does not mutate the world", () => {
+    const w = world();
+    const event = evt("JourneyCompleted", "jc-1", { journeyId: "j-1" });
+    journeyRisk.handle(event, w);
     expect(w.observations.size).toBe(0);
   });
 });

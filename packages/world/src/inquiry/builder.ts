@@ -1,4 +1,5 @@
 import type { InquiryQueryId, InquiryRequest } from "@skald/intent-parser";
+import { sameRussianStem } from "@skald/intent-parser";
 import type { GameShellSnapshot } from "../game-shell/types.js";
 import type { BackgroundNarrativeContext } from "../setup/background-context.js";
 import type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./types.js";
@@ -195,6 +196,57 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
   return answer("who_is_nearby", `Рядом с тобой: ${list}.`, shell);
 }
 
+/** Default water/river keywords when the question names no focus. */
+const INDICATION_KEYWORDS: readonly string[] = [
+  "вода", "река", "течение", "волна", "берег", "ручей",
+];
+
+function indicationKeywords(surface: string | undefined): readonly string[] {
+  if (surface) {
+    const words = normalizeFocus(surface).split(/[^a-zа-я0-9]+/iu).filter((word) => word.length >= 3);
+    if (words.length > 0) return words;
+  }
+  return INDICATION_KEYWORDS;
+}
+
+function mentionsIndication(text: string, keywords: readonly string[]): boolean {
+  const words = normalizeFocus(text).split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0);
+  return keywords.some((keyword) => words.some((word) => word === keyword || sameRussianStem(word, keyword)));
+}
+
+/**
+ * Answers what the environment signals (plan_9 §1 "что подсказывает вода?").
+ * Route conditions first — a difficult crossing IS the water speaking —
+ * then location-description and recent notable sentences mentioning the
+ * focus (default: water words). Shell prose only, never hidden hydrology
+ * numbers; creates no Observation and moves no time.
+ */
+function buildEnvironmentalIndication(request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+  const { shell } = context;
+  const keywords = indicationKeywords(request.focus?.surface);
+  const lines: string[] = [];
+  for (const route of visibleRoutes(shell)) {
+    if (route.status !== "difficult" && route.status !== "blocked") continue;
+    const state = route.status === "blocked" ? "перекрыт" : "труден";
+    lines.push(`«${route.label}» — ${state}${route.detail ? `: ${route.detail}` : ""}.`);
+  }
+  for (const sentence of (shell.world.locationDescription ?? "").split(/(?<=[.?!])\s+/u)) {
+    const trimmed = sentence.trim();
+    if (trimmed.length > 0 && mentionsIndication(trimmed, keywords)) lines.push(trimmed);
+  }
+  for (const entry of shell.lastTurn?.notable.slice(0, 2).map((item) => item.text) ?? []) {
+    const trimmed = entry.trim();
+    if (trimmed.length > 0 && mentionsIndication(trimmed, keywords)) lines.push(trimmed);
+  }
+  const unique = [...new Set(lines)].slice(0, 4);
+  if (unique.length === 0) {
+    return request.focus
+      ? answer("environmental_indication", `Про «${focusLabel(request.focus.surface)}» округа сейчас ничего особенного не говорит. Прислушайся или осмотрись действием — и спроси снова.`, shell)
+      : answer("environmental_indication", "Вода и округа сейчас ничего особенного не подсказывают. Прислушайся или осмотрись действием — и спроси снова.", shell);
+  }
+  return answer("environmental_indication", `Что подсказывает округа: ${unique.join(" ")}`, shell);
+}
+
 export const INQUIRY_QUERY_HANDLERS: Readonly<Record<InquiryQueryId, InquiryQueryHandler>> = Object.freeze({
   current_location: buildCurrentLocation,
   visible_scene: buildVisibleScene,
@@ -207,6 +259,7 @@ export const INQUIRY_QUERY_HANDLERS: Readonly<Record<InquiryQueryId, InquiryQuer
   known_contacts: buildKnownContacts,
   map_position: buildMapPosition,
   who_is_nearby: buildWhoIsNearby,
+  environmental_indication: buildEnvironmentalIndication,
 });
 
 /** Resolves a registered query against the already-built observer read model. */

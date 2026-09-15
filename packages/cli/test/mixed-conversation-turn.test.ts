@@ -68,7 +68,7 @@ describe("mixed conversation turns", () => {
       projectedWorld,
       profile: null,
       characterProfile: null,
-      inquiry: { type: "InquiryRequest", queryId: "visible_scene", rawText: "что я вижу?", confidence: 1, source: "deterministic" },
+      inquiries: [{ type: "InquiryRequest", queryId: "visible_scene", rawText: "что я вижу?", confidence: 1, source: "deterministic" }],
       deferred: [{ text: "осмотреть лагерь", reason: "secondary_action" }],
     });
 
@@ -97,7 +97,7 @@ describe("mixed conversation turns", () => {
       projectedWorld,
       profile: null,
       characterProfile: null,
-      inquiry: { type: "InquiryRequest", queryId: "visible_scene", rawText: "что я вижу?", confidence: 1, source: "deterministic" },
+      inquiries: [{ type: "InquiryRequest", queryId: "visible_scene", rawText: "что я вижу?", confidence: 1, source: "deterministic" }],
       deferred: [],
     });
 

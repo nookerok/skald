@@ -17,6 +17,8 @@ describe("player input inquiry classification", () => {
     ["кто находится рядом со мной?", "who_is_nearby"],
     ["есть ли кто-нибудь рядом?", "who_is_nearby"],
     ["хочу узнать, кто рядом.", "who_is_nearby"],
+    ["что подсказывает вода?", "environmental_indication"],
+    ["о чём говорит река?", "environmental_indication"],
   ] as const)("maps %j to %s", (input, queryId) => {
     const result = classifyPlayerInput(input, parseIntent);
     expect(result.kind).toBe("inquiry");

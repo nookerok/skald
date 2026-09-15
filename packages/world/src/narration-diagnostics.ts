@@ -9,6 +9,7 @@
 
 import { ProviderUnavailableError, PROVIDER_UNAVAILABLE_CODE, toProviderFailure } from "./llm/errors.js";
 import type { NarrativeAdapterContext } from "./setup/background-context.js";
+import type { GameDirectorContext } from "./game-director/index.js";
 
 // ---------------------------------------------------------------------------
 // Error taxonomy
@@ -195,6 +196,13 @@ export interface NarrationOptions {
   readonly correlationId?: string;
   /** Bounded observer-safe facts for the non-authoritative narration adapter. */
   readonly narrativeContext?: NarrativeAdapterContext;
+  /**
+   * Observer-safe game director context (plan_9 §9): the scene, goal,
+   * thread, rhythm and recent replicas the narration may rephrase. Read
+   * models only — the prompt grants no authority and the guard rejects
+   * anything outside the allowed facts.
+   */
+  readonly gameDirector?: GameDirectorContext | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +222,7 @@ export function classifyNarrationError(
   // Fast-path: already classified fallback reasons from existing code
   if (fallbackReason === "no_api_key") return "no_api_key";
   if (fallbackReason?.startsWith("epistemic_violation:")) return "schema_rejection";
+  if (fallbackReason?.startsWith("game_quality_violation:")) return "schema_rejection";
 
   // Typed error: ProviderUnavailableError from ModelRouter.chat boundary
   if (err instanceof ProviderUnavailableError) return "provider_unavailable";

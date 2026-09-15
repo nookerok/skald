@@ -11,11 +11,11 @@ task.
 
 ## Fixed task
 
-- Thread ID: `019fa52b-1610-7b23-9567-37891d24c782`
+- Thread ID: `01a09bbf-37a0-7642-82c5-ed3873add396`
 - Host ID: `local`
-- Title contains: `browser QA Skald`
-- Workspace: `C:\Users\<Windows-user>\Documents\Codex\2026-07-27\skald-browser`
-- Production URL: `http://192.168.0.5:3000`
+- Title contains: `Skald Browser QA Runner v2`
+- Workspace: `C:\Users\<Windows-user>\Documents\Codex\2026-09-13\skald-browser-qa-v2`
+- Output root: `C:\Users\<Windows-user>\Documents\Codex\2026-09-13\skald-browser-qa-v2\outputs\qa-evidence`
 
 The task is projectless and exists only for browser control. It must not edit
 the repository, deployment, server configuration, or production SQLite.

@@ -144,3 +144,41 @@ describe("who is nearby", () => {
     expect(result.answer).toMatch(/никого различимого нет/);
   });
 });
+
+describe("environmental indication", () => {
+  function indicationRequest(rawText: string, surface?: string) {
+    return {
+      type: "InquiryRequest" as const,
+      queryId: "environmental_indication" as const,
+      rawText,
+      confidence: 1 as const,
+      source: "deterministic" as const,
+      ...(surface ? { focus: { surface } } : {}),
+    };
+  }
+
+  it("quotes location prose mentioning water", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(indicationRequest("что подсказывает вода?"), { shell, background });
+
+    expect(result.queryId).toBe("environmental_indication");
+    expect(result.answer).toContain("Камни скрыты высокой водой");
+  });
+
+  it("matches a declined focus surface against shell prose", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(indicationRequest("что подсказывает вода?", "воде"), { shell, background });
+
+    expect(result.answer).toContain("Камни скрыты высокой водой");
+  });
+
+  it("answers honestly when nothing signals", () => {
+    const { shell, background } = context();
+    const before = JSON.stringify({ shell, background });
+    const result = buildInquiryAnswer(indicationRequest("что подсказывает дорога?", "дороге"), { shell, background });
+
+    expect(result.answer).toMatch(/ничего особенного не/);
+    expect(result.answer).not.toContain("crossing");
+    expect(JSON.stringify({ shell, background })).toBe(before);
+  });
+});

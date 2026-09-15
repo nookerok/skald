@@ -96,10 +96,58 @@ describe("master turn mixed execution", () => {
     expect(result.revisionAfter.worldTime - result.revisionBefore.worldTime).toBeLessThanOrEqual(1);
     expect(result.tickEvents.filter((event) => event.type === "TickPassed")).toHaveLength(1);
     // The question is answered, the deferred clause is preserved verbatim.
-    expect(result.inquiryAnswer?.queryId).toBe("visible_scene");
-    expect(result.inquiryAnswer?.answer.length).toBeGreaterThan(0);
+    expect(result.inquiryAnswers.map((answer) => answer.queryId)).toEqual(["visible_scene"]);
+    expect(result.inquiryAnswers[0]?.answer.length).toBeGreaterThan(0);
     expect(result.deferred).toEqual([{ text: "осмотреть лагерь", reason: "secondary_action" }]);
     expect(result.postEvents.length).toBe(events.length + result.commandEvents.length + result.tickEvents.length);
+  });
+
+  it("answers every understood question of a mixed turn (plan_9 §1)", () => {
+    const { engine, projection, events, world, scene, target } = torchTarget();
+    const validated = validateMasterTurnPlan({
+      proposal: {
+        schemaVersion: 2,
+        kind: "mixed",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю факел" },
+        supportingClauses: [
+          { kind: "question", queryId: "visible_scene" },
+          { kind: "question", queryId: "environmental_indication", focus: { surface: "факел", role: "target" } },
+        ],
+        target: { ...target },
+        question: { queryId: "available_routes" },
+        referents: [{ ...target }],
+      } as TurnProposalV2,
+      scene,
+      world,
+      rawText: "осматриваю факел, куда идти и что вокруг?",
+    });
+    expect(validated.status).toBe("accepted");
+    if (validated.status !== "accepted") return;
+    expect(validated.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual([
+      "available_routes",
+      "visible_scene",
+      "environmental_indication",
+    ]);
+
+    const result = executeMasterTurnPlan(validated.plan, scene, {
+      engine,
+      projection,
+      events,
+      worldId: "camp-test",
+    });
+    expect(result.status).toBe("executed");
+    if (result.status !== "executed") return;
+    // One primary, one tick, every question answered on post-action state.
+    expect(result.commandEvents.filter((event) => event.type === "InteractionRequested")).toHaveLength(1);
+    expect(result.tickEvents.filter((event) => event.type === "TickPassed")).toHaveLength(1);
+    expect(result.inquiryAnswers.map((answer) => answer.queryId)).toEqual([
+      "available_routes",
+      "visible_scene",
+      "environmental_indication",
+    ]);
+    for (const answer of result.inquiryAnswers) {
+      expect(answer.answer.length).toBeGreaterThan(0);
+    }
   });
 
   it("answers the question from post-action state when the primary is rejected", () => {
@@ -137,7 +185,7 @@ describe("master turn mixed execution", () => {
     // The blocked journey moves nothing, but the question survives on actual post-state.
     const committed = [...result.commandEvents, ...result.tickEvents];
     expect(committed.some((event) => event.type === "PlayerLocationChanged")).toBe(false);
-    expect(result.inquiryAnswer?.queryId).toBe("visible_scene");
+    expect(result.inquiryAnswers.map((answer) => answer.queryId)).toEqual(["visible_scene"]);
   });
 
   it("answers inquiry-only plans without changing the world", () => {
@@ -172,7 +220,7 @@ describe("master turn mixed execution", () => {
     expect(result.executed).toBe(false);
     expect(result.commandEvents).toEqual([]);
     expect(result.tickEvents).toEqual([]);
-    expect(result.inquiryAnswer?.queryId).toBe("visible_scene");
+    expect(result.inquiryAnswers.map((answer) => answer.queryId)).toEqual(["visible_scene"]);
     const after = projection.getSnapshot();
     expect(after.eventNumber).toBe(before.eventNumber);
     expect(after.time).toBe(before.time);

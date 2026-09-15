@@ -74,10 +74,30 @@ export const worldReactionFear: Rule<ReadonlyWorld> = {
   },
 };
 
+/**
+ * Completing a multi-stage journey is the spatial-movement analogue of a
+ * successful legacy step: the player crossed open ground and the world
+ * noticed. One risk_taken point per arrival feeds the same
+ * consequences.repercussion threshold as MovementSucceeded, so the
+ * audacity lifecycle (created → expired → fired) stays reachable in
+ * living-region worlds where grid movement never occurs. Pure and
+ * deterministic like every observation rule.
+ */
+export const journeyRisk: Rule<ReadonlyWorld> = {
+  id: "observations.journey_risk",
+  phase: "consequence",
+  listens: ["JourneyCompleted"],
+  produces: ["ObservationUpdated"],
+  handle: (event: DomainEvent, _world: ReadonlyWorld): DomainEvent[] => {
+    return [obsEvent(event, "risk_taken", 1)];
+  },
+};
+
 export const observationRules: Rule<ReadonlyWorld>[] = [
   riskTaker,
   wallCaution,
   edgeAwareness,
   impatience,
   worldReactionFear,
+  journeyRisk,
 ];

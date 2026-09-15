@@ -55,7 +55,7 @@ function routerReturning(text: string) {
 }
 
 describe("master turn diagnostic taxonomy", () => {
-  it("fixes the fifteen plan categories", () => {
+  it("fixes the seventeen plan categories", () => {
     expect(MASTER_TURN_DIAGNOSTIC_CATEGORIES).toEqual([
       "deterministic_fast_path",
       "context_required",
@@ -72,6 +72,8 @@ describe("master turn diagnostic taxonomy", () => {
       "post_action_inquiry_answered",
       "clarification_returned",
       "deterministic_fallback",
+      "generic_clarification_fallback",
+      "speak_addressee_bound",
     ]);
     expect(Object.isFrozen(MASTER_TURN_DIAGNOSTIC_CATEGORIES)).toBe(true);
   });
@@ -246,7 +248,7 @@ describe("master turn emission points", () => {
           interpretation: { source: "llm", confidence: 1, ambiguities: [] },
         },
       },
-      postActionInquiry: null,
+      postActionInquiries: [],
       metaInquiry: null,
       deferredClauses: [],
       focus: [],

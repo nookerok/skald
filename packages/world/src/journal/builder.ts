@@ -34,6 +34,29 @@ function turnIsOffline(events: readonly DomainEvent[]): boolean {
 }
 
 /**
+ * World development with no authoring player replica: an offline player tick
+ * (advance / absence) possibly with its derived consequences, but no online
+ * tick and nothing from the command request pipeline. The feed renders such
+ * turns as a scene separator, never as an answer. Online ticks (wait,
+ * journey steps) and command turns are never autonomous.
+ */
+function turnIsAutonomous(events: readonly DomainEvent[]): boolean {
+  if (events.length === 0) return false;
+  let offlineTick = false;
+  for (const event of events) {
+    if (event.type === "TickPassed") {
+      if ((event.payload as { playerOffline?: boolean }).playerOffline === true) {
+        offlineTick = true;
+        continue;
+      }
+      return false;
+    }
+    if (/(Requested|Validated)$/.test(event.type)) return false;
+  }
+  return offlineTick;
+}
+
+/**
  * Pure, non-authoritative read-side merge: attach stored literary narrations to
  * journal turns by time and correlation. Uncorrelated legacy rows attach only
  * when the full journal has a single turn at that time. Fallback narrations are
@@ -120,6 +143,7 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
       turnId,
       worldTime: ts,
       ...(correlationId ? { correlationId } : {}),
+      ...(turnIsAutonomous(currentTurnEvents) ? { autonomous: true as const } : {}),
       presentation,
       sourceEventIds: currentTurnEvents.map((e) => e.eventId),
     });

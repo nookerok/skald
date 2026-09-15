@@ -234,8 +234,7 @@ describe("Browser ES modules — import link integrity", () => {
 
 
 
-  it("narration polling is server-driven via narrationState, not fixed timeouts", () => {
-    const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
+  it("narration polling is server-driven via narrationState, not fixed timeouts", () => {    const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
     const poll = readFileSync(resolve(PUBLIC, "narration-poll.js"), "utf-8");
     // The client consumes the per-turn lifecycle status instead of guessing
     // by elapsed time; app.js wires a single session per command.
@@ -249,6 +248,26 @@ describe("Browser ES modules — import link integrity", () => {
     expect(poll).toContain("live.generation !== generation");
     expect(poll).toContain("clearTimeout(live.timer)");
     expect(poll).toContain("scheduleTick");
+  });
+
+  it("the composer has a single owner (plan_9 §8)", () => {
+    const app = readFileSync(resolve(PUBLIC, "app.js"), "utf-8");
+    const composer = readFileSync(resolve(PUBLIC, "composer-state.js"), "utf-8");
+    const shell = readFileSync(resolve(PUBLIC, "game-shell-view.js"), "utf-8");
+    // app.js routes every composer transition through the machine; direct
+    // actuator calls and local retry-visibility toggles are gone.
+    expect(app).toContain('from "./composer-state.js"');
+    expect(app).toContain("setComposerState(");
+    expect(app).not.toContain("setControlsBusy(");
+    expect(app).not.toContain("setRetryVisible(");
+    // The machine is the only writer of retry visibility besides the stub.
+    expect(composer).toContain("retry.hidden");
+    expect(composer).toContain("export function setComposerState");
+    expect(composer).toContain("export function composerStateAfterSubmit");
+    // Shell/loading presentation never touches composer controls: the only
+    // setComposerBusy caller besides its definition is the machine itself.
+    expect(shell).not.toContain("setComposerBusy(");
+    expect(composer).toContain("setComposerBusy(");
   });
 
   it("refreshBackgroundInert runs before opener focus restore on overlay close", () => {

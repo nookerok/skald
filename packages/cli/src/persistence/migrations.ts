@@ -126,7 +126,7 @@ export function migrateV1ToV2(db: SqliteHandle): MigrationResult {
   }
 }
 
-export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "migrateV11" | "migrateV12" | "open" {
+export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "migrateV3" | "migrateV4" | "migrateV5" | "migrateV6" | "migrateV7" | "migrateV8" | "migrateV9" | "migrateV10" | "migrateV11" | "migrateV12" | "migrateV13" | "open" {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const v = row?.user_version ?? 0;
 
@@ -142,9 +142,41 @@ export function validateUserVersion(db: SqliteHandle): "fresh" | "migrate" | "mi
   if (v === 9) return "migrateV10";
   if (v === 10) return "migrateV11";
   if (v === 11) return "migrateV12";
-  if (v === 12) return "open";
+  if (v === 12) return "migrateV13";
+  if (v === 13) return "open";
 
-  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-12.`);
+  throw new Error(`Unknown PRAGMA user_version=${v}. Expected 0-13.`);
+}
+
+/**
+ * Saved idempotent response envelopes (plan_9 §5). One row per
+ * (world, idempotency key): the original status code plus the full response
+ * DTO, so an identical retry returns the saved envelope with HTTP 200
+ * instead of re-executing or answering 409. Additive and empty on day one:
+ * pre-migration keys keep the legacy conversation-turn fallback until they
+ * are recorded here. No world facts, no backfill.
+ */
+export function migrateV12ToV13(db: SqliteHandle): void {
+  verifyIntegrity(db);
+  db.exec("BEGIN EXCLUSIVE");
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS command_responses (
+      world_id        TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash    TEXT NOT NULL,
+      status_code     INTEGER NOT NULL,
+      response_body   TEXT NOT NULL,
+      created_at      INTEGER NOT NULL,
+      FOREIGN KEY (world_id) REFERENCES worlds(world_id),
+      PRIMARY KEY (world_id, idempotency_key)
+    ) STRICT`);
+    db.exec("PRAGMA user_version = 13");
+    verifyIntegrity(db);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 /**

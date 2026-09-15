@@ -27,7 +27,8 @@ export type {
   PronounResolution,
 } from "./focus-stack.js";
 export { composeMasterTurnResponse } from "./master-turn-response.js";
-export type {
+export { buildMasterTurn, masterTurnKey, masterTurnKindOf } from "./master-turn.js";
+export type { MasterTurnDTO, MasterTurnKind } from "./master-turn.js";export type {
   MasterTurnResponse,
   MasterTurnResponseInput,
   MasterTurnResponseKind,

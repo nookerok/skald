@@ -65,11 +65,12 @@ describe("ConversationTurn HTTP integration", () => {
     ]);
   });
 
-  it("replays a duplicate action without adding a second conversation turn", async () => {
+  it("replays a duplicate action with the saved envelope and no second turn", async () => {
     const duplicate = await api(`/api/worlds/${worldId}/command`, {
       method: "POST", body: JSON.stringify({ input: "move north", idempotencyKey: "conversation-action-1" }),
     });
-    expect(duplicate.status).toBe(409);
+    expect(duplicate.status).toBe(200);
+    expect(duplicate.body.replayed).toBe(true);
     expect(duplicate.body.conversationTurn.playerText).toBe("move north");
     const conflict = await api(`/api/worlds/${worldId}/command`, {
       method: "POST", body: JSON.stringify({ input: "move south", idempotencyKey: "conversation-action-1" }),

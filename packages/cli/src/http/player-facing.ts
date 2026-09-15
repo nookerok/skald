@@ -160,6 +160,7 @@ export function toPlayerFacingJournalTurns(turns: readonly JournalTurn[]): Playe
     worldTime: turn.worldTime,
     turnHandle: readSideHandle("turn", turn.turnId),
     narrationHandle: narrationHandle(turn.worldTime, turn.correlationId),
+    ...(turn.autonomous === true ? { autonomous: true as const } : {}),
     ...( "narrationState" in turn && ["pending", "ready", "unavailable", "not_requested"].includes(String(turn.narrationState))
       ? { narrationState: turn.narrationState as "pending" | "ready" | "unavailable" | "not_requested" } : {}),
     presentation: toPlayerFacingPresentation(turn.presentation),

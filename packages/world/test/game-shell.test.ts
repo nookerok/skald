@@ -31,6 +31,21 @@ const profile = {
 };
 
 describe("Game Shell read model", () => {
+  it("shows a blocked journey as blocked, never as completed", () => {
+    const events = [
+      event("LocationDefined", "here", 0, { id: "a", name: "Переправа", description: "Переправа.", connections: {}, objectIds: [] }),
+      event("LocationDefined", "there", 0, { id: "b", name: "Город", description: "Город.", connections: {}, objectIds: [] }),
+      event("JourneyStarted", "js-1", 1, {
+        journeyId: "j-1", relationId: "r", fromLocationId: "a", toLocationId: "b", startedAt: 1, plannedTicks: 2,
+      }),
+      event("JourneyBlocked", "jb-1", 3, { reason: "crossing_closed", journeyId: "j-1", playerText: "Стоп." }),
+    ];
+    const snapshot = buildGameShellSnapshot(events, world(events), null, "blocked-world");
+    expect(snapshot.journey.status).toBe("blocked");
+    expect(snapshot.journey.text).toContain("Город");
+    expect(snapshot.journey.text).toContain("перекрыт");
+    expect(snapshot.journey.text).not.toContain("добрался");
+  });
   it("does not reveal legacy connected locations from topology alone", () => {
     const events = [
       event("LocationDefined", "here", 0, { id: "courtyard", name: "Двор", description: "Старый двор.", connections: { north: "hidden-cellar" }, objectIds: [] }),

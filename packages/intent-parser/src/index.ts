@@ -62,10 +62,25 @@ export type { InquiryFocus, InquiryQueryId, InquiryRelation, InquiryRequest, Pla
 
 export { interpretIntent, targetRequirementForInteraction, targetRequirementForOperation } from "./deterministic-interpreter.js";
 export type { InterpreterOptions } from "./deterministic-interpreter.js";
+export { isJourneyContinuation } from "./journey-continuation.js";
 export { RUSSIAN_STEM_MIN_LENGTH, sameRussianStem, stemRussianToken } from "./russian-morphology.js";
 export { INTENT_CAPABILITIES, INQUIRY_CAPABILITIES, isIntentProposal, parseIntentProposal, isInquiryProposal, parseInquiryProposal } from "./intent-proposal.js";
 export type { ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation, InquiryCapabilitiesManifest, InquiryProposalV1, InquiryProposalValidation } from "./intent-proposal.js";
 export { validateIntentProposal, validateInquiryProposal, validateActionProposal } from "./intent-proposal-validator.js";
+export {
+  GENERIC_FALLBACK_TEXTS,
+  classifyStructuralReason,
+  conflictingActions,
+  isGenericFallbackText,
+  missingReferent,
+  multipleReferents,
+  multipleThings,
+  unclearDestination,
+  unclearPrimaryAction,
+  unknownObservedTarget,
+  unsafeCombination,
+} from "./clarification-reasons.js";
+export type { ClarificationReason, ClassifiedClarification } from "./clarification-reasons.js";
 export {
   OBSERVER_REF_PATTERN,
   TURN_AUTHORITY_FIELDS,

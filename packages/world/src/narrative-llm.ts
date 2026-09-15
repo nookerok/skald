@@ -8,6 +8,8 @@ import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory,
 import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
 import type { NarrativeAdapterContext, NarrativeFact } from "./setup/background-context.js";
 import { actionFallbackText, isGenericActionFallback } from "./presentation/action-fallback.js";
+import { verifyGameNarration } from "./game-director/narration-quality.js";
+import type { GameDirectorContext } from "./game-director/index.js";
 
 export interface NarrativeLLMResult {
   readonly text: string;
@@ -663,14 +665,88 @@ export interface TurnNarration {
 }
 
 const EPISTEMIC_PROMPT = "Сохраняй классы epistemic: established_fact утверждай прямо; observed_fact подавай как увиденное; testimony привязывай к источнику; inference и interpretation оформляй как предположение. Никогда не повышай класс и не превращай testimony, belief или interpretation в установленный факт.";
+const GAME_DIRECTOR_PROMPT =
+  " Веди игру как мастер, а не как пересказчик: строй ответ из четырёх частей — реакция на реплику игрока, результат или честная причина невозможности, изменение сцены или значимая деталь, естественное продолжение (вопрос или observer-safe возможность из knownContacts, availableRoutes, accessibleItems). " +
+  "Соединяй факты, держи голос мастера, подчёркивай последствия, напоминай о ранее известном. " +
+  "Запрещено: завершать путешествие без Event; создавать NPC, предметы и знакомства; открывать скрытые локации; превращать hypothesis в truth; решать успешность действия; заканчивать ответ техническим требованием или пересказом локации вместо результата.";
 const DND_SYSTEM_PROMPT =
   "Ты — рассказчик тёмного мира в духе D&D. Опиши этот ход художественно, по-русски, 2-4 предложения, в прошедшем времени, с атмосферой. " +
   "Перескажи только факты ниже и результат действия: ничего не придумывай, не выбирай за игрока, не описывай его мысли или будущие намерения. Твоё описание ничего не меняет в симуляции. response.kind обязателен и неизменяем: action_rejection нельзя превращать в успех. Используй только факты с usableNow=true. observedKnowledge описывает память/знание игрока и не является установленной истиной мира. Не превращай testimony, inference или observedKnowledge в established_fact, не создавай предметы, контакты, причины, письма или события. Не упоминай внутренние идентификаторы. " +
   "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 2-4 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"<id из переданных групп>\", \"epistemicClass\": \"observed_fact\"}]}. Каждое предложение привяжи к id факта, из которого оно выведено, и укажи класс не выше класса того факта." +
-  EPISTEMIC_PROMPT;
+  EPISTEMIC_PROMPT +
+  GAME_DIRECTOR_PROMPT;
 
-function fallbackNarration(playerAction: string, presentation: TurnPresentation, reason: string, context?: NarrativeAdapterContext): TurnNarration {
+/**
+ * Observer-safe game director slice for the narration prompt (plan_9 §12).
+ * Only bounded prose travels: the last replicas, the scene, the result
+ * context, allowed facts and uncertainties, the goal, the backstory hook
+ * and the affordances the hero really has. No internal ids, coordinates
+ * or hidden state. Pure data shaping.
+ */
+export function gameDirectorPromptSlice(director: GameDirectorContext): Record<string, unknown> {
   return {
+    lastPlayerUtterance: director.lastTurns.filter((turn) => turn.speaker === "player").at(-1)?.text ?? null,
+    lastTurns: director.lastTurns.slice(-12).map((turn) => ({ speaker: turn.speaker, text: turn.text })),
+    currentScene: {
+      locationName: director.currentScene.locationName,
+      locationDescription: director.currentScene.locationDescription,
+      ...(director.currentScene.situationTitle ? { situationTitle: director.currentScene.situationTitle } : {}),
+      ...(director.currentScene.situationDescription ? { situationDescription: director.currentScene.situationDescription } : {}),
+    },
+    activePlayerGoal: director.activePlayerGoal?.summary ?? null,
+    currentDramaticThread: director.currentDramaticThread,
+    pendingClarification: director.pendingClarification,
+    journeyState: { status: director.journeyState.status, text: director.journeyState.text },
+    sceneRhythm: director.sceneRhythm,
+    knownContacts: director.knownContacts.map((entry) => entry.label),
+    availableRoutes: director.availableRoutes.map((entry) => ({ label: entry.label, status: entry.status })),
+    accessibleItems: director.accessibleItemsAndAffordances.map((entry) => ({ label: entry.label, affordances: [...entry.affordances] })),
+    recentConsequences: director.recentConsequences.map((entry) => entry.detail ? `${entry.label}: ${entry.detail}` : entry.label),
+    knownFacts: [...director.knownFacts],
+    knownUncertainties: [...director.knownUncertainties],
+    unresolvedPersonalHook: director.unresolvedPersonalHook,
+    ...(director.characterBackground
+      ? {
+        characterBackground: {
+          name: director.characterBackground.name,
+          backgroundTitle: director.characterBackground.backgroundTitle,
+          formerRole: director.characterBackground.formerRole,
+          rupture: director.characterBackground.rupture,
+          obligation: director.characterBackground.obligation,
+        },
+      }
+      : {}),
+  };
+}
+
+/**
+ * Allowed-fact vocabulary for the quality guard: every observer-safe
+ * line the model was allowed to rephrase. Pure and total.
+ */
+export function gameDirectorAllowedFacts(
+  director: GameDirectorContext,
+  turnTexts: readonly string[],
+): readonly string[] {
+  const facts: string[] = [...turnTexts];
+  facts.push(director.currentScene.locationDescription);
+  if (director.currentScene.situationDescription) facts.push(director.currentScene.situationDescription);
+  facts.push(...director.visibleSituation);
+  facts.push(...director.knownFacts);
+  facts.push(...director.knownUncertainties);
+  for (const entry of director.knownContacts) facts.push(entry.label);
+  for (const entry of director.availableRoutes) facts.push(entry.label);
+  for (const entry of director.accessibleItemsAndAffordances) facts.push(entry.label);
+  if (director.activePlayerGoal) facts.push(director.activePlayerGoal.summary);
+  if (director.currentDramaticThread) facts.push(director.currentDramaticThread.title);
+  if (director.unresolvedPersonalHook) facts.push(director.unresolvedPersonalHook);
+  const rhythm = director.sceneRhythm;
+  for (const line of [rhythm.question, rhythm.pressure, rhythm.opportunity, rhythm.inactionCost, rhythm.changeAfterActions, rhythm.completionCondition]) {
+    if (line) facts.push(line);
+  }
+  return Object.freeze(facts.filter((line) => line.trim().length > 0));
+}
+
+function fallbackNarration(playerAction: string, presentation: TurnPresentation, reason: string, context?: NarrativeAdapterContext): TurnNarration {  return {
     text: personalizedFallback(presentation, playerAction, context),
     model: "",
     usedFallback: true,
@@ -721,6 +797,7 @@ export async function narrateTurnLLM(
   ];
   const guardFacts = asGuardFacts(groups, facts);
   const backgroundFactIds = openingBackgroundFactIds(groups);
+  const director = opts?.gameDirector ?? null;
 
   const userContent = JSON.stringify({
     playerAction,
@@ -737,6 +814,7 @@ export async function narrateTurnLLM(
     openingWindow: opts?.narrativeContext?.openingWindow === true,
     worldTime: presentation.worldTime,
     playerPosition: presentation.playerPosition,
+    ...(director ? { gameDirector: gameDirectorPromptSlice(director) } : {}),
   });
 
   const messages: ChatMessage[] = [
@@ -783,6 +861,39 @@ export async function narrateTurnLLM(
         });
         // Schema rejection is deterministic — no retry
         return fallbackNarration(playerAction, presentation, `epistemic_violation:${guard.reason}`, opts?.narrativeContext);
+      }
+      // Game quality guard (plan_9 §13): only when the caller supplied the
+      // director context, so legacy callers keep their exact behavior. On
+      // rejection the quality deterministic text wins, never an empty stub.
+      if (director) {
+        const outcomeText = facts.map((fact) => fact.text).join(" ");
+        const quality = verifyGameNarration({
+          narration: guard.narration,
+          playerAction,
+          outcomeText,
+          allowedFacts: gameDirectorAllowedFacts(director, facts.map((fact) => fact.text)),
+        });
+        if (!quality.ok) {
+          emitDiagnostic(sink, {
+            kind: "llm",
+            category: "schema_rejection",
+            outcome: "deterministic_fallback",
+            provider: result.provider,
+            durationMs,
+            turn: presentation.worldTime,
+            worldTime: presentation.worldTime,
+            attempt,
+            priority,
+            timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+            retryOutcome: "none",
+            worldId: opts?.worldId,
+            recordedAt: new Date().toISOString(),
+            correlationId: opts?.correlationId,
+            model: result.model,
+            configuredModel: result.configuredModel,
+          });
+          return fallbackNarration(playerAction, presentation, `game_quality_violation:${quality.reason}`, opts?.narrativeContext);
+        }
       }
       const retryOutcome: RetryOutcome = attempt > 1 ? "succeeded_on_retry" : "none";
       const configuredProvider = result.configuredProvider ?? router.providerId;

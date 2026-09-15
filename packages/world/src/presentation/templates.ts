@@ -41,6 +41,7 @@ function describeActionAttempt(payload: { operation: string; target?: { raw?: st
   if (operation === "observe" || operation === "inspect") return target ? "Ты внимательно осматриваешь " + target + "." : "Ты оглядываешься вокруг.";
   if (operation === "listen") return target ? "Ты прислушиваешься к " + target + "." : "Ты прислушиваешься к окружающим звукам.";
   if (operation === "open") return target ? "Ты пытаешься открыть " + target + "." : "Ты ищешь, что можно открыть.";
+  if (operation === "speak" || operation === "call") return target ? "Ты обращаешься к «" + target + "»." : "Ты обращаешься к тем, кто рядом.";
   if (operation === "move" || operation === "travel" || operation === "journey") return target ? "Ты направляешься к " + target + "." : "Ты выбираешь направление.";
   if (operation === "wait") return "Ты даёшь времени пройти и наблюдаешь за изменениями.";
   return "Ты пытаешься совершить действие" + (target ? " " + target : "") + ".";
@@ -399,6 +400,26 @@ export const JOURNEY_BLOCKED: PresentationTemplate = {
   },
 };
 
+/**
+ * A standing block restated without a new verdict: while the journey
+ * stays blocked, further ticks emit no JourneyBlocked (dedup lives in
+ * the progress rule), so this template voices the persisted obstacle
+ * from projection state. Offline ticks stay silent.
+ */
+export const JOURNEY_STILL_BLOCKED: PresentationTemplate = {
+  id: "journey_still_blocked", listens: ["TickPassed"],
+  present: (event, world) => {
+    const p = event.payload as { playerOffline?: boolean };
+    if (p.playerOffline) return null;
+    const journey = world.activeJourneyId ? world.journeys.get(world.activeJourneyId) : undefined;
+    if (!journey || journey.status !== "blocked") return null;
+    const to = world.locations.get(journey.toLocationId)?.name ?? journey.toLocationId;
+    const cause = journey.blockedReason === "crossing_closed" ? "переправа закрыта" : "путь перекрыт";
+    return cand("journey_still_blocked", "action", "primary", 106,
+      `Путь к «${to}» всё ещё перекрыт: ${cause}.`, event, "journey:blocked:" + journey.journeyId);
+  },
+};
+
 export const JOURNEY_COMPLETED: PresentationTemplate = {
   id: "journey_completed", listens: ["JourneyCompleted"],
   present: (event, world) => {
@@ -440,6 +461,7 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   JOURNEY_REQUESTED,
   JOURNEY_STARTED,
   JOURNEY_BLOCKED,
+  JOURNEY_STILL_BLOCKED,
   JOURNEY_COMPLETED,
   ACTION_ATTEMPTED,
   ACTION_RESOLVED,

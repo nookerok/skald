@@ -13,6 +13,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
 import { ruleEventId } from "../ids.js";
+import { closedCrossingText, highWaterAhead } from "../journey/crossing-cause.js";
 import { spatialKnowledgeRank } from "../region/observer-knowledge.js";
 
 function blocked(event: DomainEvent, idx: number, reason: string, playerText: string): DomainEvent {
@@ -120,7 +121,7 @@ export const journeyTravel: Rule<ReadonlyWorld> = {
         ?? [...spatial.crossingStates.values()].find((c) => c.crossingId === relation.id);
       if (crossing) {
         if (crossing.condition === "closed") {
-          return [blocked(event, 0, "crossing_closed", `Путь к «${target.name}» невозможен: переправа закрыта из-за высокой воды.`)];
+          return [blocked(event, 0, "crossing_closed", closedCrossingText(target.name, highWaterAhead(spatial, relation.id)))];
         }
         if (crossing.condition === "difficult") travelTicks = crossing.travelCostTicks;
       }

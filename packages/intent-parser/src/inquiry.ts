@@ -20,6 +20,7 @@ export const INQUIRY_QUERY_IDS = [
   "known_contacts",
   "map_position",
   "who_is_nearby",
+  "environmental_indication",
 ] as const;
 
 export type InquiryQueryId = (typeof INQUIRY_QUERY_IDS)[number];
@@ -111,6 +112,11 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^(?:есть\s+ли\s+)?кто-нибудь\s+рядом/iu,
     /^кого\s+(?:я\s+)?вижу\s+рядом/iu,
     /^с\s+кем\s+(?:я\s+)?имею\s+дело\s+здесь/iu,
+  ]],
+  ["environmental_indication", [
+    /^что\s+подсказывает\s+(?:вода|река|лес|ветер|течение|природа)/iu,
+    /^о\s+ч[её]м\s+говорит\s+(?:вода|река|лес|ветер|течение)/iu,
+    /^что\s+значит\s+(?:такая|эта)\s+(?:вода|река|тишина)/iu,
   ]],
   ["map_position", [
     /^почему\s+карта\s+(?:показывает|отображает)\s+(?:это\s+место|меня)/iu,

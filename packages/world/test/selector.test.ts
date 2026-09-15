@@ -27,6 +27,22 @@ function evt(type: string, eventId: string, payload: unknown = {}, timestamp = 1
 }
 
 describe("selectTurnPresentation", () => {
+  it("keeps addressed speech instead of the neutral attempt fallback", () => {
+    const events = [evt("ActionAttempted", "a-1", {
+      mode: "communicate", operation: "speak", target: "Перевозчик у переправы",
+    }, 5)];
+    const pres = selectTurnPresentation(events, emptyWorld());
+    expect(pres.response?.kind).toBe("action_outcome");
+    expect(pres.response?.text).toBe("Ты обращаешься к «Перевозчик у переправы».");
+    expect(pres.primary?.text).toBe("Ты обращаешься к «Перевозчик у переправы».");
+  });
+
+  it("still neutralizes an address-less attempt", () => {
+    const events = [evt("ActionAttempted", "a-1", { mode: "interact", operation: "heat" }, 5)];
+    const pres = selectTurnPresentation(events, emptyWorld());
+    expect(pres.response?.text).toContain("пробуешь изменить ситуацию");
+  });
+
   it("background event does not become primary", () => {
     // Only a TickPassed with playerOffline (background) — no primary-importance event
     const events = [evt("TickPassed", "t-1", { delta: 1, playerOffline: true }, 5)];

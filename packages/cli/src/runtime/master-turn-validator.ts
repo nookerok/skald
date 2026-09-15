@@ -60,7 +60,8 @@ export interface RegisteredMetaRequest {
 
 /**
  * Transient execution plan for one replica: at most one primary intent
- * plus an optional read-only question. Owned by the request, never stored.
+ * plus read-only questions (plan_9 §1: every understood question is
+ * answered, never silently dropped). Owned by the request, never stored.
  *
  * Memory handoff (plan_7 §7): the model's stated goal and its reported
  * relation to the pending clarification travel with the plan so the HTTP
@@ -76,7 +77,7 @@ export interface ValidatedMasterTurnPlan {
   readonly execution: {
     readonly intent: ExecutableIntent;
   } | null;
-  readonly postActionInquiry: InquiryRequest | null;
+  readonly postActionInquiries: readonly InquiryRequest[];
   readonly metaInquiry: RegisteredMetaRequest | null;
   readonly deferredClauses: readonly DeferredClause[];
   readonly focus: readonly ValidatedConversationReferent[];
@@ -115,8 +116,8 @@ type MappedIntent =
 type MappedInquiry =
   | { readonly status: "accepted"; readonly inquiry: InquiryRequest }
   | UnacceptedValidation;
-type MappedNullableInquiry =
-  | { readonly status: "accepted"; readonly inquiry: InquiryRequest | null }
+type MappedInquiries =
+  | { readonly status: "accepted"; readonly inquiries: readonly InquiryRequest[] }
   | UnacceptedValidation;
 
 /** A scene-table hit, or a surface-only mention without a table entry. */
@@ -215,7 +216,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         contextRevision: revision,
         kind: proposal.kind,
         execution: null,
-        postActionInquiry: null,
+        postActionInquiries: freeze([]),
         metaInquiry: freeze({ type: "MetaRequest" as const, operation: proposal.primaryIntent.operation }),
         deferredClauses: freeze([]),
         focus: freeze(focus),
@@ -228,7 +229,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
     if (proposal.primaryIntent.kind !== "inquiry") return { status: "invalid", reason: "inquiry turn requires an inquiry primary intent" };
     const inquiry = checkQuestionFocus(proposal.primaryIntent.queryId, proposal.primaryIntent.focus, proposal.primaryIntent.relation, scene, rawText, track);
     if (inquiry.status !== "accepted") return inquiry;
-    const topUp = checkTopQuestion(proposal, scene, rawText, track, inquiry.inquiry);
+    const topUp = checkTopQuestions(proposal, scene, rawText, track, inquiry.inquiry);
     if (topUp.status !== "accepted") return topUp;
     return {
       status: "accepted",
@@ -236,7 +237,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         contextRevision: revision,
         kind: proposal.kind,
         execution: null,
-        postActionInquiry: topUp.inquiry,
+        postActionInquiries: topUp.inquiries,
         metaInquiry: null,
         deferredClauses: collectDeferred(proposal, track),
         focus: freeze(focus),
@@ -275,7 +276,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         contextRevision: revision,
         kind: proposal.kind,
         execution: freeze({ intent }),
-        postActionInquiry: null,
+        postActionInquiries: freeze([]),
         metaInquiry: null,
         deferredClauses: collectDeferred(proposal, track),
         focus: freeze(focus),
@@ -302,15 +303,15 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
   if (!structural.ok) {
     return { status: "clarification", question: structural.clarification, options: [{ optionId: "rephrase", label: "Переформулировать" }] };
   }
-  const topQuestion = checkTopQuestion(proposal, scene, rawText, track, null);
-  if (topQuestion.status !== "accepted") return topQuestion;
+  const topQuestions = checkTopQuestions(proposal, scene, rawText, track, null);
+  if (topQuestions.status !== "accepted") return topQuestions;
   return {
     status: "accepted",
     plan: freeze({
       contextRevision: revision,
       kind: proposal.kind,
       execution: freeze({ intent: mapped.intent }),
-      postActionInquiry: topQuestion.inquiry,
+      postActionInquiries: topQuestions.inquiries,
       metaInquiry: null,
       deferredClauses: collectDeferred(proposal, track),
       focus: freeze(focus),
@@ -504,20 +505,35 @@ function checkQuestionFocus(
   };
 }
 
-/** Top-level question wins; the first supporting question fills in when absent. */
-function checkTopQuestion(
+/**
+ * Top-level question plus every supporting question, in order. Each one is
+ * validated on its own: a single bad question clarifies specifically about
+ * that part instead of sinking the understood rest (plan_9 §1: no silent
+ * loss). With no questions at all the fallback inquiry (if any) answers.
+ */
+function checkTopQuestions(
   proposal: TurnProposalV2,
   scene: MasterTurnSceneSnapshot,
   rawText: string,
   track: (entry: ValidatedConversationReferent) => void,
   fallback: InquiryRequest | null,
-): MappedNullableInquiry {
-  const supporting = proposal.supportingClauses.find((clause) => clause.kind === "question");
-  const question = proposal.question ?? (supporting ? { queryId: supporting.queryId, focus: supporting.focus, relation: undefined } : undefined);
-  if (!question) return { status: "accepted", inquiry: fallback };
-  const checked = checkQuestionFocus(question.queryId, question.focus, question.relation, scene, rawText, track);
-  if (checked.status !== "accepted") return checked;
-  return { status: "accepted", inquiry: checked.inquiry };
+): MappedInquiries {
+  const questions: { readonly queryId: string; readonly focus: ProposedReferent | undefined; readonly relation: InquiryRequest["relation"] }[] = [];
+  if (proposal.question) {
+    questions.push({ queryId: proposal.question.queryId, focus: proposal.question.focus, relation: proposal.question.relation });
+  }
+  for (const clause of proposal.supportingClauses) {
+    if (clause.kind !== "question") continue;
+    questions.push({ queryId: clause.queryId, focus: clause.focus, relation: undefined });
+  }
+  if (questions.length === 0) return { status: "accepted", inquiries: fallback ? freeze([fallback]) : freeze([]) };
+  const inquiries: InquiryRequest[] = [];
+  for (const question of questions) {
+    const checked = checkQuestionFocus(question.queryId, question.focus, question.relation, scene, rawText, track);
+    if (checked.status !== "accepted") return checked;
+    inquiries.push(checked.inquiry);
+  }
+  return { status: "accepted", inquiries: freeze(inquiries) };
 }
 
 /** Deferred actions plus speech topics land in deferred clauses and focus. */

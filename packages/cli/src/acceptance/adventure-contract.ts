@@ -9,6 +9,19 @@ export const MAX_OFFLINE_TICKS = 48;
 const REQUIRED_CHECKS = [
   "world_is_living_region",
   "conversation_has_master_reply",
+  "hero_created",
+  "prologue_matches_background",
+  "free_inquiry_answered",
+  "speech_got_reaction",
+  "obstacle_named_cause",
+  "knowledge_applied",
+  "no_generic_fallback",
+  "replies_are_linked",
+  "memory_survives_restart",
+  "transcript_covers_every_command",
+  "no_stranded_journey",
+  "consequences_persist",
+  "autonomous_consequence_fired",
   "rumour_was_received",
   "clarification_was_requested",
   "journey_is_multitick",
@@ -60,6 +73,12 @@ export function validateAdventureScenario(scenario: AdventureScenario): readonly
   const journeyCommands = commands.filter((step) => /идти|верн|переправ|дорог/u.test(commandText(step) ?? ""));
   if (journeyCommands.length < 4) errors.push("at least four journey intent commands are required");
 
+  const inquiries = commands.filter((step) => /^(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)(?=\s|$)/iu.test((commandText(step) ?? "").trim()));
+  if (inquiries.length < 1) errors.push("at least one free inquiry is required");
+
+  const speeches = commands.filter((step) => /(?:обратиться|обратись|сказать|скажи|спросить|спроси|позвать|позови|поздороваться|поговорить)/iu.test(commandText(step) ?? ""));
+  if (speeches.length < 1) errors.push("at least one speech turn to a known contact is required");
+
   const inspections = commands.filter((step) => /осмотр/u.test(commandText(step) ?? ""));
   if (inspections.length < 3 || !inspections.some((step) => /каменн/u.test(commandText(step) ?? ""))) {
     errors.push("the scenario must contain repeated inspection and a targeted masonry observation");
@@ -72,6 +91,7 @@ export function validateAdventureScenario(scenario: AdventureScenario): readonly
   }
 
   if (scenario.turns.filter((step) => "acknowledge" in step).length !== 1) errors.push("exactly one Presence acknowledgement is required");
+  if (scenario.turns.filter((step) => "prologue" in step).length !== 1) errors.push("exactly one prologue step is required");
   if (!scenario.turns.some((step) => "disconnect" in step)) errors.push("disconnect step is required");
   if (!scenario.turns.some((step) => "restartServer" in step)) errors.push("restartServer step is required");
   if (!scenario.turns.some((step) => "reconnect" in step)) errors.push("reconnect step is required");

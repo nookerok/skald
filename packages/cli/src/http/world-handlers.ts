@@ -39,11 +39,13 @@ import {
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
-import { classifyPlayerInput, parseIntent, validateActionProposal } from "@skald/intent-parser";
+import { classifyPlayerInput, isJourneyContinuation, parseIntent, unknownObservedTarget, validateActionProposal } from "@skald/intent-parser";
 import type { ExecutableIntent, TurnConversationRelation } from "@skald/intent-parser";
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { buildMasterTurnSceneContext } from "@skald/world";
 import type { MasterTurnSceneSnapshot } from "@skald/world";
+import { buildGameDirectorContext } from "@skald/world";
+import type { GameDirectorContext } from "@skald/world";
 import { getMapDetailAsset } from "./map-detail-catalog.js";
 import {
   buildActionConversationTurn,
@@ -55,7 +57,9 @@ import {
   isWorldChangingTurn,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
-import type { ConversationMemoryMetadataV1 } from "../conversation/types.js";
+import type { ConversationMemoryMetadataV1, ConversationResponseKind } from "../conversation/types.js";
+import { buildMasterTurn, masterTurnKindOf } from "../conversation/master-turn.js";
+import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
@@ -129,15 +133,127 @@ function persistReadSideTurn(
   })));
 }
 
-function duplicateConversationResponse(runtime: WorldRuntime, input: string, idempotencyKey: string): JsonResponse | null {
-  const existing = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+/**
+ * Unified idempotent replay (plan_9 §5): one service for every world-scoped
+ * mutating handler. A saved envelope short-circuits before the gateway,
+ * rules, and narration scheduling; a reused key with a different request
+ * hash is a conflict. Keys recorded before envelopes existed (no row) fall
+ * through to the legacy per-path guards, whose answers are then recorded.
+ */
+function checkCommandReplay(runtime: WorldRuntime, idempotencyKey: string, requestHash: string): JsonResponse | null {
+  const row = runtime.store.getCommandReplay(runtime.worldId, idempotencyKey);
+  if (!row) return recoverLostEnvelope(runtime, idempotencyKey, requestHash);
+  if (row.requestHash !== requestHash) return error("duplicate_request", "duplicate idempotencyKey", 409);
+  const payload = JSON.parse(row.responseBody) as Record<string, unknown>;
+  return json({ ...payload, replayed: true }, row.statusCode);
+}
+
+/**
+ * Lost-envelope recovery (recoverable finalize contract — deliberately not
+ * an atomic commit: the envelope write stays separate from the world
+ * transaction, so a failed save is diagnosed, the request fails open for
+ * retry, and the retry converges): the world commit and
+ * the conversation turn are durable, but the envelope write failed. The
+ * retry must still answer 200 + replayed instead of 409, so rebuild the
+ * turn-anchored envelope from committed rows only — never new execution,
+ * never narration scheduling — pin it first-write-wins, and serve it
+ * marked as recovered. Later retries serve the pinned bytes identically.
+ * Read-only turns (inquiry/clarification/meta) need no recovery: their
+ * legacy turn guard already answers replayed without an envelope row.
+ */
+function recoverLostEnvelope(runtime: WorldRuntime, idempotencyKey: string, requestHash: string): JsonResponse | null {
+  if (!runtime.store.hasProcessedKey(runtime.worldId, idempotencyKey)) return null;
+  const turn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+  if (!turn || turn.requestHash !== requestHash) return null;
+  const conversationTurn = toConversationTurnDTO(turn);
+  const masterTurn = masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, {
+    kind: masterTurnKindOf(conversationTurn.responseKind),
+    deterministicText: conversationTurn.responseText,
+  }, false);
+  const status = turn.inputClass === "inquiry" || turn.inputClass === "clarification" || turn.inputClass === "meta"
+    ? { status: turn.inputClass }
+    : {};
+  const recovered = json({ ok: true, replayed: true, recovered: true, ...status, conversationTurn, masterTurn });
+  try {
+    runtime.store.saveCommandReplay(runtime.worldId, idempotencyKey, requestHash, 200, recovered.body);
+  } catch {
+    // Diagnosed but not thrown: the recovery answer itself is correct, and
+    // the next identical retry pins again with byte-identical content.
+    emitReplayFinalizeDiagnostic(runtime, idempotencyKey, 200);
+  }
+  return recovered;
+}
+
+/** Dedicated finalize failure: the world committed but the envelope write failed. Never pinned, always retryable. */
+class ReplayEnvelopeError extends Error {
+  constructor(worldId: string, statusCode: number) {
+    super(`replay envelope finalize failed for world ${worldId} with status ${statusCode}`);
+    this.name = "ReplayEnvelopeError";
+  }
+}
+
+/** Structured finalize diagnostic: operational metadata only, never player text or secrets. */
+function emitReplayFinalizeDiagnostic(runtime: WorldRuntime, idempotencyKey: string, statusCode: number): void {
+  try {
+    const keyPrefix = createHash("sha256").update(idempotencyKey).digest("hex").slice(0, 12);
+    runtime.diagnostics({
+      kind: "scheduler",
+      category: "persistence_error",
+      outcome: "persistence_error",
+      provider: "scheduler",
+      durationMs: 0,
+      attempt: 0,
+      timeout: 0,
+      retryOutcome: "none",
+      turn: runtime.projection.getSnapshot().time,
+      worldTime: runtime.projection.getSnapshot().time,
+      priority: "interactive",
+      detail: `command_replay_save_failed key=${keyPrefix} status=${statusCode}`,
+      worldId: runtime.worldId,
+      recordedAt: new Date().toISOString(),
+    });
+  } catch {
+    // Telemetry never breaks the finalize path.
+  }
+}
+
+/**
+ * Records the final response envelope for future identical retries.
+ * Transient 5xx failures stay retryable and are never pinned. The write
+ * is verified by read-back: a lost envelope would leave a processed key
+ * with no replayable answer, so the failure is diagnosed structurally
+ * and thrown (the request fails 500; the retry recovers via
+ * recoverLostEnvelope) instead of being swallowed.
+ */
+function recordCommandReplay(runtime: WorldRuntime, idempotencyKey: string, requestHash: string, response: JsonResponse): void {
+  if (response.statusCode >= 500) return;
+  const fail = (): never => {
+    emitReplayFinalizeDiagnostic(runtime, idempotencyKey, response.statusCode);
+    throw new ReplayEnvelopeError(runtime.worldId, response.statusCode);
+  };
+  try {
+    runtime.store.saveCommandReplay(runtime.worldId, idempotencyKey, requestHash, response.statusCode, response.body);
+  } catch {
+    fail();
+  }
+  let saved: { requestHash: string } | null = null;
+  try {
+    saved = runtime.store.getCommandReplay(runtime.worldId, idempotencyKey);
+  } catch {
+    fail();
+  }
+  if (!saved || saved.requestHash !== requestHash) fail();
+}
+
+function duplicateConversationResponse(runtime: WorldRuntime, input: string, idempotencyKey: string): JsonResponse | null {  const existing = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   if (!existing) return null;
   if (existing.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
   const conversationTurn = toConversationTurnDTO(existing);
+  const masterTurn = masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: conversationTurn.responseText }, false);
   if (isWorldChangingTurn(existing.inputClass)) {
-    return json({ ok: false, error: { code: "duplicate_request", message: "duplicate idempotencyKey" }, conversationTurn }, 409);
+    return json({ ok: false, error: { code: "duplicate_request", message: "duplicate idempotencyKey" }, conversationTurn, masterTurn }, 409);
   }
-  return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn });
+  return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn, masterTurn });
 }
 
 function readClarificationOptions(payload: Record<string, unknown>): { readonly optionId: string; readonly label: string }[] {
@@ -176,7 +292,7 @@ function withClarificationConversation(
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-  return json({ ...payload, conversationTurn, knowledge }, response.statusCode);
+  return json({ ...payload, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: question }, false) }, response.statusCode);
 }
 
 export function serializeWorldStateFromRuntime(r: WorldRuntime) {
@@ -267,8 +383,65 @@ function buildNarrationContext(
   }
 }
 
-function isOpeningNarrationWindow(runtime: WorldRuntime, currentIdempotencyKey?: string): boolean {
+/**
+ * Observer-safe game director for one narration job (plan_9 §§9,11,12).
+ * Best-effort read-side composition: the bounded scene, the bounded
+ * conversation memory and the schedule-time background context become one
+ * director the narration prompt may rephrase. Any failure yields
+ * undefined — narration keeps its exact legacy prompt instead of failing
+ * the turn. Never throws.
+ */
+function buildGameDirectorForNarration(
+  runtime: WorldRuntime,
+  presentation: ReturnType<typeof selectTurnPresentation>,
+  narrativeContext: NarrativeAdapterContext | undefined,
+): GameDirectorContext | undefined {
   try {
+    const events = runtime.bus.query();
+    const world = runtime.projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(events, world).context;
+    const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 30 });
+    const narrations = runtime.store.getTurnNarrations(runtime.worldId);
+    const record = runtime.store.getWorldRecord(runtime.worldId);
+    const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
+    let conversation;
+    try {
+      conversation = buildMasterConversationContext(turns, runtime.worldId, {
+        narrations,
+        scene,
+        personalHook: profile?.promise ?? null,
+      });
+    } catch {
+      conversation = EMPTY_MASTER_CONVERSATION;
+    }
+    return buildGameDirectorContext(events, world, {
+      scene,
+      ...(narrativeContext ? { narrativeContext } : {}),
+      conversation: {
+        lastTurns: conversation.lastTurns.map((turn) => ({ speaker: turn.speaker, text: turn.text })),
+        ...(conversation.activePlayerGoal ? { activePlayerGoal: { summary: conversation.activePlayerGoal.summary } } : { activePlayerGoal: null }),
+        ...(conversation.currentDramaticThread
+          ? { currentDramaticThread: { source: conversation.currentDramaticThread.source, title: conversation.currentDramaticThread.title } }
+          : { currentDramaticThread: null }),
+        knownFacts: conversation.knownFacts.map((entry) => entry.text),
+        knownUncertainties: conversation.knownUncertainties.map((entry) => entry.text),
+        ...(conversation.pendingClarification
+          ? {
+            pendingClarification: {
+              question: conversation.pendingClarification.question,
+              options: conversation.pendingClarification.options.map((option) => ({ ...option })),
+            },
+          }
+          : { pendingClarification: null }),
+      },
+      lastOutcome: presentation.primary?.text ?? presentation.response?.text ?? null,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function isOpeningNarrationWindow(runtime: WorldRuntime, currentIdempotencyKey?: string): boolean {  try {
     const checkpoint = runtime.store.getObserverCheckpoint(runtime.worldId, "player");
     if (!checkpoint) return false;
     const turns = runtime.store.listConversationTurns(runtime.worldId, { limit: 500 });
@@ -383,6 +556,7 @@ function scheduleNarration(
     worldTime,
     run: async () => {
       // 1. LLM call (with retry — diagnostics flow through the sink if provided)
+      const gameDirector = buildGameDirectorForNarration(runtime, pres, narrativeContext);
       const narration = await narrateTurnLLM(input, pres, router, {
         diagnostics: runtime.diagnostics,
         priority: "interactive",
@@ -390,6 +564,7 @@ function scheduleNarration(
         worldId,
         ...(correlationId ? { correlationId } : {}),
         ...(narrativeContext ? { narrativeContext } : {}),
+        ...(gameDirector ? { gameDirector } : {}),
       });
       // 2. Classify LLM result
       if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
@@ -469,6 +644,7 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
       worldTime,
       run: async () => {
         // 1. LLM call (with retry — diagnostics flow through the sink if provided)
+        const gameDirector = buildGameDirectorForNarration(runtime, presentation, narrativeContext);
         const narration = await narrateTurnLLM(input, presentation, router, {
           diagnostics: runtime.diagnostics,
           priority: "batch",
@@ -476,6 +652,7 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
           worldId,
           ...(correlationId ? { correlationId } : {}),
           ...(narrativeContext ? { narrativeContext } : {}),
+          ...(gameDirector ? { gameDirector } : {}),
         });
         // 2. Classify LLM result
         if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
@@ -511,6 +688,86 @@ function scheduleNarrationForTicks(runtime: WorldRuntime, input: string, tickEve
   }
 }
 
+/**
+ * One input, one MasterTurn (plan_9 §6): builds the unified envelope from
+ * the persisted conversation turn when one exists, else from explicit
+ * caller values (turn-less advance/offline resolutions). Narration status
+ * is exact at response time: pending only when this response scheduled a
+ * narration job, not_requested otherwise (later states arrive via journal).
+ */
+function masterTurnFromTurn(
+  runtime: WorldRuntime,
+  idempotencyKey: string,
+  turn: {
+    readonly responseKind: ConversationResponseKind;
+    readonly responseText: string;
+    readonly worldTimeBefore: number;
+    readonly worldTimeAfter: number;
+  } | null,
+  fallback: {
+    readonly kind: MasterTurnDTO["kind"];
+    readonly deterministicText: string;
+    readonly worldTimeBefore?: number | undefined;
+    readonly worldTimeAfter?: number | undefined;
+  },
+  narrationPending: boolean,
+): MasterTurnDTO {
+  if (turn) {
+    return buildMasterTurn({
+      worldId: runtime.worldId,
+      idempotencyKey,
+      kind: masterTurnKindOf(turn.responseKind),
+      worldTimeBefore: turn.worldTimeBefore,
+      worldTimeAfter: turn.worldTimeAfter,
+      deterministicText: turn.responseText,
+      narrationPending,
+    });
+  }
+  const time = runtime.projection.getSnapshot().time;
+  return buildMasterTurn({
+    worldId: runtime.worldId,
+    idempotencyKey,
+    kind: fallback.kind,
+    worldTimeBefore: fallback.worldTimeBefore ?? time,
+    worldTimeAfter: fallback.worldTimeAfter ?? time,
+    deterministicText: fallback.deterministicText,
+    narrationPending,
+  });
+}
+
+/**
+ * Shared response for one online player tick: explicit `wait` and journey
+ * continuation phrases (plan_9 §4) both advance time — and an active journey
+ * with it — through exactly one TickPassed, then render the same read-side
+ * envelope (state, presentation, guidance, shell delta, threads, transcript
+ * turn) and schedule narration identically.
+ */
+async function respondToOnlineTick(
+  runtime: WorldRuntime,
+  input: string,
+  idempotencyKey: string,
+  setNarration: (turn: NarrationTurn | null) => void,
+): Promise<JsonResponse> {
+  const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false }, { playerText: input });
+  if ("type" in r && (r as any).type === "IdempotencyReject")
+    return error("duplicate_request", "duplicate idempotencyKey", 409);
+  const tickResult = r as { tickEvents: DomainEvent[] };
+  const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
+  const guidance = buildGuidance(runtime);
+  const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
+  const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+  const correlationId = tickResult.tickEvents[0]?.correlationId;
+  const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
+  setNarration({ input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) });
+  const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+  const playerPresentation = toPlayerFacingPresentation(pres);
+  const masterTurn = masterTurnFromTurn(runtime, idempotencyKey,
+    conversationTurn ? toConversationTurnDTO(conversationTurn) : null,
+    { kind: "action_outcome", deterministicText: playerPresentation.primary?.text ?? "" },
+    runtime.router !== null);
+  return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: playerPresentation, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, masterTurn, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+}
+
 export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): Promise<JsonResponse> {
   if (checkPoisoned(runtime)) return error("internal_error", "server is in fatal state", 503);
   if (!body || typeof body !== "object") return error("invalid_request", "body must be object");
@@ -520,6 +777,21 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   if (typeof input !== "string" || input.length === 0)
     return error("invalid_request", "input required", 400);
 
+  const requestHash = conversationRequestHash(input);
+  const replayed = checkCommandReplay(runtime, idempotencyKey, requestHash);
+  if (replayed) return replayed;
+
+  const response = await handleWorldCommandInner(runtime, input, idempotencyKey);
+  try {
+    recordCommandReplay(runtime, idempotencyKey, requestHash, response);
+  } catch (err) {
+    if (err instanceof ReplayEnvelopeError) return error("internal_error", "replay finalize error", 500);
+    throw err;
+  }
+  return response;
+}
+
+async function handleWorldCommandInner(runtime: WorldRuntime, input: string, idempotencyKey: string): Promise<JsonResponse> {
   const replay = duplicateConversationResponse(runtime, input, idempotencyKey);
   if (replay) return replay;
 
@@ -529,6 +801,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   let masterPlan: ValidatedMasterTurnPlan | undefined;
   let masterScene: MasterTurnSceneSnapshot | undefined;
   let pendingClarificationSeq: number | null = null;
+  let journeyContinue = false;
 
   if (input !== "wait" && !input.startsWith("advance ")) {
     // Short consistent snapshot inside the queue; the LLM call below runs
@@ -566,11 +839,19 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
     });
     // Single production interpretation entry: deterministic fast path or
     // closed TurnProposalV2. The legacy V1 LLM path is not used here.
-    const interpretation = await interpretMasterTurn(input, snapshot, runtime.router, {
-      diagnostics: runtime.diagnostics,
-      correlationId: `intent-${idempotencyKey}`,
-      worldTime: snapshot.world.time,
-    });
+    //
+    // Journey continuation (plan_9 §4) bypasses interpretation entirely:
+    // while a journey is active, "продолжаю путь" and kin advance it by
+    // exactly one online tick — deterministically, with no LLM call and no
+    // new journey. Without an active journey the replica flows on normally.
+    if (snapshot.world.activeJourneyId && isJourneyContinuation(input)) {
+      journeyContinue = true;
+    } else {
+      const interpretation = await interpretMasterTurn(input, snapshot, runtime.router, {
+        diagnostics: runtime.diagnostics,
+        correlationId: `intent-${idempotencyKey}`,
+        worldTime: snapshot.world.time,
+      });
     if (interpretation.status === "inquiry") {
       const inquiryRequest = interpretation.inquiry;
       return runtime.queue.enqueue(async () => {
@@ -584,7 +865,7 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-        return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });
+        return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
       });
     }
     pendingClarificationSeq = snapshot.conversation.pendingClarification?.turnSeq ?? null;
@@ -607,29 +888,26 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       masterPlan = interpretation.plan;
       masterScene = interpretation.scene;
     }
+    }
   }
 
   const response = await runtime.queue.enqueue(async () => {
     try {
+      if (journeyContinue) {
+        return respondToOnlineTick(runtime, input, idempotencyKey, (turn) => {
+          narrationTurn = turn;
+        });
+      }
       if (input === "wait") {
-        const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false }, { playerText: input });
-        if ("type" in r && (r as any).type === "IdempotencyReject")
-          return error("duplicate_request", "duplicate idempotencyKey", 409);
-        const tickResult = r as { tickEvents: DomainEvent[] };
-        const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
-        const guidance = buildGuidance(runtime);
-        const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
-        const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-        const correlationId = tickResult.tickEvents[0]?.correlationId;
-        const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
-        narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
-        const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
-        return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}) });
+        return respondToOnlineTick(runtime, input, idempotencyKey, (turn) => {
+          narrationTurn = turn;
+        });
       }
       if (input.startsWith("advance ")) {
         const raw = input.slice(8).trim();
         const n = Number(raw);
         if (!Number.isSafeInteger(n) || n < 1 || n > 100) return error("invalid_request", "advance N (1-100, integer)");
+        const timeBeforeAdvance = runtime.projection.getSnapshot().time;
         const r = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: true });
         if ("type" in r && (r as any).type === "IdempotencyReject")
           return error("duplicate_request", "duplicate idempotencyKey", 409);
@@ -639,7 +917,8 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
         const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
         const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
         advanceNarrationTicks = tickResult.tickEvents;
-        return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+        const advancePresentation = toPlayerFacingPresentation(pres);
+        return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: advancePresentation, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, null, { kind: "action_outcome", deterministicText: advancePresentation.primary?.text ?? "", worldTimeBefore: timeBeforeAdvance, worldTimeAfter: runtime.projection.getSnapshot().time }, advanceNarrationTicks.length > 0 && runtime.router !== null) });
       }
 
       if (masterPlan && masterScene) {
@@ -664,20 +943,25 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
       const guidance = buildGuidance(runtime);
       const shellDelta = buildShellDelta(runtime.bus.query(), runtime.projection.getSnapshot(), buildGuidanceContext(runtime));
       const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
-      const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+      const storedTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+      const cycleTurn = storedTurn ? toConversationTurnDTO(storedTurn) : null;
       const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
       const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
       narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
+      const cyclePresentation = toPlayerFacingPresentation(pres);
       return json({
         ok: true,
         state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)),
         // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
-        presentation: toPlayerFacingPresentation(pres),
+        presentation: cyclePresentation,
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
         observerThreads,
         observerThreadDelta,
-        ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}),
+        masterTurn: masterTurnFromTurn(runtime, idempotencyKey, cycleTurn,
+          { kind: "action_outcome", deterministicText: cyclePresentation.primary?.text ?? "" },
+          runtime.router !== null),
+        ...(cycleTurn ? { conversationTurn: cycleTurn } : {}),
       });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
@@ -704,15 +988,23 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   if (typeof baseRevision !== "number" || !Number.isSafeInteger(baseRevision) || baseRevision < 0)
     return error("invalid_request", "baseRevision must be a non-negative integer", 400);
 
+  // Offline keeps its bespoke durable contract (turn + processed-keys rows):
+  // identical retries report already_processed so the browser reconciles
+  // against authoritative read models instead of re-sending. The generic
+  // command envelope is deliberately not applied here: replaying the
+  // original "accepted" DTO would break that reconciliation vocabulary.
+  // Durability across restarts comes from loadProcessedKeys + turns.
   const existingConversation = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   if (existingConversation) {
     if (existingConversation.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+    const existingTurn = toConversationTurnDTO(existingConversation);
     return json({
       ok: true,
       resolution: isWorldChangingTurn(existingConversation.inputClass) ? "already_processed" : existingConversation.inputClass,
       message: isWorldChangingTurn(existingConversation.inputClass) ? "Это намерение уже было обработано." : null,
       reason: null,
-      conversationTurn: toConversationTurnDTO(existingConversation),
+      conversationTurn: existingTurn,
+      masterTurn: masterTurnFromTurn(runtime, idempotencyKey, existingTurn, { kind: "contextual_clarification", deterministicText: existingTurn.responseText }, false),
     });
   }
 
@@ -723,7 +1015,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       // Idempotency replay wins: a processed key is already_processed and the
       // browser reconciles authoritative read models instead of re-sending.
       if (runtime.processedKeys.has(idempotencyKey)) {
-        return json({ ok: true, resolution: "already_processed", message: "Это намерение уже было обработано.", reason: null });
+        return json({ ok: true, resolution: "already_processed", message: "Это намерение уже было обработано.", reason: null, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, null, { kind: "contextual_clarification", deterministicText: "Это намерение уже было обработано." }, false) });
       }
 
       const classification = classifyPlayerInput(input, parseIntent);
@@ -737,13 +1029,13 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const scene = buildMasterTurnSceneContext(events, world).context;
         const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background, scene });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
-        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn });
+        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
       }
       const parsed = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
       if (parsed.type !== "InteractionCommand") {
         const message = "Сейчас без связи можно отправить только «осмотреть <объект>».";
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", message);
-        return json({ ok: true, resolution: "rejected", message, reason: "unsupported_offline_intent", conversationTurn });
+        return json({ ok: true, resolution: "rejected", message, reason: "unsupported_offline_intent", conversationTurn, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: message }, false) });
       }
 
       const dto = resolveOfflineIntent(
@@ -751,7 +1043,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         { events: runtime.bus.query(), world: runtime.projection.getSnapshot(), parsed },
       );
       if (dto.resolution !== "accepted") {
-        return json({ ok: true, resolution: dto.resolution, message: dto.message, reason: dto.reason });
+        return json({ ok: true, resolution: dto.resolution, message: dto.message, reason: dto.reason, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, null, { kind: "contextual_clarification", deterministicText: dto.message ?? dto.reason ?? "" }, false) });
       }
 
       // Accepted: execute the normal command cycle with the same envelope.
@@ -775,6 +1067,10 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       const correlationId = cmdResult.events[0]?.correlationId ?? cmdResult.tickEvents[0]?.correlationId;
       const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), runtime.projection.getSnapshot(), isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
       narrationTurn = { input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) };
+      const offlineTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+      const offlinePresentation = toPlayerFacingPresentation(pres);
+      // A narration job is scheduled below exactly when a router exists.
+      const offlineNarrationPending = runtime.router !== null;
       return json({
         ok: true,
         resolution: "accepted",
@@ -782,13 +1078,17 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         reason: null,
         state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)),
         // Raw Domain Events are not exposed to normal UI; use /api/events for diagnostics.
-        presentation: toPlayerFacingPresentation(pres),
+        presentation: offlinePresentation,
         guidance,
         shellDelta: serializeShellDelta(shellDelta),
         observerThreads,
         observerThreadDelta,
-        ...(runtime.store.getConversationTurn(runtime.worldId, idempotencyKey)
-          ? { conversationTurn: toConversationTurnDTO(runtime.store.getConversationTurn(runtime.worldId, idempotencyKey)!) }
+        masterTurn: masterTurnFromTurn(runtime, idempotencyKey,
+          offlineTurn ? toConversationTurnDTO(offlineTurn) : null,
+          { kind: "action_outcome", deterministicText: offlinePresentation.primary?.text ?? "" },
+          offlineNarrationPending),
+        ...(offlineTurn
+          ? { conversationTurn: toConversationTurnDTO(offlineTurn) }
           : {}),
       });
     } catch (err) {
@@ -964,8 +1264,24 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
   const n = typeof count === "number" ? count : 1;
   if (!Number.isSafeInteger(n) || n < 1 || n > 100) return error("invalid_request", "count must be integer 1-100");
 
+  const requestHash = conversationRequestHash(`wait:${n}`);
+  const replayed = checkCommandReplay(runtime, idempotencyKey, requestHash);
+  if (replayed) return replayed;
+
+  const response = await handleWorldWaitInner(runtime, n, idempotencyKey);
+  try {
+    recordCommandReplay(runtime, idempotencyKey, requestHash, response);
+  } catch (err) {
+    if (err instanceof ReplayEnvelopeError) return error("internal_error", "replay finalize error", 500);
+    throw err;
+  }
+  return response;
+}
+
+async function handleWorldWaitInner(runtime: WorldRuntime, n: number, idempotencyKey: string): Promise<JsonResponse> {
   return runtime.queue.enqueue(async () => {
     try {
+      const timeBeforeWait = runtime.projection.getSnapshot().time;
       const result = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: false });
       if ("type" in result && (result as IdempotencyReject).type === "IdempotencyReject")
         return error("duplicate_request", "duplicate idempotencyKey", 409);
@@ -979,7 +1295,8 @@ export async function handleWorldWait(runtime: WorldRuntime, body: unknown): Pro
       // durable tick commit is complete before detached read-side narration
       // is scheduled, and each tick retains its correlation metadata.
       scheduleNarrationForTicks(runtime, "wait", tickResult.tickEvents);
-      return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: toPlayerFacingPresentation(pres), guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta });
+      const waitPresentation = toPlayerFacingPresentation(pres);
+      return json({ ok: true, state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)), presentation: waitPresentation, guidance, shellDelta: serializeShellDelta(shellDelta), observerThreads, observerThreadDelta, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, null, { kind: "action_outcome", deterministicText: waitPresentation.primary?.text ?? "", worldTimeBefore: timeBeforeWait, worldTimeAfter: runtime.projection.getSnapshot().time }, runtime.router !== null) });
     } catch (err) {
       return error("internal_error", safeError(err), 500);
     }
@@ -1238,7 +1555,7 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
   return json({
     ok: true,
     status: "clarification",
-    question: "Я не нахожу «" + target + "» среди того, что тебе доступно сейчас. Что именно ты хочешь сделать?",
+    question: unknownObservedTarget(target).question,
     options: [{ optionId: "rephrase", label: "Уточнить цель" }],
   });
 }
@@ -1358,10 +1675,10 @@ async function runValidatedMasterTurnResponse(
       const events = runtime.bus.query();
       const world = runtime.projection.getSnapshot();
       const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-      return json({ ok: true, status: "meta", meta: { operation: plan.metaInquiry.operation, answer: answer.text }, conversationTurn, knowledge });
+      return json({ ok: true, status: "meta", meta: { operation: plan.metaInquiry.operation, answer: answer.text }, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "meta_answer", deterministicText: answer.text }, false) });
     }
-    const inquiryRequest = plan.postActionInquiry;
-    if (!inquiryRequest) {
+    const inquiryRequests = plan.postActionInquiries;
+    if (inquiryRequests.length === 0) {
       return withClarificationConversation(runtime, input, idempotencyKey, json({ ok: true, status: "clarification", question: "Уточни, что именно ты хочешь узнать.", options: [{ optionId: "rephrase", label: "Уточнить вопрос" }] }));
     }
     const events = runtime.bus.query();
@@ -1371,10 +1688,10 @@ async function runValidatedMasterTurnResponse(
     const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
     const background = buildBackgroundNarrativeContext(events, world, profile);
     const scene = buildMasterTurnSceneContext(events, world).context;
-    const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
-    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer, planMemory);
+    const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene }));
+    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiries.map((entry) => entry.answer).join(" "), planMemory);
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-    return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge });
+    return json({ ok: true, status: "inquiry", inquiries, inquiry: inquiries[0], conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: conversationTurn.responseText }, false) });
   }
 
   const worldTimeBefore = runtime.projection.getSnapshot().time;
@@ -1384,7 +1701,7 @@ async function runValidatedMasterTurnResponse(
     ? { display_name: profile.display_name, wound: profile.wound, promise: profile.promise, principle: profile.principle, background_id: profile.background_id }
     : null;
   const profileRef = profile ? { background_id: profile.background_id } : null;
-  const postInquiry = plan.postActionInquiry;
+  const postInquiries = plan.postActionInquiries;
   const deferred = plan.deferredClauses;
   const kind = plan.kind;
 
@@ -1414,7 +1731,7 @@ async function runValidatedMasterTurnResponse(
               projectedWorld,
               profile: profileRef,
               characterProfile,
-              inquiry: postInquiry,
+              inquiries: postInquiries,
               deferred,
               contextMetadata: planMemory,
             });
@@ -1467,24 +1784,40 @@ async function runValidatedMasterTurnResponse(
   const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), worldAfter, isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
   setNarration({ input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) });
 
+  const playerPresentation = toPlayerFacingPresentation(pres);
   const base = {
     ok: true as const,
     state: toPlayerFacingState(serializeWorldStateFromRuntime(runtime)),
-    presentation: toPlayerFacingPresentation(pres),
+    presentation: playerPresentation,
     guidance,
     shellDelta: serializeShellDelta(shellDelta),
     observerThreads,
     observerThreadDelta,
+  };
+  const baseWithTurn = {
+    ...base,
+    masterTurn: masterTurnFromTurn(runtime, idempotencyKey,
+      conversationTurn ? toConversationTurnDTO(conversationTurn) : null,
+      {
+        kind: kind === "mixed" ? "mixed_outcome" : kind === "speech" ? "speech_reaction" : "action_outcome",
+        deterministicText: playerPresentation.primary?.text ?? "",
+      },
+      runtime.router !== null),
     ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}),
   };
   if (kind === "mixed") {
     return json({
-      ...base,
-      ...(result.inquiryAnswer ? { inquiryAnswer: { queryId: result.inquiryAnswer.queryId, answer: result.inquiryAnswer.answer } } : {}),
+      ...baseWithTurn,
+      ...(result.inquiryAnswers.length > 0
+        ? {
+          inquiryAnswers: result.inquiryAnswers.map((entry) => ({ queryId: entry.queryId, answer: entry.answer })),
+          inquiryAnswer: { queryId: result.inquiryAnswers[0]!.queryId, answer: result.inquiryAnswers[0]!.answer },
+        }
+        : {}),
       ...(result.deferred.length > 0 ? { deferred: result.deferred } : {}),
     });
   }
-  return json(base);
+  return json(baseWithTurn);
 }
 
 async function runTicksForRuntime(

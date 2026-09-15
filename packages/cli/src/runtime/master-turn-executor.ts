@@ -1,22 +1,23 @@
 /**
- * Mixed-turn execution (ADR-0028, plan_6 Stage 9).
+ * Mixed-turn execution (ADR-0028, plan_6 Stage 9; plan_9 §1 answers every
+ * understood question).
  *
  * Runs one ValidatedMasterTurnPlan: at most one primary action through the
- * existing command cycle, then the read-only question against the
+ * existing command cycle, then every read-only question against the
  * post-action observer snapshot. No CompositeCommand, no action chains —
  * deferred clauses are preserved verbatim and never auto-executed.
  *
  * Policy implemented here (the rest is validation-time):
- * - valid primary + valid question → execute, answer on post-state;
- * - rejected primary + valid question → no silent loss: the question is
+ * - valid primary + valid questions → execute, answer all on post-state;
+ * - rejected primary + valid questions → no silent loss: the questions are
  *   still answered from the actual post-action state, and the rejection is
  *   reported for the response composer (Stage 10);
  * - stale plan → nothing executes, natural clarification (Stage 8 check
  *   runs first, inside the same call);
- * - inquiry-only plans → no world change, question answered on current state.
+ * - inquiry-only plans → no world change, questions answered on current state.
  *
- * One primary execution means at most one game tick; the inquiry never
- * advances time. Conversation persistence belongs to the persistence stage;
+ * One primary execution means at most one game tick; inquiries never
+ * advance time. Conversation persistence belongs to the persistence stage;
  * HTTP response composition belongs to the response stage.
  */
 
@@ -78,7 +79,7 @@ export interface ExecutedMasterTurn {
   readonly commandEvents: readonly DomainEvent[];
   readonly tickEvents: readonly DomainEvent[];
   readonly postEvents: readonly DomainEvent[];
-  readonly inquiryAnswer: InquiryAnswerDTO | null;
+  readonly inquiryAnswers: readonly InquiryAnswerDTO[];
   readonly deferred: readonly DeferredClause[];
   readonly revisionBefore: { readonly worldTime: number; readonly eventNumber: number };
   readonly revisionAfter: { readonly worldTime: number; readonly eventNumber: number };
@@ -106,7 +107,7 @@ function freeze<T>(value: T): T {
 
 /**
  * Executes one validated plan: revalidate, run at most one primary through
- * the existing command cycle, answer the question on the post-action
+ * the existing command cycle, answer the questions on the post-action
  * snapshot. The engine and projection are the only writers; the inquiry is
  * a pure read and deferred clauses never execute.
  */
@@ -123,8 +124,8 @@ export function executeMasterTurnPlan(
 
   if (!plan.execution) {
     const postEvents = [...context.events];
-    const inquiryAnswer = answerPostActionInquiry(plan, postEvents, before, context.worldId);
-    if (inquiryAnswer) {
+    const inquiryAnswers = answerPostActionInquiries(plan, postEvents, before, context.worldId);
+    for (const inquiryAnswer of inquiryAnswers) {
       emitMasterTurnDiagnostic(context.diagnostics, {
         category: "post_action_inquiry_answered",
         outcome: "answered",
@@ -144,7 +145,7 @@ export function executeMasterTurnPlan(
       commandEvents: freeze([]),
       tickEvents: freeze([]),
       postEvents: freeze(postEvents),
-      inquiryAnswer,
+      inquiryAnswers,
       deferred: plan.deferredClauses,
       revisionBefore,
       revisionAfter: revisionBefore,
@@ -189,7 +190,7 @@ export function executeMasterTurnPlan(
   const commandEvents = freeze(committed.filter((event) => event.correlationId === correlationId));
   const tickEvents = freeze(committed.filter((event) => event.correlationId === `tick-${ts}`));
   const postEvents = freeze([...context.events, ...committed]);
-  const inquiryAnswer = answerPostActionInquiry(plan, postEvents, after, context.worldId);
+  const inquiryAnswers = answerPostActionInquiries(plan, postEvents, after, context.worldId);
   emitMasterTurnDiagnostic(context.diagnostics, {
     category: "primary_executed",
     outcome: commandEvents.some((event) => REJECTION_EVENTS.has(event.type)) ? "rejected" : "accepted",
@@ -199,7 +200,7 @@ export function executeMasterTurnPlan(
     contextEventNumber: plan.contextRevision.eventNumber,
     worldTime: after.time,
   });
-  if (inquiryAnswer) {
+  for (const inquiryAnswer of inquiryAnswers) {
     emitMasterTurnDiagnostic(context.diagnostics, {
       category: "post_action_inquiry_answered",
       outcome: "answered",
@@ -219,23 +220,23 @@ export function executeMasterTurnPlan(
     commandEvents,
     tickEvents,
     postEvents,
-    inquiryAnswer,
+    inquiryAnswers,
     deferred: plan.deferredClauses,
     revisionBefore,
     revisionAfter: freeze({ worldTime: after.time, eventNumber: after.eventNumber }),
   });
 }
 
-/** Answers the plan question on the given snapshot, if the plan has one. */
-function answerPostActionInquiry(
+/** Answers every plan question on the given snapshot, in proposal order. */
+function answerPostActionInquiries(
   plan: ValidatedMasterTurnPlan,
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
   worldId: string,
-): InquiryAnswerDTO | null {
-  if (!plan.postActionInquiry) return null;
+): readonly InquiryAnswerDTO[] {
+  if (plan.postActionInquiries.length === 0) return freeze([]);
   const shell = buildGameShellSnapshot(events, world, null, worldId, undefined);
   const background = buildBackgroundNarrativeContext(events, world, null);
   const scene = buildMasterTurnSceneContext(events, world).context;
-  return buildInquiryAnswer(plan.postActionInquiry, { shell, background, scene });
+  return freeze(plan.postActionInquiries.map((inquiry) => buildInquiryAnswer(inquiry, { shell, background, scene })));
 }

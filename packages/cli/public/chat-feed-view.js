@@ -12,6 +12,8 @@ const MAX_TURNS = 12;
 const localIntents = [];
 const localClarifications = [];
 const localInquiries = [];
+const confirmedPairs = [];
+const MAX_CONFIRMED_PAIRS = 20;
 
 /** Remember the player's typed intention for this session. Returns the entry. */
 export function addLocalInquiry(question, answer) {
@@ -67,10 +69,56 @@ export function clearLocalIntents() {
   localIntents.length = 0;
   localClarifications.length = 0;
   localInquiries.length = 0;
+  confirmedPairs.length = 0;
+}
+
+/**
+ * Confirmed master pair (one input, one MasterTurn): the command HTTP
+ * response already carries the durable ConversationTurn plus its
+ * MasterTurn envelope. Store it keyed by the server-issued turnKey so the
+ * ТЫ → МАСТЕР pair renders immediately — journal hydration later confirms
+ * and enriches the same pair instead of creating it. A narration update
+ * then replaces the content of the same logical bubble (same turnKey).
+ * Returns the stored entry, or null when the pair cannot be keyed to one
+ * MasterTurn (turnKey mismatch or missing turn).
+ */
+export function upsertConfirmedPair(conversationTurn, masterTurn) {
+  if (!isConversationTurn(conversationTurn)) return null;
+  const turnKey = masterTurn && typeof masterTurn.turnKey === "string" && masterTurn.turnKey ? masterTurn.turnKey : null;
+  if (!turnKey || conversationTurn.turnKey !== turnKey) return null;
+  const key = conversationTurn.idempotencyKey || turnKey;
+  const entry = { ...conversationTurn };
+  const existing = confirmedPairs.findIndex((item) => (item.idempotencyKey || turnKeyOf(item)) === key);
+  if (existing >= 0) confirmedPairs[existing] = entry;
+  else {
+    confirmedPairs.push(entry);
+    while (confirmedPairs.length > MAX_CONFIRMED_PAIRS) confirmedPairs.shift();
+  }
+  return entry;
+}
+
+/** Session-confirmed pairs awaiting journal hydration (oldest first). */
+export function getConfirmedPairs() {
+  return confirmedPairs.slice();
 }
 
 function markLabel(mark) {
   return mark === "trace" ? "След" : mark === "omen" ? "Знамение" : mark === "echo" ? "Эхо" : "";
+}
+
+/**
+ * Stable player-safe bubble key (plan_9 §6-7): the server-issued turnKey
+ * for conversation turns, the opaque turnHandle for journal turns. Never a
+ * database id, correlation or client key.
+ */
+function turnKeyOf(turn) {
+  const key = turn && (turn.turnKey || turn.turnHandle);
+  return typeof key === "string" && key ? key : null;
+}
+
+function turnKeyAttrs(turn) {
+  const key = turnKeyOf(turn);
+  return key ? { "data-turn-key": key } : {};
 }
 
 function intentNode(intent, pending) {
@@ -136,7 +184,7 @@ function worldStateNode(snapshot) {
 }
 
 function conversationPlayerNode(turn) {
-  const player = makeNode("article", { className: "chat-intent" });
+  const player = makeNode("article", { className: "chat-intent", attrs: turnKeyAttrs(turn) });
   player.append(
     makeNode("span", { className: "chat-intent-label", text: "ТЫ" }),
     makeNode("p", { className: "chat-intent-text", text: turn.playerText }),
@@ -171,7 +219,7 @@ function dedupeNarratedText(responseText, narrativeText) {
 
 function turnNode(turn, conversationTurn = null) {
   const presentation = turn.presentation || {};
-  const node = makeNode("article", { className: "chat-turn" });
+  const node = makeNode("article", { className: "chat-turn", attrs: turnKeyAttrs(conversationTurn || turn) });
   const header = makeNode("div", { className: "chat-turn-header" });
   header.append(
     makeNode("span", { className: "chat-turn-speaker", text: "МАСТЕР" }),
@@ -214,7 +262,7 @@ function turnNode(turn, conversationTurn = null) {
 }
 
 function conversationOnlyMasterNode(turn) {
-  const node = makeNode("article", { className: "chat-turn chat-turn--" + turn.inputClass });
+  const node = makeNode("article", { className: "chat-turn chat-turn--" + turn.inputClass, attrs: turnKeyAttrs(turn) });
   node.append(
     makeNode("div", { className: "chat-turn-header", text: "МАСТЕР" }),
     makeNode("p", { className: "chat-world-primary", text: turn.responseText }),
@@ -226,22 +274,85 @@ function isConversationTurn(value) {
   return Boolean(value && typeof value === "object" && typeof value.playerText === "string" && typeof value.responseText === "string");
 }
 
+/**
+ * World development with no authoring replica (plan_9 §6-7): a run of
+ * consecutive autonomous journal turns collapses into one scene separator
+ * instead of a row of answer bubbles. Primary and notable signals survive
+ * as subdued lines (deduplicated) — reframed as world development, never
+ * as an answer to a player replica. The run never pairs with a
+ * conversation turn and never matches a pending intent by time.
+ */
+function autonomousSeparatorNode(runs) {
+  const node = makeNode("article", { className: "chat-state chat-autonomous", attrs: turnKeyAttrs(runs[0]) });
+  const times = runs.map((entry) => entry.worldTime).filter((time) => Number.isFinite(time));
+  const span = times.length > 1 ? `Ход ${Math.min(...times)}–${Math.max(...times)}` : `Ход ${times[0] ?? "—"}`;
+  node.append(
+    makeNode("span", { className: "chat-state-label", text: "МИР ПРОДОЛЖАЕТСЯ" }),
+    makeNode("p", { text: "Пока ты был в пути…" }),
+    makeNode("span", { className: "chat-turn-meta", text: span }),
+  );
+  const primaries = [];
+  for (const entry of runs) {
+    const text = entry.presentation && entry.presentation.primary && entry.presentation.primary.text;
+    if (text && !primaries.includes(text)) primaries.push(text);
+    if (primaries.length >= 2) break;
+  }
+  for (const text of primaries) node.appendChild(makeNode("p", { className: "chat-background", text }));
+  const notable = runs
+    .flatMap((entry) => (entry.presentation && entry.presentation.notable) || [])
+    .slice(0, 2)
+    .map((entry) => entry && entry.text)
+    .filter(Boolean);
+  for (const text of notable) node.appendChild(makeNode("p", { className: "chat-notable", text }));
+  return node;
+}
+
+/** Fold consecutive autonomous journal items into single separator units. */
+function foldAutonomousRuns(items) {
+  const units = [];
+  for (const item of items) {
+    const last = units[units.length - 1];
+    if (item.kind === "journal" && item.turn && item.turn.autonomous === true
+      && last && last.kind === "autonomous") {
+      last.turns.push(item.turn);
+    } else if (item.kind === "journal" && item.turn && item.turn.autonomous === true) {
+      units.push({ kind: "autonomous", turns: [item.turn] });
+    } else {
+      units.push(item);
+    }
+  }
+  return units;
+}
+
+function itemWorldTime(item) {
+  if (item.kind === "conversation") return item.turn.worldTimeAfter;
+  if (item.kind === "autonomous") return item.turns[item.turns.length - 1]?.worldTime;
+  return item.turn?.worldTime;
+}
+
 function sortKey(item) {
-  const time = item.kind === "conversation" ? item.turn.worldTimeAfter : item.turn.worldTime;
+  const time = item.kind === "conversation" ? item.turn.worldTimeAfter : itemWorldTime(item);
   const createdAt = item.kind === "conversation" ? item.turn.createdAt : 0;
   const turnSeq = item.kind === "conversation" ? item.turn.turnSeq : 0;
   return [Number.isFinite(time) ? time : 0, Number.isFinite(createdAt) ? createdAt : 0, Number.isFinite(turnSeq) ? turnSeq : 0];
 }
 
-function actionConversationMatches(candidate, journalTurn, allowTimeFallback) {
-  if (candidate.inputClass !== "action") return false;
+/**
+ * Joins one persisted conversation turn with its journal turn, if any.
+ * Join key order (plan_9 §7): narrationHandle, then correlationId+time.
+ * The legacy world-time fallback stays action-only: mixed/speech answers
+ * must never attach to an unrelated same-time journal turn, and autonomous
+ * turns never pair at all (the caller skips them before matching).
+ */
+function conversationMatchesTurn(candidate, journalTurn, allowTimeFallback) {
+  if (candidate.inputClass !== "action" && candidate.inputClass !== "mixed" && candidate.inputClass !== "speech") return false;
   if (candidate.narrationHandle || journalTurn.narrationHandle) {
     return typeof candidate.narrationHandle === "string" && candidate.narrationHandle === journalTurn.narrationHandle;
   }
   if (typeof candidate.correlationId === "string" && typeof journalTurn.correlationId === "string") {
     return candidate.correlationId === journalTurn.correlationId && candidate.worldTimeAfter === journalTurn.worldTime;
   }
-  return allowTimeFallback && candidate.worldTimeAfter === journalTurn.worldTime;
+  return candidate.inputClass === "action" && allowTimeFallback && candidate.worldTimeAfter === journalTurn.worldTime;
 }
 
 export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOrSnapshot = null, snapshotArg = null) {
@@ -255,8 +366,23 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
   const intentList = newContract ? (Array.isArray(pendingOrSnapshot) ? pendingOrSnapshot : []) : (Array.isArray(conversationTurnsOrIntents) ? conversationTurnsOrIntents : []);
   const snapshot = newContract ? snapshotArg : (pendingOrSnapshot && !Array.isArray(pendingOrSnapshot) ? pendingOrSnapshot : null);
   const turnList = Array.isArray(turns) ? turns : [];
+  // Confirmed pairs render immediately from the command response; journal
+  // hydration confirms them (journal wins on conflict) instead of creating
+  // the pair — so a failed journal GET never hides an accepted turn.
+  const journalKeys = new Set();
+  for (const turn of conversationTurns) {
+    if (turn.idempotencyKey) journalKeys.add("k:" + turn.idempotencyKey);
+    const key = turnKeyOf(turn);
+    if (key) journalKeys.add("t:" + key);
+  }
+  const pendingConfirmed = confirmedPairs.filter((entry) => {
+    const key = entry.idempotencyKey ? "k:" + entry.idempotencyKey : null;
+    const turnKey = turnKeyOf(entry);
+    return !(key && journalKeys.has(key)) && !(turnKey && journalKeys.has("t:" + turnKey));
+  });
+  const mergedConversationTurns = [...conversationTurns, ...pendingConfirmed];
   const seenKeys = new Set();
-  const uniqueConversationTurns = conversationTurns.filter((turn) => {
+  const uniqueConversationTurns = mergedConversationTurns.filter((turn) => {
     if (seenKeys.has(turn.idempotencyKey)) return false;
     seenKeys.add(turn.idempotencyKey);
     return true;
@@ -265,10 +391,16 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
   const items = [];
   const matchedConversationKeys = new Set();
   for (const item of journalItems) {
+    // Autonomous turns never pair: no replica authored them, so no player
+    // bubble may claim them — not even by world time.
+    if (item.turn && item.turn.autonomous === true) {
+      items.push(item);
+      continue;
+    }
     const allowTimeFallback = turnList.filter((turn) => turn.worldTime === item.turn.worldTime).length === 1
       && uniqueConversationTurns.filter((turn) => turn.inputClass === "action" && turn.worldTimeAfter === item.turn.worldTime).length === 1;
     const conversation = uniqueConversationTurns.find((candidate) => !matchedConversationKeys.has(candidate.idempotencyKey)
-      && actionConversationMatches(candidate, item.turn, allowTimeFallback));
+      && conversationMatchesTurn(candidate, item.turn, allowTimeFallback));
     if (conversation) {
       matchedConversationKeys.add(conversation.idempotencyKey);
       items.push({ kind: "pair", turn: item.turn, conversation });
@@ -284,9 +416,13 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
     const kb = b.kind === "pair" ? [b.turn.worldTime, b.conversation.createdAt, b.conversation.turnSeq] : sortKey(b);
     return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2];
   });
-  const visibleItems = items.slice(-MAX_TURNS);
+  const visibleItems = foldAutonomousRuns(items).slice(-MAX_TURNS);
   const children = [];
   for (const item of visibleItems) {
+    if (item.kind === "autonomous") {
+      children.push(autonomousSeparatorNode(item.turns));
+      continue;
+    }
     const turn = item.kind === "pair" || item.kind === "journal" ? item.turn : null;
     const worldTime = item.kind === "conversation" ? item.turn.worldTimeAfter : turn?.worldTime;
     for (const intent of intentList.filter((candidate) => !candidate.requestKey || !seenKeys.has(candidate.requestKey) && candidate.worldTime === worldTime)) {
@@ -303,10 +439,7 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
   // turn outside the visible window) stay visible at the end of the feed.
   for (const intent of intentList.filter((item) => {
     if (item.requestKey && seenKeys.has(item.requestKey)) return false;
-    return !visibleItems.some((candidate) => {
-      const candidateTime = candidate.kind === "conversation" ? candidate.turn.worldTimeAfter : candidate.turn?.worldTime;
-      return candidateTime === item.worldTime;
-    });
+    return !visibleItems.some((candidate) => itemWorldTime(candidate) === item.worldTime);
   })) {
     children.push(intentNode(intent, true));
     const clarification = localClarifications.find((entry) => entry.intent === intent);

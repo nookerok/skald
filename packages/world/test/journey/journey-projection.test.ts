@@ -72,6 +72,47 @@ describe("WorldProjector — JourneyState (ADR-0015)", () => {
     expect(world.activeJourneyId).toBeNull();
   });
 
+  it("JourneyBlocked with the journey id stands the active journey at the obstacle", () => {
+    const projector = new WorldProjector();
+    projector.apply(evt("JourneyStarted", "js-1", {
+      journeyId: "j-1", relationId: "river_crossing", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 2,
+    }, 5));
+    projector.apply(evt("JourneyBlocked", "jb-1", { reason: "crossing_closed", journeyId: "j-1", playerText: "Test" }, 7));
+    const world = projector.getSnapshot();
+    expect(world.journeys.get("j-1")!.status).toBe("blocked");
+    expect(world.journeys.get("j-1")!.blockedReason).toBe("crossing_closed");
+    expect(world.activeJourneyId).toBe("j-1");
+  });
+
+  it("a stale block never revives a finished journey", () => {
+    const projector = new WorldProjector();
+    projector.apply(evt("JourneyStarted", "js-1", {
+      journeyId: "j-1", relationId: "river_crossing", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 2,
+    }, 5));
+    projector.apply(evt("JourneyCompleted", "jc-1", { journeyId: "j-1" }, 9));
+    projector.apply(evt("JourneyBlocked", "jb-1", { reason: "crossing_closed", journeyId: "j-1", playerText: "Test" }, 10));
+    const world = projector.getSnapshot();
+    expect(world.journeys.get("j-1")!.status).toBe("completed");
+    expect(world.journeys.get("j-1")!.blockedReason).toBeNull();
+    expect(world.activeJourneyId).toBeNull();
+  });
+
+  it("completion clears the block reason", () => {
+    const projector = new WorldProjector();
+    projector.apply(evt("JourneyStarted", "js-1", {
+      journeyId: "j-1", relationId: "river_crossing", fromLocationId: "river_waystation",
+      toLocationId: "riverwatch_city", startedAt: 5, plannedTicks: 2,
+    }, 5));
+    projector.apply(evt("JourneyBlocked", "jb-1", { reason: "crossing_closed", journeyId: "j-1", playerText: "Test" }, 7));
+    expect(projector.getSnapshot().journeys.get("j-1")!.blockedReason).toBe("crossing_closed");
+    projector.apply(evt("JourneyCompleted", "jc-1", { journeyId: "j-1" }, 9));
+    const world = projector.getSnapshot();
+    expect(world.journeys.get("j-1")!.status).toBe("completed");
+    expect(world.journeys.get("j-1")!.blockedReason).toBeNull();
+  });
+
   it("rebuilds JourneyState from Event Log replay", () => {
     const events: DomainEvent[] = [
       evt("JourneyStarted", "js-1", {

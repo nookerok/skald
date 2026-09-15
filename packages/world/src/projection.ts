@@ -81,6 +81,13 @@ export interface JourneyState {
   readonly plannedTicks: number;
   readonly elapsedTicks: number;
   readonly status: "active" | "completed" | "interrupted" | "blocked";
+  /**
+   * Machine-readable block reason while status is blocked (e.g.
+   * "crossing_closed"), null otherwise. Set by JourneyBlocked carrying
+   * this journey's id, cleared by completion, interruption or a new
+   * start. Read-side text is derived from it, never stored prose.
+   */
+  readonly blockedReason: string | null;
 }
 
 export function relationKey(from: string, to: string, kind: string): string {
@@ -618,6 +625,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
           plannedTicks: p.plannedTicks,
           elapsedTicks: 0,
           status: "active",
+          blockedReason: null,
         });
         s.activeJourneyId = p.journeyId;
         break;
@@ -626,7 +634,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         const { journeyId } = event.payload as { journeyId: string };
         const journey = s.journeys.get(journeyId);
         if (journey) {
-          s.journeys.set(journeyId, { ...journey, status: "completed" });
+          s.journeys.set(journeyId, { ...journey, status: "completed", blockedReason: null });
         }
         s.activeJourneyId = null;
         break;
@@ -639,13 +647,29 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
             ...journey,
             elapsedTicks: typeof p.elapsedTicks === "number" ? Math.max(0, Math.min(journey.plannedTicks, p.elapsedTicks)) : journey.elapsedTicks,
             status: "interrupted",
+            blockedReason: null,
           });
         }
         if (s.activeJourneyId === p.journeyId) s.activeJourneyId = null;
         break;
       }
       case "JourneyBlocked": {
-        // JourneyBlocked is a fact; no Projection change needed.
+        // A block carrying this journey's id is real projection state:
+        // the journey stands at the obstacle with its machine-readable
+        // cause. Pre-start blocks (unknown destination, no journeyId)
+        // change nothing, and a stale block never revives a finished
+        // journey — only the active one may stand blocked.
+        const p = event.payload as { journeyId?: unknown; reason?: unknown };
+        if (typeof p.journeyId === "string" && s.activeJourneyId === p.journeyId) {
+          const journey = s.journeys.get(p.journeyId);
+          if (journey && journey.status === "active") {
+            s.journeys.set(p.journeyId, {
+              ...journey,
+              status: "blocked",
+              blockedReason: typeof p.reason === "string" ? p.reason : null,
+            });
+          }
+        }
         break;
       }
       case "SpatialObservationRecorded": {

@@ -60,7 +60,7 @@ describe("closed meta answers", () => {
     const response = composeMasterTurnResponse({
       kind: "meta",
       actionPresentation: null,
-      inquiryAnswer: null,
+      inquiryAnswers: [],
       speechReaction: null,
       metaAnswer: { text: meta.text },
       deferredClauses: [],

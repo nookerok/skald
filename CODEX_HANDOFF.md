@@ -1,3 +1,316 @@
+# Current work (2026-09-15 — REVISE follow-up: player-scoped firings + recoverable-finalize wording, gate PASS; uncommitted)
+
+- Firing ≠ noticed: `directorRecentConsequences` now admits a
+  `ConsequenceFired` only with a player-targeted `AudacityTriggered`
+  from the same expiry event (`causationId` link). A fired-but-unheard
+  NPC consequence stays out of the context, the prompt slice and allowed
+  facts. Tests: fired NPC chain excluded at context + prompt level,
+  foreign-target trigger ignored, linked audacity chains still pass.
+- Replay contract renamed to recoverable finalize (code comment +
+  wording): the envelope write stays separate from the world
+  transaction by design; a failed recovery pin now emits the same
+  structured diagnostic instead of swallowing, while still serving the
+  correct recovered answer. New test: double fault → 200+recovered with
+  two diagnostics → heal → pinned convergence.
+- Transcript repetition/narration-duplication noted as qualitative risk
+  for human eval, not a structural defect: no code change.
+- `npm run validate` PASS (2442 passed, 1 skipped; typecheck, Canon,
+  simulation, 10 evals, adventure, diff-check). Uncommitted, not
+  deployed. Still open: commit → Orange Pi deploy → scratch browser QA
+  with authorized click budget + live 20–30 replica human eval.
+
+# Current work (2026-09-15 — REVISE verdict: P0+P1×4+P2 fixed, gate PASS; uncommitted)
+
+- P0 observer-safe director: `directorRecentConsequences` now reads only
+  manifested consequences (`ConsequenceFired`) from the committed log —
+  merely-created (incl. unheard NPC noise) stays out of the context and
+  the prompt. Negative tests at context + prompt-slice/allowed-facts
+  level. Shell character labels untouched (separate surface).
+- P1 MasterTurn in browser: `upsertConfirmedPair` (chat-feed-view,
+  keyed by server turnKey, mismatch rejected) renders the ТЫ→МАСТЕР pair
+  from the command response before journal hydration; hydration confirms
+  by turnKey, narration replaces the same bubble. Wired into
+  inquiry/clarification/ok branches of `handle()`. Tests incl. the
+  journal-GET-fails case.
+- P1 atomic replay envelope: verified write + read-back with a
+  structured `persistence_error` diagnostic (key fingerprint, no player
+  text/secrets) and a thrown `ReplayEnvelopeError` → HTTP 500 (never
+  pinned); empty catch removed. Retry of a lost envelope rebuilds the
+  turn-anchored envelope from committed rows only (no execution, no
+  narration), pins first-write-wins, serves 200+replayed+recovered;
+  later retries serve identical bytes. Fault-injection test covers the
+  commit→save gap (500 + diagnostic + frozen world + convergence +
+  conflict still 409). §5 acceptance untouched and green.
+- P1 transcript: rewritten with provenance (`masterTurn` →
+  `conversationTurn` → legacy action-only presentation); ready narration
+  attaches only by narrationHandle/correlationId+worldTime, never by
+  bare worldTime; new `transcript_covers_every_command` check (+contract/
+  report/scenario beats, now 38) pins per-replica correspondence.
+- P1 blocked journey, one contract: `blocked` is real projection state
+  (`blockedReason`, set by journeyId-carrying JourneyBlocked, cleared by
+  completion/interruption; stale blocks ignored). Progress rule: repeat
+  ticks while closed stay silent (no duplicate JourneyBlocked), reopening
+  resumes the SAME journey. Cause is honest (`highWaterAhead` over the
+  crossing's own watercourse: high/flood → water text, else neutral) in
+  journey-progress and journey-travel; shell JourneyView/director/rhythm/
+  continuation all show the obstacle in Russian (also fixed English
+  "blocked" leftovers); new `journey_still_blocked` presentation voices
+  standing blocks on repeat ticks. No new event types, no migration
+  (replay-pure). Review-demanded tests all present.
+- P2 composer owner: `setShellBusy` is presentation-only (backdrop +
+  stage text); disabled/retry/aria-busy exclusively via
+  `setComposerState`. Structural test extended; boot path safe (loading
+  dialog owns the page while inert).
+- `npm run validate` PASS (2439 passed, 1 skipped; typecheck, Canon,
+  simulation, 10 evals, adventure, diff-check). Uncommitted, not
+  deployed. Browser QA of this snapshot still open (needs commit →
+  Orange Pi deploy → scratch QA with authorized click budget).
+- Next: commit/push → deploy → production browser QA re-run.
+
+# Current work (2026-09-15 — plan_9 §§15-16 QA preflight + evidence contract done, gate PASS; uncommitted)
+
+- New `packages/cli/src/acceptance/browser-qa-contract.ts` (pure, no
+  browser/network/world): §15 preflight gate over the six required
+  capabilities (browser/viewport/screenshot/dom/console/report_dir) —
+  `evaluatePreflightGate` returns proceed only on all-pass,
+  proceed_reduced only with an explicit acknowledgedBy covering every
+  gap, else stop before the first mutation; plus shape validation.
+  §16 evidence contract: jobId/deployedCommit/browserWorldId/apiWorldId/
+  per-input ledger (input/httpStatus/responseKind/worldTimeBefore-After
+  deltas)/domAssertions/consoleMessages/screenshots/blockedCapabilities/
+  mutationCount+clickBudget, six separate verdicts
+  (repository/api/browser/visual/provider/human), overall derived as
+  fail-on-any-fail (green API never masks red browser). Validators pin
+  ledger integrity, click-budget respect, world-id requirements for
+  mutating runs, and blocked-caps-must-block-an-area.
+- Scope note: `scripts/browser/smoke.py` is read-only and untouched;
+  the NTFS skill file carries an external modification and was left
+  untouched — the runner assignment should cite the new field names
+  when the skill is next aligned. No live browser run in this session
+  (needs deploy + authorized click budget).
+- Tests: 20 new (`browser-qa-contract.test.ts`: gate matrix,
+  preflight/report validators incl. forged-overall and over-budget
+  rejections). `npm run validate` PASS (2404 passed, 1 skipped;
+  typecheck, Canon, simulation, eval, adventure, diff-check).
+  Uncommitted.
+- Next: commit, Orange Pi deploy via `$skald-orange-pi-deploy`, then a
+  production browser QA re-run through `$skald-ntfs-browser-qa` with an
+  authorized click budget against this contract.
+
+# Current work (2026-09-15 — plan_9 §14 adventure acceptance done, gate PASS; uncommitted)
+
+- §14 16-beat arc lives in `riverwatch-old-course.json` (32 commands,
+  53 turns): prologue → look/listen → free inquiry («кто рядом») →
+  speech («обратиться к перевозчику») → obstacle («идти к Дальнему
+  морю» → JourneyBlocked unknown_destination, named cause) → classified
+  clarification («Иду.») → 4 journey legs → rumor → masonry discovery →
+  return → offline 24 → restart → post-restart knowledge probe. Full run
+  REPORT PASS with all 37 beats green.
+- New world law (PR answers: arrival risk observation; listens
+  JourneyCompleted; creates ObservationUpdated risk_taken): `journeyRisk`
+  in `rules/observations.ts` (spatial analogue of MovementSucceeded →
+  risk; registered via observationRules). Arrivals now complete the
+  audacity lifecycle live in-scenario (created t=26 →
+  expired/fired/triggered t=31).
+- Speak fix (beats 4 + no-generic invariant): `bindSpeakAddressee` in
+  `master-turn-gateway.ts` (stem-match utterance against scene people;
+  identical labels collapse to one role, distinct labels →
+  multiple_referents, bare greeting → missing_referent, unknown name →
+  unknown_observed_target) wired into both degraded paths (mode-off +
+  post-model-failure) with new `speak_addressee_bound` diagnostic;
+  selector keeps addressed speak/call attempts instead of neutralizing
+  them, and `describeActionAttempt` voices them («Ты обращаешься к
+  «X».»). Found live: every bare/named speech variant generic-fallbacked
+  before, including the old scenario's «сделать что-нибудь» (replaced by
+  classified «Иду.»).
+- 12 new checks (`hero_created`, `prologue_matches_background` incl.
+  read-only proof, `free_inquiry_answered`, `speech_got_reaction`,
+  `obstacle_named_cause`, `knowledge_applied` as rumor→exam order +
+  evidence, `no_generic_fallback` over turns/inquiries/journal,
+  `replies_are_linked` as one persisted turn echoing each input,
+  `memory_survives_restart` via post-restart audacity echo, plus
+  `no_stranded_journey`/`consequences_persist`/`autonomous_consequence_fired`);
+  contract (REQUIRED_CHECKS, inquiry/speech shape rules, exactly one
+  prologue step) + report (37 REQUIRED_BEATS; inquiry answers count as
+  linked replies, not orphans). Harness gained `{prologue: true}` +
+  optional scenario backgroundId/entrypointId.
+- Item beat verdict (probed, documented): carried starting items are
+  outside observe/take/use resolution, so beat 10 runs as knowledge
+  application; Russian `give` without recipient/item stays unbound
+  offline. No new Domain Events, no schema change.
+- Tests: 30 new (binder 12 incl. both degraded paths, selector 2,
+  journeyRisk 2, s14 checks 14 incl. prologue-differs-per-background).
+  `npm run validate` PASS (2384 passed, 1 skipped; typecheck, Canon,
+  simulation, eval, adventure, diff-check). Uncommitted.
+- Next in P9 order: §15-16 browser preflight + QA evidence contract,
+  then production QA re-run.
+
+# Current work (2026-09-15 — plan_9 §§9-13 GameDirector/prompt/quality done, gate PASS; uncommitted)
+
+- §9 GameDirectorContext (additive, read-side): new
+  `packages/world/src/game-director/` — `context.ts`
+  (`buildGameDirectorContext`, `directorJourneyState` mapping stored
+  JourneyState to idle/planned/in_progress/blocked/arrived/cancelled,
+  `directorRecentConsequences` with closed player vocabulary),
+  bounded JSON-safe, frozen, no Domain Events/Rules/persistence. §11
+  `scene-rhythm.ts` (question/pressure/opportunity/inactionCost/
+  changeAfterActions/completionCondition, nulls instead of inventions).
+- §10 momentum: `continuation.ts` (`buildContinuationHint` from journey →
+  contact+route → contact → route → item, null while clarification pends;
+  `hasGameMomentum`/`ensureGameMomentum` bounded 220 chars) wired
+  additively into `composeMasterTurnResponse` via optional
+  `continuationHint` (absent = byte-identical output; clarification turns
+  untouched).
+- §12 prompt: `narrateTurnLLM` user block gains observer-safe
+  `gameDirector` slice (last utterance, ≤12 replicas, scene, goal, thread,
+  pending question, journey, rhythm, contacts/routes/items, facts vs
+  uncertainties, background, hook) only when `NarrationOptions.gameDirector`
+  is set; system prompt gains the 4-part master voice + forbidden list
+  (no journey completion/NPC/items/hidden locations/truth-upgrade/success
+  decisions). Production `scheduleNarration` + batch path build the
+  director best-effort at narration time (never blocks the response).
+- §13 guard: `narration-quality.ts` `verifyGameNarration` (empty /
+  internal_id_leak / too_long / outcome_lost / missing_reaction /
+  new_proper_name / new_item_claim, inflection-tolerant stem sharing);
+  runs after the epistemic guard only with a director present, else legacy
+  behavior unchanged. Rejection falls back to the quality deterministic
+  text with `game_quality_violation:<reason>` (mapped to schema_rejection
+  in diagnostics).
+- Tests: 56 new (rhythm/context/continuation/quality/prompt-slice/
+  narrateTurn-with-director incl. outcome_lost + internal-leak fallbacks +
+  legacy-unchanged pin, composer momentum). `npm run validate` PASS
+  (2354 passed, 1 skipped; typecheck, Canon, simulation, eval, adventure,
+  diff-check). Uncommitted.
+- Next in P9 order: §14 30–60-minute acceptance, then §15-16 QA infra.
+
+# Current work (2026-09-14 — plan_9 §6-8 MasterTurn/chat/pending done, gate PASS; uncommitted)
+
+- §6 MasterTurn envelope (additive): `turnKey` (opaque sha, stable per
+  world+key) on conversation DTOs; journal turns keep existing `turnHandle`
+  as their key; new `MasterTurnDTO` {turnKey, kind (7, clarification maps
+  to contextual_clarification), worldTimeBefore/After, deterministicText,
+  narration pending/not_requested} built at every mutating response site
+  (command/mixed/inquiry/clarification/meta/speech/wait/advance/offline).
+  Legacy id fields stay for compat; UI must prefer turnKey.
+- §7 single-writer feed: bubbles carry data-turn-key; pairing extended to
+  mixed/speech via narrationHandle→correlationId (legacy time fallback
+  stays action-only, autonomous never pairs); consecutive autonomous
+  journal turns (new `autonomous` flag: offline ticks ± derived
+  consequences, never online ticks or command pipeline) collapse into one
+  «МИР ПРОДОЛЖАЕТСЯ / Пока ты был в пути…» separator keeping subdued
+  primary + ≤2 notable lines; dedupe unchanged. Screenshots confirm the
+  differing-text two-paragraph design; identical-text single bubble is
+  unit-tested.
+- §8 composer machine (`composer-state.js`, sole owner): idle / submitting
+  (locked) / waiting_for_narration (unlocked by design — narration is
+  detached) / retryable_failure (retry shown); pure
+  `composerStateAfterSubmit` policy; app.js submit/boot rewired, status-view
+  duplicate aria-busy write removed, static allowlist serves the new
+  module. Timeouts usable, reload boots unlocked, inquiry/clarification
+  share the mechanism.
+- Tests: envelope/keys/no-leak/autonomous HTTP DTO tests, feed pairing +
+  separator + key tests, machine + policy + single-owner structural tests.
+  `npm run validate` PASS (2299 tests: 2298 passed, 1 skipped). Uncommitted.
+- Next in P9 order: §9-13 (GameDirectorContext, scene rhythm, LLM
+  prompt/quality guard), then §14 acceptance + §15-16 QA infra (note: QA
+  Runner v2 skill file was updated outside this session — preserved
+  untouched).
+
+# Current work (2026-09-13 — plan_9 §1-2 mixed intent + clarifications done, gate PASS; uncommitted)
+
+- Mixed replicas now execute one safe primary plus EVERY understood
+  question: `postActionInquiry` replaced with `postActionInquiries` across
+  validator/executor/composer/builder/HTTP (top-level question first, then
+  all supporting question clauses in order; one bad question clarifies
+  specifically about that part). Composer joins answers into one MasterTurn;
+  HTTP exposes `inquiries`/`inquiryAnswers` arrays beside the first-answer
+  compat fields. One primary, at most one tick — unchanged.
+- New read-only query `environmental_indication` ("что подсказывает
+  вода?"): route conditions first (a difficult crossing IS the water
+  speaking), then location/notable prose matching the focus (default water
+  words), honest unknown otherwise. Dictionary + capabilities + builder +
+  deterministic patterns + tests.
+- §2 taxonomy (`intent-parser/clarification-reasons.ts`): closed 7-reason
+  set with contextual generators (verbatim current wordings, parameterized
+  by entities/actions), structural-reason mapping, and the generic
+  last-resort set with `isGenericFallbackText`. Gateway pronoun/preflight
+  wordings migrated verbatim; degraded-model fallback unified into one
+  helper that runs the structural validator first (a degraded model never
+  executes what the fast path would clarify: give-without-recipient,
+  wait-with-target, destination-less travel all clarify specifically).
+  Every generic fallback emits `generic_clarification_fallback` defect
+  diagnostics (new taxonomy category).
+- Acceptance: 50-replica mixed corpus under a dead model — exactly 1
+  generic (the allowed garbage input), every clarification carries
+  options, defect count matches; multi-question mixed execution covered at
+  validator/executor/HTTP levels. Deliberately out of scope: deterministic
+  clause-splitting without LLM (parser reports compounds, LLM splits),
+  observe+water strictness ("смотрю на воду" still needs the object).
+- `npm run validate` PASS (2289 tests: 2288 passed, 1 skipped; adventure
+  incl.). Not committed, not deployed.
+- Next in P9 order: §6-8 (MasterTurn envelope, chat ownership, pending
+  machine) — HTTP arrays added here are compat fields for it to unify.
+
+# Current work (2026-09-13 — plan_9 §5 unified replay done, gate PASS; uncommitted)
+
+- Identical key+payload now returns HTTP 200 with the saved envelope
+  (`replayed: true`); a reused key with a different payload stays 409.
+  New `command_responses` table (schema v13, additive migration, first
+  write wins) holds key+hash+status+full DTO; turn id, correlation and
+  world times travel inside the saved DTO. Transient 5xx are never pinned.
+- One service (`checkCommandReplay`/`recordCommandReplay`) fronts
+  command/wait/advance: replay short-circuits before gateway, rules and
+  narration scheduling; pre-migration rows fall through to the legacy
+  turn/processed-keys guards whose answers are then recorded. Offline keeps
+  its bespoke durable `already_processed` contract (turns + loaded
+  processed keys) — replaying its original "accepted" DTO would break the
+  browser reconcile vocabulary, and it already meets every §5 bullet.
+- Error code stays `duplicate_request` (browser client + suite depend on
+  it); only the identical-retry status changed 409→200. Updated pins:
+  server, conversation-http, narrative-stage5 (incl. post-restart replay),
+  journey-continuation, adventure-harness probe (now asserts 200 +
+  replayed + frozen log).
+- New `command-replay-acceptance.test.ts`: action/inquiry/clarification/
+  speech 10× identical → one result, frozen log/time/transcript, single
+  model call, no repeated narration jobs, conflicts 409, restart replay,
+  wait/advance envelopes without new ticks. Migration version pins moved
+  12→13 (+`command_responses` presence check on old DBs).
+- `npm run validate` PASS (2275 tests: 2274 passed, 1 skipped; adventure
+  acceptance green incl. the updated idempotency probe). Not committed.
+- Next in P9 order: §1-2 mixed intent + classified clarifications (compound
+  fallback already specific; full multi-clause execution remains).
+
+# Current work (2026-09-13 — plan_9 §3-4 journey completion implemented; uncommitted)
+
+- P9 order item 1 done: journeys can no longer strand on their final stage.
+  Root cause found in code (not content): every mid-journey action except
+  `wait` is honestly rejected by `durationCheck` (`ActionRejected
+  traveling`) and non-wait ticks are suppressed, but no continuation intent
+  existed — only `wait` advanced time, and natural phrases
+  («продолжаю путь», «иду дальше») fell into clarification/rejection.
+- New pure classifier `isJourneyContinuation` (intent-parser, closed
+  anchored vocabulary, world-free; full table + negative tests): applied by
+  `handleWorldCommand` only while `activeJourneyId` is set, bypassing the
+  gateway, advancing exactly one online tick with the player's verbatim
+  text, one ConversationTurn, and the same envelope+narration scheduling as
+  `wait` (shared `respondToOnlineTick` helper; `wait` behavior unchanged).
+  Without an active journey the replica flows on normally (no phantom tick).
+- `journeyProgress` now refuses arrival through a closed crossing: final
+  tick emits `JourneyBlocked { crossing_closed }` naming the cause and the
+  remedy instead of completing; reopened water completes normally. Journey
+  states stay a projection of existing events (no new event types, no new
+  mutable state).
+- Tests (plan §4 1-7): two-tick completion sequence, closed-crossing block
+  + reopen completion, full HTTP loop on living_region (start →
+  «продолжаю путь» → «иду дальше» → arrival at blackwood_edge, traversed
+  knowledge, zero model calls), same-key repeat advances nothing, reload
+  preserves arrival, no-journey continuation consumes nothing, arrival
+  presentation derives from the committed JourneyCompleted event.
+- `npm run validate` PASS on this tree. Not committed, not deployed.
+- Next in P9 order: §5 idempotent replay (identical key+hash must return
+  the saved envelope with HTTP 200, not 409 — `duplicateConversationResponse`
+  currently 409s world-changing replays), then §1-2 mixed intent.
+
 # Current work (2026-09-13 — QA-0913 FAIL triaged, fixes implemented, gate PASS; uncommitted)
 
 - Production QA-0913 (`world-3cc433f4`, 19/25 replicas, T0→T6) verdict FAIL:

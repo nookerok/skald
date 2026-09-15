@@ -5,14 +5,20 @@
   "saveLabel": "След старого русла",
   "characterName": "Искатель",
   "characterPresetId": "wanderer",
+  "backgroundId": "wanderer",
+  "entrypointId": "river_waystation_arrival",
   "description": "A production-path adventure from the Riverwatch waystation to the old ruins and back.",
   "turns": [
         { "enterPresence": true },
+    { "prologue": true },
     { "inspect": "shell" },
     { "say": "осмотреться" },
     { "say": "прислушаться" },
-    { "assert": ["world_is_living_region", "map_has_current_position", "conversation_has_master_reply", "rumour_was_received", "rumour_is_player_visible", "rumour_does_not_reveal_coordinates", "route_alternative_available"] },
-    { "say": "сделать что-нибудь" },
+    { "say": "кто рядом" },
+    { "say": "обратиться к перевозчику" },
+    { "say": "идти к Дальнему морю" },
+    { "assert": ["world_is_living_region", "map_has_current_position", "conversation_has_master_reply", "hero_created", "prologue_matches_background", "free_inquiry_answered", "speech_got_reaction", "obstacle_named_cause", "rumour_was_received", "rumour_is_player_visible", "rumour_does_not_reveal_coordinates", "route_alternative_available"] },
+    { "say": "Иду." },
     { "assert": ["clarification_was_requested"] },
     { "answerClarification": "идти по лесной дороге к Речной Страж" },
     { "say": "ждать" },
@@ -53,6 +59,8 @@
     { "enterPresence": true },
     { "inspect": "journal" },
     { "inspect": "map" },
-    { "assert": ["restart_preserved_journal", "restart_preserved_map", "chat_has_no_raw_internal_keys", "chronicle_is_ordered"] }
+    { "assert": ["restart_preserved_journal", "restart_preserved_map", "chat_has_no_raw_internal_keys", "chronicle_is_ordered"] },
+    { "say": "что я знаю об этом месте" },
+    { "assert": ["memory_survives_restart", "transcript_covers_every_command", "no_stranded_journey", "consequences_persist", "autonomous_consequence_fired", "knowledge_applied", "no_generic_fallback", "replies_are_linked"] }
   ]
 }

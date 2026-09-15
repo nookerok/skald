@@ -115,9 +115,9 @@ describe("mixed turn integration", () => {
     expect(executed.commandEvents.filter((event) => event.type === "InteractionRequested")).toHaveLength(1);
     // At most one game tick for the whole mixed turn.
     expect(executed.revisionAfter.worldTime - executed.revisionBefore.worldTime).toBeLessThanOrEqual(1);
-    // The post-action question is answered on the new projection.
-    expect(executed.inquiryAnswer?.queryId).toBe("visible_scene");
-    expect(executed.inquiryAnswer?.answer.length).toBeGreaterThan(0);
+    // The post-action questions are answered on the new projection.
+    expect(executed.inquiryAnswers.map((answer) => answer.queryId)).toEqual(["visible_scene"]);
+    expect(executed.inquiryAnswers[0]?.answer.length).toBeGreaterThan(0);
     expect(executed.deferred).toEqual([{ text: "осмотреть лагерь", reason: "secondary_action" }]);
 
     const postWorld = projection.getSnapshot();
@@ -130,7 +130,7 @@ describe("mixed turn integration", () => {
       actionPresentation: presentation.response || presentation.primary
         ? { text: presentation.response?.text ?? presentation.primary?.text ?? "", rejected: false }
         : null,
-      inquiryAnswer: executed.inquiryAnswer ? { text: executed.inquiryAnswer.answer } : null,
+      inquiryAnswers: executed.inquiryAnswers.map((answer) => ({ text: answer.answer })),
       speechReaction: null,
       metaAnswer: null,
       deferredClauses: executed.deferred,
@@ -152,7 +152,7 @@ describe("mixed turn integration", () => {
       projectedWorld: postWorld,
       profile: null,
       characterProfile: null,
-      inquiry: validated.plan.postActionInquiry,
+      inquiries: validated.plan.postActionInquiries,
       deferred: executed.deferred,
     });
     expect(draft.inputClass).toBe("mixed");

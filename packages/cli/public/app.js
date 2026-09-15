@@ -1,6 +1,6 @@
 import { sendCommand, fetchState, fetchGameShell, setCurrentWorld, createRequestKey, submitOfflineEnvelope } from "./world-api-client.js";
 import { readQueue, enqueueOfflineIntent, removeProcessed } from "./offline-queue.js";
-import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, removeLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents } from "./game-shell-view.js";
+import { renderGameShell, renderChatFeed, renderShellConnection, setShellBusy, setShellLoading, showShellError, clearShellError, initShellView, openShellOverlay, addLocalIntent, removeLocalIntent, bindIntentWorldTime, setIntentStatus, addClarification, clearLocalIntents, upsertConfirmedPair } from "./game-shell-view.js";
 import { createNarrationPoll, resolveNarrationPollState } from "./narration-poll.js";
 import { loadJournal, renderJournal } from "./journal-view.js";
 import { loadDiscoveries, renderDiscoveries } from "./discovery-view.js";
@@ -12,7 +12,8 @@ import { resolveWorldRoute, ROUTE } from "./presence-route.js";
 import { initExitFlow, requestLeave, isExitInProgress } from "./presence-exit-controller.js";
 import { renderStatus, renderJournalStatus } from "./status-view.js";
 import { createInitialState, transition, CMD } from "./client-state.js";
-import { setControlsBusy, keepPendingVisible } from "./ui-state.js";
+import { keepPendingVisible } from "./ui-state.js";
+import { setComposerState, composerStateAfterSubmit, COMPOSER } from "./composer-state.js";
 import { loadObserverMap } from "./map-client.js";
 import { renderLivingWorldMap } from "./living-world-shell.js";
 
@@ -120,10 +121,6 @@ function dispatch(action, payload) {
   renderStatus(state);
   renderJournalStatus(state);
 }
-function setRetryVisible(visible) {
-  const button = document.getElementById("retry-btn");
-  if (button) button.hidden = !visible;
-}
 async function refreshShell() {
   const result = await fetchGameShell();
   if (!result.body?.ok || !result.body.snapshot) { showShellError("Сервер не вернул состояние мира."); return false; }
@@ -177,15 +174,21 @@ async function handle(input, overrideKey) {
   const key = overrideKey || createRequestKey();
   const pendingStartedAt = performance.now();
   const sessionIntent = addLocalIntent(input, key);
-  setRetryVisible(false);
+  // Single composer owner: the machine locks everything in one cycle and
+  // decides the landing state per outcome below (finally applies it).
+  let composerAfter = COMPOSER.IDLE;
   dispatch("COMMAND_START", { input, key });
-  setControlsBusy(true);
+  setComposerState(COMPOSER.SUBMITTING);
   setShellBusy(true, "Разбираем намерение…");
   renderShellConnection("pending", "МАСТЕР отвечает…");
   try {
     const result = await sendCommand(input, key);
     if (result.body?.ok && result.body?.status === "inquiry") {
       removeLocalIntent(sessionIntent);
+      // The inquiry answer is already durable: render the pair now so a
+      // failing journal refresh cannot hide it; hydration confirms it.
+      upsertConfirmedPair(result.body.conversationTurn, result.body.masterTurn);
+      renderChatFeed(latestJournal);
       const inputElement = document.getElementById("command-input");
       if (inputElement) inputElement.value = "";
       dispatch("COMMAND_SUCCESS");
@@ -197,6 +200,8 @@ async function handle(input, overrideKey) {
       await keepPendingVisible(pendingStartedAt);
       dispatch("COMMAND_REJECTED");
       removeLocalIntent(sessionIntent);
+      upsertConfirmedPair(result.body.conversationTurn, result.body.masterTurn);
+      renderChatFeed(latestJournal);
       await refreshJournal();
       renderShellConnection("ready", "Мастер уточняет действие");
       return;
@@ -213,15 +218,21 @@ async function handle(input, overrideKey) {
       dispatch("COMMAND_SUCCESS");
       renderShellConnection("ready", "Ход записан");
       removeLocalIntent(sessionIntent);
+      // Render the accepted ТЫ → МАСТЕР pair from the command response
+      // before hydrating: the deterministic answer stays visible even when
+      // the journal GET below fails.
+      upsertConfirmedPair(result.body.conversationTurn, result.body.masterTurn);
+      renderChatFeed(latestJournal);
       await refreshJournal();
       await refreshShell();
       await refreshDiscoveries();
+      const armsNarration = Boolean(result.body?.state?.routerAvailable) && Number.isFinite(result.body?.state?.worldTime);
+      composerAfter = composerStateAfterSubmit({ ok: true, armsNarration });
       scheduleNarrationRefresh(Boolean(result.body?.state?.routerAvailable), result.body?.state?.worldTime, result.body?.conversationTurn?.narrationHandle);
     } else if (result.status === 409) {
       // The original request may have committed before its response was lost.
       // Reconcile all authoritative read models before hiding retry.
       dispatch("COMMAND_DUPLICATE");
-      setRetryVisible(false);
       removeLocalIntent(sessionIntent);
       await refreshShell();
       await refreshJournal();
@@ -234,16 +245,16 @@ async function handle(input, overrideKey) {
   } catch (error) {
     await keepPendingVisible(pendingStartedAt);
     dispatch(error?.name === "AbortError" ? "COMMAND_TIMEOUT" : "COMMAND_TRANSPORT_FAIL");
+    composerAfter = composerStateAfterSubmit({ transportFailed: true });
     setIntentStatus(sessionIntent, "offline");
     renderChatFeed(latestJournal);
     renderShellConnection("error", "Связь прервана");
-    setRetryVisible(true);
     if (currentWorldId) {
       enqueueOfflineIntent(currentWorldId, { input, idempotencyKey: key, baseRevision: lastKnownRevision });
       renderOfflineBanner(`«${input}» сохранено — отправим, когда связь вернётся.`);
     }
   } finally {
-    setControlsBusy(false);
+    setComposerState(composerAfter);
     setShellBusy(false);
   }
 }
@@ -251,6 +262,9 @@ async function connect() {
   clearLocalIntents();
   latestJournal = null;
   interactionReady = false;
+  // Fresh boot always starts from an unlocked composer: a reload during a
+  // pending submit must never leave the controls disabled.
+  setComposerState(COMPOSER.IDLE);
   dispatch("RECONNECT");
   // Cover the static shell frame (hardcoded «Ход 0» placeholders) with the
   // loading dialog until the first snapshot renders — without this the shell

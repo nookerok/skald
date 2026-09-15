@@ -162,6 +162,19 @@ function buildJourneyView(world: ReadonlyWorld): import("./types.js").JourneyVie
       text: "Путь прерван. Ты сохранил знание только о пройденном участке.",
     };
   }
+  if (journey.status === "blocked") {
+    const cause = journey.blockedReason === "crossing_closed" ? "переправа закрыта" : "путь перекрыт";
+    return {
+      status: "blocked",
+      from,
+      to,
+      elapsedTicks: journey.elapsedTicks,
+      totalTicks: journey.plannedTicks,
+      text: to
+        ? "Путь к «" + to + "» перекрыт: " + cause + "."
+        : "Путь перекрыт.",
+    };
+  }
   return {
     status: "completed",
     from,

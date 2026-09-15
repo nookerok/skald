@@ -170,8 +170,8 @@ describe("master turn acceptance scenario", () => {
     expect(run3.status).toBe("executed");
     if (run3.status !== "executed") return;
     expect(run3.commandEvents.filter((item) => item.type === "InteractionRequested" || item.type === "ActionAttempted" || item.type === "JourneyRequested")).toHaveLength(1);
-    expect(run3.inquiryAnswer?.queryId).toBe("visible_scene");
-    expect(run3.inquiryAnswer?.answer).toContain("двор");
+    expect(run3.inquiryAnswers.map((answer) => answer.queryId)).toEqual(["visible_scene"]);
+    expect(run3.inquiryAnswers[0]?.answer).toContain("двор");
     expect(run3.deferred).toEqual([{ text: "осмотреть двор", reason: "secondary_action" }]);
     log = [...run3.postEvents];
     const world3 = projection.getSnapshot();
@@ -182,7 +182,7 @@ describe("master turn acceptance scenario", () => {
       actionPresentation: presentation3.response || presentation3.primary
         ? { text: presentation3.response?.text ?? presentation3.primary?.text ?? "", rejected: false }
         : null,
-      inquiryAnswer: run3.inquiryAnswer ? { text: run3.inquiryAnswer.answer } : null,
+      inquiryAnswers: run3.inquiryAnswers.map((answer) => ({ text: answer.answer })),
       speechReaction: null,
       metaAnswer: null,
       deferredClauses: run3.deferred,
@@ -196,7 +196,7 @@ describe("master turn acceptance scenario", () => {
       preEvents: log.slice(0, log.length - run3.commandEvents.length - run3.tickEvents.length),
       stagedEvents: [...run3.commandEvents, ...run3.tickEvents], projectedWorld: world3,
       profile: null, characterProfile: null,
-      inquiry: checked3.plan.postActionInquiry, deferred: run3.deferred,
+      inquiries: checked3.plan.postActionInquiries, deferred: run3.deferred,
     }));
     expect(rows[rows.length - 1]?.inputClass).toBe("mixed");
 
@@ -268,7 +268,7 @@ describe("master turn acceptance scenario", () => {
     const response5 = composeMasterTurnResponse({
       kind: "speech",
       actionPresentation: null,
-      inquiryAnswer: null,
+      inquiryAnswers: [],
       speechReaction: reactionText ? { text: reactionText } : null,
       metaAnswer: null,
       deferredClauses: [],

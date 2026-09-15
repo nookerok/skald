@@ -1,6 +1,5 @@
 import { renderLivingWorld } from "./living-world-shell.js";
-import { setComposerBusy } from "./ui-state.js";
-import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, addLocalInquiry as addLocalInquiryModel, removeLocalIntent as removeLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, setIntentStatus as setIntentStatusModel, addClarification as addClarificationModel, clearLocalIntents as clearLocalIntentsModel } from "./chat-feed-view.js";
+import { renderChatFeed as renderChatFeedModel, getLocalIntents, addLocalIntent as addLocalIntentModel, addLocalInquiry as addLocalInquiryModel, removeLocalIntent as removeLocalIntentModel, bindIntentWorldTime as bindIntentWorldTimeModel, setIntentStatus as setIntentStatusModel, addClarification as addClarificationModel, clearLocalIntents as clearLocalIntentsModel, upsertConfirmedPair as upsertConfirmedPairModel } from "./chat-feed-view.js";
 import { initActivityView } from "./activity-view.js";
 const overlayOpeners = new Map();
 let currentSnapshot = null;
@@ -19,12 +18,19 @@ export function removeLocalIntent(...args) { return removeLocalIntentModel(...ar
 export function bindIntentWorldTime(...args) { return bindIntentWorldTimeModel(...args); }
 export function setIntentStatus(...args) { return setIntentStatusModel(...args); }
 export function addClarification(...args) { return addClarificationModel(...args); }
+export function upsertConfirmedPair(...args) { return upsertConfirmedPairModel(...args); }
 export function clearLocalIntents(...args) { currentJournal = null; return clearLocalIntentsModel(...args); }
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
 export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
+/**
+ * Shell/loading presentation only (single composer owner: composer-state.js).
+ * Toggles the shell-busy backdrop and the loading stage text. It never
+ * touches composer controls: disabled state, retry visibility and aria-busy
+ * belong exclusively to setComposerState, so the two mechanisms can no
+ * longer fight over one button in the same submit lifecycle.
+ */
 export function setShellBusy(busy, stage = "МАСТЕР отвечает…") {
   document.body.classList.toggle("shell-busy", busy);
-  setComposerBusy(busy);
   const loadingStage = document.getElementById("loading-stage");
   if (loadingStage) loadingStage.textContent = busy ? stage : "Мир готов.";
 }

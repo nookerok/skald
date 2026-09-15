@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { narrationHandle } from "./identity.js";
+import { masterTurnKey } from "./master-turn.js";
 import type { DomainEvent } from "@skald/event-bus";
 import {
   actionFallbackText,
@@ -149,11 +150,12 @@ export function buildReadSideConversationTurn(params: {
 
 /**
  * Builds the single durable turn for a mixed replica: the full player text
- * plus one combined Master answer (primary outcome, post-action inquiry
- * answer, deferred note). The draft is meant for the same durable commit as
- * the staged Events: pass the returned closure as prepareCommitContext so
- * Events and transcript commit atomically. Player text never becomes an
- * Event; the inquiry is answered from the post-action snapshot only.
+ * plus one combined Master answer (primary outcome, every post-action
+ * inquiry answer, deferred note). The draft is meant for the same durable
+ * commit as the staged Events: pass the returned closure as
+ * prepareCommitContext so Events and transcript commit atomically. Player
+ * text never becomes an Event; inquiries are answered from the post-action
+ * snapshot only.
  */
 export function buildMixedConversationTurn(params: {
   worldId: string;
@@ -173,22 +175,24 @@ export function buildMixedConversationTurn(params: {
     readonly principle: string;
     readonly background_id?: string | null;
   } | null;
-  inquiry: InquiryRequest | null;
+  inquiries: readonly InquiryRequest[];
   deferred: readonly DeferredClause[];
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
-  let inquiryText: string | null = null;
-  if (params.inquiry) {
+  const inquiryTexts: string[] = [];
+  if (params.inquiries.length > 0) {
     const postEvents = [...params.preEvents, ...params.stagedEvents];
     const shell = buildGameShellSnapshot(postEvents, params.projectedWorld, params.characterProfile, params.worldId, undefined);
     const background = buildBackgroundNarrativeContext(postEvents, params.projectedWorld, params.profile);
-    inquiryText = buildInquiryAnswer(params.inquiry, { shell, background }).answer;
+    for (const inquiry of params.inquiries) {
+      inquiryTexts.push(buildInquiryAnswer(inquiry, { shell, background }).answer);
+    }
   }
   const response = composeMasterTurnResponse({
     kind: "mixed",
     actionPresentation: { text: outcome.text, rejected: outcome.rejected },
-    inquiryAnswer: inquiryText === null ? null : { text: inquiryText },
+    inquiryAnswers: inquiryTexts.map((text) => ({ text })),
     speechReaction: null,
     metaAnswer: null,
     deferredClauses: params.deferred,
@@ -293,7 +297,7 @@ export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMem
 }
 
 /** Strip persistence-only requestHash before a player-facing JSON response. */
-export function toConversationTurnDTO(turn: ConversationTurnRecord): ConversationTurn & { readonly narrationHandle: string } {
+export function toConversationTurnDTO(turn: ConversationTurnRecord): ConversationTurn & { readonly narrationHandle: string; readonly turnKey: string } {
   const { requestHash: _requestHash, contextMetadata: _contextMetadata, ...publicTurn } = turn;
   const fallback = turn.responseKind === "action_rejection"
     ? "Так действовать сейчас не получится."
@@ -304,5 +308,6 @@ export function toConversationTurnDTO(turn: ConversationTurnRecord): Conversatio
     ...publicTurn,
     responseText: localizedPlayerText(turn.responseText, fallback),
     narrationHandle: narrationHandle(turn.worldTimeAfter, turn.correlationId),
+    turnKey: masterTurnKey(turn.worldId, turn.idempotencyKey),
   };
 }

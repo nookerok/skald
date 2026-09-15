@@ -240,17 +240,26 @@ describe("HTTP Server", () => {
     expect(status).toBe(400);
   });
 
-  it("duplicate idempotencyKey returns 409", async () => {
+  it("duplicate idempotencyKey with identical input replays the saved envelope", async () => {
     const { status } = await api("/api/command", {
       method: "POST",
       body: JSON.stringify({ input: "move north", idempotencyKey: "test-cmd-dup" }),
     });
     expect(status).toBe(200);
-    const { status: status2 } = await api("/api/command", {
+    const second = await api("/api/command", {
       method: "POST",
       body: JSON.stringify({ input: "move north", idempotencyKey: "test-cmd-dup" }),
     });
-    expect(status2).toBe(409);
+    expect(second.status).toBe(200);
+    expect((second.body as any).replayed).toBe(true);
+  });
+
+  it("duplicate idempotencyKey with different input is a conflict", async () => {
+    const { status: conflict } = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "move south", idempotencyKey: "test-cmd-dup" }),
+    });
+    expect(conflict).toBe(409);
   });
 
   it("POST /api/wait with valid count succeeds", async () => {

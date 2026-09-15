@@ -52,6 +52,7 @@ export const INQUIRY_CAPABILITIES: InquiryCapabilitiesManifest = Object.freeze({
     "known_contacts",
     "map_position",
     "who_is_nearby",
+    "environmental_indication",
   ] as const,
   readOnly: true,
 });

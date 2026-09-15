@@ -77,6 +77,18 @@ const MIXED_PROPOSAL = {
   referents: [],
 };
 
+const MIXED_TWO_QUESTIONS_PROPOSAL = {
+  schemaVersion: 2,
+  kind: "mixed",
+  primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Осматриваюсь" },
+  supportingClauses: [
+    { kind: "question", queryId: "visible_scene" },
+    { kind: "question", queryId: "environmental_indication", focus: { surface: "вода", role: "target" } },
+  ],
+  question: { queryId: "available_routes" },
+  referents: [],
+};
+
 describe("master turn production path", () => {
   it("answers inquiry read-only without events or ticks", async () => {
     const { store, runtime } = await testRuntime("inquiry", null);
@@ -142,6 +154,30 @@ describe("master turn production path", () => {
       // at minimum the world advanced and a deferred note survived.
       expect(primaries.length).toBeGreaterThan(0);
       expect(JSON.stringify(response)).toContain("пойти к башне");
+    } finally {
+      store.close();
+    }
+  });
+
+  it("answers every understood question of a mixed turn in one MasterTurn (plan_9 §1)", async () => {
+    const { store, runtime } = await testRuntime("mixed-two", interpretRouter(MIXED_TWO_QUESTIONS_PROPOSAL));
+    try {
+      const timeBefore = runtime.projection.getSnapshot().time;
+      const response = parse(await handleWorldCommand(runtime, body("Осмотрюсь, куда идти и что подсказывает вода?", "mix-2")));
+
+      expect(response.ok).toBe(true);
+      expect(response.conversationTurn).toMatchObject({ inputClass: "mixed" });
+      expect(response.inquiryAnswers.map((entry: { queryId: string }) => entry.queryId)).toEqual([
+        "available_routes",
+        "visible_scene",
+        "environmental_indication",
+      ]);
+      for (const entry of response.inquiryAnswers) {
+        expect(entry.answer.length).toBeGreaterThan(0);
+        expect(response.conversationTurn.responseText).toContain(entry.answer);
+      }
+      // At most one game tick for the whole mixed turn.
+      expect(runtime.projection.getSnapshot().time - timeBefore).toBeLessThanOrEqual(1);
     } finally {
       store.close();
     }

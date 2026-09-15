@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { narrationKey } from "@skald/world";
 
 /** Opaque read-side reference: never a Domain Event or database identifier. */
-export function readSideHandle(kind: "turn" | "thread", key: string): string {
+export function readSideHandle(kind: "turn" | "thread" | "master-turn", key: string): string {
   return createHash("sha256").update(JSON.stringify([kind, key])).digest("hex");
 }
 

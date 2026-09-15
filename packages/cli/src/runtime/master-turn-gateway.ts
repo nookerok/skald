@@ -16,10 +16,16 @@ import type { DomainEvent } from "@skald/event-bus";
 import {
   classifyPlayerInput,
   isUnresolvedFocusSurface,
+  missingReferent,
+  multipleReferents,
+  multipleThings,
   parseIntent,
   sameRussianStem,
+  unclearPrimaryAction,
+  unknownObservedTarget,
   validateActionProposal,
   validateTurnProposal,
+  type ActionIntentCommand,
   type ExecutableIntent,
   type InquiryRequest,
   type PlayerInputClassification,
@@ -80,6 +86,158 @@ function clarificationFallback(): MasterTurnGatewayOutcome {
     question: "Я не уверен, что правильно понял. Скажи, чего ты хочешь добиться первым.",
     options: [{ optionId: "rephrase", label: "Уточнить намерение" }],
   };
+}
+
+/**
+ * Last-resort generic wording (plan_9 §2): used only when no classified
+ * generator applies, and always diagnosed as an interpretation defect.
+ */
+function genericFallback(options?: MasterTurnGatewayOptions): MasterTurnGatewayOutcome {
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "generic_clarification_fallback",
+    outcome: "defect",
+    phase: "fallback",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+  });
+  return clarificationFallback();
+}
+
+/** Observer-safe person entry the speak binder reads; scene referents fit structurally. */
+export interface SpeakAddresseeCandidate {
+  readonly observerRef: string;
+  readonly label: string;
+  readonly knownAs: readonly string[];
+}
+
+/**
+ * Deterministic speak/call addressee binding (plan_9 §2, §14 beat 4).
+ *
+ * - unique: the utterance stem-matches exactly one display label (several
+ *   entities sharing one label collapse to the first in scene order — one
+ *   role, one address);
+ * - ambiguous: several distinct labels matched — the question names them;
+ * - absent: a bare greeting (or a pronoun-only utterance, owned by the
+ *   pronoun path) names nothing, or the named surface matches nobody.
+ */
+export type SpeakAddresseeBinding =
+  | { readonly status: "unique"; readonly addressee: SpeakAddresseeCandidate }
+  | { readonly status: "ambiguous"; readonly labels: readonly string[] }
+  | { readonly status: "absent"; readonly named: boolean };
+
+/** Prepositions and particles carrying no referent meaning in an utterance. */
+const SPEAK_ADDRESS_PREPOSITIONS: ReadonlySet<string> = new Set([
+  "к", "ко", "у", "с", "со", "о", "об", "в", "во", "на", "про", "для", "до", "от", "из", "за", "под", "над",
+]);
+
+function speakUtteranceWords(utterance: string): readonly string[] {
+  return utterance
+    .toLowerCase()
+    .replace(/ё/gu, "е")
+    .split(/[^a-zа-я0-9]+/iu)
+    .filter((word) => word.length > 0 && !SPEAK_ADDRESS_PREPOSITIONS.has(word));
+}
+
+function freeze<T>(value: T): T {
+  return Object.freeze(value);
+}
+
+/**
+ * Binds a speak/call utterance to observer-safe scene people. Pure and
+ * total: no world access, no events, no network. The same utterance and
+ * scene always yield the same binding.
+ */
+export function bindSpeakAddressee(
+  utterance: string | null | undefined,
+  people: readonly SpeakAddresseeCandidate[],
+): SpeakAddresseeBinding {
+  const words = speakUtteranceWords(utterance ?? "");
+  if (words.length === 0 || words.every((word) => isUnresolvedFocusSurface(word))) {
+    return freeze({ status: "absent" as const, named: false });
+  }
+  const matched = people.filter((person) => {
+    const labelWords = [person.label, ...person.knownAs].flatMap((label) =>
+      label.toLowerCase().replace(/ё/gu, "е").split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0),
+    );
+    return words.some((word) => labelWords.some((labelWord) => sameRussianStem(word, labelWord)));
+  });
+  if (matched.length === 0) return freeze({ status: "absent" as const, named: true });
+  const labels: string[] = [];
+  for (const person of matched) {
+    const label = person.label.trim();
+    if (label.length > 0 && !labels.includes(label)) labels.push(label);
+    if (labels.length >= 3) break;
+  }
+  if (labels.length === 1) return freeze({ status: "unique" as const, addressee: matched[0]! });
+  return freeze({ status: "ambiguous" as const, labels: freeze(labels) });
+}
+
+/**
+ * Degraded-path speak/call fallback: bind the addressee deterministically
+ * or clarify through the classified taxonomy — never the generic last
+ * resort. Returns null when the intent is not speak/call (normal flow
+ * continues). Emits only sanitized operational dimensions.
+ */
+function speakAddresseeFallback(
+  deterministic: ReturnType<typeof parseIntent>,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  if (deterministic.type !== "ActionIntentCommand") return null;
+  if (deterministic.operation !== "speak" && deterministic.operation !== "call") return null;
+  const command = deterministic as ActionIntentCommand;
+  const binding = bindSpeakAddressee(command.utterance ?? null, snapshot.scene.context.knownPeople);
+  if (binding.status === "unique") {
+    const intent: ActionIntentCommand = freeze({
+      ...command,
+      target: freeze({ raw: binding.addressee.label }),
+      interpretation: freeze({ ...command.interpretation, ambiguities: freeze([]) }),
+    });
+    if (validateActionProposal(intent).ok) {
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "speak_addressee_bound",
+        outcome: "accepted",
+        phase: "fallback",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+        referentCount: 1,
+      });
+      return { status: "deterministic", intent };
+    }
+  }
+  if (binding.status === "ambiguous") {
+    const classified = multipleReferents(binding.labels, true);
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "clarification_returned",
+      outcome: "clarification",
+      phase: "fallback",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+      referentCount: binding.labels.length,
+    });
+    return { status: "clarification", question: classified.question, options: classified.options };
+  }
+  if (binding.status === "absent" && !binding.named) {
+    const classified = missingReferent({ kind: "person" });
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "clarification_returned",
+      outcome: "clarification",
+      phase: "fallback",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    return { status: "clarification", question: classified.question, options: classified.options };
+  }
+  const surface = (command.utterance ?? "").trim();
+  const classified = unknownObservedTarget(surface.length > 0 ? surface : command.rawText);
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "clarification_returned",
+    outcome: "clarification",
+    phase: "fallback",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+  });
+  return { status: "clarification", question: classified.question, options: classified.options };
 }
 
 type PronounStep =
@@ -220,11 +378,10 @@ function resolvePronounsDeterministic(
       && binding.mention
       && mentionNamesSceneReferent(binding.mention.surface, scene)
     ) {
-      const surface = binding.mention.surface;
-      const isSpeak = deterministic.type === "ActionIntentCommand" && deterministic.operation === "speak";
-      const question = isSpeak
-        ? `У кого спросить про «${surface}»? Назови, к кому обратиться.`
-        : `«${surface}» — что именно ты хочешь сделать?`;
+      const classified = unclearPrimaryAction({
+        surface: binding.mention.surface,
+        speak: deterministic.type === "ActionIntentCommand" && deterministic.operation === "speak",
+      });
       emitMasterTurnDiagnostic(options?.diagnostics, {
         category: "pronoun_topic",
         outcome: "clarification",
@@ -232,7 +389,7 @@ function resolvePronounsDeterministic(
         correlationId: options?.correlationId,
         worldTime: options?.worldTime,
       });
-      return { kind: "clarification", outcome: { status: "clarification", question, options: rephraseOption() } };
+      return { kind: "clarification", outcome: { status: "clarification", question: classified.question, options: classified.options } };
     }
     const labels = binding.candidates
       .map((candidate) => sceneLabelForRef(scene, candidate))
@@ -241,11 +398,11 @@ function resolvePronounsDeterministic(
     if (labels.length === 0) return { kind: "same" };
     const hasPerson = binding.classes.includes("person");
     const hasThing = binding.classes.includes("thing");
-    const question = hasPerson && !hasThing
-      ? `К кому именно — ${labels.join(" или ")}?`
+    const classified = hasPerson && !hasThing
+      ? multipleReferents(labels, true)
       : !hasPerson && hasThing
-        ? `Что именно — ${labels.join(" или ")}?`
-        : `Кого или что именно — ${labels.join(" или ")}?`;
+        ? multipleThings(labels)
+        : multipleReferents(labels, false);
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "pronoun_ambiguous",
       outcome: "clarification",
@@ -253,7 +410,7 @@ function resolvePronounsDeterministic(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return { kind: "clarification", outcome: { status: "clarification", question, options: rephraseOption() } };
+    return { kind: "clarification", outcome: { status: "clarification", question: classified.question, options: classified.options } };
   }
 
   if (binding.resolution === "missing") {
@@ -278,19 +435,13 @@ function resolvePronounsDeterministic(
       if (!addressed && classification.kind !== "inquiry_candidate") return { kind: "same" };
     }
     const mention = binding.mention?.surface;
-    const question = hasTopic
-      ? mention
-        ? `«${mention}» сейчас не о чем спросить. Что именно ты имеешь в виду?`
-        : "Что именно ты имеешь в виду? Назови тему явно."
-      : hasPlace
-        ? "Куда именно? Назови направление или место."
-        : mention
-          ? `«${mention}» сейчас нет рядом. Кого ты имеешь в виду? Назови явно.`
-          : hasPerson && !hasThing
-            ? "Кого ты имеешь в виду? Назови, к кому обратиться."
-            : !hasPerson && hasThing
-              ? "Что именно ты имеешь в виду? Назови объект."
-              : "Кого или что ты имеешь в виду? Назови явно.";
+    const classified = missingReferent({
+      kind: hasTopic ? "topic" : hasPlace ? "place"
+        : mention ? "either"
+        : hasPerson && !hasThing ? "person"
+        : !hasPerson && hasThing ? "thing" : "either",
+      ...(mention ? { mention } : {}),
+    });
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "pronoun_missing",
       outcome: "clarification",
@@ -298,7 +449,7 @@ function resolvePronounsDeterministic(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return { kind: "clarification", outcome: { status: "clarification", question, options: rephraseOption() } };
+    return { kind: "clarification", outcome: { status: "clarification", question: classified.question, options: classified.options } };
   }
 
   if (binding.resolution !== "single" || !binding.mention) return { kind: "same" };
@@ -306,10 +457,10 @@ function resolvePronounsDeterministic(
 
   // Topic bindings never rewrite an action: they name the follow-up question.
   if (binding.classes.length === 1 && binding.classes[0] === "topic") {
-    const isSpeak = deterministic.type === "ActionIntentCommand" && deterministic.operation === "speak";
-    const question = isSpeak
-      ? `У кого спросить про «${surface}»? Назови, к кому обратиться.`
-      : `«${surface}» — что именно ты хочешь сделать?`;
+    const classified = unclearPrimaryAction({
+      surface,
+      speak: deterministic.type === "ActionIntentCommand" && deterministic.operation === "speak",
+    });
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "pronoun_topic",
       outcome: "clarification",
@@ -317,7 +468,7 @@ function resolvePronounsDeterministic(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return { kind: "clarification", outcome: { status: "clarification", question, options: rephraseOption() } };
+    return { kind: "clarification", outcome: { status: "clarification", question: classified.question, options: classified.options } };
   }
 
   // Person/thing/place binding: does this turn actually address it?
@@ -435,9 +586,11 @@ export async function interpretMasterTurn(
       if (structural.ok) return { status: "deterministic", intent: deterministic };
     }
     if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
+    const speakBound = speakAddresseeFallback(deterministic, snapshot, options);
+    if (speakBound) return speakBound;
     const mapped = mapLegacyFallback(fallbackForDeterministic(deterministic));
     if (mapped) return mapped;
-    return clarificationFallback();
+    return genericFallback(options);
   }
 
   const startedAt = performance.now();
@@ -504,14 +657,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
-    const safeFallback = isSafeDeterministic(deterministic) && (deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent")
-      ? deterministic
-      : null;
-    if (safeFallback) return { status: "deterministic", intent: safeFallback };
-    const deterministicClarification = clarificationFromDeterministic(deterministic);
-    if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? clarificationFallback();
-    return clarificationFallback();
+    return fallbackAfterModelFailure(deterministic, snapshot, options);
   }
 
   let parsed: unknown;
@@ -526,14 +672,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
-    const safeFallback = isSafeDeterministic(deterministic) && (deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent")
-      ? deterministic
-      : null;
-    if (safeFallback) return { status: "deterministic", intent: safeFallback };
-    const deterministicClarification = clarificationFromDeterministic(deterministic);
-    if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? clarificationFallback();
-    return clarificationFallback();
+    return fallbackAfterModelFailure(deterministic, snapshot, options);
   }
 
   emitMasterTurnDiagnostic(options?.diagnostics, {
@@ -555,10 +694,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
-    const deterministicClarification = clarificationFromDeterministic(deterministic);
-    if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? clarificationFallback();
-    return clarificationFallback();
+    return fallbackAfterModelFailure(deterministic, snapshot, options);
   }
 
   const contextual = validateMasterTurnPlan({
@@ -574,10 +710,43 @@ export async function interpretMasterTurn(
   if (contextual.status === "clarification") {
     return { status: "clarification", question: contextual.question, options: contextual.options };
   }
+  return fallbackAfterModelFailure(deterministic, snapshot, options);
+}
+
+/**
+ * Shared degraded-model fallback (plan_9 §2): pronoun-bound replicas ask
+ * specifically; structurally broken proposals clarify through the same
+ * structural validator the fast path uses (so a degraded model never
+ * executes what the fast path would clarify, e.g. "ждать дверь"); safe
+ * proposals execute; speak/call binds its addressee deterministically or
+ * clarifies through the taxonomy; deterministic clarifications survive;
+ * only the true remainder hits the generic last resort (diagnosed as a
+ * defect).
+ */
+function fallbackAfterModelFailure(
+  deterministic: ReturnType<typeof parseIntent>,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome {
   if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
+  if (
+    deterministic.type === "ActionIntentCommand"
+    || deterministic.type === "InteractionCommand"
+    || deterministic.type === "JourneyIntent"
+  ) {
+    const structural = validateActionProposal(deterministic);
+    if (!structural.ok) {
+      return {
+        status: "clarification",
+        question: structural.clarification,
+        options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
+      };
+    }
+    if (isSafeDeterministic(deterministic)) return { status: "deterministic", intent: deterministic };
+  }
   const deterministicClarification = clarificationFromDeterministic(deterministic);
-  if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? clarificationFallback();
-  return clarificationFallback();
+  if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? genericFallback(options);
+  return speakAddresseeFallback(deterministic, snapshot, options) ?? genericFallback(options);
 }
 
 function mapLegacyFallback(result: { readonly status: string; readonly question?: string; readonly options?: readonly { readonly optionId: string; readonly label: string }[]; readonly message?: string; readonly intent?: ExecutableIntent }): MasterTurnGatewayOutcome | null {

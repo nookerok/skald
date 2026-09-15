@@ -23,6 +23,12 @@ export interface JournalTurn {
    * timestamp batch whose response spans multiple correlations.
    */
   readonly correlationId?: string | undefined;
+  /**
+   * True when every event in the turn is an offline player tick (advance /
+   * absence): world development with no authoring player replica. The feed
+   * renders such turns as a scene separator, never as an answer.
+   */
+  readonly autonomous?: boolean | undefined;
   readonly presentation: TurnPresentation;
   readonly sourceEventIds: readonly string[];
   /**

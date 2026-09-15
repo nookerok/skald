@@ -49,7 +49,7 @@ describe("multi-world persistence migration", () => {
     store.close();
 
     const reopened = new DatabaseSync(dbPath);
-    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 12 });
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 13 });
     expect(reopened.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
     // observer_checkpoints must exist after the chained v3→v4 migration
     const tables = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='observer_checkpoints'").all() as { name: string }[];
@@ -80,10 +80,13 @@ describe("multi-world persistence migration", () => {
     store.close();
 
     const reopened = new DatabaseSync(dbPath);
-    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 12 });
+    expect(reopened.prepare("PRAGMA user_version").get()).toEqual({ user_version: 13 });
     // world_creation_requests table should exist (verify by reading schema)
     const tables = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='world_creation_requests'").all() as { name: string }[];
     expect(tables.length).toBe(1);
+    // v12→v13 adds the idempotent response envelopes on old databases too
+    const envelopes = reopened.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='command_responses'").all() as { name: string }[];
+    expect(envelopes.length).toBe(1);
     reopened.close();
   });
 });

@@ -131,7 +131,7 @@ describe("master turn contextual validation", () => {
       goal: "разглядеть детали",
     });
     expect(result.plan.execution?.intent.interpretation.source).toBe("llm");
-    expect(result.plan.postActionInquiry).toBeNull();
+    expect(result.plan.postActionInquiries).toEqual([]);
     expect(result.plan.metaInquiry).toBeNull();
     expect(result.plan.focus).toContainEqual({ observerRef: target.observerRef, surface: target.surface, kind: "target" });
   });
@@ -264,7 +264,7 @@ describe("master turn contextual validation", () => {
     expect(result.status).toBe("accepted");
     if (result.status !== "accepted") return;
     expect(result.plan.execution?.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach" });
-    expect(result.plan.postActionInquiry?.queryId).toBe("visible_scene");
+    expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
     expect(result.plan.deferredClauses).toEqual([{ text: "осмотреть лагерь", reason: "secondary_action" }]);
   });
 
@@ -286,7 +286,60 @@ describe("master turn contextual validation", () => {
     expect(result.status).toBe("accepted");
     if (result.status !== "accepted") return;
     expect(result.plan.execution).toBeNull();
-    expect(result.plan.postActionInquiry?.queryId).toBe("visible_scene");
+    expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
+  });
+
+  it("validates every supporting question of a mixed turn (plan_9 §1)", () => {
+    const { world, scene, target } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: {
+        schemaVersion: 2,
+        kind: "mixed",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю" },
+        question: { queryId: "available_routes" },
+        supportingClauses: [
+          { kind: "question", queryId: "visible_scene" },
+          { kind: "question", queryId: "environmental_indication", focus: { surface: "факел", role: "target" } },
+        ],
+        target: { ...target },
+        referents: [{ ...target }],
+      } as TurnProposalV2,
+      scene,
+      world,
+      rawText: "осматриваю факел, куда идти и что вокруг?",
+    });
+
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") return;
+    expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual([
+      "available_routes",
+      "visible_scene",
+      "environmental_indication",
+    ]);
+  });
+
+  it("clarifies the one bad question without sinking the rest (plan_9 §1)", () => {
+    const { world, scene, target } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: {
+        schemaVersion: 2,
+        kind: "mixed",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю" },
+        question: { queryId: "available_routes" },
+        supportingClauses: [
+          { kind: "question", queryId: "visible_scene", focus: { observerRef: "object_99", surface: "Невидимая башня", role: "target" } },
+        ],
+        target: { ...target },
+        referents: [{ ...target }],
+      } as TurnProposalV2,
+      scene,
+      world,
+      rawText: "осматриваю факел, куда идти и что за башней?",
+    });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toContain("Невидимая башня");
   });
 
   it("maps speech with a known addressee to the communicate pipeline", () => {

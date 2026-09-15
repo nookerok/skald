@@ -8,12 +8,14 @@ function createElement(tag) {
     textContent: "",
     hidden: false,
     children: [],
+    attributes: {},
     scrollHeight: 0,
     scrollTop: 0,
     append(...nodes) { this.children.push(...nodes.filter(Boolean)); },
     appendChild(node) { this.children.push(node); },
     replaceChildren(...nodes) { this.children = nodes.filter(Boolean); },
-    setAttribute() {},
+    setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return this.attributes[name] ?? null; },
     addEventListener() {},
     querySelector() { return null; },
     querySelectorAll() { return []; },
@@ -244,5 +246,192 @@ describe("Chronicle Feed (ADR-0024) — session intent helpers", () => {
     expect(mod.getLocalIntents()).toEqual([{ worldTime: 9, text: "Осмотреться" }]);
     mod.clearLocalIntents();
     expect(mod.getLocalIntents()).toEqual([]);
+  });
+});
+
+describe("Chronicle Feed (plan_9 §6-7) — turn keys, pairing, autonomy", () => {
+  let doc;
+  beforeEach(() => {
+    doc = createDocument();
+    vi.stubGlobal("document", doc);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function journalTurn(time, text, extra = {}) {
+    return {
+      worldTime: time,
+      turnHandle: "jh-" + time,
+      narrationHandle: "nh-" + time,
+      presentation: {
+        response: null,
+        primary: { text, discoveryMark: null, sourceEventIds: ["event-" + time] },
+        notable: [],
+        background: [],
+      },
+      ...extra,
+    };
+  }
+
+  function masterTurn(time, kind, text, extra = {}) {
+    return {
+      turnSeq: time,
+      worldId: "world",
+      correlationId: "cmd-" + time,
+      idempotencyKey: "key-" + time,
+      playerText: "реплика " + time,
+      inputClass: kind === "mixed" ? "mixed" : kind === "speech" ? "speech" : "action",
+      worldTimeBefore: time - 1,
+      worldTimeAfter: time,
+      responseKind: kind === "mixed" ? "mixed_outcome" : kind === "speech" ? "speech_reaction" : "action_outcome",
+      responseText: text,
+      createdAt: time,
+      turnKey: "tk-" + time,
+      narrationHandle: "nh-" + time,
+      ...extra,
+    };
+  }
+
+  it("stamps stable player-safe turn keys on both bubbles", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([journalTurn(4, "Ты осматриваешь двор.")], [masterTurn(4, "action", "Ты осматриваешь двор.")], [], null);
+    const player = doc.feed.children[0];
+    const master = doc.feed.children[1];
+    expect(player.attributes["data-turn-key"]).toBe("tk-4");
+    expect(master.attributes["data-turn-key"]).toBe("tk-4");
+  });
+
+  it("pairs one mixed turn into a single master bubble", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([journalTurn(5, "Ты осматриваешь двор.")], [masterTurn(5, "mixed", "Ты осматриваешь двор. Виден путь.")], [], null);
+    const rendered = allText(doc.feed);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(rendered.match(/Ты осматриваешь двор\. Виден путь\./g)).toHaveLength(1);
+  });
+
+  it("pairs one speech turn into a single master bubble", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([journalTurn(6, "Перевозчик кивает.")], [masterTurn(6, "speech", "Перевозчик кивает.")], [], null);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed).match(/Перевозчик кивает\./g)).toHaveLength(1);
+  });
+
+  it("never time-pairs a mixed turn with an unrelated journal turn", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const mixed = { ...masterTurn(7, "mixed", "Смешанный ответ."), narrationHandle: undefined, correlationId: undefined };
+    renderChatFeed([journalTurn(7, "Отдельный ход мира.")], [mixed], [], null);
+    // Player bubble + its own master bubble + the unrelated journal bubble.
+    expect(doc.feed.children).toHaveLength(3);
+    expect(allText(doc.feed).match(/Смешанный ответ\./g)).toHaveLength(1);
+    expect(allText(doc.feed)).toContain("Отдельный ход мира.");
+  });
+
+  it("collapses an autonomous run into one separator, never an answer", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const auto = (time, text) => ({ ...journalTurn(time, text), autonomous: true });
+    renderChatFeed(
+      [journalTurn(3, "Ты в пути."), auto(4, "Время идёт."), auto(5, "Время идёт."), journalTurn(6, "Ты прибыл.")],
+      [], [], null,
+    );
+    const rendered = allText(doc.feed);
+    expect(doc.feed.children).toHaveLength(3);
+    const separator = doc.feed.children[1];
+    expect(separator.className).toContain("chat-autonomous");
+    expect(allText(separator)).toContain("Пока ты был в пути");
+    // One collapsed line for the whole run, not one bubble per tick.
+    expect(rendered.match(/Время идёт\./g)).toHaveLength(1);
+    expect(separator.attributes["data-turn-key"]).toBe("jh-4");
+  });
+
+  it("keeps autonomous notable signals inside the separator", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const turn = { ...journalTurn(4, "Время идёт."), autonomous: true };
+    turn.presentation.notable = [{ text: "Вода поднялась." }];
+    renderChatFeed([turn], [], [], null);
+    expect(allText(doc.feed)).toContain("Пока ты был в пути");
+    expect(allText(doc.feed)).toContain("Вода поднялась.");
+  });
+});
+
+describe("Chronicle Feed — confirmed master pairs (one input, one MasterTurn)", () => {
+  let doc;
+  beforeEach(async () => {
+    doc = createDocument();
+    vi.stubGlobal("document", doc);
+    const mod = await import("../public/chat-feed-view.js");
+    mod.clearLocalIntents();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function confirmed(time, text) {
+    return {
+      turnSeq: time,
+      worldId: "world",
+      correlationId: "cmd-" + time,
+      idempotencyKey: "key-" + time,
+      playerText: "реплика " + time,
+      inputClass: "action",
+      worldTimeBefore: time - 1,
+      worldTimeAfter: time,
+      responseKind: "action_outcome",
+      responseText: text,
+      createdAt: time,
+      turnKey: "tk-" + time,
+      narrationHandle: "nh-" + time,
+    };
+  }
+
+  function masterEnvelope(time) {
+    return { turnKey: "tk-" + time, kind: "action_outcome", worldTimeBefore: time - 1, worldTimeAfter: time, deterministicText: "x", narration: { status: "pending" } };
+  }
+
+  it("rejects pairs that cannot be keyed to one MasterTurn", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    expect(mod.upsertConfirmedPair(null, masterEnvelope(4))).toBeNull();
+    expect(mod.upsertConfirmedPair(confirmed(4, "Ответ."), null)).toBeNull();
+    expect(mod.upsertConfirmedPair(confirmed(4, "Ответ."), { turnKey: "tk-other" })).toBeNull();
+    expect(mod.getConfirmedPairs()).toEqual([]);
+  });
+
+  it("renders the accepted pair before the journal GET succeeds", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    mod.upsertConfirmedPair(confirmed(4, "Ты осматриваешь двор."), masterEnvelope(4));
+    // The journal request failed: latestJournal stays null, yet the
+    // deterministic answer from the command response must be visible.
+    mod.renderChatFeed(null);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed.children[0])).toContain("реплика 4");
+    expect(allText(doc.feed.children[1])).toContain("Ты осматриваешь двор.");
+    expect(doc.feed.children[0].attributes["data-turn-key"]).toBe("tk-4");
+    expect(doc.feed.children[1].attributes["data-turn-key"]).toBe("tk-4");
+  });
+
+  it("hydration confirms the same pair instead of duplicating it", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    mod.upsertConfirmedPair(confirmed(4, "Ты осматриваешь двор."), masterEnvelope(4));
+    mod.renderChatFeed(null);
+    expect(doc.feed.children).toHaveLength(2);
+    const journalTurn = {
+      worldTime: 4,
+      turnHandle: "jh-4",
+      narrationHandle: "nh-4",
+      presentation: {
+        response: null,
+        primary: { text: "Ты осматриваешь двор.", discoveryMark: null, sourceEventIds: ["event-4"] },
+        notable: [],
+        background: [],
+      },
+    };
+    mod.renderChatFeed([journalTurn], [confirmed(4, "Ты осматриваешь двор.")], [], null);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed).match(/Ты осматриваешь двор\./g)).toHaveLength(1);
+    expect(doc.feed.children[1].attributes["data-turn-key"]).toBe("tk-4");
+  });
+
+  it("drops confirmed pairs on world switch", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    mod.upsertConfirmedPair(confirmed(4, "Ответ."), masterEnvelope(4));
+    expect(mod.getConfirmedPairs()).toHaveLength(1);
+    mod.clearLocalIntents();
+    expect(mod.getConfirmedPairs()).toEqual([]);
   });
 });

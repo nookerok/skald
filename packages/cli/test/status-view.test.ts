@@ -113,26 +113,20 @@ describe("status-view", () => {
       expect(statusEl.textContent).toBe("Ошибка — перезагрузите страницу.");
     });
 
-    it("sets aria-busy on controls during PENDING", () => {
+    it("never touches controls busy state (composer-state owns it)", () => {
+      // renderStatus owns status text only; aria-busy and disabled flags are
+      // owned exclusively by the atomic composer setter (plan_9 §8), so two
+      // writers can never split the composer again.
       renderStatus({ application: APP.READY, command: CMD.PENDING });
-      expect(controlsEl._attrs["aria-busy"]).toBe("true");
-    });
-
-    it("clears aria-busy on controls when IDLE", () => {
-      renderStatus({ application: APP.READY, command: CMD.IDLE });
-      expect(controlsEl._attrs["aria-busy"]).toBe("false");
-    });
-
-    it("leaves disabled state to the atomic composer setter", () => {
-      // renderStatus owns aria-busy only; ui-state setComposerBusy owns every
-      // disabled flag, so two writers can never split the composer again.
-      renderStatus({ application: APP.READY, command: CMD.PENDING });
+      expect(controlsEl._attrs["aria-busy"]).toBeUndefined();
       expect(btnMocks.every((b) => b.disabled)).toBe(false);
 
       renderStatus({ application: APP.BOOTING, command: CMD.IDLE });
+      expect(controlsEl._attrs["aria-busy"]).toBeUndefined();
       expect(btnMocks.every((b) => b.disabled)).toBe(false);
 
       renderStatus({ application: APP.RECONNECTING, command: CMD.IDLE });
+      expect(controlsEl._attrs["aria-busy"]).toBeUndefined();
       expect(btnMocks.every((b) => b.disabled)).toBe(false);
     });
   });

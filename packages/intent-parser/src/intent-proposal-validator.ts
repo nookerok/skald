@@ -210,6 +210,14 @@ function validateTarget(
     };
   }
 
+  if (proposal.type === "InteractionCommand" && proposal.verb === "give" && target && !proposal.secondaryTarget) {
+    return {
+      ok: false,
+      reason: "missing_target",
+      clarification: `Кому отдать «${target}»? Укажи получателя.`,
+    };
+  }
+
   if (target) {
     if (PUNCTUATION_ONLY.test(target)) {
       return {
@@ -254,6 +262,13 @@ function getInfinitive(action: InteractionVerb | IntentOperation): string {
     case "use": return "использовать";
     case "approach": return "подойти";
     case "enter": return "войти";
+    case "wait": return "ждать";
+    case "speak": return "говорить";
+    case "call": return "позвать";
+    case "interrupt": return "остановиться";
+    case "heat": return "нагреть";
+    case "cool": return "остудить";
+    case "create_mark": return "оставить знак";
     default: return "выполнить действие";
   }
 }

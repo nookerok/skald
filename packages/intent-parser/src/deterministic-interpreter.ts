@@ -293,6 +293,8 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "идёт", mode: "travel", operation: "travel", target: "required" },
   { verb: "идете", mode: "travel", operation: "travel", target: "required" },
   { verb: "иду", mode: "travel", operation: "travel", target: "required" },
+  { verb: "иди", mode: "travel", operation: "travel", target: "required" },
+  { verb: "идите", mode: "travel", operation: "travel", target: "required" },
   { verb: "go", mode: "travel", operation: "travel", target: "required" },
   { verb: "walk", mode: "travel", operation: "travel", target: "required" },
   { verb: "travel", mode: "travel", operation: "travel", target: "required" },
@@ -1039,10 +1041,14 @@ export function interpretIntent(
   }
 
   if (verb.operation === "wait") {
+    // Waiting takes no target: keep the tail so structural validation can
+    // clarify it ("жди меня" asks, never silently drops "меня").
+    const tail = extractTarget(afterVerb);
     return {
       type: "ActionIntentCommand",
       mode: "wait",
       operation: "wait",
+      ...(tail ? { target: tail } : {}),
       rawText,
       interpretation: { source: "deterministic", confidence: 0.9, ambiguities: [] },
     };
