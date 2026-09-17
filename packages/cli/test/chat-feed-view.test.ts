@@ -100,15 +100,15 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(allText(feed.children[1])).toContain("Ты перемещаешься: Переправа.");
   });
 
-  it("renders the deterministic master response before optional narrative prose", async () => {
+  it("replaces the deterministic answer with ready narration in the same bubble (review P1)", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const item = turn(5, "Ты осматриваешь двор.");
     item.narrativeLLM = { text: "Пыльный двор раскрывается в вечернем свете.", usedFallback: false };
     renderChatFeed([item], []);
     const children = doc.feed.children[0].children;
-    expect(children[1].className).toBe("chat-world-primary");
-    expect(children[1].textContent).toContain("Ты осматриваешь двор.");
-    expect(children[2].className).toBe("chat-world-narrated");
+    expect(children[1].className).toBe("chat-world-narrated");
+    expect(children[1].textContent).toContain("Пыльный двор раскрывается в вечернем свете.");
+    expect(allText(doc.feed)).not.toContain("Ты осматриваешь двор.");
   });
 
   it("renders a single bubble when narration duplicates the outcome", async () => {
@@ -120,14 +120,29 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(text.match(/Перед тобой нет свободного прохода/g)).toHaveLength(1);
   });
 
-  it("keeps both paragraphs when narration expands the outcome", async () => {
+  it("replaces the deterministic text even when narration expands the outcome (review P1)", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const item = turn(5, "Небольшой путевой двор у реки и кромки леса.");
     item.narrativeLLM = { text: "Взору открылся небольшой путевой двор. Двор располагался у реки и кромки леса.", usedFallback: false };
     renderChatFeed([item], []);
     const text = allText(doc.feed);
-    expect(text).toContain("Небольшой путевой двор у реки и кромки леса.");
+    expect(text).not.toContain("Небольшой путевой двор у реки и кромки леса.");
     expect(text).toContain("Взору открылся небольшой путевой двор.");
+  });
+
+  it("keeps the deterministic answer while narration is pending or unavailable (review P1)", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const pending = turn(5, "Ты осматриваешь двор.");
+    pending.narrationState = "pending";
+    renderChatFeed([pending], []);
+    expect(allText(doc.feed)).toContain("Ты осматриваешь двор.");
+
+    const failed = turn(6, "Ты слушаешь реку.");
+    failed.narrativeLLM = { text: "", usedFallback: true };
+    renderChatFeed([failed], []);
+    const failedBubble = doc.feed.children[0];
+    expect(allText(failedBubble)).toContain("Ты слушаешь реку.");
+    expect(failedBubble.children.map((child) => child.className)).not.toContain("chat-world-narrated");
   });
 
   it("keeps the newest journal window and renders it chronologically", async () => {

@@ -1,3 +1,19 @@
+# Current work (2026-09-16 — REVISE-2 two observations fixed, gate PASS; uncommitted)
+
+- P1 narration replaces deterministic: `replaceWithNarration` renders the
+  ready narrative INSTEAD of the outcome in the same bubble (single +
+  chain); pending/unavailable keep the deterministic text. Old
+  both-paragraphs tests rewritten to the new contract.
+- P2 «Кто рядом?» dedupes by observerRef, then normalized label; distinct
+  same-named people render with ordinal distinguishers («X» (первый),
+  «X» (второй)), never silently merged. Person entries carry no alias
+  data (knownAs=[label]), so ordinals are the only honest player-safe
+  distinguisher available at scene level.
+- `npm run validate` PASS (193 files / 2501 passed, adventure, canon,
+  diff-check). Uncommitted. Next: commit → push → Orange Pi deploy →
+  smoke → resend scratch browser QA once the fixed task recovers
+  (BLOCKED on the runner side, not the app).
+
 # Current work (2026-09-16 — review batch 8b0912b deployed, smoke PASS; CLOSED)
 
 - Commit `8b0912b` (46 files; subject truncated to `review:` by shell

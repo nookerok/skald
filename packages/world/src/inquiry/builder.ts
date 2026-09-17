@@ -192,21 +192,57 @@ function buildMapPosition(_request: InquiryRequest, context: InquiryReadContext)
   return answer("map_position", `Маркер на карте показывает последнюю подтверждённую тобой позицию — «${locationName(shell)}». Неизвестные участки остаются скрыты туманом, пока у тебя нет наблюдения о них.`, shell);
 }
 
+/** Ordinals for same-named distinct people (at most five names render). */
+const PERSON_ORDINALS: readonly string[] = ["первый", "второй", "третий", "четвёртый", "пятый"];
+
+function normalizePersonLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/ё/gu, "е").replace(/\s+/gu, " ");
+}
+
 /**
  * Answers "who is nearby" from observer-safe scene people only: labels the
  * player already knows, never hidden entities. Falls back to background
  * relations only when no scene was passed (never invents presence).
+ * One character arriving through several read-side sources renders once:
+ * exact observerRef duplicates collapse, then normalized labels. Distinct
+ * entities sharing one name are never silently merged — each keeps a
+ * player-safe ordinal distinguisher.
  */
 function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   const { shell } = context;
-  const people = [...(context.scene?.knownPeople ?? [])]
-    .map((person) => person.label.trim())
-    .filter((label) => label.length > 0);
-  if (people.length === 0) {
+  const seenRefs = new Set<string>();
+  const groups = new Map<string, { label: string; count: number }>();
+  const order: string[] = [];
+  for (const person of context.scene?.knownPeople ?? []) {
+    if (seenRefs.has(person.observerRef)) continue;
+    seenRefs.add(person.observerRef);
+    const label = person.label.trim();
+    if (label.length === 0) continue;
+    const key = normalizePersonLabel(label);
+    const group = groups.get(key);
+    if (group) {
+      group.count += 1;
+    } else {
+      groups.set(key, { label, count: 1 });
+      order.push(key);
+    }
+  }
+  if (order.length === 0) {
     return answer("who_is_nearby", "Рядом с тобой сейчас никого различимого нет. Осмотрись действием — может, кто-то покажется.", shell);
   }
-  const list = people.slice(0, 5).map((label) => `«${label}»`).join(", ");
-  return answer("who_is_nearby", `Рядом с тобой: ${list}.`, shell);
+  const parts: string[] = [];
+  for (const key of order) {
+    const group = groups.get(key)!;
+    if (group.count === 1) {
+      if (parts.length < 5) parts.push(`«${group.label}»`);
+    } else {
+      for (let index = 0; index < group.count && parts.length < 5; index += 1) {
+        parts.push(`«${group.label}» (${PERSON_ORDINALS[index] ?? "ещё один"})`);
+      }
+    }
+    if (parts.length >= 5) break;
+  }
+  return answer("who_is_nearby", `Рядом с тобой: ${parts.join(", ")}.`, shell);
 }
 
 /** Default water/river keywords when the question names no focus. */

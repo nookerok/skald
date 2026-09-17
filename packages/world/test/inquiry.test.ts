@@ -143,6 +143,35 @@ describe("who is nearby", () => {
 
     expect(result.answer).toMatch(/никого различимого нет/);
   });
+
+  it("renders one character arriving through several sources once (review P2)", () => {
+    const { shell, background } = context();
+    const scene = {
+      knownPeople: [
+        { observerRef: "person_1", kind: "person" as const, label: "Перевозчик у переправы", knownAs: ["Перевозчик у переправы"] },
+        { observerRef: "person_1", kind: "person" as const, label: "Перевозчик у переправы", knownAs: ["Перевозчик у переправы"] },
+        { observerRef: "person_3", kind: "person" as const, label: "Страж", knownAs: ["Страж"] },
+      ],
+    } as any;
+    const result = buildInquiryAnswer(whoRequest(), { shell, background, scene });
+
+    expect(result.answer.match(/Перевозчик у переправы/g)).toHaveLength(1);
+    expect(result.answer).toContain("Страж");
+  });
+
+  it("marks distinct same-named people instead of merging them silently (review P2)", () => {
+    const { shell, background } = context();
+    const scene = {
+      knownPeople: [
+        { observerRef: "person_1", kind: "person" as const, label: "Ночной перевозчик", knownAs: ["Ночной перевозчик"] },
+        { observerRef: "person_2", kind: "person" as const, label: "Ночной перевозчик", knownAs: ["Ночной перевозчик"] },
+      ],
+    } as any;
+    const result = buildInquiryAnswer(whoRequest(), { shell, background, scene });
+
+    expect(result.answer).toContain("«Ночной перевозчик» (первый)");
+    expect(result.answer).toContain("«Ночной перевозчик» (второй)");
+  });
 });
 
 describe("environmental indication", () => {

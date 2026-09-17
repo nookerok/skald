@@ -198,23 +198,16 @@ function normalizeBubbleText(value) {
 }
 
 /**
- * One stable master bubble: when the narrated decoration says the same as
- * the deterministic outcome (equal or contained after normalization), only
- * the longer original renders. Genuine expansions keep both paragraphs.
+ * Narration replacement (review P1): a ready narration IS the master
+ * replica in the same bubble — it replaces the deterministic outcome
+ * text instead of doubling it. Pending or unavailable narration keeps the
+ * deterministic text (callers pass "" for those states).
  */
-function dedupeNarratedText(responseText, narrativeText) {
+function replaceWithNarration(responseText, narrativeText) {
   const response = String(responseText || "");
   const narrated = String(narrativeText || "");
-  if (!response || !narrated) return { primary: response, narrated };
-  const left = normalizeBubbleText(response);
-  const right = normalizeBubbleText(narrated);
-  if (!left || !right) return { primary: response, narrated };
-  if (left === right || left.includes(right) || right.includes(left)) {
-    return narrated.length >= response.length
-      ? { primary: "", narrated }
-      : { primary: response, narrated: "" };
-  }
-  return { primary: response, narrated };
+  if (!normalizeBubbleText(narrated)) return { primary: response, narrated: "" };
+  return { primary: "", narrated };
 }
 
 function turnNode(turn, conversationTurn = null) {
@@ -229,7 +222,7 @@ function turnNode(turn, conversationTurn = null) {
   const narrative = turn.narrativeLLM;
   const response = conversationTurn ? { text: conversationTurn.responseText, kind: conversationTurn.responseKind } : presentation.response || null;
   const primary = presentation.primary || null;
-  const merged = dedupeNarratedText(response?.text || primary?.text || "", narrative && !narrative.usedFallback ? narrative.text || "" : "");
+  const merged = replaceWithNarration(response?.text || primary?.text || "", narrative && !narrative.usedFallback ? narrative.text || "" : "");
   // Suppressed primary stays suppressed: fall back to the presentation
   // primary only when narration added nothing either.
   const responseText = merged.primary || (merged.narrated ? "" : primary?.text || "");
@@ -321,7 +314,7 @@ function chainTurnNode(unit) {
       ? { text: unit.conversation.responseText, kind: unit.conversation.responseKind }
       : presentation.response || null;
     const primary = presentation.primary || null;
-    return dedupeNarratedText(response?.text || primary?.text || "", narrative && !narrative.usedFallback ? narrative.text || "" : "");
+    return replaceWithNarration(response?.text || primary?.text || "", narrative && !narrative.usedFallback ? narrative.text || "" : "");
   });
   const primaryText = dedupeChainParts(parts.map((part) => part.primary)).join(" ");
   // Suppressed primary stays suppressed: fall back to member primaries
