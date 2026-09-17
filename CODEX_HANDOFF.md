@@ -1,3 +1,23 @@
+# Current work (2026-09-16 — REVISE-2 batch 376fc29 deployed, smoke PASS; CLOSED)
+
+- Commit `376fc29` (`review:narration-replaces-whoisnearby-dedup`, 5
+  files) pushed, `main == origin/main`. `npm run validate` PASS before
+  commit (193 files / 2501 passed, adventure, canon, diff-check).
+- Orange Pi update via `$skald-orange-pi-deploy` as `nooker`: remote
+  clean on `8b0912b`, service active, restricted restart verified;
+  updater fast-forwarded to `376fc29`, on-device build+tests PASS,
+  restart + health gate PASS, AI readiness `degraded but playable`.
+- Post-deploy confirm: remote commit == `376fc29`, service + timers
+  active, `/api/health` 200 ok (fresh restart).
+- Smoke PASS on scratch world `world-33136c11` (keeper /
+  river_waystation_arrival): create 201, 9/10 turns tick exactly +1
+  (T0→T9) with non-null primaries, bare «поздороваться» honestly
+  clarifies with a frozen world, envelope replay ok, `/api/health` 200,
+  scoped `/api/state` matches final T9.
+- Open: resend the same 25-replica scratch browser QA through
+  `$skald-ntfs-browser-qa` once the fixed task recovers from its hung
+  turn (BLOCKED runner-side), plus the live 20–30 replica human eval.
+
 # Current work (2026-09-16 — REVISE-2 two observations fixed, gate PASS; uncommitted)
 
 - P1 narration replaces deterministic: `replaceWithNarration` renders the
