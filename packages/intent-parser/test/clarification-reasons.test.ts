@@ -39,6 +39,15 @@ describe("clarification taxonomy (plan_9 §2)", () => {
       .toEqual(["осмотреть двор", "идти к реке"]);
   });
 
+  it("carries the executable text on conflicting-action options (review P1)", () => {
+    const options = conflictingActions(["осмотреть двор", "идти к реке"]).options;
+    expect(options.map((o) => o.optionId)).toEqual(["deterministic-1", "deterministic-2"]);
+    expect(options.map((o) => o.intentPatch)).toEqual([
+      { actionText: "осмотреть двор" },
+      { actionText: "идти к реке" },
+    ]);
+  });
+
   it("detects every known last-resort wording", () => {
     expect(GENERIC_FALLBACK_TEXTS.length).toBeGreaterThan(0);
     for (const text of GENERIC_FALLBACK_TEXTS) {

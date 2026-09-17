@@ -10,6 +10,7 @@ import {
   parseConversationMemoryMetadata,
   serializeConversationMemoryMetadata,
   type ConversationMemoryMetadataV1,
+  type FramedClarification,
 } from "../src/conversation/types.js";
 
 function tmpDb(): string {
@@ -258,6 +259,76 @@ describe("conversation memory metadata", () => {
     })).toEqual({
       schemaVersion: 1,
       clarification: { question: "Кто?", options: [{ optionId: "rephrase", label: "Уточнить" }] },
+    });
+  });
+
+  describe("framed clarification options (review P1)", () => {
+    const framed: FramedClarification = {
+      slot: "target",
+      revision: { worldTime: 4, eventNumber: 41 },
+      proposal: {
+        schemaVersion: 2,
+        kind: "action",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю" },
+        supportingClauses: [],
+        target: { role: "target", surface: "ней" },
+        referents: [{ role: "target", surface: "ней" }],
+      },
+    };
+
+    it("round-trips option refs, action patches and framed candidates", () => {
+      const metadata = buildTurnMemoryMetadata({
+        clarification: {
+          question: "К ограде или ко двору?",
+          options: [
+            { optionId: "option-1", label: "Ограда", referentRefs: ["object_1"] },
+            { optionId: "option-2", label: "Двор" },
+            { optionId: "deterministic-1", label: "ищу следы", intentPatch: { actionText: "ищу следы" } },
+          ],
+          framed,
+        },
+      });
+      const encoded = serializeConversationMemoryMetadata(metadata);
+      expect(encoded).not.toBeNull();
+      expect(parseConversationMemoryMetadata(encoded)).toEqual(metadata);
+    });
+
+    it("rejects malformed refs, patches and framed candidates fail-closed", () => {
+      expect(parseConversationMemoryMetadata({
+        schemaVersion: 1,
+        clarification: {
+          question: "Куда?",
+          options: [{ optionId: "option-1", label: "Туда", referentRefs: [] }],
+        },
+      })).toBeNull();
+      expect(parseConversationMemoryMetadata({
+        schemaVersion: 1,
+        clarification: {
+          question: "Куда?",
+          options: [{ optionId: "option-1", label: "Туда", intentPatch: {} }],
+        },
+      })).toBeNull();
+      expect(parseConversationMemoryMetadata({
+        schemaVersion: 1,
+        clarification: {
+          question: "Куда?",
+          options: [{ optionId: "option-1", label: "Туда" }],
+          framed: { slot: "target", revision: { worldTime: 1, eventNumber: 2 } },
+        },
+      })).toBeNull();
+      expect(parseConversationMemoryMetadata({
+        schemaVersion: 1,
+        clarification: {
+          question: "Куда?",
+          options: [{ optionId: "option-1", label: "Туда" }],
+          framed: {
+            slot: "target",
+            revision: { worldTime: 1, eventNumber: 2 },
+            proposal: framed.proposal,
+            intent: { type: "Unknown" },
+          },
+        },
+      })).toBeNull();
     });
   });
 

@@ -1,3 +1,103 @@
+# Current work (2026-09-16 — REVISE verdict worked off, gate PASS; uncommitted)
+
+- All five review items implemented, `npm run validate` PASS (full unit
+  suite 193 files / 2496 passed, typecheck, Canon, simulation, evals,
+  38-beat adventure, diff-check). Uncommitted, not deployed; production
+  still `9d4f2fd`. User declined commit/push/deploy and browser QA for now.
+- P1-1 unified ClarificationOption: canonical `{optionId, label,
+  referentRefs?, intentPatch?}` in `intent-parser` (`optionId` is the id —
+  no rename churn); scene-aware producers attach refs (gateway pronoun
+  candidates, validator frame/advise candidates), `conflictingActions`
+  attaches executable `intentPatch`. Frame matches by data across ALL
+  option kinds (candidate-/option-/target-/deterministic-*) — the
+  `candidate-` prefix gate is gone; exact `rephrase` id never consumes.
+  Action patches run their own text (no compound re-loop); bare labels
+  without scene resolution fall through instead of misfiring.
+- P1-3 structured pending proposal: clarification metadata carries
+  `framed {slot, revision, proposal|intent}` (parser `inferAmbiguitySlot`,
+  gateway revision stamp, validator/preflight attach). An exact answer
+  patches the slot and revalidates (`validateMasterTurnPlan` /
+  `validateActionProposal`, try/catch, revision-freshness) with NO second
+  model call; stale shapes fall back to legacy re-interpretation.
+  `runCommandCycleForRuntime` failure arm is now `{response, framed?}`
+  (two call sites adapted). Prompts and HTTP wire carry labels only
+  (refs/patches/framed stay server-side; prompt sanitizer added).
+- P1-2 journey chain echo: chain-level post-assembly exact-dup suppression
+  (`dedupeChainParts`) + production-shaped regression test
+  (Started primary + null Advanced + echoed responseText → one replica;
+  verified to fail without the fix).
+- P2-4 Chronicle background: `hasSceneContent` counts background entries
+  and the scene body renders them (background-only scenes stay visible).
+- P2-5 restricted scene: one allowed-ref set now filters knownPeople,
+  visibleObjects, accessibleItems, knownRoutes, knownTopics + references.
+- Reviewer notes answered: full `npm run validate` completes locally
+  (their `helper_unknown_error` was environmental); browser QA still
+  requires commit/deploy first + an authorized click budget (20–25
+  replicas) — pending user go-ahead.
+
+# Current work (2026-09-16 — Browser-QA FAIL fixes complete, gate PASS; uncommitted)
+
+- FAIL verdict (`9d4f2fd`, scratch world, 20 replicas, 3/10) worked off, all
+  P0/P1/P2 code + tests done, `npm run validate` PASS (full unit suite,
+  typecheck, Canon, simulation, evals, adventure, diff-check) and the
+  38-beat `acceptance:adventure` PASS (exit 0, all checks incl.
+  `chronicle_has_adventure_arc`). Uncommitted, not deployed.
+- P0-1 one input = one MasterTurn: `JournalTurn.masterTurnKey`
+  (`computeMasterTurnKey` over the causal root) groups journal slices;
+  chat feed chains pair bubbles by masterTurnKey. Tests in
+  `journal.test.ts` + `chat-feed-view.test.ts`.
+- P0-2 ClarificationFrame: exact frame answers re-run the framed original
+  against a ref-restricted scene and close first-try with a `resolves`
+  link; ambiguous/none fall through. Correction during work: foreign
+  standalone turns carry NO link (an early `new_topic` tag wrongly closed
+  pending questions, breaking the plan_7 memory-acceptance test — legacy
+  close rules own that case). Frame tests in
+  `master-turn-gateway.test.ts` (incl. `matchFrameOption` units).
+- Exact-first binding hardened with a contiguous stem-phrase tier in both
+  `bindSpeakAddressee` and validator `bindSceneSurface` (bag overlap tied
+  on «К Ночному перевозчику…» with two ferrymen; the phrase disambiguates).
+  Tests in `master-turn-speak-binding.test.ts` + validator suite.
+- Compounds (QA turn-6 class): validator splits model surfaces into
+  `conflicting_actions` naming head+tail; deterministic preflight has the
+  same split as backstop; `ищ` added to both parser compound lists, so raw
+  «…и ищу…» clarifies at parse with the world frozen. Found while testing:
+  `\b` is ASCII-only in JS even with `u` — the splitter uses a Cyrillic
+  letter lookahead instead. Tests: validator suite, `open-intent.test.ts`,
+  `server.test.ts` (frozen world), `intent-gateway.test.ts` category
+  updated to `deterministic_clarification_fallback` (compound now detected
+  before the model round-trip).
+- Inquiry: «кто из людей», «что впереди», «куда отсюда», «что я знаю о X»
+  (+ focus surface) deterministic; water `observe` resolves to environment;
+  discovery RU copy for 5 region definitions; empty journal turns never
+  become chronicle scenes (`journal-view.js` filter + test).
+- Still open, needs explicit go-ahead: commit (plan_*.md stay untracked) →
+  push → Orange Pi deploy via `$skald-orange-pi-deploy` → scratch browser
+  QA via `$skald-ntfs-browser-qa` with an authorized click budget
+  (gameplay clicks mutate the canonical log) + live 20–30 replica eval.
+
+# Current work (2026-09-15 — plan_9 deployed as 9d4f2fd, smoke PASS; CLOSED)
+
+- Commit `9d4f2fd` ("plan_9: master-turn game loop end to end", 107
+  files) pushed; `main == origin/main`. plan_*.md stay untracked
+  working notes. SKILL.md Runner-v2 pointer rode along.
+- Orange Pi update via `$skald-orange-pi-deploy` as `nooker` (no sudo):
+  remote clean on `7e5bed7`, service active, restricted restart
+  permission verified; updater fast-forwarded to `9d4f2fd`, on-device
+  suite PASS (incl. 38-beat adventure), restart + health gate PASS,
+  readiness `degraded but playable` (accepted).
+- Live verification on final code: deployed commit == pushed commit;
+  `skald.service` + healthcheck + backup timers active; `/api/health`
+  200 ok; unscoped `/api/state` 404 `legacy-world` (pre-existing, no
+  primary entrypoint — scoped `/state` 200). Idempotent smoke on the
+  QA scratch world (`/api/continue` → world-1b23eeae): «осмотреться»
+  200 + live primary + state T7→T8, same-key replay 200 + replayed +
+  frozen log, stable masterTurn turnKey, narration pending. No
+  rollback; canonical player world untouched.
+- Open: scratch browser QA of `9d4f2fd` through
+  `$skald-ntfs-browser-qa` with an authorized click budget (needs user
+  go-ahead: gameplay clicks mutate the canonical log), plus the live
+  20–30 replica human eval.
+
 # Current work (2026-09-15 — REVISE follow-up: player-scoped firings + recoverable-finalize wording, gate PASS; uncommitted)
 
 - Firing ≠ noticed: `directorRecentConsequences` now admits a

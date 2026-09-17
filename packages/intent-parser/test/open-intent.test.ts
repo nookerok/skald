@@ -796,6 +796,7 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     "осматриваюсь и иду к реке",
     "слушаю перевозчика, потом перехожу мост",
     "сначала смотрю на воду, затем зову лодочника",
+    "Осматриваю мокрый настил у самой воды и ищу следы",
   ])("returns clarification for compound phrase: %j", (input) => {
     const result = interpretIntent(input);
     expect(result.type).toBe("ClarificationRequired");

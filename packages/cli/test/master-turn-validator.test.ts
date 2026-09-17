@@ -12,7 +12,7 @@ import {
   rebuildProjection,
 } from "@skald/world";
 import type { InteractionCommand, TurnProposalV2 } from "@skald/intent-parser";
-import { validateMasterTurnPlan } from "../src/runtime/master-turn-validator.js";
+import { bindSceneSurface, splitTargetCompound, validateMasterTurnPlan } from "../src/runtime/master-turn-validator.js";
 
 function livingWorld() {
   const events = buildBootstrapEvents({
@@ -553,5 +553,156 @@ describe("stale world revalidation", () => {
     });
 
     expect(result.status).toBe("clarification");
+  });
+});
+
+describe("surface-only model referents (review P1)", () => {
+  function surfaceProposal(surface: string): TurnProposalV2 {
+    const target = { role: "target" as const, observerRef: "", surface };
+    return {
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю" },
+      supportingClauses: [],
+      target: { ...target },
+      referents: [{ ...target }],
+    } as TurnProposalV2;
+  }
+
+  it("splits a compound target into a conflicting-actions clarification", () => {
+    const { world, scene } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: surfaceProposal("мокрый настил у самой воды и ищу следы"),
+      scene,
+      world,
+      rawText: "Осматриваю мокрый настил у самой воды и ищу следы.",
+    });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toBe("Что именно ты хочешь сделать?");
+    expect(result.options.map((option) => option.label)).toEqual([
+      "мокрый настил у самой воды",
+      "ищу следы",
+    ]);
+  });
+
+  it("binds a declined surface-only target exact-first", () => {
+    const { world, scene } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: surfaceProposal("факелом"),
+      scene,
+      world,
+      rawText: "Осматриваю факелом.",
+    });
+
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") return;
+    expect(result.plan.execution?.intent).toMatchObject({
+      type: "InteractionCommand",
+      target: { raw: "факел" },
+    });
+  });
+
+  it("binds a declined multi-word surface by contiguous phrase", () => {
+    const { world, scene } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: surfaceProposal("к Ночному факелу"),
+      scene,
+      world,
+      rawText: "Подхожу к Ночному факелу.",
+    });
+
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") return;
+    expect(result.plan.execution?.intent).toMatchObject({
+      type: "InteractionCommand",
+      target: { raw: "факел" },
+    });
+  });
+
+  it("never invents a target for an unknown surface", () => {
+    const { world, scene } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: surfaceProposal("дракон"),
+      scene,
+      world,
+      rawText: "Осматриваю дракона.",
+    });
+
+    expect(result.status).toBe("clarification");
+  });
+
+  it("attaches the structured candidate to model-reported ambiguity (review P1)", () => {
+    const { world, scene } = campWithPlacedTorch();
+    const result = validateMasterTurnPlan({
+      proposal: {
+        schemaVersion: 2,
+        kind: "action",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Осматриваю её." },
+        supportingClauses: [],
+        target: { role: "target", surface: "ней" },
+        referents: [{ role: "target", surface: "ней" }],
+        ambiguity: { kind: "referent", question: "К ограде или ко двору?", candidates: ["Ограда", "Двор"] },
+      } as TurnProposalV2,
+      scene,
+      world,
+      rawText: "Подойду к ней.",
+    });
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.options.map((option) => option.optionId)).toEqual(["option-1", "option-2"]);
+    expect(result.framed).toMatchObject({ slot: "target", revision: scene.context.revision });
+  });
+});
+
+describe("bindSceneSurface", () => {
+  const entries = [
+    { observerRef: "object_1", label: "Ограда", knownAs: ["ограду", "оградой"] },
+    { observerRef: "object_2", label: "Двор", knownAs: [] as string[] },
+  ];
+
+  it("binds exact labels and aliases first", () => {
+    expect(bindSceneSurface("Ограда", entries)).toMatchObject({ status: "unique", entry: { observerRef: "object_1" } });
+    expect(bindSceneSurface("оградой!", entries)).toMatchObject({ status: "unique", entry: { observerRef: "object_1" } });
+  });
+
+  it("binds a contiguous stem phrase over bag overlap", () => {
+    const people = [
+      { observerRef: "person_1", label: "Перевозчик у переправы", knownAs: [] as string[] },
+      { observerRef: "person_2", label: "Ночной перевозчик", knownAs: [] as string[] },
+    ];
+    expect(
+      bindSceneSurface("К Ночному перевозчику. Спрошу именно его.", people),
+    ).toMatchObject({ status: "unique", entry: { observerRef: "person_2" } });
+  });
+
+  it("stays ambiguous on a tied stem and absent without overlap", () => {
+    const twins = [
+      { observerRef: "person_1", label: "Ночной перевозчик", knownAs: [] as string[] },
+      { observerRef: "person_2", label: "Дневной перевозчик", knownAs: [] as string[] },
+    ];
+    const tied = bindSceneSurface("перевозчик", twins);
+    expect(tied.status).toBe("ambiguous");
+    if (tied.status !== "ambiguous") return;
+    expect([...tied.labels].sort()).toEqual(["Дневной перевозчик", "Ночной перевозчик"]);
+    expect(bindSceneSurface("дракон", entries)).toEqual({ status: "absent" });
+    expect(bindSceneSurface("", entries)).toEqual({ status: "absent" });
+  });
+});
+
+describe("splitTargetCompound", () => {
+  it("splits a second action clause off the head", () => {
+    expect(splitTargetCompound("мокрый настил у самой воды и ищу следы")).toEqual({
+      head: "мокрый настил у самой воды",
+      tail: "ищу следы",
+    });
+  });
+
+  it("returns null for a single clause", () => {
+    expect(splitTargetCompound("факел")).toBeNull();
+    expect(splitTargetCompound("")).toBeNull();
+    expect(splitTargetCompound("именно его, что случилось с переправой?")).toBeNull();
   });
 });

@@ -164,6 +164,7 @@ describe("plan_7 transcript memory acceptance", () => {
           { optionId: "option-2", label: "Двор" },
         ],
         turnSeq: 3,
+        originalInput: "Подойду к ней.",
       });
     } finally {
       reloadedStore.close();

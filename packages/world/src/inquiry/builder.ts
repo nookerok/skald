@@ -138,10 +138,23 @@ function buildCharacterIdentity(_request: InquiryRequest, context: InquiryReadCo
   return answer("character_identity", parts.join(" "), shell);
 }
 
-function buildKnownPlaceKnowledge(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+function buildKnownPlaceKnowledge(request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   const { shell } = context;
-  const known = shell.knowledge.entries.map((entry) => entry.text).filter(Boolean).slice(0, 5);
-  return answer("known_place_knowledge", known.length > 0 ? known.join(" ") : `Ты знаешь только то, что видишь у «${locationName(shell)}» прямо сейчас.`, shell);
+  const known = shell.knowledge.entries.map((entry) => entry.text).filter(Boolean);
+  const focus = request.focus?.surface?.trim() ?? "";
+  if (focus.length > 0) {
+    // "Что я знаю о X?": answer from entries mentioning the named
+    // subject, never from an unrelated dump. An empty match is an
+    // honest unknown — not a hijack into another question.
+    const focusWords = normalizeFocus(focus).split(/[^a-zа-я0-9]+/iu).filter((word) => word.length >= 4);
+    const matched = known.filter((line) => {
+      const lineWords = normalizeFocus(line).split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0);
+      return focusWords.some((focusWord) => lineWords.some((lineWord) => lineWord === focusWord || sameRussianStem(lineWord, focusWord)));
+    });
+    if (matched.length > 0) return answer("known_place_knowledge", matched.slice(0, 5).join(" "), shell);
+    return answer("known_place_knowledge", `В твоих записях о «${focus}» пока ничего нет. Продолжай наблюдать и расспрашивать.`, shell);
+  }
+  return answer("known_place_knowledge", known.length > 0 ? known.slice(0, 5).join(" ") : `Ты знаешь только то, что видишь у «${locationName(shell)}» прямо сейчас.`, shell);
 }
 
 function buildAvailableRoutes(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {

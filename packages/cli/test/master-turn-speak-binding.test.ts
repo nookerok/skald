@@ -79,6 +79,15 @@ describe("bindSpeakAddressee", () => {
     expect(bindSpeakAddressee("к стражнику", ferrymen)).toEqual({ status: "absent", named: true });
     expect(bindSpeakAddressee("к перевозчику", [])).toEqual({ status: "absent", named: true });
   });
+  it("binds a contiguous full label over shared-word overlap", () => {
+    const binding = bindSpeakAddressee("К Ночному перевозчику. Спрошу именно его, что случилось с переправой.", [
+      person("person_1", "Перевозчик у переправы"),
+      person("person_2", "Ночной перевозчик"),
+    ]);
+    expect(binding.status).toBe("unique");
+    if (binding.status !== "unique") return;
+    expect(binding.addressee.label).toBe("Ночной перевозчик");
+  });
 });
 
 describe("degraded speak/call fallback (plan_9 §14 beat 4)", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findAuthorityField,
+  inferAmbiguitySlot,
   parseTurnProposal,
   validateTurnProposal,
 } from "@skald/intent-parser";
@@ -353,5 +354,56 @@ describe("TurnProposalV2 schema", () => {
     expect(result.status).toBe("invalid");
     if (result.status === "invalid") expect(result.reason).toMatch(/authority/);
     expect(findAuthorityField(hostile)).not.toBeNull();
+  });
+});
+
+describe("inferAmbiguitySlot (review P1)", () => {
+  function proposalWith(overrides: Record<string, unknown>) {
+    return {
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю" },
+      supportingClauses: [],
+      referents: [],
+      ...overrides,
+    };
+  }
+
+  it("prefers the surface-only target, then addressee, then journey destination", () => {
+    expect(inferAmbiguitySlot(proposalWith({
+      target: { role: "target", surface: "ней" },
+    }) as never)).toBe("target");
+    expect(inferAmbiguitySlot(proposalWith({
+      target: { role: "target", observerRef: "object_1", surface: "Ограда" },
+      addressedEntity: { role: "addressee", surface: "него" },
+    }) as never)).toBe("addressee");
+    expect(inferAmbiguitySlot(proposalWith({
+      primaryIntent: {
+        kind: "journey",
+        destination: { role: "destination", surface: "туда" },
+        sourceText: "иду",
+      },
+    }) as never)).toBe("destination");
+  });
+
+  it("returns null when no single slot is identifiable", () => {
+    expect(inferAmbiguitySlot(proposalWith({
+      target: { role: "target", observerRef: "object_1", surface: "Ограда" },
+    }) as never)).toBeNull();
+    expect(inferAmbiguitySlot(proposalWith({}) as never)).toBeNull();
+  });
+
+  it("attaches the structured candidate to ambiguity clarifications", () => {
+    const result = validateTurnProposal({
+      ...proposalWith({
+        target: { role: "target", surface: "ней" },
+      }),
+      ambiguity: { kind: "referent", question: "К ограде или ко двору?", candidates: ["Ограда", "Двор"] },
+    });
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.options.map((option) => option.optionId)).toEqual(["option-1", "option-2"]);
+    expect(result.framedProposal).toMatchObject({ slot: "target" });
+    expect((result.framedProposal?.proposal as { target?: { surface?: string } })?.target?.surface).toBe("ней");
   });
 });

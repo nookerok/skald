@@ -121,10 +121,40 @@ export function resolveInteractionTarget(world: ReadonlyWorld, verb: string, que
       const locationId = world.currentLocationId;
       if (locationId) return { kind: "environment", locationId };
     }
+    // Named water is observer-safe ambience for observe, mirroring listen:
+    // "наблюдаю за водой" names its object (the local water), so it
+    // resolves to the environment instead of an "unknown target"
+    // rejection. This deliberately extends the earlier listen-only
+    // ambience rule: live play showed a scored-zero core river verb
+    // there, and the object requirement stays satisfied by the named
+    // water itself. inspect stays strict.
+    if (verb === "observe" && isWaterSurface(object)) {
+      const locationId = world.currentLocationId;
+      if (locationId) return { kind: "environment", locationId };
+    }
     return { kind: "missing" };
   }
   if (pool.length === 1) return { kind: "resolved", target: pool[0]! };
   return { kind: "ambiguous", candidates: toCandidates(pool) };
+}
+
+/** Water/river vocabulary shared with the environmental-indication inquiry. */
+const WATER_SURFACE_WORDS: readonly string[] = [
+  "вода", "река", "течение", "волна", "ручей",
+];
+
+/** Prepositions carrying no referent meaning in a target surface. */
+const TARGET_STOP_WORDS: ReadonlySet<string> = new Set([
+  "к", "ко", "в", "во", "на", "за", "у", "о", "об", "с", "со", "под", "над",
+]);
+
+/** True when every query word is a water word (any declension). */
+function isWaterSurface(query: string): boolean {
+  const words = query.split(/\s+/u).filter((word) => word.length > 0 && !TARGET_STOP_WORDS.has(word));
+  if (words.length === 0) return false;
+  return words.every((word) =>
+    WATER_SURFACE_WORDS.some((keyword) => word === keyword || sameRussianStem(word, keyword)),
+  );
 }
 
 /**

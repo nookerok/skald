@@ -39,7 +39,7 @@ import {
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
-import { classifyPlayerInput, isJourneyContinuation, parseIntent, unknownObservedTarget, validateActionProposal } from "@skald/intent-parser";
+import { classifyPlayerInput, conflictingActions, isContinuingJourneyTo, isJourneyContinuation, parseIntent, unknownObservedTarget, validateActionProposal } from "@skald/intent-parser";
 import type { ExecutableIntent, TurnConversationRelation } from "@skald/intent-parser";
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { buildMasterTurnSceneContext } from "@skald/world";
@@ -57,12 +57,14 @@ import {
   isWorldChangingTurn,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
-import type { ConversationMemoryMetadataV1, ConversationResponseKind } from "../conversation/types.js";
+import type { ConversationMemoryClarificationOption, ConversationMemoryMetadataV1, ConversationResponseKind, FramedClarification } from "../conversation/types.js";
 import { buildMasterTurn, masterTurnKindOf } from "../conversation/master-turn.js";
 import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
+import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js";
+import { splitTargetCompound } from "../runtime/master-turn-validator.js";
 import { emitMasterTurnDiagnostic } from "../runtime/master-turn-diagnostics.js";
 import { executeMasterTurnPlan } from "../runtime/master-turn-executor.js";
 import type { ValidatedMasterTurnPlan } from "../runtime/master-turn-validator.js";
@@ -256,16 +258,35 @@ function duplicateConversationResponse(runtime: WorldRuntime, input: string, ide
   return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn, masterTurn });
 }
 
-function readClarificationOptions(payload: Record<string, unknown>): { readonly optionId: string; readonly label: string }[] {
+function readClarificationOptions(payload: Record<string, unknown>): ConversationMemoryClarificationOption[] {
   const fallback = [{ optionId: "rephrase", label: "Уточнить намерение" }];
   if (!Array.isArray(payload.options)) return fallback;
-  const options: { optionId: string; label: string }[] = [];
+  const options: ConversationMemoryClarificationOption[] = [];
   for (const entry of payload.options.slice(0, 6)) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const record = entry as Record<string, unknown>;
     if (typeof record.optionId !== "string" || record.optionId.length === 0) continue;
     if (typeof record.label !== "string" || record.label.length === 0) continue;
-    options.push({ optionId: record.optionId.slice(0, 40), label: record.label.slice(0, 80) });
+    const option: {
+      optionId: string;
+      label: string;
+      referentRefs?: readonly string[];
+      intentPatch?: { readonly actionText: string };
+    } = { optionId: record.optionId.slice(0, 40), label: record.label.slice(0, 80) };
+    // Server-side resolution state travels to metadata, never to the wire:
+    // withClarificationConversation strips these before serving.
+    if (Array.isArray(record.referentRefs) && record.referentRefs.length > 0) {
+      const refs = record.referentRefs
+        .filter((ref): ref is string => typeof ref === "string" && ref.length > 0)
+        .slice(0, 4)
+        .map((ref) => ref.slice(0, 40));
+      if (refs.length > 0) option.referentRefs = refs;
+    }
+    const patch = record.intentPatch as Record<string, unknown> | undefined;
+    if (patch && typeof patch === "object" && !Array.isArray(patch) && typeof patch.actionText === "string" && patch.actionText.length > 0) {
+      option.intentPatch = { actionText: patch.actionText.slice(0, 120) };
+    }
+    options.push(option);
   }
   return options.length > 0 ? options : fallback;
 }
@@ -278,21 +299,32 @@ function withClarificationConversation(
   memory?: {
     readonly relation?: TurnConversationRelation | null | undefined;
     readonly pendingClarificationSeq?: number | null | undefined;
+    readonly link?: PendingClarificationLink | null | undefined;
+    readonly framed?: FramedClarification | null | undefined;
   },
 ): JsonResponse {
   const payload = JSON.parse(response.body) as Record<string, unknown>;
   const question = typeof payload.question === "string" ? payload.question : "Уточни намерение.";
   const options = readClarificationOptions(payload);
   const metadata = buildTurnMemoryMetadata({
-    clarification: { question, options },
+    clarification: { question, options, ...(memory?.framed ? { framed: memory.framed } : {}) },
     relation: memory?.relation ?? null,
     pendingClarificationSeq: memory?.pendingClarificationSeq ?? null,
+    ...(memory?.link ? {
+      continuationLink: {
+        relation: memory.link.relation,
+        clarificationTurnSeq: memory.link.clarificationTurnSeq,
+      },
+    } : {}),
   });
   const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "clarification", "clarification", question, metadata);
   const events = runtime.bus.query();
   const world = runtime.projection.getSnapshot();
   const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-  return json({ ...payload, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: question }, false) }, response.statusCode);
+  // Option refs, action patches and framed candidates stay server-side:
+  // the wire carries labels only.
+  const wireOptions = options.map((option) => ({ optionId: option.optionId, label: option.label }));
+  return json({ ...payload, question, options: wireOptions, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: question }, false) }, response.statusCode);
 }
 
 export function serializeWorldStateFromRuntime(r: WorldRuntime) {
@@ -801,6 +833,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
   let masterPlan: ValidatedMasterTurnPlan | undefined;
   let masterScene: MasterTurnSceneSnapshot | undefined;
   let pendingClarificationSeq: number | null = null;
+  let pendingLink: PendingClarificationLink | null = null;
   let journeyContinue = false;
 
   if (input !== "wait" && !input.startsWith("advance ")) {
@@ -843,8 +876,17 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
     // Journey continuation (plan_9 §4) bypasses interpretation entirely:
     // while a journey is active, "продолжаю путь" and kin advance it by
     // exactly one online tick — deterministically, with no LLM call and no
-    // new journey. Without an active journey the replica flows on normally.
-    if (snapshot.world.activeJourneyId && isJourneyContinuation(input)) {
+    // new journey. Naming the already-active destination again (any
+    // declension, manner tail tolerated) is the same progress signal.
+    // Without an active journey the replica flows on normally.
+    const activeJourney = snapshot.world.activeJourneyId
+      ? snapshot.world.journeys.get(snapshot.world.activeJourneyId)
+      : undefined;
+    const activeDestination = activeJourney
+      ? snapshot.world.locations.get(activeJourney.toLocationId)?.name ?? null
+      : null;
+    if (snapshot.world.activeJourneyId
+      && (isJourneyContinuation(input) || isContinuingJourneyTo(input, activeDestination))) {
       journeyContinue = true;
     } else {
       const interpretation = await interpretMasterTurn(input, snapshot, runtime.router, {
@@ -863,7 +905,8 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const scene = buildMasterTurnSceneContext(events, world).context;
         const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
-        const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
+        const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer,
+          interpretation.pendingLink ? buildTurnMemoryMetadata({ continuationLink: interpretation.pendingLink }) : undefined);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
       });
@@ -876,7 +919,12 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         input,
         idempotencyKey,
         json({ ok: true, status: "clarification", question: interpretation.question, options: interpretation.options }),
-        { relation, pendingClarificationSeq },
+        {
+          relation,
+          pendingClarificationSeq,
+          ...(interpretation.pendingLink ? { link: interpretation.pendingLink } : {}),
+          ...(interpretation.framed ? { framed: interpretation.framed } : {}),
+        },
       ));
     }
     if (interpretation.status === "unsupported" || interpretation.status === "unavailable") {
@@ -884,9 +932,11 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
     }
     if (interpretation.status === "deterministic") {
       resolvedIntent = interpretation.intent;
+      pendingLink = interpretation.pendingLink ?? null;
     } else {
       masterPlan = interpretation.plan;
       masterScene = interpretation.scene;
+      pendingLink = interpretation.pendingLink ?? null;
     }
     }
   }
@@ -924,15 +974,16 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       if (masterPlan && masterScene) {
         return await runValidatedMasterTurnResponse(runtime, input, idempotencyKey, masterPlan, masterScene, (turn) => {
           narrationTurn = turn;
-        }, { pendingClarificationSeq });
+        }, { pendingClarificationSeq, ...(pendingLink ? { pendingLink } : {}) });
       }
 
-      const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent);
+      const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent,
+        pendingLink ? { continuationLink: pendingLink } : undefined);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
-      if ("statusCode" in r) {
-        const response = r as JsonResponse;
+      if ("response" in r) {
+        const { response, framed } = r;
         return response.statusCode === 200 && JSON.parse(response.body).status === "clarification"
-          ? withClarificationConversation(runtime, input, idempotencyKey, response)
+          ? withClarificationConversation(runtime, input, idempotencyKey, response, framed ? { framed } : undefined)
           : response;
       }
       if ("type" in r && (r as any).type === "ParseError")
@@ -1052,10 +1103,10 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       // (ts = time + 1 > lastActionTick by construction).
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey);
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
-      if ("statusCode" in r) {
-        const response = r as JsonResponse;
+      if ("response" in r) {
+        const { response, framed } = r;
         return response.statusCode === 200 && JSON.parse(response.body).status === "clarification"
-          ? withClarificationConversation(runtime, input, idempotencyKey, response)
+          ? withClarificationConversation(runtime, input, idempotencyKey, response, framed ? { framed } : undefined)
           : response;
       }
       const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
@@ -1531,7 +1582,18 @@ const PREFLIGHT_TARGET_OPERATIONS = new Set([
   "use",
 ]);
 
-function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent): JsonResponse | null {
+/**
+ * Early command-cycle outcome: a clarification response plus the closed
+ * structured candidate behind it (review P1), if any. The caller persists
+ * both through the normal clarification conversation path — the wire
+ * carries labels only.
+ */
+export interface CommandCycleClarification {
+  readonly response: JsonResponse;
+  readonly framed?: FramedClarification | undefined;
+}
+
+function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent): CommandCycleClarification | null {
   if (intent.type === "JourneyIntent") return null;
   const verb = intent.type === "InteractionCommand" ? intent.verb : intent.operation;
   if (!PREFLIGHT_TARGET_OPERATIONS.has(verb)) return null;
@@ -1539,46 +1601,82 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
   // Optional ambient perception is resolved by the domain interaction rule.
   if (target.length === 0) return null;
 
-  const resolution = resolveInteractionTarget(runtime.projection.getSnapshot(), verb, target);
+  // A compound that survived parsing (verb forms the parser list misses)
+  // never becomes one blob target: name both parts explicitly so nothing
+  // understood is lost silently (review P1, QA turn-6 class).
+  const split = splitTargetCompound(target);
+  if (split) {
+    const classified = conflictingActions([split.head, split.tail]);
+    return {
+      response: json({
+        ok: true,
+        status: "clarification",
+        question: classified.question,
+        options: classified.options,
+      }),
+    };
+  }
+
+  const snapshot = runtime.projection.getSnapshot();
+  const resolution = resolveInteractionTarget(snapshot, verb, target);
   if (resolution.kind === "resolved" || resolution.kind === "environment") return null;
   if (resolution.kind === "ambiguous") {
-    return json({
+    // Structured candidate: the parsed intent plus its fillable target
+    // slot. An exact answer patches and revalidates with no second
+    // model call instead of re-asking (review P1).
+    return {
+      response: json({
+        ok: true,
+        status: "clarification",
+        question: "Уточни, какой объект ты имеешь в виду.",
+        options: resolution.candidates.slice(0, 3).map((candidate, index) => ({
+          optionId: "target-" + (index + 1),
+          label: candidate.name,
+        })),
+      }),
+      framed: {
+        slot: "target",
+        intent,
+        revision: { worldTime: snapshot.time, eventNumber: snapshot.eventNumber },
+      },
+    };
+  }
+  return {
+    response: json({
       ok: true,
       status: "clarification",
-      question: "Уточни, какой объект ты имеешь в виду.",
-      options: resolution.candidates.slice(0, 3).map((candidate, index) => ({
-        optionId: "target-" + (index + 1),
-        label: candidate.name,
-      })),
-    });
-  }
-  return json({
-    ok: true,
-    status: "clarification",
-    question: unknownObservedTarget(target).question,
-    options: [{ optionId: "rephrase", label: "Уточнить цель" }],
-  });
+      question: unknownObservedTarget(target).question,
+      options: [{ optionId: "rephrase", label: "Уточнить цель" }],
+    }),
+  };
 }
 export async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
   resolvedIntent?: ExecutableIntent,
-): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | JsonResponse> {
+  memory?: {
+    readonly continuationLink?: PendingClarificationLink | null | undefined;
+  },
+): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | CommandCycleClarification> {
   if (runtime.processedKeys.has(idempotencyKey)) {
-    return error("duplicate_request", "duplicate idempotencyKey", 409);
+    return { response: error("duplicate_request", "duplicate idempotencyKey", 409) };
   }
 
   const parsed = resolvedIntent ?? parseIntent(input);
-  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") return error("parse_error", "Could not understand input", 400);
+  if (parsed.type !== "ActionIntentCommand" && parsed.type !== "InteractionCommand" && parsed.type !== "JourneyIntent") {
+    return { response: error("parse_error", "Could not understand input", 400) };
+  }
   const structural = validateActionProposal(parsed);
   if (!structural.ok) {
-    return json({
-      ok: true,
-      status: "clarification",
-      question: structural.clarification,
-      options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
-    });
+    return {
+      response: json({
+        ok: true,
+        status: "clarification",
+        question: structural.clarification,
+        options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
+      }),
+    };
   }
   const resourceIntent = resolveResourceExtractionIntent(runtime, parsed);
   if (!resourceIntent) {
@@ -1614,6 +1712,9 @@ export async function runCommandCycleForRuntime(
         worldTimeBefore,
         stagedEvents,
         projectedWorld,
+        ...(memory?.continuationLink ? {
+          contextMetadata: buildTurnMemoryMetadata({ continuationLink: memory.continuationLink }),
+        } : {}),
       }),
     }),
   };
@@ -1654,16 +1755,22 @@ async function runValidatedMasterTurnResponse(
   plan: ValidatedMasterTurnPlan,
   scene: MasterTurnSceneSnapshot,
   setNarration: (turn: NarrationTurn | null) => void,
-  memory?: { readonly pendingClarificationSeq?: number | null | undefined },
+  memory?: {
+    readonly pendingClarificationSeq?: number | null | undefined;
+    readonly pendingLink?: PendingClarificationLink | null | undefined;
+  },
 ): Promise<JsonResponse> {
   if (runtime.processedKeys.has(idempotencyKey)) {
     return error("duplicate_request", "duplicate idempotencyKey", 409);
   }
+  // A gateway-resolved frame overrides the proposal relation: the turn
+  // answers the pending question no matter what the model reported.
   const planMemory = buildTurnMemoryMetadata({
     focus: plan.focus,
     goal: plan.goal ?? null,
     relation: plan.conversationRelation ?? null,
     pendingClarificationSeq: memory?.pendingClarificationSeq ?? null,
+    ...(memory?.pendingLink ? { continuationLink: memory.pendingLink } : {}),
   });
 
   if (!plan.execution) {

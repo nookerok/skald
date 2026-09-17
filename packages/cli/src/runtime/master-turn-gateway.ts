@@ -21,18 +21,23 @@ import {
   multipleThings,
   parseIntent,
   sameRussianStem,
+  stemRussianToken,
   unclearPrimaryAction,
   unknownObservedTarget,
   validateActionProposal,
   validateTurnProposal,
   type ActionIntentCommand,
+  type AmbiguitySlot,
+  type ClarificationOption,
   type ExecutableIntent,
   type InquiryRequest,
   type PlayerInputClassification,
   type TurnConversationRelation,
+  type TurnProposalV2,
 } from "@skald/intent-parser";
-import type { AIDiagnosticSink, ChatMessage, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
+import type { AIDiagnosticSink, ChatMessage, MasterSceneReference, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
 import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
+import type { FramedClarification } from "../conversation/types.js";
 import { bindTurnPronouns, type PronounBinding } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
 import { validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
@@ -61,17 +66,42 @@ export interface MasterTurnGatewayOptions {
   readonly diagnostics?: AIDiagnosticSink;
   readonly correlationId?: string;
   readonly worldTime?: number;
+  /**
+   * Frame mechanics, set only while resolving a pending clarification:
+   * suppressFrame skips frame matching so the re-interpreted original
+   * cannot loop back into the same frame.
+   */
+  readonly suppressFrame?: boolean | undefined;
+}
+
+/**
+ * Link to the pending clarification this turn answers. The gateway
+ * computes it deterministically when a frame answer re-runs the framed
+ * original; persistence writes it verbatim into turn metadata and the
+ * question closes. Standalone replicas carry no link: the legacy close
+ * rules decide (foreign inquiry/meta never closes, action does).
+ */
+export interface PendingClarificationLink {
+  readonly relation: "resolves";
+  readonly clarificationTurnSeq: number;
 }
 
 export type MasterTurnGatewayOutcome =
-  | { readonly status: "deterministic"; readonly intent: ExecutableIntent }
-  | { readonly status: "inquiry"; readonly inquiry: InquiryRequest }
-  | { readonly status: "plan"; readonly plan: ValidatedMasterTurnPlan; readonly scene: MasterTurnSceneSnapshot }
+  | { readonly status: "deterministic"; readonly intent: ExecutableIntent; readonly pendingLink?: PendingClarificationLink | undefined }
+  | { readonly status: "inquiry"; readonly inquiry: InquiryRequest; readonly pendingLink?: PendingClarificationLink | undefined }
+  | { readonly status: "plan"; readonly plan: ValidatedMasterTurnPlan; readonly scene: MasterTurnSceneSnapshot; readonly pendingLink?: PendingClarificationLink | undefined }
   | {
     readonly status: "clarification";
     readonly question: string;
-    readonly options: readonly { readonly optionId: string; readonly label: string }[];
+    readonly options: readonly ClarificationOption[];
     readonly relation?: TurnConversationRelation | null | undefined;
+    readonly pendingLink?: PendingClarificationLink | undefined;
+    /**
+     * Closed structured candidate (review P1): persisted with the question
+     * so an exact answer fills the slot and revalidates without a second
+     * model call. Absent for legacy rows and slot-less questions.
+     */
+    readonly framed?: FramedClarification | undefined;
   }
   | { readonly status: "unsupported"; readonly message: string }
   | { readonly status: "unavailable"; readonly message: string };
@@ -142,10 +172,77 @@ function freeze<T>(value: T): T {
   return Object.freeze(value);
 }
 
+export type FrameMatch =
+  | { readonly status: "matched"; readonly option: ClarificationOption }
+  | { readonly status: "ambiguous" }
+  | { readonly status: "none" };
+
+function normalizeFrameText(value: string): string {
+  return value.toLowerCase().replace(/ё/gu, "е").replace(/[?!.,;:]+$/u, "").replace(/\s+/gu, " ").trim();
+}
+
+function frameStems(value: string): readonly string[] {
+  return normalizeFrameText(value)
+    .split(/[^a-zа-я0-9]+/iu)
+    .filter((word) => word.length > 0)
+    .map((word) => stemRussianToken(word))
+    .filter((word) => word.length >= 3);
+}
+
+/**
+ * Matches a replica against persisted clarification options (review P0):
+ * exact normalized-label match first (identical display labels collapse
+ * to the first option, consistent with the speak binder), then unique
+ * stem overlap with the option vocabulary (scene aliases fold into the
+ * stem tier). A tie for best overlap stays ambiguous; no overlap matches
+ * nothing. Selection is checked by option data (labels, refs, patches),
+ * never by id prefix. Pure and total.
+ */
+export function matchFrameOption(
+  input: string,
+  options: readonly ClarificationOption[],
+): FrameMatch {
+  const norm = normalizeFrameText(input);
+  if (!norm) return { status: "none" };
+  const seen = new Map<string, ClarificationOption>();
+  for (const option of options) {
+    const key = normalizeFrameText(option.label);
+    if (key.length > 0 && !seen.has(key)) seen.set(key, option);
+  }
+  const unique = [...seen.values()];
+  const exact = unique.filter((option) => normalizeFrameText(option.label) === norm);
+  if (exact.length > 0) return { status: "matched", option: exact[0]! };
+  const inputWords = new Set(frameStems(input));
+  let best: ClarificationOption | null = null;
+  let bestHits = 0;
+  let tied = false;
+  for (const option of unique) {
+    const labelWords = frameStems(option.label);
+    if (labelWords.length === 0) continue;
+    const hits = labelWords.filter((word) => inputWords.has(word)).length;
+    if (hits > bestHits) {
+      best = option;
+      bestHits = hits;
+      tied = false;
+    } else if (hits === bestHits && hits > 0) {
+      tied = true;
+    }
+  }
+  if (!best || bestHits === 0) return { status: "none" };
+  if (tied) return { status: "ambiguous" };
+  return { status: "matched", option: best };
+}
+
 /**
  * Binds a speak/call utterance to observer-safe scene people. Pure and
  * total: no world access, no events, no network. The same utterance and
- * scene always yield the same binding.
+ * scene always yield the same binding. Matching is exact-first: a full
+ * display label wins over any shared word, so an explicit "Ночному
+ * перевозчику" never asks which ferryman. A contiguous stem phrase outranks
+ * even bag overlap (both ferrymen "fully" match a long replica by words,
+ * but only one label is actually named). Identical display labels
+ * collapse to the first entry (one role); distinct labels with tied
+ * overlap stay ambiguous.
  */
 export function bindSpeakAddressee(
   utterance: string | null | undefined,
@@ -155,21 +252,56 @@ export function bindSpeakAddressee(
   if (words.length === 0 || words.every((word) => isUnresolvedFocusSurface(word))) {
     return freeze({ status: "absent" as const, named: false });
   }
-  const matched = people.filter((person) => {
-    const labelWords = [person.label, ...person.knownAs].flatMap((label) =>
-      label.toLowerCase().replace(/ё/gu, "е").split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0),
-    );
-    return words.some((word) => labelWords.some((labelWord) => sameRussianStem(word, labelWord)));
-  });
-  if (matched.length === 0) return freeze({ status: "absent" as const, named: true });
-  const labels: string[] = [];
-  for (const person of matched) {
-    const label = person.label.trim();
-    if (label.length > 0 && !labels.includes(label)) labels.push(label);
-    if (labels.length >= 3) break;
+  const byLabel = new Map<string, SpeakAddresseeCandidate[]>();
+  for (const person of people) {
+    const key = person.label.trim().toLowerCase().replace(/ё/gu, "е");
+    if (key.length === 0) continue;
+    const list = byLabel.get(key) ?? [];
+    list.push(person);
+    byLabel.set(key, list);
   }
-  if (labels.length === 1) return freeze({ status: "unique" as const, addressee: matched[0]! });
-  return freeze({ status: "ambiguous" as const, labels: freeze(labels) });
+  const inputSequence = words.map((word) => stemRussianToken(word)).filter((word) => word.length >= 3);
+  const scored = [...byLabel.entries()].map(([label, entries]) => {
+    const labelWords = label.split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0)
+      .map((word) => stemRussianToken(word)).filter((word) => word.length >= 3);
+    const inputStems = new Set(inputSequence);
+    return {
+      label: entries[0]!.label.trim(),
+      entries,
+      phrase: labelWords.length > 0 && containsStemPhrase(inputSequence, labelWords),
+      full: labelWords.length > 0 && labelWords.every((word) => inputStems.has(word)),
+      hits: labelWords.filter((word) => inputStems.has(word)).length,
+    };
+  }).filter((entry) => entry.hits > 0);
+  if (scored.length === 0) return freeze({ status: "absent" as const, named: true });
+  const phrased = scored.filter((entry) => entry.phrase);
+  if (phrased.length === 1) return freeze({ status: "unique" as const, addressee: phrased[0]!.entries[0]! });
+  const full = scored.filter((entry) => entry.full);
+  if (full.length === 1) return freeze({ status: "unique" as const, addressee: full[0]!.entries[0]! });
+  if (full.length > 1) {
+    return freeze({ status: "ambiguous" as const, labels: freeze(full.slice(0, 3).map((entry) => entry.label)) });
+  }
+  const best = Math.max(...scored.map((entry) => entry.hits));
+  const winners = scored.filter((entry) => entry.hits === best);
+  if (winners.length === 1) return freeze({ status: "unique" as const, addressee: winners[0]!.entries[0]! });
+  return freeze({ status: "ambiguous" as const, labels: freeze(winners.slice(0, 3).map((entry) => entry.label)) });
+}
+
+/**
+ * True when the label stem sequence occurs contiguously in the input stem
+ * sequence ("ночн, перевозч" inside "к, ночн, перевозч, спрош…").
+ * Declensions fold through the stemmer; filler words break contiguity.
+ * Pure and total. Mirrored in the validator surface binder.
+ */
+function containsStemPhrase(input: readonly string[], label: readonly string[]): boolean {
+  if (label.length === 0 || input.length < label.length) return false;
+  outer: for (let start = 0; start + label.length <= input.length; start += 1) {
+    for (let offset = 0; offset < label.length; offset += 1) {
+      if (input[start + offset] !== label[offset]) continue outer;
+    }
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -238,6 +370,65 @@ function speakAddresseeFallback(
     worldTime: options?.worldTime,
   });
   return { status: "clarification", question: classified.question, options: classified.options };
+}
+
+/**
+ * Re-resolves one frame option label against the CURRENT scene: labels
+ * are transient display, never persisted handles, so the answer-time
+ * scene decides. Returns the matching observerRefs (empty when stale).
+ */
+function frameOptionRefs(label: string, scene: MasterTurnSceneContext): readonly string[] {
+  const wanted = label.trim().toLowerCase().replace(/ё/gu, "е");
+  if (!wanted) return [];
+  const refs: string[] = [];
+  const consider = (observerRef: string, labels: readonly string[]): void => {
+    if (refs.includes(observerRef)) return;
+    if (labels.some((entry) => entry.trim().toLowerCase().replace(/ё/gu, "е") === wanted)) refs.push(observerRef);
+  };
+  for (const person of scene.knownPeople) consider(person.observerRef, [person.label, ...person.knownAs]);
+  for (const object of scene.visibleObjects) consider(object.observerRef, [object.label, ...object.knownAs]);
+  for (const item of scene.accessibleItems) consider(item.observerRef, [item.label, ...item.knownAs]);
+  for (const route of scene.knownRoutes) consider(route.observerRef, [route.label, ...route.knownAs]);
+  return freeze(refs);
+}
+
+/**
+ * Derives a scene restricted to the resolved referents for re-running the
+ * framed original: every downstream matcher (pronouns, speak binder,
+ * validator, prompt) then sees only the chosen addressee, so the same
+ * ambiguity cannot recur. References stay consistent by construction.
+ * Every ref-bearing collection filters by the one allowed set (review P2):
+ * people, objects, items, routes and topics — the static action registry
+ * and ambient situation/location carry no refs and stay.
+ */
+function restrictSceneToRefs(
+  snapshot: MasterTurnSnapshot,
+  keep: ReadonlySet<string>,
+): MasterTurnSnapshot {
+  const context = snapshot.scene.context;
+  const references = new Map<string, MasterSceneReference>();
+  for (const [observerRef, reference] of snapshot.scene.references) {
+    if (keep.has(observerRef)) references.set(observerRef, reference);
+  }
+  return {
+    ...snapshot,
+    scene: {
+      ...snapshot.scene,
+      context: {
+        ...context,
+        knownPeople: context.knownPeople.filter((person) => keep.has(person.observerRef)),
+        visibleObjects: context.visibleObjects.filter((object) => keep.has(object.observerRef)),
+        accessibleItems: context.accessibleItems.filter((item) => keep.has(item.observerRef)),
+        knownRoutes: context.knownRoutes.filter((route) => keep.has(route.observerRef)),
+        knownTopics: context.knownTopics.filter((topic) => keep.has(topic.observerRef)),
+      },
+      references,
+    },
+  };
+}
+
+function resolvesLink(turnSeq: number): PendingClarificationLink {
+  return { relation: "resolves", clarificationTurnSeq: turnSeq };
 }
 
 type PronounStep =
@@ -391,11 +582,15 @@ function resolvePronounsDeterministic(
       });
       return { kind: "clarification", outcome: { status: "clarification", question: classified.question, options: classified.options } };
     }
-    const labels = binding.candidates
-      .map((candidate) => sceneLabelForRef(scene, candidate))
-      .filter((label): label is string => label !== null)
+    // Frame continuity: each named candidate travels as a selectable
+    // option (candidate-N) so an exact answer resolves first-try instead
+    // of looping. The generic rephrase stays last.
+    const named = binding.candidates.slice(0, 3)
+      .map((candidate) => ({ candidate, label: sceneLabelForRef(scene, candidate) }))
+      .filter((entry): entry is { candidate: string; label: string } => entry.label !== null)
       .slice(0, 3);
-    if (labels.length === 0) return { kind: "same" };
+    if (named.length === 0) return { kind: "same" };
+    const labels = named.map((entry) => entry.label);
     const hasPerson = binding.classes.includes("person");
     const hasThing = binding.classes.includes("thing");
     const classified = hasPerson && !hasThing
@@ -403,6 +598,12 @@ function resolvePronounsDeterministic(
       : !hasPerson && hasThing
         ? multipleThings(labels)
         : multipleReferents(labels, false);
+    const candidateOptions = named.map((entry, index) => ({
+      optionId: `candidate-${index + 1}`,
+      label: entry.label,
+      referentRefs: [entry.candidate],
+    }));
+    const questionOptions = [...candidateOptions, ...classified.options];
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "pronoun_ambiguous",
       outcome: "clarification",
@@ -410,7 +611,25 @@ function resolvePronounsDeterministic(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return { kind: "clarification", outcome: { status: "clarification", question: classified.question, options: classified.options } };
+    // Structured candidate (review P1): the deterministic intent plus its
+    // fillable slot, so an exact answer patches and revalidates without a
+    // second model call. The revision pins the asking scene.
+    const executable = deterministic.type === "ActionIntentCommand" || deterministic.type === "InteractionCommand" || deterministic.type === "JourneyIntent"
+      ? deterministic
+      : null;
+    const slot: AmbiguitySlot | null = !executable ? null
+      : executable.type === "ActionIntentCommand" && (executable.operation === "speak" || executable.operation === "call") ? "addressee"
+      : executable.type === "JourneyIntent" ? "destination"
+      : "target";
+    return {
+      kind: "clarification",
+      outcome: {
+        status: "clarification",
+        question: classified.question,
+        options: questionOptions,
+        ...(executable && slot ? { framed: { slot, intent: executable, revision: snapshot.scene.context.revision } } : {}),
+      },
+    };
   }
 
   if (binding.resolution === "missing") {
@@ -520,6 +739,191 @@ function resolvePronounsDeterministic(
 }
 
 /**
+ * The single meta option id: a rephrase is never a frame selection, so it
+ * never consumes a replica. Checked by exact id, never by prefix.
+ */
+function isFrameSelectable(option: ClarificationOption): boolean {
+  return option.optionId !== "rephrase";
+}
+
+/**
+ * Fills one referent slot of a stored proposal with the chosen answer and
+ * drops the resolved ambiguity. The contextual validator re-checks the
+ * patched proposal (observerRef/surface consistency included), so a wrong
+ * slot guess degrades to re-interpretation instead of executing.
+ */
+function patchProposalReferent(
+  proposal: TurnProposalV2,
+  slot: AmbiguitySlot,
+  observerRef: string,
+  surface: string,
+): TurnProposalV2 {
+  const { ambiguity: _resolved, ...rest } = proposal;
+  void _resolved;
+  const referent = freeze({ role: slot, observerRef, surface });
+  return freeze({
+    ...rest,
+    ...(slot === "target" ? { target: referent } : {}),
+    ...(slot === "addressee" ? { addressedEntity: referent } : {}),
+    ...(slot === "destination" && rest.primaryIntent?.kind === "journey"
+      ? { primaryIntent: freeze({ ...rest.primaryIntent, destination: referent }) }
+      : {}),
+    referents: freeze(rest.referents.map((entry) => entry.role === slot ? referent : entry)),
+  }) as TurnProposalV2;
+}
+
+/**
+ * Fills the unresolved slot of a stored deterministic intent with the
+ * chosen answer surface. World-side resolution happens later at preflight
+ * against the bound label. Returns null for shapes with no such slot.
+ */
+function patchExecutableIntent(
+  intent: ExecutableIntent,
+  slot: AmbiguitySlot,
+  surface: string,
+): ExecutableIntent | null {
+  if (slot === "target" && intent.type === "InteractionCommand") {
+    return freeze({ ...intent, target: freeze({ raw: surface }) });
+  }
+  if (slot === "addressee" && intent.type === "ActionIntentCommand"
+    && (intent.operation === "speak" || intent.operation === "call")) {
+    return freeze({ ...intent, target: freeze({ raw: surface }) });
+  }
+  if (slot === "destination" && intent.type === "JourneyIntent") {
+    return freeze({ ...intent, destination: freeze({ raw: surface }) });
+  }
+  return null;
+}
+
+/**
+ * Resolves a frame answer against the closed structured candidate (review
+ * P1): a fresh scene revision revalidates the slot-filled proposal or
+ * intent with no model call. A stale revision, a failed revalidation or
+ * any shape surprise returns null so the caller falls back to
+ * re-interpretation. Never throws.
+ */
+function tryResolveFramed(
+  pending: NonNullable<MasterConversationContext["pendingClarification"]>,
+  label: string,
+  observerRef: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  const framed = pending.framed;
+  if (!framed) return null;
+  const revision = snapshot.scene.context.revision;
+  if (framed.revision.worldTime !== revision.worldTime || framed.revision.eventNumber !== revision.eventNumber) return null;
+  try {
+    if (framed.proposal) {
+      const staticCheck = validateTurnProposal(framed.proposal);
+      if (staticCheck.status !== "accepted") return null;
+      const patched = patchProposalReferent(staticCheck.proposal, framed.slot, observerRef, label);
+      const validation = validateMasterTurnPlan({ proposal: patched, scene: snapshot.scene, world: snapshot.world, rawText: pending.originalInput ?? "" });
+      if (validation.status !== "accepted") return null;
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "clarification_resolved",
+        outcome: "plan",
+        phase: "routing",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+        referentCount: 1,
+      });
+      return { status: "plan", plan: validation.plan, scene: snapshot.scene, pendingLink: resolvesLink(pending.turnSeq) };
+    }
+    if (framed.intent) {
+      const patched = patchExecutableIntent(framed.intent, framed.slot, label);
+      if (!patched) return null;
+      if (!validateActionProposal(patched).ok) return null;
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "clarification_resolved",
+        outcome: "deterministic",
+        phase: "routing",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+        referentCount: 1,
+      });
+      return { status: "deterministic", intent: patched, pendingLink: resolvesLink(pending.turnSeq) };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Consumes a pending clarification frame before the parser/LLM (review
+ * P1). Selection is checked by option data, never by id prefix: every
+ * non-rephrase option is matchable, an action patch runs its own text, a
+ * referent choice fills the stored slot (revalidated, no second model
+ * call) or re-runs the framed original against the restricted scene.
+ * Anything else falls through untouched so standalone replicas proceed
+ * under the legacy close rules. Returns null when no frame applies.
+ */
+async function interpretFramedInput(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  router: ModelRouter | null,
+  options?: MasterTurnGatewayOptions,
+): Promise<MasterTurnGatewayOutcome | null> {
+  const pending = snapshot.conversation.pendingClarification ?? null;
+  if (!pending || !pending.originalInput) return null;
+  const selectable = (pending.options ?? []).filter(isFrameSelectable);
+  if (selectable.length === 0) return null;
+  const match = matchFrameOption(input, selectable);
+  if (match.status === "none" || match.status === "ambiguous") return null;
+  const chosen = match.option;
+  // An action alternative answers by doing the named part: run its own
+  // text, never the whole compound again.
+  if (chosen.intentPatch?.actionText) {
+    const inner = await interpretMasterTurn(chosen.intentPatch.actionText, snapshot, router, { ...options, suppressFrame: true });
+    if (inner.status === "unsupported" || inner.status === "unavailable") return inner;
+    if (inner.status !== "deterministic" && inner.status !== "inquiry" && inner.status !== "plan") return null;
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "clarification_resolved",
+      outcome: inner.status,
+      phase: "routing",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+      referentCount: 0,
+    });
+    return { ...inner, pendingLink: resolvesLink(pending.turnSeq) };
+  }
+  const storedRefs = (chosen.referentRefs ?? []).filter((ref) => snapshot.scene.references.has(ref));
+  const refs = storedRefs.length > 0 ? storedRefs : frameOptionRefs(chosen.label, snapshot.scene.context);
+  if (refs.length === 0) {
+    // Explicit refs gone stale: the named entity is gone, say so. A bare
+    // label with no scene resolution falls through instead — the replica
+    // may be its own action, not an answer.
+    if (chosen.referentRefs?.length) {
+      const classified = missingReferent({ kind: "either", mention: chosen.label });
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "clarification_returned",
+        outcome: "clarification",
+        phase: "fallback",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+      });
+      return { status: "clarification", question: classified.question, options: classified.options };
+    }
+    return null;
+  }
+  const framed = tryResolveFramed(pending, chosen.label, refs[0]!, snapshot, options);
+  if (framed) return framed;
+  const forced = restrictSceneToRefs(snapshot, new Set(refs));
+  const inner = await interpretMasterTurn(pending.originalInput, forced, router, { ...options, suppressFrame: true });
+  if (inner.status === "unsupported" || inner.status === "unavailable") return inner;
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "clarification_resolved",
+    outcome: inner.status,
+    phase: "routing",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+    referentCount: refs.length,
+  });
+  return { ...inner, pendingLink: resolvesLink(pending.turnSeq) };
+}
+
+/**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
  */
@@ -529,6 +933,14 @@ export async function interpretMasterTurn(
   router: ModelRouter | null,
   options?: MasterTurnGatewayOptions,
 ): Promise<MasterTurnGatewayOutcome> {
+  // Pending-clarification frame (review P0): an answer naming one of the
+  // offered options resolves first-try; a standalone replica moves on.
+  // Both run before the parser/LLM so a new question or action is never
+  // trapped inside an old clarification route.
+  if (!options?.suppressFrame) {
+    const framed = await interpretFramedInput(input, snapshot, router, options);
+    if (framed) return framed;
+  }
   let classification = classifyPlayerInput(input, parseIntent);
   if (classification.kind === "inquiry") {
     return { status: "inquiry", inquiry: classification.inquiry };
@@ -685,7 +1097,23 @@ export async function interpretMasterTurn(
   });
 
   const staticCheck = validateTurnProposal(parsed);
-  if (staticCheck.status === "clarification") return staticCheck;
+  if (staticCheck.status === "clarification") {
+    // Stamp the asking scene revision onto the structured candidate so an
+    // exact answer revalidates without a second model call (review P1).
+    return {
+      status: "clarification",
+      question: staticCheck.question,
+      options: staticCheck.options,
+      ...(staticCheck.relation !== undefined ? { relation: staticCheck.relation } : {}),
+      ...(staticCheck.framedProposal ? {
+        framed: {
+          slot: staticCheck.framedProposal.slot,
+          proposal: staticCheck.framedProposal.proposal,
+          revision: snapshot.scene.context.revision,
+        },
+      } : {}),
+    };
+  }
   if (staticCheck.status === "invalid") {
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "proposal_schema_rejected",
@@ -708,7 +1136,12 @@ export async function interpretMasterTurn(
     return { status: "plan", plan: contextual.plan, scene: snapshot.scene };
   }
   if (contextual.status === "clarification") {
-    return { status: "clarification", question: contextual.question, options: contextual.options };
+    return {
+      status: "clarification",
+      question: contextual.question,
+      options: contextual.options,
+      ...(contextual.framed ? { framed: contextual.framed } : {}),
+    };
   }
   return fallbackAfterModelFailure(deterministic, snapshot, options);
 }
@@ -742,7 +1175,9 @@ function fallbackAfterModelFailure(
         options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
       };
     }
-    if (isSafeDeterministic(deterministic)) return { status: "deterministic", intent: deterministic };
+    if (isSafeDeterministic(deterministic)) {
+      return { status: "deterministic", intent: deterministic };
+    }
   }
   const deterministicClarification = clarificationFromDeterministic(deterministic);
   if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? genericFallback(options);

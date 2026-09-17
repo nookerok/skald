@@ -57,10 +57,13 @@ describe("intent gateway", () => {
       timeoutMs: 100,
     });
     expect(invalid.status).toBe("clarification");
+    // The compound is detected deterministically before the model
+    // round-trip, so the failed model output falls back to the
+    // deterministic compound clarification rather than the generic one.
     expect(events.map((event) => event.category)).toEqual(expect.arrayContaining([
       "intent_proposal_request",
       "intent_json_parse",
-      "clarification_fallback",
+      "deterministic_clarification_fallback",
     ]));
     expect(events.every((event) => event.correlationId === "intent-test-1" && event.worldTime === 7)).toBe(true);
 

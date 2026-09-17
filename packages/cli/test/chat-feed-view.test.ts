@@ -352,6 +352,151 @@ describe("Chronicle Feed (plan_9 §6-7) — turn keys, pairing, autonomy", () =>
   });
 });
 
+describe("Chronicle Feed — one command, one MasterTurn (chain grouping)", () => {
+  let doc;
+  beforeEach(async () => {
+    doc = createDocument();
+    vi.stubGlobal("document", doc);
+    const mod = await import("../public/chat-feed-view.js");
+    mod.clearLocalIntents();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function chainTurn(time, text, key, extra = {}) {
+    return {
+      worldTime: time,
+      turnHandle: "jh-" + time,
+      narrationHandle: "nh-" + time,
+      correlationId: time === 2 ? "tick-2" : "cmd-1",
+      masterTurnKey: key,
+      presentation: {
+        response: null,
+        primary: { text, discoveryMark: null, sourceEventIds: ["event-" + time] },
+        notable: [],
+        background: [],
+      },
+      ...extra,
+    };
+  }
+
+  function journeyConversation() {
+    return {
+      turnSeq: 9,
+      worldId: "world",
+      correlationId: "tick-2",
+      idempotencyKey: "key-j",
+      playerText: "Иду в Речной Страж.",
+      inputClass: "action",
+      worldTimeBefore: 0,
+      worldTimeAfter: 2,
+      responseKind: "action_outcome",
+      responseText: "Этап 2 из 2.",
+      createdAt: 30,
+      turnKey: "tk-j",
+      narrationHandle: "nh-2",
+    };
+  }
+
+  it("renders a journey start chain as one player bubble plus one master bubble", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    mod.renderChatFeed(
+      [chainTurn(1, "Ты отправляешься к «Речной Страж».", "mt-chain"), chainTurn(2, "Этап 2 из 2.", "mt-chain")],
+      [journeyConversation()],
+      [],
+      null,
+    );
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed.children[0])).toContain("Иду в Речной Страж.");
+    const master = allText(doc.feed.children[1]);
+    expect(master).toContain("Ты отправляешься к «Речной Страж».");
+    expect(master).toContain("Этап 2 из 2.");
+    expect(doc.feed.children[0].attributes["data-turn-key"]).toBe("tk-j");
+    expect(doc.feed.children[1].attributes["data-turn-key"]).toBe("tk-j");
+  });
+
+  it("renders an unpaired chain as one master bubble keyed by masterTurnKey", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    mod.renderChatFeed(
+      [chainTurn(1, "Ты отправляешься к «Речной Страж».", "mt-chain"), chainTurn(2, "Этап 2 из 2.", "mt-chain")],
+      [],
+      [],
+      null,
+    );
+    expect(doc.feed.children).toHaveLength(1);
+    expect(allText(doc.feed.children[0])).toContain("Ты отправляешься к «Речной Страж».");
+    expect(doc.feed.children[0].attributes["data-turn-key"]).toBe("mt-chain");
+  });
+
+  it("keeps distinct chains separate", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    mod.renderChatFeed(
+      [chainTurn(1, "Первая.", "mt-a"), chainTurn(2, "Вторая.", "mt-b")],
+      [],
+      [],
+      null,
+    );
+    expect(doc.feed.children).toHaveLength(2);
+  });
+
+  it("binds late narration to the same chain bubble", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    const first = [chainTurn(1, "Ты отправляешься к «Речной Страж».", "mt-chain"), chainTurn(2, "Этап 2 из 2.", "mt-chain")];
+    mod.renderChatFeed(first, [journeyConversation()], [], null);
+    expect(allText(doc.feed)).not.toContain("Дорога шепчет.");
+    const narrated = first.map((turn) => turn.worldTime === 2
+      ? { ...turn, narrativeLLM: { text: "Дорога шепчет.", usedFallback: false } }
+      : turn);
+    mod.renderChatFeed(narrated, [journeyConversation()], [], null);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed.children[1])).toContain("Дорога шепчет.");
+    expect(doc.feed.children[1].attributes["data-turn-key"]).toBe("tk-j");
+  });
+
+  it("emits the echoed journey answer once per chain (review P1)", async () => {
+    // Production shape: JourneyStarted carries the primary text, the
+    // JourneyAdvanced slice has no presentation, and the paired
+    // ConversationTurn repeats the start text. Newest-first pairing binds
+    // the answer to the advanced slice, so both slices contribute the
+    // same text and the chain must dedupe after assembly.
+    const mod = await import("../public/chat-feed-view.js");
+    const text = "Ты выступаешь к Речному Стражу.";
+    const started = {
+      worldTime: 5,
+      masterTurnKey: "mt-journey",
+      correlationId: "cmd-6",
+      presentation: {
+        response: { kind: "action_outcome", text, sourceEventIds: ["e-start"] },
+        primary: { text, discoveryMark: null, sourceEventIds: ["e-start"] },
+        notable: [],
+        background: [],
+      },
+    };
+    const advanced = {
+      worldTime: 6,
+      masterTurnKey: "mt-journey",
+      correlationId: "cmd-6",
+      presentation: null,
+    };
+    const cmd = {
+      turnSeq: 7,
+      worldId: "world",
+      correlationId: "cmd-6",
+      idempotencyKey: "key-j6",
+      playerText: "Иду к Речному Стражу.",
+      inputClass: "action",
+      worldTimeBefore: 5,
+      worldTimeAfter: 6,
+      responseKind: "action_outcome",
+      responseText: text,
+      createdAt: 40,
+    };
+    mod.renderChatFeed([started, advanced], [cmd], [], null);
+    expect(doc.feed.children).toHaveLength(2);
+    const master = allText(doc.feed.children[1]);
+    expect(master.match(/Ты выступаешь к Речному Стражу\./g)).toHaveLength(1);
+  });
+});
+
 describe("Chronicle Feed — confirmed master pairs (one input, one MasterTurn)", () => {
   let doc;
   beforeEach(async () => {

@@ -54,7 +54,7 @@ export { selectTurnPresentation } from "./presentation/selector.js";
 export { actionFallbackText, isGenericActionFallback } from "./presentation/action-fallback.js";
 export { parseBeliefModelDTO, parseObservationRecord } from "@skald/observation";
 export type * from "./presentation/types.js";
-export { buildTurnJournal, attachTurnNarrations } from "./journal/builder.js";
+export { buildTurnJournal, attachTurnNarrations, computeMasterTurnKey } from "./journal/builder.js";
 export { narrationKey } from "./journal/identity.js";
 export type * from "./journal/types.js";
 export { buildDiscoveryJournal, DEFINITIONS, toPlayerDiscoveryJournal } from "./discovery/index.js";

@@ -140,7 +140,7 @@ describe("master conversation context", () => {
       row(1, { playerText: "сделать что-нибудь", inputClass: "clarification", responseKind: "clarification", responseText: "Что именно сделать?" }),
     ], "w1");
 
-    expect(context.pendingClarification).toEqual({ question: "Что именно сделать?", options: [], turnSeq: 1 });
+    expect(context.pendingClarification).toEqual({ question: "Что именно сделать?", options: [], turnSeq: 1, originalInput: "сделать что-нибудь" });
   });
 
   it("clears pending once an action is accepted but keeps it past a foreign inquiry", () => {
@@ -159,7 +159,7 @@ describe("master conversation context", () => {
       row(2, { inputClass: "clarification", responseKind: "clarification", responseText: "Второй вопрос?" }),
     ], "w1");
 
-    expect(context.pendingClarification).toEqual({ question: "Второй вопрос?", options: [], turnSeq: 2 });
+    expect(context.pendingClarification).toEqual({ question: "Второй вопрос?", options: [], turnSeq: 2, originalInput: "осматриваюсь" });
   });
 
   it("is deterministic across reloads and input order", () => {
@@ -389,6 +389,7 @@ describe("plan_7 transcript memory", () => {
         { optionId: "guard", label: "Со стражем" },
       ],
       turnSeq: 1,
+      originalInput: "Поговорю с ним.",
     });
   });
 

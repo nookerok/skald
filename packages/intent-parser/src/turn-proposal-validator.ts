@@ -28,8 +28,37 @@ export type TurnProposalValidation =
     readonly question: string;
     readonly options: readonly ClarificationOption[];
     readonly relation?: TurnConversationRelation | null | undefined;
+    /**
+     * Closed structured candidate for frame resolution (review P1): the
+     * proposal plus the single surface-only slot the choice fills. The
+     * consumer stamps the scene revision and revalidates after patching —
+     * no second model call. Absent when no single slot is identifiable.
+     */
+    readonly framedProposal?: FramedProposalCandidate | undefined;
   }
   | { readonly status: "invalid"; readonly reason: string };
+
+/** Referent slot a clarification choice fills inside a stored proposal. */
+export type AmbiguitySlot = "target" | "addressee" | "destination";
+
+/** Closed structured candidate: proposal plus its single fillable slot. */
+export interface FramedProposalCandidate {
+  readonly proposal: TurnProposalV2;
+  readonly slot: AmbiguitySlot;
+}
+
+/**
+ * Identifies the single surface-only referent a clarification choice
+ * fills: the turn target first, then the addressee, then a journey
+ * destination. Null when no single slot is identifiable (the frame then
+ * falls back to re-interpretation). Pure and total.
+ */
+export function inferAmbiguitySlot(proposal: TurnProposalV2): AmbiguitySlot | null {
+  if (proposal.target && !proposal.target.observerRef) return "target";
+  if (proposal.addressedEntity && !proposal.addressedEntity.observerRef) return "addressee";
+  if (proposal.primaryIntent?.kind === "journey" && !proposal.primaryIntent.destination.observerRef) return "destination";
+  return null;
+}
 
 /**
  * Validates untrusted JSON as a TurnProposalV2. Returns the frozen proposal
@@ -52,11 +81,13 @@ export function validateTurnProposal(raw: unknown): TurnProposalValidation {
   if (membership) return membership;
 
   if (proposal.ambiguity) {
+    const slot = inferAmbiguitySlot(proposal);
     return {
       status: "clarification",
       question: proposal.ambiguity.question,
       options: proposal.ambiguity.candidates.map((label, index) => ({ optionId: `option-${index + 1}`, label })),
       ...(proposal.conversationRelation !== undefined ? { relation: proposal.conversationRelation } : {}),
+      ...(slot ? { framedProposal: { proposal, slot } } : {}),
     };
   }
   if (proposal.primaryIntent === null) {

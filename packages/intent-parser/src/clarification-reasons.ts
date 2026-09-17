@@ -136,12 +136,23 @@ export function unclearDestination(): ClassifiedClarification {
  * parts so nothing understood is lost silently; the model or the player
  * picks the order through the normal mixed/clarification path.
  */
+/**
+ * Compound replica: one slot, several actions. The interpretations name the
+ * parts so nothing understood is lost silently; the model or the player
+ * picks the order through the normal mixed/clarification path. Each option
+ * carries its executable text: selecting it runs that part instead of
+ * filling a referent slot.
+ */
 export function conflictingActions(actions: readonly string[]): ClassifiedClarification {
   return Object.freeze({
     reason: "conflicting_actions" as const,
     question: "Что именно ты хочешь сделать?",
     options: actions.length > 0
-      ? actions.slice(0, 3).map((label, index) => ({ optionId: `deterministic-${index + 1}`, label }))
+      ? actions.slice(0, 3).map((label, index) => ({
+        optionId: `deterministic-${index + 1}`,
+        label,
+        intentPatch: { actionText: label },
+      }))
       : rephraseOption(),
   });
 }

@@ -14,6 +14,10 @@ describe("player input inquiry classification", () => {
     ["с кем я знаком?", "known_contacts"],
     ["почему карта показывает это место?", "map_position"],
     ["кто рядом?", "who_is_nearby"],
+    ["кто из людей здесь?", "who_is_nearby"],
+    ["что впереди на дороге?", "visible_scene"],
+    ["куда отсюда можно пойти?", "available_routes"],
+    ["что я знаю о переправе?", "known_place_knowledge"],
     ["кто находится рядом со мной?", "who_is_nearby"],
     ["есть ли кто-нибудь рядом?", "who_is_nearby"],
     ["хочу узнать, кто рядом.", "who_is_nearby"],
@@ -76,5 +80,14 @@ describe("spatial focus questions", () => {
 
   it("leaves punctuation-only focus to the candidate path", () => {
     expect(classifyPlayerInput("что за ...?", parseIntent).kind).toBe("inquiry_candidate");
+  });
+
+  it("carries a named knowledge subject as focus", () => {
+    const result = classifyPlayerInput("что я знаю о переправе?", parseIntent);
+    expect(result.kind).toBe("inquiry");
+    if (result.kind !== "inquiry") return;
+    expect(result.inquiry.queryId).toBe("known_place_knowledge");
+    expect(result.inquiry.focus?.surface).toBe("переправе");
+    expect(result.inquiry.source).toBe("deterministic");
   });
 });

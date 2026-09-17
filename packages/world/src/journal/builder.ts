@@ -16,6 +16,40 @@ function deepFreeze<T>(obj: T): T {
   return obj;
 }
 
+/**
+ * Deterministic opaque key for one authoring command's journal slices.
+ * Same causal root always yields the same key; the key never reveals the
+ * internal event id. FNV-1a 32-bit, same algorithm as the observer-thread
+ * refs, with its own domain seed.
+ */
+export function computeMasterTurnKey(rootEventId: string): string {
+  let hash = 0x811c9dc5;
+  const seed = `master-turn:v1:${rootEventId}`;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `mt-${(hash >>> 0).toString(36)}`;
+}
+
+/**
+ * Causal root of one event within the log: follow causationId until an
+ * event without a known cause. Cycle-guarded and total — a missing link
+ * or a cycle stops the walk at the last reachable event, so every event
+ * always resolves to exactly one root.
+ */
+function causalRoot(event: DomainEvent, byId: ReadonlyMap<string, DomainEvent>): DomainEvent {
+  let current = event;
+  const seen = new Set<string>([current.eventId]);
+  while (typeof current.causationId === "string" && current.causationId.length > 0) {
+    const parent = byId.get(current.causationId);
+    if (!parent || seen.has(parent.eventId)) break;
+    seen.add(parent.eventId);
+    current = parent;
+  }
+  return current;
+}
+
 /** Options controlling how turns are collected into a journal. */
 export interface BuildTurnJournalOptions {
   /**
@@ -91,6 +125,10 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
   const threadMap = new Map<string, PresentationThreadEntry[]>();
   const threadLabels = new Map<string, string>();
   let lastTimestamp = 0;
+  const byId = new Map<string, DomainEvent>();
+  for (const e of events) {
+    if (!byId.has(e.eventId)) byId.set(e.eventId, e);
+  }
 
   // Single sequential pass over the canonical Event Log
   let currentTurnEvents: DomainEvent[] = [];
@@ -139,9 +177,14 @@ export function buildTurnJournal(events: readonly DomainEvent[], options: BuildT
 
     const turnId = turns.some((turn) => turn.worldTime === ts)
       ? `turn:${ts}:${currentTurnEvents[0]!.eventId}` : `turn:${ts}`;
+    // One command, one MasterTurn: all slices share the causal root of the
+    // turn's first event, so a journey start and its first travel tick
+    // render as one chain instead of orphaning all but one slice.
+    const masterTurnKey = computeMasterTurnKey(causalRoot(currentTurnEvents[0]!, byId).eventId);
     turns.push({
       turnId,
       worldTime: ts,
+      masterTurnKey,
       ...(correlationId ? { correlationId } : {}),
       ...(turnIsAutonomous(currentTurnEvents) ? { autonomous: true as const } : {}),
       presentation,

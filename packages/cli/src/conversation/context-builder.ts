@@ -15,8 +15,9 @@
  *   plan_7 window (<=12 replicas, ~7k chars, shown narration preferred).
  * - Structured memory comes from `conversation_context_json` metadata and
  *   degrades fail-closed to the legacy heuristic when a row has none.
- * - `observerRef` handles are transient: they are re-matched against the
- *   current scene on every build and never read from stored rows.
+ * - `observerRef` handles are transient: stored option refs and framed
+ *   candidates are re-matched against the answer-time scene (and revision)
+ *   before any use, and never enter prompts.
  * - Closing rules for clarification live here: explicit continuation links
  *   resolve or abandon the question, a foreign inquiry never closes it, and
  *   a world-changing outcome closes it by the legacy rule.
@@ -30,9 +31,11 @@ import {
   type TurnNarration,
 } from "@skald/world";
 import type {
+  ConversationMemoryClarificationOption,
   ConversationMemoryMentionKind,
   ConversationTurn,
   ConversationTurnRecord,
+  FramedClarification,
 } from "./types.js";
 
 /** One bounded replica inside the conversation window. */
@@ -88,8 +91,20 @@ export interface ConversationKnowledge {
 /** An unresolved Master question: the latest clarification turn. */
 export interface PendingClarification {
   readonly question: string;
-  readonly options: readonly { readonly optionId: string; readonly label: string }[];
+  readonly options: readonly ConversationMemoryClarificationOption[];
   readonly turnSeq: number;
+  /**
+   * The player replica that triggered the question (frame continuity):
+   * answering it against this text resolves the pending question.
+   * Absent only for rows written before frames existed.
+   */
+  readonly originalInput?: string | undefined;
+  /**
+   * Closed structured candidate (review P1): the stored proposal/intent
+   * plus its fillable slot and asking revision. Lets an exact answer
+   * revalidate without a second model call.
+   */
+  readonly framed?: FramedClarification | undefined;
 }
 
 /** Bounded conversation input for the Master Turn interpreter. */
@@ -457,10 +472,13 @@ function collectPendingClarification(scan: readonly ConversationTurn[]): Pending
     if (relation === "cancels" || relation === "new_topic") return null;
     if (actedAfter) return null;
     const stored = recordMetadata(turn)?.clarification;
+    const originalInput = turn.playerText.trim().length > 0 ? truncate(turn.playerText, MASTER_CONVERSATION_MAX_TEXT) : null;
     return freeze({
       question: truncate(stored?.question ?? turn.responseText, MASTER_CONVERSATION_MAX_TEXT),
       options: freeze(stored ? stored.options.map((option) => freeze({ ...option })) : []),
       turnSeq: turn.turnSeq,
+      ...(originalInput ? { originalInput } : {}),
+      ...(stored?.framed ? { framed: stored.framed } : {}),
     });
   }
   return null;

@@ -18,6 +18,18 @@ export interface JournalTurn {
   readonly turnId: string;
   readonly worldTime: number;
   /**
+   * Opaque key of the single authoring command behind this slice
+   * (plan_9 follow-up P0): every journal slice one command produced —
+   * e.g. a journey start plus its first travel tick — shares one
+   * masterTurnKey, so the feed renders the causal chain as one
+   * MasterTurn instead of orphaning all but one slice. Derived
+   * deterministically from the chain's causal root event id
+   * (`mt-` + FNV-1a base36 of "master-turn:v1:" + root); it never
+   * reveals internal ids. Offline ticks are roots themselves, so each
+   * keeps its own key and chronicle turn.
+   */
+  readonly masterTurnKey: string;
+  /**
    * Correlation of the player command that produced this turn's selected
    * deterministic response. It is absent for autonomous turns and for a
    * timestamp batch whose response spans multiple correlations.

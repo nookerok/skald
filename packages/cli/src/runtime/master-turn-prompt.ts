@@ -62,6 +62,12 @@ export const MASTER_TURN_SYSTEM_PROMPT: string = [
   "- choose a referent absent from the supplied table;",
   "- emit Domain Events;",
   "- issue system/admin operations.",
+  "",
+  "Referent discipline: every referent you emit needs an observerRef from",
+  "the supplied table, or role environment with a plain noun. A target is",
+  "one noun phrase — never a verb, a question, or an \"и\"-clause. Split",
+  "compounds explicitly: one primary action plus deferred_action or",
+  "question clauses. A surface you cannot bind is not a target.",
 ].join("\n");
 
 /** Closed capability enums mirrored from the package registries. */
@@ -107,13 +113,22 @@ export interface MasterTurnPrompt {
  */
 export function buildMasterTurnPrompt(input: MasterTurnPromptInput): MasterTurnPrompt {
   const conversation = input.conversation;
+  // The pending question travels as labels only: stored option refs,
+  // action patches and framed candidates are server-side resolution
+  // state and must never enter the model prompt.
+  const pending = conversation.pendingClarification;
   const user = JSON.stringify({
     kind: "master_turn",
     currentInput: input.playerText,
     conversationContext: {
       lastTurns: conversation.lastTurns,
       currentScene: input.scene,
-      pendingClarification: conversation.pendingClarification,
+      pendingClarification: pending ? {
+        question: pending.question,
+        options: pending.options.map((option) => ({ optionId: option.optionId, label: option.label })),
+        turnSeq: pending.turnSeq,
+        ...(pending.originalInput ? { originalInput: pending.originalInput } : {}),
+      } : null,
       recentlyMentionedEntities: conversation.recentlyMentionedEntities,
       activePlayerGoal: conversation.activePlayerGoal,
       currentDramaticThread: conversation.currentDramaticThread,

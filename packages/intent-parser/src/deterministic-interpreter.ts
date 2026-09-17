@@ -51,6 +51,8 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "оглянусь", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
   { verb: "оглян", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
   { verb: "смотр", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "наблюдать", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["за", "на", "в", "вокруг"] },
+  { verb: "наблюда", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["за", "на", "в", "вокруг"] },
   // inspect (canonical v1, Slice 1)
   { verb: "изучить", mode: "perceive", operation: "observe", canonical: "inspect", target: "optional" },
   { verb: "изуч", mode: "perceive", operation: "observe", canonical: "inspect", target: "optional" },
@@ -569,7 +571,7 @@ function buildClarification(
  * A single-action parser cannot silently execute only the first part.
  */
 function hasCompoundConjunction(text: string): boolean {
-  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|взгляд|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп)/iu.test(text)
+  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|смотр|взгляд|наблюд|ищ|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп)/iu.test(text)
     || /(?:^|\s)(?:потом|затем|после|одновременно)\s+/iu.test(text);
 }
 

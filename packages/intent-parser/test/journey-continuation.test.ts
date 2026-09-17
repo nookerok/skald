@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isJourneyContinuation } from "@skald/intent-parser";
+import { isContinuingJourneyTo, isJourneyContinuation } from "@skald/intent-parser";
 
 describe("isJourneyContinuation — closed continuation vocabulary (plan_9 §4)", () => {
   it.each([
@@ -41,5 +41,25 @@ describe("isJourneyContinuation — closed continuation vocabulary (plan_9 §4)"
     "move north",
   ])("does not treat %j as a journey continuation", (input) => {
     expect(isJourneyContinuation(input)).toBe(false);
+  });
+});
+
+describe("isContinuingJourneyTo — same active destination is progress", () => {
+  const city = "Речной Страж";
+  it.each([
+    "Продолжаю путь к Речному Стражу, держась ближе к реке и высматривая след на воде",
+    "Иду в Речной Страж",
+    "продолжаю путь к речному стражу",
+  ])("treats %j as continuing the active leg", (input) => {
+    expect(isContinuingJourneyTo(input, city)).toBe(true);
+  });
+  it.each([
+    ["продолжаю путь к реке", city],
+    ["иду к развалинам", city],
+    ["осматриваюсь", city],
+    ["Иду в Речной Страж", null],
+    ["Иду в Речной Страж", "  "],
+  ])("does not treat %j as continuing %j", (input, destination) => {
+    expect(isContinuingJourneyTo(input, destination)).toBe(false);
   });
 });

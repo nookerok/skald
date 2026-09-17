@@ -127,7 +127,19 @@ export function renderJournal() {
   turnsList.setAttribute("role", "list");
   turnsList.setAttribute("aria-label", "Хроника сцен");
 
-  const filteredTurns = getFilteredTurns();
+  // An empty journal turn (no primary, no notable, no background, no
+  // narration) carries no observable content: it must not become a
+  // standalone chronicle scene card. Background-only turns stay and render
+  // their background lines — they still say something.
+  const hasSceneContent = (turn) => {
+    const pres = turn.presentation || {};
+    if (typeof pres.primary?.text === "string" && pres.primary.text.trim()) return true;
+    if (Array.isArray(pres.notable) && pres.notable.some((entry) => typeof entry?.text === "string" && entry.text.trim())) return true;
+    if (Array.isArray(pres.background) && pres.background.some((entry) => typeof entry?.text === "string" && entry.text.trim())) return true;
+    if (typeof turn.narrativeLLM?.text === "string" && turn.narrativeLLM.text.trim()) return true;
+    return false;
+  };
+  const filteredTurns = getFilteredTurns().filter(hasSceneContent);
   const uniqueTurns = [];
   const seenSceneKeys = new Set();
   for (const [index, turn] of filteredTurns.entries()) {
@@ -209,6 +221,22 @@ export function renderJournal() {
         notableList.appendChild(nEl);
       }
       body.appendChild(notableList);
+    }
+
+    if (pres && Array.isArray(pres.background) && pres.background.some((entry) => typeof entry?.text === "string" && entry.text.trim())) {
+      const backgroundList = document.createElement("div");
+      backgroundList.className = "background-list";
+      backgroundList.setAttribute("role", "list");
+      backgroundList.setAttribute("aria-label", "Фоновые события сцены");
+      for (const entry of pres.background) {
+        if (typeof entry?.text !== "string" || !entry.text.trim()) continue;
+        const backgroundEl = document.createElement("div");
+        backgroundEl.className = "background-entry";
+        backgroundEl.setAttribute("role", "listitem");
+        backgroundEl.textContent = entry.text;
+        backgroundList.appendChild(backgroundEl);
+      }
+      body.appendChild(backgroundList);
     }
 
     turnEl.appendChild(body);

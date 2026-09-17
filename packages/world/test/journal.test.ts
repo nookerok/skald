@@ -196,3 +196,40 @@ describe("buildTurnJournal", () => {
     expect(scopedThread.entries).toHaveLength(1);
   });
 });
+
+describe("journal masterTurnKey (one command, one MasterTurn)", () => {
+  function chain(rootId: string, rootType: string, rootTime: number, childId: string, childType: string, childTime: number) {
+    return [
+      { eventId: rootId, type: rootType, schemaVersion: 1, payload: {}, timestamp: rootTime, correlationId: "cmd-1", causationId: null },
+      { eventId: childId, type: childType, schemaVersion: 1, payload: {}, timestamp: childTime, correlationId: "tick-2", causationId: rootId },
+    ] as DomainEvent[];
+  }
+
+  it("shares one opaque key across a command chain split over two times", () => {
+    const journal = buildTurnJournal([
+      ...chain("jr-1", "JourneyRequested", 1, "tick-1", "TickPassed", 2),
+    ]);
+    expect(journal.turns).toHaveLength(2);
+    const [first, second] = journal.turns as unknown as [{ masterTurnKey: string }, { masterTurnKey: string }];
+    expect(first.masterTurnKey).toBe(second.masterTurnKey);
+    expect(first.masterTurnKey).toMatch(/^mt-[0-9a-z]+$/);
+    expect(first.masterTurnKey).not.toContain("jr-1");
+  });
+
+  it("keys unrelated commands and offline ticks distinctly", () => {
+    const journal = buildTurnJournal([
+      ...chain("jr-1", "JourneyRequested", 1, "tick-1", "TickPassed", 2),
+      { eventId: "off-3", type: "TickPassed", schemaVersion: 1, payload: { delta: 1, playerOffline: true }, timestamp: 3, correlationId: "tick-3", causationId: null },
+      { eventId: "jr-2", type: "JourneyRequested", schemaVersion: 1, payload: {}, timestamp: 4, correlationId: "cmd-4", causationId: null },
+    ]);
+    const keys = journal.turns.map((turn) => turn.masterTurnKey);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("is deterministic across rebuilds", () => {
+    const events = chain("jr-1", "JourneyRequested", 1, "tick-1", "TickPassed", 2);
+    const first = buildTurnJournal(events).turns.map((turn) => turn.masterTurnKey);
+    const second = buildTurnJournal(structuredClone(events)).turns.map((turn) => turn.masterTurnKey);
+    expect(first).toEqual(second);
+  });
+});

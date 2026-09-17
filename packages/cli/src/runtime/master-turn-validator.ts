@@ -24,8 +24,14 @@ import {
   type ReadonlyWorld,
 } from "@skald/world";
 import {
+  conflictingActions,
+  inferAmbiguitySlot,
   isInquiryQueryId,
+  multipleReferents,
+  stemRussianToken,
   validateActionProposal,
+  type AmbiguitySlot,
+  type ClarificationOption,
   type ExecutableIntent,
   type InquiryRequest,
   type ProposedReferent,
@@ -34,6 +40,7 @@ import {
   type TurnProposalKind,
   type TurnProposalV2,
 } from "@skald/intent-parser";
+import type { FramedClarification } from "../conversation/types.js";
 import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
 
 /** Turn kinds a validated plan may carry. */
@@ -85,16 +92,166 @@ export interface ValidatedMasterTurnPlan {
   readonly conversationRelation?: TurnConversationRelation | null | undefined;
 }
 
-/** Player-facing clarification option. */
-export interface MasterTurnClarificationOption {
-  readonly optionId: string;
+/**
+ * Player-facing clarification option: the single canonical option shape
+ * (review P1). Referent choices carry their scene refs when resolvable;
+ * action alternatives carry their executable text; selection is checked by
+ * this data, never by id prefix.
+ */
+export type MasterTurnClarificationOption = ClarificationOption;
+
+/**
+ * Exact-first scene binding for model-proposed surfaces (review P1): a
+ * referent without observerRef never becomes a target on its own. Whole
+ * display-label (or alias) equality wins first, then unique stem overlap
+ * across the label vocabulary; a tie for best overlap stays ambiguous,
+ * no overlap binds nothing. Same discipline as the gateway speak binder.
+ */
+interface SceneBindEntry {
+  readonly observerRef: string;
   readonly label: string;
+  readonly knownAs: readonly string[];
+}
+
+type SceneBindResult =
+  | { readonly status: "unique"; readonly entry: SceneBindEntry }
+  | { readonly status: "ambiguous"; readonly labels: readonly string[] }
+  | { readonly status: "absent" };
+
+function normalizeBindText(value: string): string {
+  return value.trim().toLowerCase().replace(/ё/gu, "е").replace(/[?!.,;:]+$/u, "").trim();
+}
+
+/**
+ * Exact-first scene binding (exported for tests; the validator is the
+ * only production caller).
+ */
+export function bindSceneSurface(
+  surface: string,
+  entries: readonly SceneBindEntry[],
+): SceneBindResult {
+  const norm = normalizeBindText(surface);
+  if (!norm) return { status: "absent" };
+  const byLabel = new Map<string, SceneBindEntry[]>();
+  for (const entry of entries) {
+    const key = normalizeBindText(entry.label);
+    if (key.length === 0) continue;
+    const list = byLabel.get(key) ?? [];
+    list.push(entry);
+    byLabel.set(key, list);
+  }
+  // Identical display labels collapse to the first entry (one role).
+  const distinct = [...byLabel.values()].map((list) => list[0]!);
+  const exact = distinct.filter((entry) =>
+    normalizeBindText(entry.label) === norm
+    || entry.knownAs.some((alias) => normalizeBindText(alias) === norm),
+  );
+  if (exact.length > 0) return { status: "unique", entry: exact[0]! };
+  const stemWord = (word: string): string | null => {
+    const stemmed = stemRussianToken(word);
+    return stemmed.length >= 3 ? stemmed : null;
+  };
+  const sequenceOf = (text: string): readonly string[] =>
+    normalizeBindText(text).split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0)
+      .map((word) => stemWord(word))
+      .filter((word): word is string => word !== null);
+  // A contiguous stem phrase outranks bag overlap: in "К Ночному
+  // перевозчику. Спрошу…" both ferrymen match by words, but only one
+  // label is actually named. Mirrors the gateway speak binder.
+  const inputSequence = sequenceOf(surface);
+  const phrased = distinct.filter((entry) =>
+    [entry.label, ...entry.knownAs].some((text) => {
+      const phrase = sequenceOf(text);
+      if (phrase.length === 0 || inputSequence.length < phrase.length) return false;
+      outer: for (let start = 0; start + phrase.length <= inputSequence.length; start += 1) {
+        for (let offset = 0; offset < phrase.length; offset += 1) {
+          if (inputSequence[start + offset] !== phrase[offset]) continue outer;
+        }
+        return true;
+      }
+      return false;
+    }),
+  );
+  if (phrased.length === 1) return { status: "unique", entry: phrased[0]! };
+  const inputStems = new Set(
+    norm.split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0)
+      .map((word) => stemWord(word))
+      .filter((word): word is string => word !== null),
+  );
+  const vocabOf = (entry: SceneBindEntry): readonly string[] => [entry.label, ...entry.knownAs]
+    .flatMap((text) => normalizeBindText(text).split(/[^a-zа-я0-9]+/iu))
+    .filter((word) => word.length > 0)
+    .map((word) => stemWord(word))
+    .filter((word): word is string => word !== null);
+  let best: SceneBindEntry | null = null;
+  let bestHits = 0;
+  let tied = false;
+  for (const entry of distinct) {
+    const hits = vocabOf(entry).filter((word) => inputStems.has(word)).length;
+    if (hits > bestHits) {
+      best = entry;
+      bestHits = hits;
+      tied = false;
+    } else if (hits === bestHits && hits > 0) {
+      tied = true;
+    }
+  }
+  if (!best || bestHits === 0) return { status: "absent" };
+  if (tied) {
+    const labels: string[] = [];
+    for (const entry of distinct) {
+      if (vocabOf(entry).filter((word) => inputStems.has(word)).length === bestHits && !labels.includes(entry.label)) {
+        labels.push(entry.label);
+      }
+      if (labels.length >= 3) break;
+    }
+    return { status: "ambiguous", labels };
+  }
+  return { status: "unique", entry: best };
+}
+
+/** Closed verb stems marking a second action clause inside a target surface. */
+const TARGET_CLAUSE_VERBS = "(?:иду|идти|ищ|осматр|осмотр|рассмотр|огля|посмотр|слуш|прислуш|скаж|спрос|спрош|позо|наблюд|двиг|возьм|бер|откро)";
+
+/**
+ * Splits a compound tail ("X и ищу Y") off a model-proposed target
+ * surface. The head stays a candidate target; the tail returns for an
+ * explicit conflicting-actions clarification so no understood part is
+ * lost silently. Question tails are cut the same way. Returns null when
+ * the surface is a single clause. Exported for tests.
+ */
+export function splitTargetCompound(surface: string): { head: string; tail: string } | null {
+  const text = surface.trim();
+  if (!text) return null;
+  const question = text.indexOf("?");
+  const declarative = question >= 0 ? text.slice(0, question).trim() : text;
+  const tailQuestion = question >= 0 ? text.slice(question + 1).trim() : "";
+  // Note: \b is ASCII-only in JS (even with the u flag), so a Cyrillic
+  // verb stem needs an explicit letter lookahead as its boundary.
+  const compound = new RegExp(`^(.*?)\\s+(?:и|а)\\s+(?:я\\s+)?(${TARGET_CLAUSE_VERBS}[а-яё]*)(?![а-яёa-z0-9])(.*)$`, "iu").exec(declarative);
+  if (compound?.[1]?.trim()) {
+    const head = compound[1].trim().replace(/[,;]+$/u, "").trim();
+    const tail = `${compound[2] ?? ""}${compound[3] ?? ""}`.trim();
+    if (head && tail) return { head, tail };
+  }
+  if (tailQuestion) return { head: declarative, tail: tailQuestion };
+  return null;
 }
 
 /** Contextual validation outcome. Reasons stay sanitized (no internals). */
 export type MasterTurnValidation =
   | { readonly status: "accepted"; readonly plan: ValidatedMasterTurnPlan }
-  | { readonly status: "clarification"; readonly question: string; readonly options: readonly MasterTurnClarificationOption[] }
+  | {
+    readonly status: "clarification";
+    readonly question: string;
+    readonly options: readonly MasterTurnClarificationOption[];
+    /**
+     * Closed structured candidate (review P1): the proposal plus its
+     * fillable slot and asking revision, so an exact answer revalidates
+     * without a second model call. Absent for slot-less questions.
+     */
+    readonly framed?: FramedClarification | undefined;
+  }
   | { readonly status: "invalid"; readonly reason: string };
 
 /** Input for contextual validation. */
@@ -188,10 +345,12 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
   const { proposal, scene, world, rawText } = input;
 
   if (proposal.ambiguity) {
+    const slot = inferAmbiguitySlot(proposal);
     return {
       status: "clarification",
       question: proposal.ambiguity.question,
       options: proposal.ambiguity.candidates.map((label, index) => ({ optionId: `option-${index + 1}`, label })),
+      ...(slot ? { framed: framedCandidate(proposal, slot, scene) } : {}),
     };
   }
   if (proposal.primaryIntent === null) {
@@ -253,12 +412,35 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
     if (addressee.ref && addressee.ref.tableKind !== null && addressee.ref.tableKind !== "person") {
       return staleClarification(addressee.ref.surface);
     }
+    // A surface-only addressee binds against known people exact-first;
+    // ambiguity clarifies with frame options, an unknown name passes
+    // through (addressing the absent is still addressing someone).
+    let addresseeSurface = addressee.ref?.surface ?? null;
+    if (!addressee.ref?.observerRef && proposal.addressedEntity?.surface) {
+      const people = scene.context.knownPeople.map((entry) => ({
+        observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+      }));
+      const bound = bindSceneSurface(proposal.addressedEntity.surface, people);
+      if (bound.status === "ambiguous") {
+        const classified = multipleReferents(bound.labels, true);
+        return {
+          status: "clarification",
+          question: classified.question,
+          options: [...frameCandidateOptions(bound.labels, scene), ...classified.options],
+          framed: framedCandidate(proposal, "addressee", scene),
+        };
+      }
+      if (bound.status === "unique") {
+        addresseeSurface = bound.entry.label;
+        track(freeze({ observerRef: bound.entry.observerRef, surface: bound.entry.label, kind: "addressee" as const }));
+      }
+    }
     if (addressee.ref) track(freeze({ observerRef: addressee.ref.observerRef, surface: addressee.ref.surface, kind: "addressee" as const }));
     const intent: ExecutableIntent = freeze({
       type: "ActionIntentCommand" as const,
       mode: "communicate" as const,
       operation: "speak" as const,
-      ...(addressee.ref ? { target: { raw: addressee.ref.surface } } : {}),
+      ...(addresseeSurface ? { target: { raw: addresseeSurface } } : {}),
       utterance: proposal.primaryIntent.utterance,
       rawText,
       interpretation: freeze({ source: "llm" as const, confidence: 1, ambiguities: freeze([]) }),
@@ -380,16 +562,49 @@ function mapPrimaryAction(
 
   const target = checkRef(proposal.target, scene);
   if (target.error) return target.error;
+  // A surface-only referent never becomes a target on its own (review
+  // P1): compounds split into an explicit conflicting-actions
+  // clarification, bound surfaces resolve exact-first, ambiguity
+  // clarifies with selectable frame options, and only the remainder
+  // reaches the world-side resolver.
+  let surface: string | null = target.ref?.surface ?? null;
+  let boundRef: CheckedRef | null = target.ref?.observerRef ? target.ref : null;
   if (target.ref) track(freeze({ observerRef: target.ref.observerRef, surface: target.ref.surface, kind: "target" as const }));
-  const surface = target.ref?.surface;
+  if (!boundRef && proposal.target?.surface) {
+    const bound = bindProposalTarget(proposal.target.surface, scene);
+    if (bound.status === "compound") {
+      const classified = conflictingActions([bound.head, bound.tail]);
+      return { status: "clarification", question: classified.question, options: classified.options };
+    }
+    if (bound.status === "ambiguous") {
+      const classified = multipleReferents(bound.labels, false);
+      return {
+        status: "clarification",
+        question: classified.question,
+        options: [...frameCandidateOptions(bound.labels, scene), ...classified.options],
+        framed: framedCandidate(proposal, "target", scene),
+      };
+    }
+    if (bound.status === "bound") {
+      const entry = scene.references.get(bound.observerRef);
+      boundRef = freeze({
+        observerRef: bound.observerRef,
+        surface: bound.label,
+        internalId: entry?.internalId ?? null,
+        tableKind: entry?.kind ?? null,
+      });
+      surface = bound.label;
+      track(freeze({ observerRef: bound.observerRef, surface: bound.label, kind: "target" as const }));
+    }
+  }
 
   if (primary.kind === "interaction") {
-    const advised = adviseTarget(world, primary.verb, surface);
+    const advised = adviseTarget(world, primary.verb, surface ?? undefined, scene, proposal);
     if (advised) return advised;
-    const accessible = checkAccessible(world, target.ref);
+    const accessible = checkAccessible(world, boundRef ?? target.ref);
     if (accessible) return accessible;
     if (primary.verb === "use") {
-      const affordance = checkAffordance(world, target.ref);
+      const affordance = checkAffordance(world, boundRef ?? target.ref);
       if (affordance) return affordance;
     }
     return {
@@ -406,9 +621,9 @@ function mapPrimaryAction(
     };
   }
 
-  const advised = adviseTarget(world, primary.operation, surface);
+  const advised = adviseTarget(world, primary.operation, surface ?? undefined, scene, proposal);
   if (advised) return advised;
-  const accessible = checkAccessible(world, target.ref);
+  const accessible = checkAccessible(world, boundRef ?? target.ref);
   if (accessible) return accessible;
   return {
     status: "accepted",
@@ -425,16 +640,109 @@ function mapPrimaryAction(
   };
 }
 
+/** All scene entries a model-proposed surface may bind to. */
+function sceneBindEntries(scene: MasterTurnSceneSnapshot): SceneBindEntry[] {
+  const context = scene.context;
+  return [
+    ...context.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+  ];
+}
+
+type ProposalTargetBind =
+  | { readonly status: "bound"; readonly observerRef: string; readonly label: string }
+  | { readonly status: "ambiguous"; readonly labels: readonly string[] }
+  | { readonly status: "compound"; readonly head: string; readonly tail: string }
+  | { readonly status: "absent" };
+
+/**
+ * Binds a model-proposed target surface before it may become an intent
+ * target (review P1): compounds split into an explicit conflicting-actions
+ * clarification, bound surfaces resolve exact-first, ambiguity clarifies
+ * with selectable frame options, and only the remainder reaches the
+ * world-side resolver.
+ */
+function bindProposalTarget(
+  surface: string,
+  scene: MasterTurnSceneSnapshot,
+): ProposalTargetBind {
+  const split = splitTargetCompound(surface);
+  if (split) return { status: "compound", head: split.head, tail: split.tail };
+  const bound = bindSceneSurface(surface, sceneBindEntries(scene));
+  if (bound.status === "unique") {
+    return { status: "bound", observerRef: bound.entry.observerRef, label: bound.entry.label };
+  }
+  if (bound.status === "ambiguous") return { status: "ambiguous", labels: bound.labels };
+  return { status: "absent" };
+}
+
+function frameCandidateOptions(
+  labels: readonly string[],
+  scene?: MasterTurnSceneSnapshot,
+): readonly MasterTurnClarificationOption[] {
+  return Object.freeze(labels.slice(0, 3).map((label, index) => {
+    const refs = scene ? refsForLabels([label], scene) : [];
+    return Object.freeze({
+      optionId: `candidate-${index + 1}`,
+      label,
+      ...(refs.length > 0 ? { referentRefs: refs } : {}),
+    });
+  }));
+}
+
+/**
+ * Resolves candidate labels to current scene refs (exact-first). Labels
+ * without a hit resolve at answer time instead — the option stays
+ * label-only rather than inventing a handle.
+ */
+function refsForLabels(labels: readonly string[], scene: MasterTurnSceneSnapshot): readonly string[] {
+  const entries = sceneBindEntries(scene);
+  const refs: string[] = [];
+  for (const label of labels) {
+    const bound = bindSceneSurface(label, entries);
+    if (bound.status === "unique" && !refs.includes(bound.entry.observerRef)) refs.push(bound.entry.observerRef);
+  }
+  return Object.freeze(refs);
+}
+
+/**
+ * Builds the stored structured candidate for one referent-slot
+ * clarification (review P1): the proposal, the fillable slot and the
+ * asking scene revision. An exact answer patches the slot and revalidates
+ * with no second model call.
+ */
+function framedCandidate(
+  proposal: TurnProposalV2,
+  slot: AmbiguitySlot,
+  scene: MasterTurnSceneSnapshot,
+): FramedClarification {
+  return {
+    slot,
+    proposal,
+    revision: { ...scene.context.revision },
+  };
+}
+
 /** Advisory resolver pre-check: missing or ambiguous targets clarify before the queue. */
-function adviseTarget(world: ReadonlyWorld, verb: string, surface: string | undefined): UnacceptedValidation | null {
+function adviseTarget(
+  world: ReadonlyWorld,
+  verb: string,
+  surface: string | undefined,
+  scene: MasterTurnSceneSnapshot,
+  proposal: TurnProposalV2,
+): UnacceptedValidation | null {
   if (!surface) return null;
   const resolution = resolveInteractionTarget(world, verb, surface);
   if (resolution.kind === "resolved") return null;
   if (resolution.kind === "ambiguous") {
+    const labels = resolution.candidates.slice(0, 4).map((candidate) => candidate.name);
     return {
       status: "clarification",
       question: "Уточни, что именно ты имеешь в виду.",
-      options: resolution.candidates.slice(0, 4).map((candidate, index) => ({ optionId: `candidate-${index + 1}`, label: candidate.name })),
+      options: frameCandidateOptions(labels, scene),
+      framed: framedCandidate(proposal, "target", scene),
     };
   }
   return staleClarification(surface);

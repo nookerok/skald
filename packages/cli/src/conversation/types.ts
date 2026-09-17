@@ -1,3 +1,5 @@
+import type { ExecutableIntent, TurnProposalV2 } from "@skald/intent-parser";
+
 export type ConversationInputClass =
   | "action"
   | "inquiry"
@@ -57,8 +59,11 @@ export interface ConversationTurnRecord extends ConversationTurn {
  * player's stated goal, a clarification payload, the relation of this turn
  * to a pending clarification, and the dramatic thread active at turn time.
  * Never World State: rows never drive Rules, and the world never reads them.
- * Never persisted here: raw model responses, prompts, observerRef handles,
- * entity/event/location ids, Canon, hidden facts, confidence, Event fragments.
+ * Never persisted here: raw model responses, prompts, entity/event/location
+ * ids, Canon, hidden facts, confidence, Event fragments.
+ * ObserverRef handles persist ONLY inside clarification options and framed
+ * candidates (review P1): they are transient display handles, re-resolved
+ * against the answer-time scene before any use, and never enter prompts.
  */
 export type ConversationMemoryMentionKind = "person" | "object" | "route" | "topic";
 
@@ -78,6 +83,32 @@ export interface ConversationMemoryMention {
 export interface ConversationMemoryClarificationOption {
   readonly optionId: string;
   readonly label: string;
+  /**
+   * observerRefs this option selects (attached by scene-aware producers).
+   * Absent for scene-free producers; the consumer re-resolves the label.
+   */
+  readonly referentRefs?: readonly string[] | undefined;
+  /** Executable alternative for action options (conflicting actions). */
+  readonly intentPatch?: { readonly actionText: string } | undefined;
+}
+
+/** Referent slot a clarification choice fills inside a stored candidate. */
+export type FramedReferentSlot = "target" | "addressee" | "destination";
+
+/**
+ * Closed structured candidate persisted with a clarification (review P1):
+ * the proposal or deterministic intent plus the single slot the choice
+ * fills and the scene revision it was asked at. The consumer revalidates
+ * after patching — no second model call. Exactly one of proposal/intent.
+ */
+export interface FramedClarification {
+  readonly slot: FramedReferentSlot;
+  readonly revision: {
+    readonly worldTime: number;
+    readonly eventNumber: number;
+  };
+  readonly proposal?: TurnProposalV2 | undefined;
+  readonly intent?: ExecutableIntent | undefined;
 }
 
 export type ConversationContinuationRelation = "resolves" | "continues" | "new_topic" | "cancels";
@@ -91,6 +122,7 @@ export interface ConversationMemoryMetadataV1 {
   readonly clarification?: {
     readonly question: string;
     readonly options: readonly ConversationMemoryClarificationOption[];
+    readonly framed?: FramedClarification | undefined;
   } | undefined;
   readonly continuation?: {
     readonly relation: ConversationContinuationRelation;
@@ -110,6 +142,9 @@ export const CONVERSATION_MEMORY_MAX_QUESTION = 500;
 export const CONVERSATION_MEMORY_MAX_OPTIONS = 6;
 export const CONVERSATION_MEMORY_MAX_OPTION_ID = 40;
 export const CONVERSATION_MEMORY_MAX_OPTION_LABEL = 80;
+export const CONVERSATION_MEMORY_MAX_OPTION_REFS = 4;
+export const CONVERSATION_MEMORY_MAX_OPTION_REF = 40;
+export const CONVERSATION_MEMORY_MAX_ACTION_TEXT = 120;
 export const CONVERSATION_MEMORY_MAX_THREAD_TITLE = 140;
 
 const MEMORY_MENTION_KINDS: ReadonlySet<string> = new Set(["person", "object", "route", "topic"]);
@@ -144,10 +179,63 @@ function parseMention(raw: unknown): ConversationMemoryMention | null {
 function parseClarificationOption(raw: unknown): ConversationMemoryClarificationOption | null {
   if (!isRecord(raw)) return null;
   const keys = Object.keys(raw);
-  if (keys.length !== 2 || !keys.includes("optionId") || !keys.includes("label")) return null;
+  if (!keys.includes("optionId") || !keys.includes("label")) return null;
+  if (!keys.every((key) => key === "optionId" || key === "label" || key === "referentRefs" || key === "intentPatch")) return null;
   if (!isCleanText(raw.optionId, CONVERSATION_MEMORY_MAX_OPTION_ID)) return null;
   if (!isCleanText(raw.label, CONVERSATION_MEMORY_MAX_OPTION_LABEL)) return null;
-  return { optionId: raw.optionId as string, label: raw.label as string };
+  const option: {
+    optionId: string;
+    label: string;
+    referentRefs?: readonly string[];
+    intentPatch?: { readonly actionText: string };
+  } = { optionId: raw.optionId as string, label: raw.label as string };
+  if (raw.referentRefs !== undefined) {
+    if (!Array.isArray(raw.referentRefs) || raw.referentRefs.length === 0 || raw.referentRefs.length > CONVERSATION_MEMORY_MAX_OPTION_REFS) return null;
+    const refs: string[] = [];
+    for (const ref of raw.referentRefs) {
+      if (!isCleanText(ref, CONVERSATION_MEMORY_MAX_OPTION_REF)) return null;
+      refs.push(ref as string);
+    }
+    option.referentRefs = refs;
+  }
+  if (raw.intentPatch !== undefined) {
+    if (!isRecord(raw.intentPatch) || Object.keys(raw.intentPatch).length !== 1) return null;
+    if (!isCleanText(raw.intentPatch.actionText, CONVERSATION_MEMORY_MAX_ACTION_TEXT)) return null;
+    option.intentPatch = { actionText: raw.intentPatch.actionText as string };
+  }
+  return option;
+}
+
+function parseRevision(raw: unknown): { readonly worldTime: number; readonly eventNumber: number } | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.worldTime !== "number" || !Number.isSafeInteger(raw.worldTime) || (raw.worldTime as number) < 0) return null;
+  if (typeof raw.eventNumber !== "number" || !Number.isSafeInteger(raw.eventNumber) || (raw.eventNumber as number) < 0) return null;
+  if (!Object.keys(raw).every((key) => key === "worldTime" || key === "eventNumber")) return null;
+  return { worldTime: raw.worldTime as number, eventNumber: raw.eventNumber as number };
+}
+
+/**
+ * Fail-closed parse of a stored framed candidate: exactly one of proposal
+ * / intent, a closed slot, a sane revision. Semantic revalidation happens
+ * at answer time; anything off degrades to plain re-interpretation.
+ */
+function parseFramedClarification(raw: unknown): FramedClarification | null {
+  if (!isRecord(raw)) return null;
+  if (!Object.keys(raw).every((key) => key === "slot" || key === "revision" || key === "proposal" || key === "intent")) return null;
+  if (raw.slot !== "target" && raw.slot !== "addressee" && raw.slot !== "destination") return null;
+  const revision = parseRevision(raw.revision);
+  if (!revision) return null;
+  const hasProposal = raw.proposal !== undefined;
+  const hasIntent = raw.intent !== undefined;
+  if (hasProposal === hasIntent) return null;
+  if (hasProposal && !isRecord(raw.proposal)) return null;
+  if (hasIntent && !isRecord(raw.intent)) return null;
+  return {
+    slot: raw.slot,
+    revision,
+    ...(hasProposal ? { proposal: raw.proposal as TurnProposalV2 } : {}),
+    ...(hasIntent ? { intent: raw.intent as ExecutableIntent } : {}),
+  };
 }
 
 /**
@@ -173,7 +261,7 @@ export function parseConversationMemoryMetadata(raw: unknown): ConversationMemor
     schemaVersion: 1;
     mentions?: ConversationMemoryMention[];
     goal?: { summary: string };
-    clarification?: { question: string; options: ConversationMemoryClarificationOption[] };
+    clarification?: { question: string; options: ConversationMemoryClarificationOption[]; framed?: FramedClarification };
     continuation?: { relation: ConversationContinuationRelation; clarificationTurnSeq?: number };
     dramaticThread?: { source: ConversationDramaticThreadSource; title: string };
   } = { schemaVersion: 1 };
@@ -195,7 +283,8 @@ export function parseConversationMemoryMetadata(raw: unknown): ConversationMemor
   if (parsed.clarification !== undefined) {
     if (!isRecord(parsed.clarification)) return null;
     const keys = Object.keys(parsed.clarification);
-    if (keys.length !== 2 || !keys.includes("question") || !keys.includes("options")) return null;
+    if (!keys.includes("question") || !keys.includes("options")) return null;
+    if (!keys.every((key) => key === "question" || key === "options" || key === "framed")) return null;
     if (!isCleanText(parsed.clarification.question, CONVERSATION_MEMORY_MAX_QUESTION)) return null;
     if (!Array.isArray(parsed.clarification.options) || parsed.clarification.options.length > CONVERSATION_MEMORY_MAX_OPTIONS) return null;
     const options: ConversationMemoryClarificationOption[] = [];
@@ -204,7 +293,15 @@ export function parseConversationMemoryMetadata(raw: unknown): ConversationMemor
       if (!option) return null;
       options.push(option);
     }
-    result.clarification = { question: parsed.clarification.question as string, options };
+    const framed = parsed.clarification.framed !== undefined
+      ? parseFramedClarification(parsed.clarification.framed)
+      : undefined;
+    if (parsed.clarification.framed !== undefined && !framed) return null;
+    result.clarification = {
+      question: parsed.clarification.question as string,
+      options,
+      ...(framed ? { framed } : {}),
+    };
   }
   if (parsed.continuation !== undefined) {
     if (!isRecord(parsed.continuation)) return null;
@@ -256,12 +353,27 @@ export function serializeConversationMemoryMetadata(metadata: ConversationMemory
       out.goal = { summary: cappedText(String(metadata.goal.summary), CONVERSATION_MEMORY_MAX_GOAL) };
     }
     if (metadata.clarification !== undefined) {
+      const framed = metadata.clarification.framed;
       out.clarification = {
         question: cappedText(String(metadata.clarification.question), CONVERSATION_MEMORY_MAX_QUESTION),
         options: metadata.clarification.options.slice(0, CONVERSATION_MEMORY_MAX_OPTIONS).map((option) => ({
           optionId: cappedText(String(option.optionId), CONVERSATION_MEMORY_MAX_OPTION_ID),
           label: cappedText(String(option.label), CONVERSATION_MEMORY_MAX_OPTION_LABEL),
+          ...(option.referentRefs !== undefined ? {
+            referentRefs: option.referentRefs.slice(0, CONVERSATION_MEMORY_MAX_OPTION_REFS).map((ref) => cappedText(String(ref), CONVERSATION_MEMORY_MAX_OPTION_REF)),
+          } : {}),
+          ...(option.intentPatch !== undefined ? {
+            intentPatch: { actionText: cappedText(String(option.intentPatch.actionText), CONVERSATION_MEMORY_MAX_ACTION_TEXT) },
+          } : {}),
         })),
+        ...(framed !== undefined ? {
+          framed: {
+            slot: framed.slot,
+            revision: { worldTime: framed.revision.worldTime, eventNumber: framed.revision.eventNumber },
+            ...(framed.proposal !== undefined ? { proposal: framed.proposal } : {}),
+            ...(framed.intent !== undefined ? { intent: framed.intent } : {}),
+          },
+        } : {}),
       };
     }
     if (metadata.continuation !== undefined) {

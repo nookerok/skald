@@ -158,6 +158,7 @@ export function toPlayerFacingNarrativeEntries(entries: readonly NarrativeEntry[
 export function toPlayerFacingJournalTurns(turns: readonly JournalTurn[]): PlayerFacingJournalTurn[] {
   return turns.map((turn) => ({
     worldTime: turn.worldTime,
+    masterTurnKey: turn.masterTurnKey,
     turnHandle: readSideHandle("turn", turn.turnId),
     narrationHandle: narrationHandle(turn.worldTime, turn.correlationId),
     ...(turn.autonomous === true ? { autonomous: true as const } : {}),

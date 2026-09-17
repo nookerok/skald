@@ -4,7 +4,7 @@ import { WorldProjector, buildMasterTurnSceneContext, createRules } from "@skald
 import { RuleEngine } from "@skald/rule-engine";
 import { isGenericFallbackText } from "@skald/intent-parser";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
-import { interpretMasterTurn, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
+import { interpretMasterTurn, matchFrameOption, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
 
 function event(type: string, eventId: string, payload: unknown, timestamp = 0): DomainEvent {
   return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: "bootstrap", causationId: null };
@@ -583,5 +583,287 @@ describe("mixed-corpus generic-fallback gate (plan_9 §1-2)", () => {
     }
     expect(generic).toBeLessThanOrEqual(1);
     expect(diagnostics.filter((event) => event.category === "generic_clarification_fallback").length).toBe(generic);
+  });
+});
+
+describe("pending-clarification frame (review P0)", () => {
+  function frameRouter() {
+    return { chat: vi.fn(() => { throw new Error("model down"); }) } as any;
+  }
+
+  function framedSnapshot(originalInput: string): MasterTurnSnapshot {
+    const snap = snapshot();
+    const pending = {
+      turnSeq: 3,
+      worldId: "test-world",
+      correlationId: "cmd-3",
+      idempotencyKey: "k3",
+      playerText: originalInput,
+      inputClass: "action",
+      worldTimeBefore: 1,
+      worldTimeAfter: 1,
+      responseKind: "clarification",
+      responseText: "К ограде или ко двору?",
+      createdAt: 3,
+      contextMetadata: {
+        schemaVersion: 1,
+        clarification: {
+          question: "К ограде или ко двору?",
+          options: [
+            { optionId: "candidate-1", label: "Ограда" },
+            { optionId: "candidate-2", label: "Двор" },
+          ],
+        },
+      },
+    } as unknown as import("../src/conversation/types.js").ConversationTurn;
+    return { ...snap, conversation: buildMasterConversationContext([pending], "test-world", { scene: snap.scene.context }) };
+  }
+
+  it("resolves an exact frame answer first-try without the model", async () => {
+    const router = frameRouter();
+    const result = await interpretMasterTurn("Ограда", framedSnapshot("Осматриваю ограду."), router);
+
+    expect(result.status).toBe("deterministic");
+    if (result.status !== "deterministic") return;
+    expect(result.intent).toMatchObject({ type: "InteractionCommand", verb: "observe" });
+    expect(result.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 3 });
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("leaves a foreign inquiry open with no link", async () => {
+    const router = frameRouter();
+    const result = await interpretMasterTurn("Где я?", framedSnapshot("Осматриваю ограду."), router);
+
+    expect(result.status).toBe("inquiry");
+    if (result.status !== "inquiry") return;
+    expect(result.pendingLink).toBeUndefined();
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe("matchFrameOption", () => {  const ferrymen = [
+    { optionId: "candidate-1", label: "Ночной перевозчик" },
+    { optionId: "candidate-2", label: "Дневной перевозчик" },
+  ];
+
+  it("matches an exact label first, collapsing identical labels", () => {
+    expect(matchFrameOption("Ночной перевозчик", ferrymen)).toEqual({ status: "matched", option: ferrymen[0] });
+    expect(matchFrameOption("ночной ПЕРЕВОЗЧИК!", ferrymen)).toEqual({ status: "matched", option: ferrymen[0] });
+    const twins = [ferrymen[0]!, { optionId: "candidate-9", label: "Ночной перевозчик" }];
+    expect(matchFrameOption("Ночной перевозчик", twins)).toEqual({ status: "matched", option: twins[0] });
+  });
+
+  it("matches a long replica by unique best stem overlap", () => {
+    const match = matchFrameOption(
+      "К Ночному перевозчику. Спрошу именно его, что случилось с переправой.",
+      ferrymen,
+    );
+    expect(match).toEqual({ status: "matched", option: ferrymen[0] });
+  });
+
+  it("stays ambiguous on a tied stem", () => {
+    expect(matchFrameOption("перевозчик", ferrymen)).toEqual({ status: "ambiguous" });
+  });
+
+  it("matches nothing without overlap", () => {
+    expect(matchFrameOption("осмотреться", ferrymen)).toEqual({ status: "none" });
+    expect(matchFrameOption("", ferrymen)).toEqual({ status: "none" });
+    expect(matchFrameOption("   ", ferrymen)).toEqual({ status: "none" });
+  });
+});
+
+describe("unified frame selection (review P1)", () => {
+  function frameRouter() {
+    return { chat: vi.fn(() => { throw new Error("model down"); }) } as any;
+  }
+
+  function framedSnapshot(
+    snap: MasterTurnSnapshot,
+    originalInput: string,
+    options: { optionId: string; label: string; referentRefs?: string[]; intentPatch?: { actionText: string } }[],
+    framed?: Record<string, unknown>,
+  ): MasterTurnSnapshot {
+    const pending = {
+      turnSeq: 3,
+      worldId: "test-world",
+      correlationId: "cmd-3",
+      idempotencyKey: "k3",
+      playerText: originalInput,
+      inputClass: "action",
+      worldTimeBefore: 1,
+      worldTimeAfter: 1,
+      responseKind: "clarification",
+      responseText: "К ограде или ко двору?",
+      createdAt: 3,
+      contextMetadata: {
+        schemaVersion: 1,
+        clarification: {
+          question: "К ограде или ко двору?",
+          options,
+          ...(framed ? { framed } : {}),
+        },
+      },
+    } as unknown as import("../src/conversation/types.js").ConversationTurn;
+    return { ...snap, conversation: buildMasterConversationContext([pending], "test-world", { scene: snap.scene.context }) };
+  }
+
+  function fenceRef(snap: MasterTurnSnapshot): string {
+    const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    if (!fence) throw new Error("fence is not visible in the camp scene");
+    return fence.observerRef;
+  }
+
+  const observeProposal = {
+    schemaVersion: 2,
+    kind: "action",
+    primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Осматриваю её." },
+    supportingClauses: [],
+    target: { role: "target", surface: "ней" },
+    referents: [{ role: "target", surface: "ней" }],
+  };
+
+  it("resolves an option-N answer through the stored proposal with no model call", async () => {
+    const base = snapshot();
+    const router = frameRouter();
+    const snap = framedSnapshot(
+      base,
+      "Осматриваю её.",
+      [
+        { optionId: "option-1", label: "Ограда" },
+        { optionId: "option-2", label: "Двор" },
+      ],
+      { slot: "target", proposal: observeProposal, revision: { ...base.scene.context.revision } },
+    );
+    const result = await interpretMasterTurn("Ограда", snap, router);
+
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution?.intent).toMatchObject({ type: "InteractionCommand", verb: "observe" });
+    expect(result.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 3 });
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("resolves a candidate-N answer through the stored intent with no model call", async () => {
+    const base = snapshot();
+    const ref = fenceRef(base);
+    const router = frameRouter();
+    const snap = framedSnapshot(
+      base,
+      "Осматриваю её.",
+      [
+        { optionId: "candidate-1", label: "Ограда", referentRefs: [ref] },
+        { optionId: "candidate-2", label: "Двор" },
+      ],
+      {
+        slot: "target",
+        intent: {
+          type: "InteractionCommand",
+          verb: "observe",
+          target: { raw: "ней" },
+          rawText: "Осматриваю её.",
+          interpretation: { source: "deterministic", confidence: 1, ambiguities: [] },
+        },
+        revision: { ...base.scene.context.revision },
+      },
+    );
+    const result = await interpretMasterTurn("Ограда", snap, router);
+
+    expect(result.status).toBe("deterministic");
+    if (result.status !== "deterministic") return;
+    expect(result.intent).toMatchObject({ type: "InteractionCommand", target: { raw: "Ограда" } });
+    expect(result.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 3 });
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("falls back to re-interpretation on a stale revision without resolving", async () => {
+    const router = frameRouter();
+    const snap = framedSnapshot(
+      snapshot(),
+      "Осматриваю её.",
+      [
+        { optionId: "option-1", label: "Ограда" },
+        { optionId: "option-2", label: "Двор" },
+      ],
+      { slot: "target", proposal: observeProposal, revision: { worldTime: 9999, eventNumber: 9999 } },
+    );
+    const result = await interpretMasterTurn("Ограда", snap, router);
+
+    // No framed shortcut: the stale candidate cannot resolve, so the
+    // original is re-understood from scratch (the model is consulted).
+    expect(result.status).toBe("clarification");
+    expect(router.chat).toHaveBeenCalled();
+  });
+
+  it("runs an action patch instead of the whole compound", async () => {
+    const router = frameRouter();
+    const snap = framedSnapshot(
+      snapshot(),
+      "осмотреться и идти к реке",
+      [{ optionId: "deterministic-1", label: "осмотреться", intentPatch: { actionText: "осмотреться" } }],
+    );
+    const result = await interpretMasterTurn("осмотреться", snap, router);
+
+    expect(result.status).toBe("deterministic");
+    if (result.status !== "deterministic") return;
+    expect(result.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 3 });
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("matches target-N labels through the legacy restricted re-run", async () => {
+    const router = frameRouter();
+    const snap = framedSnapshot(
+      snapshot(),
+      "Осматриваю ограду.",
+      [
+        { optionId: "target-1", label: "Ограда" },
+        { optionId: "target-2", label: "Двор" },
+      ],
+    );
+    const result = await interpretMasterTurn("Ограда", snap, router);
+
+    expect(result.status).toBe("deterministic");
+    if (result.status !== "deterministic") return;
+    expect(result.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 3 });
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("never consumes an exact rephrase replica as a frame answer", async () => {
+    const router = frameRouter();
+    const snap = framedSnapshot(
+      snapshot(),
+      "Подойду к ней.",
+      [{ optionId: "rephrase", label: "Уточнить намерение" }],
+    );
+    const result = await interpretMasterTurn("Уточнить намерение", snap, router);
+
+    expect((result as { pendingLink?: unknown }).pendingLink).toBeUndefined();
+  });
+
+  it("stamps the scene revision onto a model-reported ambiguity (review P1)", async () => {
+    const snap = snapshot();
+    const router = {
+      chat: vi.fn().mockResolvedValue({
+        text: JSON.stringify({
+          schemaVersion: 2,
+          kind: "action",
+          primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Осматриваю её." },
+          supportingClauses: [],
+          target: { role: "target", surface: "ней" },
+          referents: [{ role: "target", surface: "ней" }],
+          ambiguity: { kind: "referent", question: "К ограде или ко двору?", candidates: ["Ограда", "Двор"] },
+        }),
+      }),
+    } as any;
+    const result = await interpretMasterTurn("Осматриваю её.", snap, router);
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.options.map((option) => option.optionId)).toEqual(["option-1", "option-2"]);
+    expect(result.framed).toMatchObject({
+      slot: "target",
+      revision: snap.scene.context.revision,
+    });
+    expect((result.framed?.proposal as { target?: { surface?: string } } | undefined)?.target?.surface).toBe("ней");
+    expect(router.chat).toHaveBeenCalledTimes(1);
   });
 });

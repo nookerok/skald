@@ -270,6 +270,95 @@ function conversationOnlyMasterNode(turn) {
   return node;
 }
 
+/**
+ * Chain-level dedup (review P1): one command's slices repeat the same
+ * outcome text (the paired answer echoes the first slice's primary), so
+ * identical member texts collapse AFTER the whole chain assembles — never
+ * inside a single element. Comparison is normalized, the first wording
+ * wins. Genuinely different slice texts all survive.
+ */
+function dedupeChainParts(texts) {
+  const seen = new Set();
+  const unique = [];
+  for (const text of texts) {
+    const key = normalizeBubbleText(text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(text);
+  }
+  return unique;
+}
+
+/**
+ * One master bubble for a whole command chain: member primaries read in
+ * time order as one answer, narration binds to the paired slice (or the
+ * newest narrated slice when unpaired), notable/background merge under
+ * the usual caps. The bubble key is the paired conversation turnKey when
+ * present, else the shared masterTurnKey — so narration refresh replaces
+ * this same logical bubble instead of adding another.
+ */
+function chainTurnNode(unit) {
+  const turns = unit.turns;
+  const paired = unit.kind === "chainPair" ? unit.member : null;
+  const key = unit.kind === "chainPair" && unit.conversation ? turnKeyOf(unit.conversation) : null;
+  const node = makeNode("article", {
+    className: "chat-turn",
+    attrs: key ? { "data-turn-key": key } : turnKeyAttrs({ turnKey: unit.key }),
+  });
+  const times = turns.map((turn) => turn.worldTime).filter((time) => Number.isFinite(time));
+  const span = times.length > 1 && Math.min(...times) !== Math.max(...times)
+    ? `Ход ${Math.min(...times)}–${Math.max(...times)}` : `Ход ${times[0] ?? "—"}`;
+  const header = makeNode("div", { className: "chat-turn-header" });
+  header.append(
+    makeNode("span", { className: "chat-turn-speaker", text: "МАСТЕР" }),
+    makeNode("span", { className: "chat-turn-meta", text: span }),
+  );
+  node.appendChild(header);
+  const parts = turns.map((turn) => {
+    const presentation = turn.presentation || {};
+    const narrative = turn.narrativeLLM;
+    const response = paired === turn && unit.conversation
+      ? { text: unit.conversation.responseText, kind: unit.conversation.responseKind }
+      : presentation.response || null;
+    const primary = presentation.primary || null;
+    return dedupeNarratedText(response?.text || primary?.text || "", narrative && !narrative.usedFallback ? narrative.text || "" : "");
+  });
+  const primaryText = dedupeChainParts(parts.map((part) => part.primary)).join(" ");
+  // Suppressed primary stays suppressed: fall back to member primaries
+  // only when narration added nothing either.
+  const fallbackText = parts.map((part) => part.narrated).filter(Boolean).length === 0
+    ? dedupeChainParts(turns.map((turn) => turn.presentation?.primary?.text).filter(Boolean)).join(" ") : "";
+  const responseText = primaryText || fallbackText;
+  let mark = "";
+  for (const turn of turns) {
+    const label = markLabel(turn.presentation?.primary?.discoveryMark);
+    if (label) { mark = label; break; }
+  }
+  if (responseText) {
+    const primaryRow = makeNode("p", { className: "chat-world-primary", text: responseText });
+    if (mark) primaryRow.appendChild(makeNode("span", { className: "chat-mark", text: mark }));
+    node.appendChild(primaryRow);
+  }
+  const narratedText = dedupeChainParts(parts.map((part) => part.narrated).filter(Boolean)).join(" ");
+  if (narratedText) {
+    const narratedRow = makeNode("p", { className: "chat-world-narrated", text: narratedText });
+    if (!responseText && mark) narratedRow.appendChild(makeNode("span", { className: "chat-mark", text: mark }));
+    node.appendChild(narratedRow);
+  }
+  if (turns.some((turn) => turn.narrationState === "pending")) {
+    node.appendChild(makeNode("p", { className: "chat-narration-status", text: "МАСТЕР дополняет эту запись…", attrs: { role: "status", "aria-live": "polite" } }));
+  }
+  const notable = turns.flatMap((turn) => (turn.presentation && turn.presentation.notable) || []).slice(0, 2);
+  for (const entry of notable) {
+    node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
+  }
+  const background = turns.flatMap((turn) => (turn.presentation && turn.presentation.background) || []).slice(0, 3).map((entry) => entry.text).filter(Boolean);
+  if (background.length) {
+    node.appendChild(makeNode("p", { className: "chat-background", text: background.join(" · ") }));
+  }
+  return node;
+}
+
 function isConversationTurn(value) {
   return Boolean(value && typeof value === "object" && typeof value.playerText === "string" && typeof value.responseText === "string");
 }
@@ -327,6 +416,7 @@ function foldAutonomousRuns(items) {
 function itemWorldTime(item) {
   if (item.kind === "conversation") return item.turn.worldTimeAfter;
   if (item.kind === "autonomous") return item.turns[item.turns.length - 1]?.worldTime;
+  if (item.kind === "chain" || item.kind === "chainPair") return item.turns[item.turns.length - 1]?.worldTime;
   return item.turn?.worldTime;
 }
 
@@ -388,9 +478,46 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
     return true;
   });
   const journalItems = turnList.map((turn) => ({ kind: "journal", turn }));
+  // One command, one MasterTurn: adjacent journal slices sharing a
+  // masterTurnKey belong to one authoring command (e.g. a journey start
+  // plus its first travel tick) and render as one chain unit instead of
+  // orphaning all but one slice. Autonomous turns never join a chain.
+  const chainedItems = [];
+  for (const item of journalItems) {
+    const key = item.kind === "journal" && item.turn && item.turn.autonomous !== true
+      && typeof item.turn.masterTurnKey === "string" && item.turn.masterTurnKey
+      ? item.turn.masterTurnKey : null;
+    const last = chainedItems[chainedItems.length - 1];
+    if (key && last && last.kind === "chain" && last.key === key) last.turns.push(item.turn);
+    else if (key) chainedItems.push({ kind: "chain", key, turns: [item.turn] });
+    else chainedItems.push(item);
+  }
   const items = [];
   const matchedConversationKeys = new Set();
-  for (const item of journalItems) {
+  const matchChainConversation = (unit) => {
+    // The paired slice usually carries the narration handle; try members
+    // newest-first so narration binds to the right slice.
+    const allowFallbackFor = (member) => turnList.filter((turn) => turn.worldTime === member.worldTime).length === 1
+      && uniqueConversationTurns.filter((turn) => turn.inputClass === "action" && turn.worldTimeAfter === member.worldTime).length === 1;
+    for (let index = unit.turns.length - 1; index >= 0; index -= 1) {
+      const member = unit.turns[index];
+      const conversation = uniqueConversationTurns.find((candidate) => !matchedConversationKeys.has(candidate.idempotencyKey)
+        && conversationMatchesTurn(candidate, member, allowFallbackFor(member)));
+      if (conversation) return { conversation, member };
+    }
+    return null;
+  };
+  for (const item of chainedItems) {
+    if (item.kind === "chain") {
+      const match = matchChainConversation(item);
+      if (match) {
+        matchedConversationKeys.add(match.conversation.idempotencyKey);
+        items.push({ kind: "chainPair", key: item.key, turns: item.turns, conversation: match.conversation, member: match.member });
+      } else {
+        items.push(item);
+      }
+      continue;
+    }
     // Autonomous turns never pair: no replica authored them, so no player
     // bubble may claim them — not even by world time.
     if (item.turn && item.turn.autonomous === true) {
@@ -411,10 +538,21 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
   for (const conversation of uniqueConversationTurns) {
     if (!matchedConversationKeys.has(conversation.idempotencyKey)) items.push({ kind: "conversation", turn: conversation });
   }
+  const unitTime = (item) => {
+    if (item.kind === "chain" || item.kind === "chainPair") return item.turns[item.turns.length - 1]?.worldTime;
+    if (item.kind === "pair") return item.turn.worldTime;
+    return sortKey(item)[0];
+  };
   items.sort((a, b) => {
-    const ka = a.kind === "pair" ? [a.turn.worldTime, a.conversation.createdAt, a.conversation.turnSeq] : sortKey(a);
-    const kb = b.kind === "pair" ? [b.turn.worldTime, b.conversation.createdAt, b.conversation.turnSeq] : sortKey(b);
-    return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2];
+    const timeA = a.kind === "pair" ? a.turn.worldTime : a.kind === "chainPair" ? unitTime(a) : sortKey(a)[0];
+    const keyA = a.kind === "pair" || a.kind === "chainPair"
+      ? [timeA, a.conversation.createdAt, a.conversation.turnSeq]
+      : [timeA, sortKey(a)[1], sortKey(a)[2]];
+    const timeB = b.kind === "pair" ? b.turn.worldTime : b.kind === "chainPair" ? unitTime(b) : sortKey(b)[0];
+    const keyB = b.kind === "pair" || b.kind === "chainPair"
+      ? [timeB, b.conversation.createdAt, b.conversation.turnSeq]
+      : [timeB, sortKey(b)[1], sortKey(b)[2]];
+    return keyA[0] - keyB[0] || keyA[1] - keyB[1] || keyA[2] - keyB[2];
   });
   const visibleItems = foldAutonomousRuns(items).slice(-MAX_TURNS);
   const children = [];
@@ -424,11 +562,14 @@ export function renderChatFeed(turns, conversationTurnsOrIntents = [], pendingOr
       continue;
     }
     const turn = item.kind === "pair" || item.kind === "journal" ? item.turn : null;
-    const worldTime = item.kind === "conversation" ? item.turn.worldTimeAfter : turn?.worldTime;
+    const worldTime = item.kind === "conversation" ? item.turn.worldTimeAfter
+      : item.kind === "chain" || item.kind === "chainPair" ? unitTime(item) : turn?.worldTime;
     for (const intent of intentList.filter((candidate) => !candidate.requestKey || !seenKeys.has(candidate.requestKey) && candidate.worldTime === worldTime)) {
       children.push(intentNode(intent, false));
     }
     if (item.kind === "pair") children.push(conversationPlayerNode(item.conversation), turnNode(item.turn, item.conversation));
+    else if (item.kind === "chainPair") children.push(conversationPlayerNode(item.conversation), chainTurnNode(item));
+    else if (item.kind === "chain") children.push(chainTurnNode(item));
     else if (item.kind === "conversation") children.push(conversationPlayerNode(item.turn), conversationOnlyMasterNode(item.turn));
     else children.push(turnNode(item.turn));
   }

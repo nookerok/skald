@@ -202,6 +202,17 @@ describe("HTTP Server", () => {
     expect(unknown.body.ok).toBe(true);
     expect(unknown.body.status).toBe("clarification");
 
+    // A compound replica names both parts instead of becoming one blob
+    // target, and the world stays frozen (review P1, QA turn-6 class).
+    const compound = await api("/api/command", {
+      method: "POST",
+      body: JSON.stringify({ input: "Осматриваю мокрый настил у самой воды и ищу следы", idempotencyKey: "preflight-compound-1" }),
+    });
+    expect(compound.status).toBe(200);
+    expect(compound.body.ok).toBe(true);
+    expect(compound.body.status).toBe("clarification");
+    expect(compound.body.question).toBe("Что именно ты хочешь сделать?");
+
     const after = await api("/api/state");
     expect(after.body.state.worldTime).toBe(before.body.state.worldTime);
     expect(after.body.state.eventNumber).toBe(before.body.state.eventNumber);

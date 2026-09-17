@@ -30,6 +30,8 @@
  *   §2) — always an interpretation defect, never a normal outcome.
  * - speak_addressee_bound: degraded-path speak/call addressee bound
  *   deterministically to one scene person (plan_9 §14 beat 4).
+ * - clarification_resolved: a pending-clarification answer matched one
+ *   offered option and re-ran the framed original (review P0).
  */
 
 import type { AIDiagnosticSink } from "@skald/world";
@@ -53,6 +55,7 @@ export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freez
   "deterministic_fallback",
   "generic_clarification_fallback",
   "speak_addressee_bound",
+  "clarification_resolved",
 ]);
 
 /** Sanitized operational dimensions only. No text, prompts or tables. */

@@ -102,6 +102,51 @@ describe("journal-view", () => {
       await journalViewMod.loadJournal();
       // Should not throw
     });
+
+    it("never turns an empty journal turn into a chronicle scene", async () => {
+      fetchMock.mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          ok: true,
+          turns: [
+            { worldTime: 5, turnId: "t5", presentation: {} },
+            { worldTime: 6, turnId: "t6", presentation: { primary: { text: "Ты добрался." } } },
+          ],
+          threads: [],
+          hasMore: false,
+        }),
+      });
+
+      await journalViewMod.loadJournal();
+
+      const turnsList = container._children.find((child) => child.className === "turns-list");
+      const scenes = (turnsList?._children || []).filter((child) => child.className === "turn-entry");
+      expect(scenes).toHaveLength(1);
+      expect(JSON.stringify(scenes[0])).toContain("Ты добрался.");
+    });
+
+    it("keeps a background-only turn as a scene and renders its lines (review P2)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          ok: true,
+          turns: [
+            {
+              worldTime: 7,
+              turnId: "t7",
+              presentation: { primary: null, notable: [], background: [{ text: "Ветер шевельнул камыш." }] },
+            },
+          ],
+          threads: [],
+          hasMore: false,
+        }),
+      });
+
+      await journalViewMod.loadJournal();
+
+      const turnsList = container._children.find((child) => child.className === "turns-list");
+      const scenes = (turnsList?._children || []).filter((child) => child.className === "turn-entry");
+      expect(scenes).toHaveLength(1);
+      expect(JSON.stringify(scenes[0])).toContain("Ветер шевельнул камыш.");
+    });
   });
 
   describe("thread filter persistence", () => {
@@ -193,7 +238,7 @@ describe("journal-view", () => {
     it("sets aria-expanded on turn headers", async () => {
       fetchMock.mockResolvedValueOnce({
         json: () => Promise.resolve({
-          ok: true, turns: [{ worldTime: 1, turnId: "t1", presentation: {} }],
+          ok: true, turns: [{ worldTime: 1, turnId: "t1", presentation: { primary: { text: "Ты идёшь." } } }],
           threads: [], hasMore: false,
         }),
       });
@@ -215,7 +260,7 @@ describe("journal-view", () => {
     it("sets role=list and role=listitem on turns", async () => {
       fetchMock.mockResolvedValueOnce({
         json: () => Promise.resolve({
-          ok: true, turns: [{ worldTime: 1, turnId: "t1", presentation: {} }],
+          ok: true, turns: [{ worldTime: 1, turnId: "t1", presentation: { primary: { text: "Ты идёшь." } } }],
           threads: [], hasMore: false,
         }),
       });

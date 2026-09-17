@@ -108,6 +108,22 @@ export type ExecutableIntent = ActionIntentCommand | InteractionCommand | Journe
 export interface ClarificationOption {
   readonly optionId: string;
   readonly label: string;
+  /**
+   * observerRefs this option selects, when the producer could resolve them
+   * against the scene. Absent for scene-free (parser) producers: the
+   * consumer re-resolves the label at answer time instead.
+   */
+  readonly referentRefs?: readonly string[] | undefined;
+  /**
+   * Executable alternative for action options (conflicting actions): run
+   * this text instead of filling a referent slot.
+   */
+  readonly intentPatch?: ClarificationIntentPatch | undefined;
+}
+
+/** Executable alternative carried by one action-alternative option. */
+export interface ClarificationIntentPatch {
+  readonly actionText: string;
 }
 
 export type IntentProposalValidation =

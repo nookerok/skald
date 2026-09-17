@@ -70,6 +70,7 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^что\s+(?:я\s+)?вижу/iu,
     /^что\s+перед\s+(?:моими|нами)\s+глазами/iu,
     /^что\s+вокруг\s+(?:меня|нас)/iu,
+    /^что\s+(?:там\s+)?впереди/iu,
   ]],
   ["auditory_scene", [
     /^что\s+(?:я\s+)?слышу/iu,
@@ -88,6 +89,7 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
   ]],
   ["available_routes", [
     /^куда\s+можно\s+(?:пойти|идти|направиться)/iu,
+    /^куда\s+(?:отсюда|от\s+этого\s+места|здесь)\s+можно\s+(?:пойти|идти|направиться)/iu,
     /^какие\s+(?:дороги|пути|маршруты)\s+(?:мне\s+)?доступны/iu,
     /^куда\s+вед(?:е|ё)т\s+(?:дорога|путь)/iu,
   ]],
@@ -112,6 +114,7 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^(?:есть\s+ли\s+)?кто-нибудь\s+рядом/iu,
     /^кого\s+(?:я\s+)?вижу\s+рядом/iu,
     /^с\s+кем\s+(?:я\s+)?имею\s+дело\s+здесь/iu,
+    /^кто\s+из\s+людей(?=\s|$)/iu,
   ]],
   ["environmental_indication", [
     /^что\s+подсказывает\s+(?:вода|река|лес|ветер|течение|природа)/iu,
@@ -201,7 +204,31 @@ function directInquiry(input: string): InquiryRequest | null {
       return Object.freeze({ type: "InquiryRequest", queryId, rawText: input, confidence: 1, source: "deterministic" });
     }
   }
-  return spatialFocusInquiry(input, withoutPrefix);
+  return knowledgeFocusInquiry(input) ?? spatialFocusInquiry(input, withoutPrefix);
+}
+
+/**
+ * "Что я знаю о X?" for a named subject the closed place patterns do
+ * not cover: same read-only query, with the subject as focus so the
+ * answer can filter to it. Pronoun subjects stay contextual (the focus
+ * stack owns them); the builder answers honestly when nothing matches.
+ */
+function knowledgeFocusInquiry(input: string): InquiryRequest | null {
+  const normalized = normalizeQuestion(input);
+  const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").replace(WANT_TO_KNOW_PREFIX, "").trim();
+  const match = /^(?:что\s+я\s+знаю\s+(?:об|о)\s+)(.+)$/iu.exec(withoutPrefix);
+  if (!match?.[1]) return null;
+  const surface = match[1].trim().slice(0, MAX_FOCUS_SURFACE).trim();
+  if (!/[а-яёa-z]/iu.test(surface)) return null;
+  if (isUnresolvedFocusSurface(surface)) return null;
+  return Object.freeze({
+    type: "InquiryRequest",
+    queryId: "known_place_knowledge",
+    rawText: input,
+    confidence: 1,
+    source: "deterministic",
+    focus: Object.freeze({ surface }),
+  });
 }
 
 export function isQuestionLikeInput(input: string): boolean {

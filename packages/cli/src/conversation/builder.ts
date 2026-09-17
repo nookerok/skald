@@ -18,12 +18,14 @@ import type { DeferredClause } from "../runtime/master-turn-validator.js";
 import type {
   ConversationContinuationRelation,
   ConversationInputClass,
+  ConversationMemoryClarificationOption,
   ConversationMemoryMention,
   ConversationMemoryMetadataV1,
   ConversationResponseKind,
   ConversationTurn,
   ConversationTurnDraft,
   ConversationTurnRecord,
+  FramedClarification,
 } from "./types.js";
 
 /**
@@ -237,7 +239,17 @@ export interface TurnMemoryInput {
   readonly pendingClarificationSeq?: number | null | undefined;
   readonly clarification?: {
     readonly question: string;
-    readonly options: readonly { readonly optionId: string; readonly label: string }[];
+    readonly options: readonly ConversationMemoryClarificationOption[];
+    readonly framed?: FramedClarification | undefined;
+  } | null | undefined;
+  /**
+   * Stored-side continuation link, written verbatim: the gateway-computed
+   * resolves verdict for a pending clarification. Wins over the
+   * model-side relation mapping when both are present.
+   */
+  readonly continuationLink?: {
+    readonly relation: ConversationContinuationRelation;
+    readonly clarificationTurnSeq?: number | undefined;
   } | null | undefined;
 }
 
@@ -273,7 +285,15 @@ export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMem
   const goal = (input.goal ?? "").trim();
   const clarification = input.clarification;
   const relation = input.relation ?? null;
-  if (mentions.length === 0 && !goal && !clarification && !relation) return null;
+  const link = input.continuationLink ?? null;
+  const framed = clarification?.framed ?? null;
+  if (mentions.length === 0 && !goal && !clarification && !relation && !link) return null;
+  const seq = input.pendingClarificationSeq !== undefined && input.pendingClarificationSeq !== null
+    ? { clarificationTurnSeq: input.pendingClarificationSeq }
+    : {};
+  const linkSeq = link?.clarificationTurnSeq !== undefined && link?.clarificationTurnSeq !== null
+    ? { clarificationTurnSeq: link.clarificationTurnSeq }
+    : {};
   return {
     schemaVersion: 1,
     ...(mentions.length > 0 ? { mentions } : {}),
@@ -282,16 +302,17 @@ export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMem
       clarification: {
         question: clarification.question,
         options: clarification.options.slice(0, 6).map((option) => ({ ...option })),
+        ...(framed ? { framed } : {}),
       },
     } : {}),
-    ...(relation ? {
-      continuation: {
-        relation: MEMORY_RELATION_MAP[relation],
-        ...(input.pendingClarificationSeq !== undefined && input.pendingClarificationSeq !== null
-          ? { clarificationTurnSeq: input.pendingClarificationSeq }
-          : {}),
-      },
-    } : {}),
+    ...(link
+      ? { continuation: { relation: link.relation, ...seq, ...linkSeq } }
+      : relation ? {
+        continuation: {
+          relation: MEMORY_RELATION_MAP[relation],
+          ...seq,
+        },
+      } : {}),
     ...(goal ? { dramaticThread: { source: "player_goal" as const, title: goal.slice(0, 140) } } : {}),
   };
 }

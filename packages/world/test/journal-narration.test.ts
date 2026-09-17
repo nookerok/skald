@@ -7,6 +7,7 @@ function turn(worldTime: number): JournalTurn {
   return {
     turnId: `turn:${worldTime}`,
     worldTime,
+    masterTurnKey: `mt-test-${worldTime}`,
     sourceEventIds: [],
     presentation: {
       response: null,

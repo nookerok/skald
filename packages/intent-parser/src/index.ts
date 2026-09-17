@@ -62,10 +62,10 @@ export type { InquiryFocus, InquiryQueryId, InquiryRelation, InquiryRequest, Pla
 
 export { interpretIntent, targetRequirementForInteraction, targetRequirementForOperation } from "./deterministic-interpreter.js";
 export type { InterpreterOptions } from "./deterministic-interpreter.js";
-export { isJourneyContinuation } from "./journey-continuation.js";
+export { isJourneyContinuation, isContinuingJourneyTo } from "./journey-continuation.js";
 export { RUSSIAN_STEM_MIN_LENGTH, sameRussianStem, stemRussianToken } from "./russian-morphology.js";
 export { INTENT_CAPABILITIES, INQUIRY_CAPABILITIES, isIntentProposal, parseIntentProposal, isInquiryProposal, parseInquiryProposal } from "./intent-proposal.js";
-export type { ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation, InquiryCapabilitiesManifest, InquiryProposalV1, InquiryProposalValidation } from "./intent-proposal.js";
+export type { ClarificationIntentPatch, ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation, InquiryCapabilitiesManifest, InquiryProposalV1, InquiryProposalValidation } from "./intent-proposal.js";
 export { validateIntentProposal, validateInquiryProposal, validateActionProposal } from "./intent-proposal-validator.js";
 export {
   GENERIC_FALLBACK_TEXTS,
@@ -114,8 +114,8 @@ export type {
   TurnProposalV2,
   TurnReferentRole,
 } from "./turn-proposal.js";
-export { findAuthorityField, validateTurnProposal } from "./turn-proposal-validator.js";
-export type { TurnProposalValidation } from "./turn-proposal-validator.js";
+export { findAuthorityField, inferAmbiguitySlot, validateTurnProposal } from "./turn-proposal-validator.js";
+export type { AmbiguitySlot, FramedProposalCandidate, TurnProposalValidation } from "./turn-proposal-validator.js";
 
 // ── Legacy parser (kept for backward compatibility) ──────────────────
 
