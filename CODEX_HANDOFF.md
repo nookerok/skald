@@ -1,3 +1,34 @@
+# Current work (2026-09-16 — review batch 8b0912b deployed, smoke PASS; CLOSED)
+
+- Commit `8b0912b` (46 files; subject truncated to `review:` by shell
+  quoting — history left intact, no force-push) pushed, `main ==
+  origin/main`. `npm run validate` PASS right before commit.
+- Orange Pi update via `$skald-orange-pi-deploy` as `nooker` (no sudo):
+  remote clean on `9d4f2fd`, service active, restricted restart permission
+  verified; updater fast-forwarded to `8b0912b`, on-device build+tests
+  PASS, narrative manifest installed, restart + health gate PASS, AI
+  readiness `degraded but playable` (accepted).
+- Post-deploy confirm: remote commit == `8b0912b`, `skald.service` +
+  healthcheck/backup timers active, `/api/health` 200 ok. Unscoped
+  `/api/state` 404 `legacy-world` (pre-existing, no primary entrypoint).
+- Smoke PASS on scratch world `world-c34451ff` (keeper /
+  river_waystation_arrival): create 201, 9/10 turns tick exactly +1 with
+  non-null primaries (T0→T9), bare «поздороваться» honestly clarifies with
+  a frozen world, idempotent replay serves the envelope, `/api/health`
+  200, scoped `/api/state` matches final T9. First smoke run failed only
+  on my expectations (201-vs-200 on create; greeting clarification is
+  designed behavior, covered by unit tests) — no deploy defects.
+- SSH debug lesson: early probes looked like a second host (whoami=nook,
+  missing repo/service), but all script-file probes (13 consecutive:
+  same MAC, boot-id, repo, active service) prove one stable production
+  host. The ghosts were nested-quote mangling executing segments locally
+  in WSL (local user is also `nook`, local `~/skald-data` exists as dev
+  leftover). Rule: run remote checks as script files over `ssh ... bash
+  -s`, never nested inline quotes through PowerShell/WSL layers.
+- Open: scratch browser QA of `8b0912b` through
+  `$skald-ntfs-browser-qa` with an authorized click budget, plus the live
+  20–30 replica human eval.
+
 # Current work (2026-09-16 — REVISE verdict worked off, gate PASS; uncommitted)
 
 - All five review items implemented, `npm run validate` PASS (full unit
