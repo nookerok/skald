@@ -1,3 +1,32 @@
+# Current work (2026-09-18 — continuation-hint batch c7f0f68 deployed, smoke PASS; CLOSED)
+
+- Commit `c7f0f68` (`review:deterministic-continuation-hint-
+  whoisnearby-label-fix`, 6 files incl. new
+  `continuation-hint.test.ts`) pushed, `main == origin/main`.
+  `npm run validate` PASS before commit (194 files / 2507 passed,
+  adventure, canon, diff-check).
+- Peer changes reviewed before commit: deterministic continuationHint
+  plumbing (action/speech/mixed drafts via pre-existing
+  `ensureGameMomentum`, null/JourneyStarted-safe), director refactor to
+  explicit-state `buildGameDirectorFromState` (narration path behavior
+  preserved), whoisnearby empty-label reorder + ordinal fallback removal
+  (index<5 invariant holds via the parts cap), 4 unit + 1 HTTP no-LLM
+  tests. No secrets in diff; `plan_*.md` untouched.
+- Orange Pi update via `$skald-orange-pi-deploy` as `nooker`: remote
+  clean on `376fc29`, service active, restricted restart verified;
+  updater fast-forwarded to `c7f0f68`, on-device build+tests PASS,
+  restart + health gate PASS, AI readiness `degraded but playable`.
+- Post-deploy confirm: remote commit == `c7f0f68`, service + timers
+  active, `/api/health` 200 ok (fresh restart).
+- Smoke PASS on scratch world `world-1e6e293d` (keeper /
+  river_waystation_arrival): create 201, 9/10 turns tick exactly +1
+  (T0→T9) with non-null primaries, bare «поздороваться» honestly
+  clarifies with a frozen world, envelope replay ok, `/api/health`
+  200, scoped `/api/state` matches final T9.
+- Open: resend the 25-replica scratch browser QA through
+  `$skald-ntfs-browser-qa` once the fixed task recovers (BLOCKED
+  runner-side), plus the live 20–30 replica human eval.
+
 # Current work (2026-09-16 — REVISE-2 batch 376fc29 deployed, smoke PASS; CLOSED)
 
 - Commit `376fc29` (`review:narration-replaces-whoisnearby-dedup`, 5
