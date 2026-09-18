@@ -172,6 +172,20 @@ describe("who is nearby", () => {
     expect(result.answer).toContain("«Ночной перевозчик» (первый)");
     expect(result.answer).toContain("«Ночной перевозчик» (второй)");
   });
+
+  it("renders a labeled later entry for a ref whose first entry had no label", () => {
+    const { shell, background } = context();
+    const scene = {
+      knownPeople: [
+        { observerRef: "person_1", kind: "person" as const, label: "  ", knownAs: ["  "] },
+        { observerRef: "person_1", kind: "person" as const, label: "Страж", knownAs: ["Страж"] },
+      ],
+    } as any;
+    const result = buildInquiryAnswer(whoRequest(), { shell, background, scene });
+
+    expect(result.answer).toContain("Страж");
+    expect(result.answer.match(/Страж/g)).toHaveLength(1);
+  });
 });
 
 describe("environmental indication", () => {

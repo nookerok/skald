@@ -139,4 +139,36 @@ describe("journey continuation over HTTP (plan_9 §4)", () => {
       store.close();
     }
   });
+
+  it("appends the continuation hint to deterministic action answers without an LLM (plan_9 §10)", async () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "skald-hint-http-")), "events.sqlite");
+    const store = createMultiWorldStore(dbPath);
+    try {
+      const worldId = "journey-hint";
+      createLivingWorld(store, worldId);
+      const throwing = { apiKey: "", chat: vi.fn(() => { throw new Error("LLM must not be called"); }) } as any;
+      const manager = new WorldRuntimeManager(store, throwing);
+      const runtime: WorldRuntime = await manager.get(worldId);
+      const command = async (input: string, key: string): Promise<any> =>
+        parse(await handleWorldCommand(runtime, { input, idempotencyKey: key }));
+
+      const started = await command("иду к Кромке Чёрного леса", "jh-start");
+      expect(started.ok).toBe(true);
+      // A turn that just started the journey already names the new leg:
+      // no second "you can set out" line.
+      expect(started.conversationTurn.responseText).not.toContain("Можно продолжить путь к");
+      expect(started.conversationTurn.responseText).not.toContain("Можно отправиться в путь к");
+
+      // An action rejected while traveling still leaves the game moving:
+      // the deterministic answer carries the observer-safe continuation.
+      const rejected = await command("осмотреться", "jh-look");
+      expect(rejected.ok).toBe(true);
+      expect(rejected.conversationTurn).toBeDefined();
+      expect(rejected.conversationTurn.responseText).toContain("Можно продолжить путь к");
+
+      expect(throwing.chat).not.toHaveBeenCalled();
+    } finally {
+      store.close();
+    }
+  });
 });

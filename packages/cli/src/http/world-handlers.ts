@@ -36,7 +36,7 @@ import {
   resolveInteractionTarget,
   narrateLLM,
 } from "@skald/world";
-import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext } from "@skald/world";
+import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { classifyPlayerInput, conflictingActions, isContinuingJourneyTo, isJourneyContinuation, parseIntent, unknownObservedTarget, validateActionProposal } from "@skald/intent-parser";
@@ -44,7 +44,7 @@ import type { ExecutableIntent, TurnConversationRelation } from "@skald/intent-p
 import type { ResourceExtractionCommand, SpatialWorldProjection } from "@skald/world";
 import { buildMasterTurnSceneContext } from "@skald/world";
 import type { MasterTurnSceneSnapshot } from "@skald/world";
-import { buildGameDirectorContext } from "@skald/world";
+import { buildGameDirectorContext, buildContinuationHint } from "@skald/world";
 import type { GameDirectorContext } from "@skald/world";
 import { getMapDetailAsset } from "./map-detail-catalog.js";
 import {
@@ -416,21 +416,19 @@ function buildNarrationContext(
 }
 
 /**
- * Observer-safe game director for one narration job (plan_9 §§9,11,12).
- * Best-effort read-side composition: the bounded scene, the bounded
- * conversation memory and the schedule-time background context become one
- * director the narration prompt may rephrase. Any failure yields
- * undefined — narration keeps its exact legacy prompt instead of failing
- * the turn. Never throws.
+ * Observer-safe game director from one explicit log state (plan_9 §§9-11).
+ * Best-effort read-side composition: the bounded scene and the bounded
+ * conversation memory become one director. Any failure yields undefined —
+ * callers keep their exact legacy behavior instead of failing the turn.
+ * Never throws.
  */
-function buildGameDirectorForNarration(
-  runtime: WorldRuntime,
-  presentation: ReturnType<typeof selectTurnPresentation>,
-  narrativeContext: NarrativeAdapterContext | undefined,
+function buildGameDirectorFromState(
+  runtime: Pick<WorldRuntime, "store" | "worldId">,
+  events: readonly DomainEvent[],
+  world: ReadonlyWorld,
+  input: { narrativeContext?: NarrativeAdapterContext | null | undefined; lastOutcome?: string | null | undefined } = {},
 ): GameDirectorContext | undefined {
   try {
-    const events = runtime.bus.query();
-    const world = runtime.projection.getSnapshot();
     const scene = buildMasterTurnSceneContext(events, world).context;
     const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 30 });
     const narrations = runtime.store.getTurnNarrations(runtime.worldId);
@@ -448,7 +446,7 @@ function buildGameDirectorForNarration(
     }
     return buildGameDirectorContext(events, world, {
       scene,
-      ...(narrativeContext ? { narrativeContext } : {}),
+      ...(input.narrativeContext ? { narrativeContext: input.narrativeContext } : {}),
       conversation: {
         lastTurns: conversation.lastTurns.map((turn) => ({ speaker: turn.speaker, text: turn.text })),
         ...(conversation.activePlayerGoal ? { activePlayerGoal: { summary: conversation.activePlayerGoal.summary } } : { activePlayerGoal: null }),
@@ -466,10 +464,51 @@ function buildGameDirectorForNarration(
           }
           : { pendingClarification: null }),
       },
-      lastOutcome: presentation.primary?.text ?? presentation.response?.text ?? null,
+      lastOutcome: input.lastOutcome ?? null,
     });
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Observer-safe game director for one narration job (plan_9 §§9,11,12).
+ * Never throws: narration keeps its exact legacy prompt when the
+ * read-side composition fails.
+ */
+function buildGameDirectorForNarration(
+  runtime: WorldRuntime,
+  presentation: ReturnType<typeof selectTurnPresentation>,
+  narrativeContext: NarrativeAdapterContext | undefined,
+): GameDirectorContext | undefined {
+  return buildGameDirectorFromState(runtime, runtime.bus.query(), runtime.projection.getSnapshot(), {
+    ...(narrativeContext ? { narrativeContext } : {}),
+    lastOutcome: presentation.primary?.text ?? presentation.response?.text ?? null,
+  });
+}
+
+/**
+ * Continuation hint for deterministic master answers (plan_9 §10 fourth
+ * part). Composed from the post-turn state so the answer may leave the
+ * game moving without any LLM. A turn whose staged events already started
+ * a journey is returned without a hint — its outcome text names the new
+ * leg, and a second "you can set out" line would only repeat it.
+ * Best-effort: any failure yields null and the answer keeps its exact
+ * legacy text. Never throws.
+ */
+function deterministicContinuationHint(
+  runtime: WorldRuntime,
+  preEvents: readonly DomainEvent[],
+  stagedEvents: readonly DomainEvent[],
+  projectedWorld: ReadonlyWorld,
+): string | null {
+  if (stagedEvents.some((event) => event.type === "JourneyStarted")) return null;
+  try {
+    const director = buildGameDirectorFromState(runtime, [...preEvents, ...stagedEvents], projectedWorld);
+    if (!director) return null;
+    return buildContinuationHint(director);
+  } catch {
+    return null;
   }
 }
 
@@ -1686,6 +1725,7 @@ export async function runCommandCycleForRuntime(
   const commandIntent = resourceIntent ?? parsed;
 
   const worldTimeBefore = runtime.projection.getSnapshot().time;
+  const preEvents = runtime.bus.query();
   const ts = worldTimeBefore + 1;
   const correlationId = `cmd-${ts}`;
   const firstEvent = worldHandleCommand(commandIntent, correlationId, ts);
@@ -1712,6 +1752,7 @@ export async function runCommandCycleForRuntime(
         worldTimeBefore,
         stagedEvents,
         projectedWorld,
+        continuationHint: deterministicContinuationHint(runtime, preEvents, stagedEvents, projectedWorld),
         ...(memory?.continuationLink ? {
           contextMetadata: buildTurnMemoryMetadata({ continuationLink: memory.continuationLink }),
         } : {}),
@@ -1826,6 +1867,7 @@ async function runValidatedMasterTurnResponse(
           const draftCorrelation = staged.find((event) => event.correlationId.startsWith("cmd-"))?.correlationId
             ?? staged[staged.length - 1]?.correlationId
             ?? `cmd-${projectedWorld.time}`;
+          const continuationHint = deterministicContinuationHint(runtime, preEvents, staged, projectedWorld);
           if (kind === "mixed") {
             return buildMixedConversationTurn({
               worldId: runtime.worldId,
@@ -1840,6 +1882,7 @@ async function runValidatedMasterTurnResponse(
               characterProfile,
               inquiries: postInquiries,
               deferred,
+              continuationHint,
               contextMetadata: planMemory,
             });
           }
@@ -1852,6 +1895,7 @@ async function runValidatedMasterTurnResponse(
               worldTimeBefore,
               stagedEvents: staged,
               projectedWorld,
+              continuationHint,
               contextMetadata: planMemory,
             });
           }
@@ -1863,6 +1907,7 @@ async function runValidatedMasterTurnResponse(
             worldTimeBefore,
             stagedEvents: staged,
             projectedWorld,
+            continuationHint,
             contextMetadata: planMemory,
           });
         },

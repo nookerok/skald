@@ -7,6 +7,7 @@ import {
   buildBackgroundNarrativeContext,
   buildGameShellSnapshot,
   buildInquiryAnswer,
+  ensureGameMomentum,
   isGenericActionFallback,
   localizedPlayerText,
   selectTurnPresentation,
@@ -62,6 +63,14 @@ function actionOutcomeText(
   return { text, rejected };
 }
 
+/**
+ * Observer-safe continuation line (plan_9 §10 fourth part), appended by
+ * ensureGameMomentum only when the deterministic prose does not already
+ * move the game. Absent by default so legacy callers keep byte-identical
+ * output.
+ */
+type ContinuationHint = string | null | undefined;
+
 export function buildActionConversationTurn(params: {
   worldId: string;
   correlationId: string;
@@ -70,11 +79,12 @@ export function buildActionConversationTurn(params: {
   worldTimeBefore: number;
   stagedEvents: readonly DomainEvent[];
   projectedWorld: ReadonlyWorld;
+  continuationHint?: ContinuationHint;
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
   const responseKind: ConversationResponseKind = outcome.rejected ? "action_rejection" : "action_outcome";
-  const responseText = outcome.text;
+  const responseText = ensureGameMomentum(outcome.text, params.continuationHint ?? null);
   // Wait requests have a request correlation but their committed ticks carry
   // their own correlations. Pair the answer with the final actual tick, not
   // with a request identifier that never occurred in the Event Log.
@@ -104,6 +114,7 @@ export function buildSpeechConversationTurn(params: {
   worldTimeBefore: number;
   stagedEvents: readonly DomainEvent[];
   projectedWorld: ReadonlyWorld;
+  continuationHint?: ContinuationHint;
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
@@ -120,7 +131,7 @@ export function buildSpeechConversationTurn(params: {
     worldTimeBefore: params.worldTimeBefore,
     worldTimeAfter: params.projectedWorld.time,
     responseKind: "speech_reaction",
-    responseText: outcome.text,
+    responseText: ensureGameMomentum(outcome.text, params.continuationHint ?? null),
     contextMetadata: params.contextMetadata ?? null,
   };
 }
@@ -179,6 +190,7 @@ export function buildMixedConversationTurn(params: {
   } | null;
   inquiries: readonly InquiryRequest[];
   deferred: readonly DeferredClause[];
+  continuationHint?: ContinuationHint;
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
@@ -199,6 +211,7 @@ export function buildMixedConversationTurn(params: {
     metaAnswer: null,
     deferredClauses: params.deferred,
     clarification: null,
+    ...(params.continuationHint ? { continuationHint: params.continuationHint } : {}),
   });
   return {
     worldId: params.worldId,

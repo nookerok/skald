@@ -214,10 +214,10 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
   const groups = new Map<string, { label: string; count: number }>();
   const order: string[] = [];
   for (const person of context.scene?.knownPeople ?? []) {
-    if (seenRefs.has(person.observerRef)) continue;
-    seenRefs.add(person.observerRef);
     const label = person.label.trim();
     if (label.length === 0) continue;
+    if (seenRefs.has(person.observerRef)) continue;
+    seenRefs.add(person.observerRef);
     const key = normalizePersonLabel(label);
     const group = groups.get(key);
     if (group) {
@@ -237,7 +237,7 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
       if (parts.length < 5) parts.push(`«${group.label}»`);
     } else {
       for (let index = 0; index < group.count && parts.length < 5; index += 1) {
-        parts.push(`«${group.label}» (${PERSON_ORDINALS[index] ?? "ещё один"})`);
+        parts.push(`«${group.label}» (${PERSON_ORDINALS[index]})`);
       }
     }
     if (parts.length >= 5) break;
