@@ -39,11 +39,25 @@
   was excluded by `vitest.config.ts` (`include: **/*.test.ts`), so those
   assertions had never run. Renamed to `.test.ts` (7 tests now execute).
 - `npm run validate` PASS (196 files / 2537 passed, 1 skipped; typecheck,
-  Canon, simulation, evals, 38-beat adventure, diff-check). Uncommitted, not
-  deployed; production remains `c7f0f68`. plan_*.md stay untracked.
-- Next: commit → push → Orange Pi deploy via `$skald-orange-pi-deploy` →
-  scratch browser QA through `$skald-ntfs-browser-qa` (authorized click
-  budget) + live 20–30 replica human eval.
+  Canon, simulation, evals, 38-beat adventure, diff-check).
+- Committed and pushed: `ca218a8` (plan_9 literal-gap closure) and `fcba6f5`
+  (durable browser-QA bridge + §15/§16 wiring); `main == origin/main`.
+- Orange Pi updated via `$skald-orange-pi-deploy` as `nooker` (no sudo):
+  remote clean, restricted restart permission verified; updater
+  fast-forwarded to `fcba6f5`, on-device build+tests PASS, narrative manifest
+  installed, restart + health gate PASS, AI readiness `degraded but playable`.
+- Post-deploy confirm: remote commit == `fcba6f5`; `skald.service` +
+  healthcheck/backup timers active; `/api/health` 200. Canonical player world
+  untouched.
+- Smoke PASS on scratch world `world-be91dc70` (keeper /
+  river_waystation_arrival): create 201, 10 commands ok (6 ticked exactly +1,
+  the rest read-only by design), identical replay 200 + `replayed` + frozen
+  log, same key with a different payload 409 `idempotency_conflict` (new §5
+  code verified live, was `duplicate_request`), `/api/health` 200, scoped
+  state matches the final worldTime.
+- Open: scratch browser QA of `fcba6f5` through `$skald-ntfs-browser-qa`
+  with an authorized click budget, plus the live 20–30 replica human eval.
+  A live browser run is the remaining DoD gap (API smoke is green).
 
 # Current work (2026-09-19 — durable browser-QA result bridge; uncommitted)
 
