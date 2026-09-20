@@ -62,10 +62,12 @@ describe("status-view", () => {
       expect(statusEl.textContent).toBe("Загрузка...");
     });
 
-    it("shows 'МАСТЕР отвечает...' during PENDING", () => {
+    it("defers the PENDING status text to the composer state machine", () => {
+      // plan_9 §8: composer-state.js is the single writer of «МАСТЕР
+      // отвечает…»; renderStatus must not add a second one.
       renderStatus({ application: APP.READY, command: CMD.PENDING });
-      expect(statusEl.textContent).toBe("МАСТЕР отвечает...");
-      expect(statusEl._attrs["aria-live"]).toBe("assertive");
+      expect(statusEl.textContent).toBe("");
+      expect(statusEl._attrs["aria-live"]).toBeUndefined();
     });
 
     it("shows 'Готов' when IDLE", () => {

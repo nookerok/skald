@@ -28,6 +28,24 @@ export const COMPOSER = {
 const KNOWN = new Set([COMPOSER.IDLE, COMPOSER.SUBMITTING, COMPOSER.WAITING_FOR_NARRATION, COMPOSER.RETRYABLE_FAILURE]);
 
 /**
+ * Status line owned by each composer state (plan_9 §8). Idle returns null so
+ * the composer machine never overwrites a reducer/shell message that already
+ * explains the last outcome ("Ход записан", a rejection reason, a connection
+ * error). Non-idle states own their text; this is the single writer for
+ * «МАСТЕР отвечает…».
+ */
+const COMPOSER_STATUS = {
+  [COMPOSER.SUBMITTING]: "МАСТЕР отвечает…",
+  [COMPOSER.WAITING_FOR_NARRATION]: "МАСТЕР дополняет эту запись…",
+  [COMPOSER.RETRYABLE_FAILURE]: "Ответ задерживается — можно повторить.",
+};
+
+/** Status text for a composer state, or null when the state owns none. */
+export function composerStatusText(state) {
+  return COMPOSER_STATUS[state] ?? null;
+}
+
+/**
  * Pure policy: maps a finished submit to the next composer state.
  * Transport failure or timeout always lands retryable; a successful answer
  * that arms narration polling waits for it; everything else idles.
@@ -47,5 +65,13 @@ export function setComposerState(state) {
     ? document.getElementById("retry-btn")
     : null;
   if (retry) retry.hidden = normalized !== COMPOSER.RETRYABLE_FAILURE;
+  const status = composerStatusText(normalized);
+  const statusEl = status && typeof document !== "undefined" && document.getElementById
+    ? document.getElementById("status-text")
+    : null;
+  if (statusEl) {
+    statusEl.textContent = status;
+    statusEl.setAttribute("aria-live", "assertive");
+  }
   return normalized;
 }

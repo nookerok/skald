@@ -145,7 +145,7 @@ function persistReadSideTurn(
 function checkCommandReplay(runtime: WorldRuntime, idempotencyKey: string, requestHash: string): JsonResponse | null {
   const row = runtime.store.getCommandReplay(runtime.worldId, idempotencyKey);
   if (!row) return recoverLostEnvelope(runtime, idempotencyKey, requestHash);
-  if (row.requestHash !== requestHash) return error("duplicate_request", "duplicate idempotencyKey", 409);
+  if (row.requestHash !== requestHash) return error("idempotency_conflict", "duplicate idempotencyKey", 409);
   const payload = JSON.parse(row.responseBody) as Record<string, unknown>;
   return json({ ...payload, replayed: true }, row.statusCode);
 }
@@ -249,11 +249,11 @@ function recordCommandReplay(runtime: WorldRuntime, idempotencyKey: string, requ
 
 function duplicateConversationResponse(runtime: WorldRuntime, input: string, idempotencyKey: string): JsonResponse | null {  const existing = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   if (!existing) return null;
-  if (existing.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+  if (existing.requestHash !== conversationRequestHash(input)) return error("idempotency_conflict", "duplicate idempotencyKey", 409);
   const conversationTurn = toConversationTurnDTO(existing);
   const masterTurn = masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: conversationTurn.responseText }, false);
   if (isWorldChangingTurn(existing.inputClass)) {
-    return json({ ok: false, error: { code: "duplicate_request", message: "duplicate idempotencyKey" }, conversationTurn, masterTurn }, 409);
+    return json({ ok: false, error: { code: "idempotency_conflict", message: "duplicate idempotencyKey" }, conversationTurn, masterTurn }, 409);
   }
   return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn, masterTurn });
 }
@@ -821,7 +821,7 @@ async function respondToOnlineTick(
 ): Promise<JsonResponse> {
   const r = await runTicksForRuntime(runtime, 1, idempotencyKey, { playerOffline: false }, { playerText: input });
   if ("type" in r && (r as any).type === "IdempotencyReject")
-    return error("duplicate_request", "duplicate idempotencyKey", 409);
+    return error("idempotency_conflict", "duplicate idempotencyKey", 409);
   const tickResult = r as { tickEvents: DomainEvent[] };
   const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
   const guidance = buildGuidance(runtime);
@@ -999,7 +999,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const timeBeforeAdvance = runtime.projection.getSnapshot().time;
         const r = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: true });
         if ("type" in r && (r as any).type === "IdempotencyReject")
-          return error("duplicate_request", "duplicate idempotencyKey", 409);
+          return error("idempotency_conflict", "duplicate idempotencyKey", 409);
         const tickResult = r as { tickEvents: DomainEvent[] };
         const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
         const guidance = buildGuidance(runtime);
@@ -1086,7 +1086,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   // Durability across restarts comes from loadProcessedKeys + turns.
   const existingConversation = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   if (existingConversation) {
-    if (existingConversation.requestHash !== conversationRequestHash(input)) return error("duplicate_request", "duplicate idempotencyKey", 409);
+    if (existingConversation.requestHash !== conversationRequestHash(input)) return error("idempotency_conflict", "duplicate idempotencyKey", 409);
     const existingTurn = toConversationTurnDTO(existingConversation);
     return json({
       ok: true,
@@ -1374,7 +1374,7 @@ async function handleWorldWaitInner(runtime: WorldRuntime, n: number, idempotenc
       const timeBeforeWait = runtime.projection.getSnapshot().time;
       const result = await runTicksForRuntime(runtime, n, idempotencyKey, { playerOffline: false });
       if ("type" in result && (result as IdempotencyReject).type === "IdempotencyReject")
-        return error("duplicate_request", "duplicate idempotencyKey", 409);
+        return error("idempotency_conflict", "duplicate idempotencyKey", 409);
       const tickResult = result as { tickEvents: DomainEvent[] };
       const pres = selectTurnPresentation(tickResult.tickEvents, runtime.projection.getSnapshot());
       const guidance = buildGuidance(runtime);
@@ -1699,7 +1699,7 @@ export async function runCommandCycleForRuntime(
   },
 ): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | CommandCycleClarification> {
   if (runtime.processedKeys.has(idempotencyKey)) {
-    return { response: error("duplicate_request", "duplicate idempotencyKey", 409) };
+    return { response: error("idempotency_conflict", "duplicate idempotencyKey", 409) };
   }
 
   const parsed = resolvedIntent ?? parseIntent(input);
@@ -1802,7 +1802,7 @@ async function runValidatedMasterTurnResponse(
   },
 ): Promise<JsonResponse> {
   if (runtime.processedKeys.has(idempotencyKey)) {
-    return error("duplicate_request", "duplicate idempotencyKey", 409);
+    return error("idempotency_conflict", "duplicate idempotencyKey", 409);
   }
   // A gateway-resolved frame overrides the proposal relation: the turn
   // answers the pending question no matter what the model reported.
@@ -1915,7 +1915,7 @@ async function runValidatedMasterTurnResponse(
     });
   } catch (err) {
     if (err instanceof Error && err.name === "DuplicateRequestError") {
-      return error("duplicate_request", "duplicate idempotencyKey", 409);
+      return error("idempotency_conflict", "duplicate idempotencyKey", 409);
     }
     throw err;
   }

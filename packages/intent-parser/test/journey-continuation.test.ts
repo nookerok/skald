@@ -23,6 +23,8 @@ describe("isJourneyContinuation — closed continuation vocabulary (plan_9 §4)"
     "не останавливаться",
     "без остановки",
     "не стою на месте",
+    "ищу безопасный проход дальше",
+    "ищу обход",
   ])("recognizes %j as a journey continuation", (input) => {
     expect(isJourneyContinuation(input)).toBe(true);
   });
@@ -39,6 +41,8 @@ describe("isJourneyContinuation — closed continuation vocabulary (plan_9 §4)"
     "останавливаюсь",
     "жду",
     "move north",
+    "ищу факел",
+    "ищу перевозчика",
   ])("does not treat %j as a journey continuation", (input) => {
     expect(isJourneyContinuation(input)).toBe(false);
   });
@@ -50,6 +54,9 @@ describe("isContinuingJourneyTo — same active destination is progress", () => 
     "Продолжаю путь к Речному Стражу, держась ближе к реке и высматривая след на воде",
     "Иду в Речной Страж",
     "продолжаю путь к речному стражу",
+    "двигаюсь к Речному Стражу",
+    "вхожу в Речной Страж",
+    "перехожу к Речному Стражу",
   ])("treats %j as continuing the active leg", (input) => {
     expect(isContinuingJourneyTo(input, city)).toBe(true);
   });
@@ -59,6 +66,8 @@ describe("isContinuingJourneyTo — same active destination is progress", () => 
     ["осматриваюсь", city],
     ["Иду в Речной Страж", null],
     ["Иду в Речной Страж", "  "],
+    ["двигаюсь к развалинам", city],
+    ["вхожу в другой город", city],
   ])("does not treat %j as continuing %j", (input, destination) => {
     expect(isContinuingJourneyTo(input, destination)).toBe(false);
   });

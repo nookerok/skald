@@ -17,6 +17,7 @@ import {
 import type { TurnProposalV2 } from "@skald/intent-parser";
 import { validateMasterTurnPlan } from "../src/runtime/master-turn-validator.js";
 import { executeMasterTurnPlan } from "../src/runtime/master-turn-executor.js";
+import { interpretMasterTurn } from "../src/runtime/master-turn-gateway.js";
 import { composeMasterTurnResponse } from "../src/conversation/master-turn-response.js";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
 import { conversationRequestHash } from "../src/conversation/builder.js";
@@ -176,6 +177,36 @@ describe("mixed turn integration", () => {
     const reopened = createMultiWorldStore(db);
     expect(reopened.listConversationTurns(LEGACY_WORLD_ID)).toEqual(turns);
     reopened.close();
+  });
+
+  it("runs a deterministic compound plan and answers both parts without a model", async () => {
+    const { engine, projection, events } = bootCamp();
+    const world = projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(events, world);
+    const conversation = buildMasterConversationContext([], LEGACY_WORLD_ID);
+    const router = { chat: () => { throw new Error("model down"); } } as never;
+
+    const result = await interpretMasterTurn(
+      "осматриваю факел и что я вижу?",
+      { events, world, scene, conversation },
+      router,
+      { timeoutMs: 50 },
+    );
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+
+    const executed = executeMasterTurnPlan(result.plan, scene, {
+      engine,
+      projection,
+      events,
+      worldId: "camp-deterministic-compound",
+    });
+    expect(executed.status).toBe("executed");
+    if (executed.status !== "executed") return;
+    expect(executed.executed).toBe(true);
+    expect(executed.commandEvents.filter((event) => event.type === "InteractionRequested")).toHaveLength(1);
+    expect(executed.inquiryAnswers.map((answer) => answer.queryId)).toEqual(["visible_scene"]);
+    expect(executed.inquiryAnswers[0]?.answer.length).toBeGreaterThan(0);
   });
 });
 

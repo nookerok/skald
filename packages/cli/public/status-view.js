@@ -14,9 +14,10 @@ export function renderStatus(state) {
     case APP.READY:
       switch (state.command) {
         case CMD.PENDING:
-          text = "МАСТЕР отвечает...";
-          ariaLive = "assertive";
-          break;
+          // The composer state machine owns this status line exclusively
+          // (plan_9 §8): setComposerState(SUBMITTING) writes «МАСТЕР
+          // отвечает…» in the same render cycle. Do not write a second one.
+          return;
         case CMD.SUCCEEDED:
           text = "Готов";
           break;

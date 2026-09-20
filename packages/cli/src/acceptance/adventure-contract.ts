@@ -1,5 +1,14 @@
 import type { AdventureScenario, AdventureStep } from "./adventure-types.js";
 
+/**
+ * Accepted scope reduction (plan_9 §14 beat 10): the "apply an item or
+ * knowledge" beat runs as knowledge application. Carried starting items are
+ * outside observe/take/use resolution, so the scenario applies the rumour
+ * knowledge instead of a carried object's `use` affordance. This is recorded,
+ * not silently dropped; making carried items resolvable is separate work.
+ */
+export const ITEM_BEAT_IS_KNOWLEDGE_APPLICATION = true;
+
 export const MIN_ADVENTURE_COMMANDS = 20;
 export const MAX_ADVENTURE_COMMANDS = 35;
 export const MIN_MEANINGFUL_CHOICES = 3;

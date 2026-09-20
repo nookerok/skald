@@ -180,7 +180,9 @@ async function handle(input, overrideKey) {
   dispatch("COMMAND_START", { input, key });
   setComposerState(COMPOSER.SUBMITTING);
   setShellBusy(true, "Разбираем намерение…");
-  renderShellConnection("pending", "МАСТЕР отвечает…");
+  // Status text «МАСТЕР отвечает…» is owned by the composer state machine;
+  // only the connection dot is updated here.
+  renderShellConnection("pending");
   try {
     const result = await sendCommand(input, key);
     if (result.body?.ok && result.body?.status === "inquiry") {

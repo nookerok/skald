@@ -22,6 +22,22 @@ export type MasterTurnKind =
   | "meta_answer"
   | "contextual_clarification";
 
+/**
+ * Narration lifecycle carried on the envelope (plan_9 §6).
+ * - `pending`: requested, still generating at response time;
+ * - `ready`: resolved, with the narration text;
+ * - `unavailable`: generation failed or was not scheduled;
+ * - `not_requested`: read-only turn that never asks for narration (plan_9
+ *   §6 extension, kept explicit so the browser can distinguish it).
+ */
+export type MasterTurnNarrationStatus = "pending" | "ready" | "unavailable" | "not_requested";
+
+/** Narration lifecycle plus its text once ready. Never authoritative. */
+export interface MasterTurnNarration {
+  readonly status: MasterTurnNarrationStatus;
+  readonly text?: string;
+}
+
 /** One input, one MasterTurn. Narration text arrives later via the journal. */
 export interface MasterTurnDTO {
   readonly turnKey: string;
@@ -29,9 +45,7 @@ export interface MasterTurnDTO {
   readonly worldTimeBefore: number;
   readonly worldTimeAfter: number;
   readonly deterministicText: string;
-  readonly narration: {
-    readonly status: "pending" | "not_requested";
-  };
+  readonly narration: MasterTurnNarration;
 }
 
 function freeze<T>(value: T): T {
@@ -69,4 +83,22 @@ export function buildMasterTurn(input: {
     deterministicText: input.deterministicText,
     narration: freeze({ status: input.narrationPending ? "pending" as const : "not_requested" as const }),
   });
+}
+
+/**
+ * Returns the same envelope with its narration lifecycle advanced (plan_9 §6).
+ * `ready` carries the resolved text; `unavailable` carries none. The
+ * deterministic text and all other fields are preserved, and the input is
+ * never mutated. The journal remains the normal narration transport; this is
+ * the contract for callers that resolve narration synchronously.
+ */
+export function withMasterTurnNarration(
+  masterTurn: MasterTurnDTO,
+  status: Exclude<MasterTurnNarrationStatus, "not_requested">,
+  text?: string,
+): MasterTurnDTO {
+  const narration: MasterTurnNarration = status === "ready"
+    ? freeze({ status, ...(typeof text === "string" && text.length > 0 ? { text } : {}) })
+    : freeze({ status });
+  return freeze({ ...masterTurn, narration });
 }

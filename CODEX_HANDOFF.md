@@ -1,3 +1,73 @@
+# Current work (2026-09-20 — plan_9 literal-gap closure; uncommitted)
+
+- Audit of plan_9 against the code found the frame nearly complete but
+  several requirements unmet literally. This batch closes them:
+  - §1 deterministic compound: new `intent-parser/replica-clauses.ts`
+    (`splitReplicaClauses`/`classifyReplicaClauses`) + gateway
+    `resolveDeterministicCompound`. The plan flagship
+    («Я осматриваю переправу и хочу понять, куда лучше идти — что
+    подсказывает вода?») now resolves with NO model into one `observe` +
+    `available_routes` + `environmental_indication`; a dead model recovers
+    through the same deterministic fallback; multi-question input answers
+    every question; action+action compounds name both parts. The live model
+    still owns compound interpretation — deterministic resolution runs only
+    when no model is available, on model failure, or for question-classified
+    input.
+  - §4 journey continuation: `продолжаю путь`, `иду дальше`, `не
+    останавливаюсь`, `ищу безопасный проход дальше` (classifier) and
+    `двигаюсь к городу`/`вхожу в город` (active-destination matcher) now
+    recognized.
+  - §2 player-facing clarifications: `conflictingActions` names the parts in
+    the question; internal operation tokens (`observe — …`, `no target`) are
+    mapped to Russian and never reach the player; `unknownObservedTarget`
+    never quotes a whole replica.
+  - §5 conflict code: world-scoped command conflicts now return
+    `idempotency_conflict` (was `duplicate_request`); presence acknowledge
+    keeps `duplicate_request`.
+  - §6 MasterTurn narration: DTO widened to
+    `pending|ready|unavailable|not_requested` + optional `text`,
+    `withMasterTurnNarration` added.
+  - §8 composer status: `composer-state.js` is now the single writer of
+    «МАСТЕР отвечает…»/«МАСТЕР дополняет эту запись…»; `renderStatus` and
+    `renderShellConnection` no longer write that line.
+  - §15/§16: SKILL.md now requires the six-capability preflight before the
+    first mutation and the six separate verdicts with the contract field
+    names.
+  - §14 beat-10 item/knowledge substitution recorded as an accepted scope
+    reduction (`ITEM_BEAT_IS_KNOWLEDGE_APPLICATION`).
+- Found and fixed a silent test gap: `composer-state.test.js` (plan_9 §8)
+  was excluded by `vitest.config.ts` (`include: **/*.test.ts`), so those
+  assertions had never run. Renamed to `.test.ts` (7 tests now execute).
+- `npm run validate` PASS (196 files / 2537 passed, 1 skipped; typecheck,
+  Canon, simulation, evals, 38-beat adventure, diff-check). Uncommitted, not
+  deployed; production remains `c7f0f68`. plan_*.md stay untracked.
+- Next: commit → push → Orange Pi deploy via `$skald-orange-pi-deploy` →
+  scratch browser QA through `$skald-ntfs-browser-qa` (authorized click
+  budget) + live 20–30 replica human eval.
+
+# Current work (2026-09-19 — durable browser-QA result bridge; uncommitted)
+
+- Root cause closed: Codex thread text is no longer the sole QA result channel.
+  A completed fixed-runner turn may still expose `items: []`, but evidence is
+  delivered through `QA_FILE_BRIDGE_V1` artifacts on the shared NTFS output.
+- The browser-QA skill now requires unique `jobId + runToken`, ACK before any
+  mutation, progress boundaries, immutable MD/JSON reports and a completion
+  receipt written last with both SHA-256 hashes. Duplicate jobs and receipt
+  rewrites fail closed; a report-only recovery may never repeat gameplay.
+- Added the canonical channel helper
+  `.agents/skills/skald-ntfs-browser-qa/scripts/read-result.mjs` with
+  `ack/progress/report/complete/verify` modes, path confinement, schema and
+  identity checks, atomic JSON publication and duplicate/tamper rejection.
+- Fixed NTFS workspace now has durable channel rules in `AGENTS.md` and invokes
+  only the canonical WSL helper. Its duplicate local implementation was removed.
+- Zero-mutation cross-task proof PASS:
+  `qa-channel-bridge-v1-final-20260919`, worldId null, mutation total 0;
+  WSL independently verified runToken and both report hashes
+  (`dfc44df3...b6b457`, `f829bd71...7d156`) despite an empty task message.
+- No browser, world, server, deployment or SQLite mutation was used for the
+  channel self-test. Next actual browser QA must use a fresh job/token and this
+  receipt protocol.
+
 # Current work (2026-09-18 — continuation-hint batch c7f0f68 deployed, smoke PASS; CLOSED)
 
 - Commit `c7f0f68` (`review:deterministic-continuation-hint-

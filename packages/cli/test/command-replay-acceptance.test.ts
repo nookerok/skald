@@ -167,6 +167,7 @@ describe("idempotent replay acceptance (plan_9 §5)", () => {
         const { key } = keys[kind]!;
         const conflict = await command(`другой текст ${kind}`, key);
         expect(conflict.statusCode).toBe(409);
+        expect(JSON.parse(conflict.body).error.code).toBe("idempotency_conflict");
       }
       expect(store.listConversationTurns(worldId)).toHaveLength(4);
 

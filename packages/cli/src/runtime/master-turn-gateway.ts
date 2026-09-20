@@ -15,6 +15,8 @@
 import type { DomainEvent } from "@skald/event-bus";
 import {
   classifyPlayerInput,
+  classifyReplicaClauses,
+  conflictingActions,
   isUnresolvedFocusSurface,
   missingReferent,
   multipleReferents,
@@ -924,6 +926,68 @@ async function interpretFramedInput(
 }
 
 /**
+ * Deterministic compound resolution (plan_9 §1): a replica that carries at
+ * least one understood question is resolved WITHOUT the model — one safe
+ * primary action plus every understood question in one plan, or a specific
+ * clarification naming the parts. Pure classification: it reads no world and
+ * emits no events; the resulting plan is revalidated inside the queue like
+ * any other. Returns null when the replica is not a compound with questions.
+ */
+function resolveDeterministicCompound(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  const clauses = classifyReplicaClauses(input, parseIntent);
+  // A single-clause replica is not a compound: the normal path owns it.
+  if (clauses.actions.length + clauses.inquiries.length < 2) return null;
+  // A part the deterministic layer did not understand keeps the honest,
+  // entity-naming clarification path instead of being dropped.
+  if (clauses.unknown.length > 0) return null;
+
+  const revision = Object.freeze({ worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber });
+  const buildPlan = (kind: "mixed" | "inquiry", intent: ExecutableIntent | null): ValidatedMasterTurnPlan => Object.freeze({
+    contextRevision: revision,
+    kind,
+    execution: intent ? Object.freeze({ intent }) : null,
+    postActionInquiries: Object.freeze(clauses.inquiries.map((clause) => clause.inquiry)),
+    metaInquiry: null,
+    deferredClauses: Object.freeze([]),
+    focus: Object.freeze([]),
+    goal: null,
+    conversationRelation: null,
+  });
+  const emitResolved = (): void => emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "deterministic_compound_resolved",
+    outcome: "accepted",
+    phase: "fast_path",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+    clauseCount: clauses.actions.length + clauses.inquiries.length,
+  });
+
+  if (clauses.actions.length === 0) {
+    emitResolved();
+    return { status: "plan", plan: buildPlan("inquiry", null), scene: snapshot.scene };
+  }
+  if (clauses.actions.length > 1) {
+    const classified = conflictingActions(clauses.actions.map((clause) => clause.text));
+    return { status: "clarification", question: classified.question, options: classified.options };
+  }
+  const action = clauses.actions[0]!;
+  const structural = validateActionProposal(action.intent);
+  if (!structural.ok) {
+    return {
+      status: "clarification",
+      question: structural.clarification,
+      options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
+    };
+  }
+  emitResolved();
+  return { status: "plan", plan: buildPlan("mixed", action.intent), scene: snapshot.scene };
+}
+
+/**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
  */
@@ -942,6 +1006,15 @@ export async function interpretMasterTurn(
     if (framed) return framed;
   }
   let classification = classifyPlayerInput(input, parseIntent);
+  const modelUnavailable = (options?.mode ?? readMode()) === "off" || router === null;
+  // Deterministic compound (plan_9 §1): when no model is available, one safe
+  // primary plus every understood question must still resolve — and this runs
+  // before the whole-replica inquiry shortcut so a second question is never
+  // dropped. A live model keeps owning compound interpretation.
+  if (modelUnavailable || classification.kind === "inquiry") {
+    const compound = resolveDeterministicCompound(input, snapshot, options);
+    if (compound) return compound;
+  }
   if (classification.kind === "inquiry") {
     return { status: "inquiry", inquiry: classification.inquiry };
   }
@@ -1069,7 +1142,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return fallbackAfterModelFailure(deterministic, snapshot, options);
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options);
   }
 
   let parsed: unknown;
@@ -1084,7 +1157,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return fallbackAfterModelFailure(deterministic, snapshot, options);
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options);
   }
 
   emitMasterTurnDiagnostic(options?.diagnostics, {
@@ -1122,7 +1195,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return fallbackAfterModelFailure(deterministic, snapshot, options);
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options);
   }
 
   const contextual = validateMasterTurnPlan({
@@ -1143,7 +1216,7 @@ export async function interpretMasterTurn(
       ...(contextual.framed ? { framed: contextual.framed } : {}),
     };
   }
-  return fallbackAfterModelFailure(deterministic, snapshot, options);
+  return fallbackAfterModelFailure(input, deterministic, snapshot, options);
 }
 
 /**
@@ -1157,6 +1230,7 @@ export async function interpretMasterTurn(
  * defect).
  */
 function fallbackAfterModelFailure(
+  input: string,
   deterministic: ReturnType<typeof parseIntent>,
   snapshot: MasterTurnSnapshot,
   options?: MasterTurnGatewayOptions,
@@ -1179,6 +1253,10 @@ function fallbackAfterModelFailure(
       return { status: "deterministic", intent: deterministic };
     }
   }
+  // A compound the model failed on still resolves deterministically rather
+  // than falling to a generic answer (plan_9 §1).
+  const compound = resolveDeterministicCompound(input, snapshot, options);
+  if (compound) return compound;
   const deterministicClarification = clarificationFromDeterministic(deterministic);
   if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? genericFallback(options);
   return speakAddresseeFallback(deterministic, snapshot, options) ?? genericFallback(options);

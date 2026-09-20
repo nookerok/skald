@@ -5,13 +5,15 @@ import { sameRussianStem } from "./russian-morphology.js";
  * Journey continuation phrases (plan_9 §4).
  *
  * A pure, closed-vocabulary classifier: it recognizes only replicas that
- * name no new destination and only continue an already active journey
- * ("продолжаю путь", "иду дальше", "не останавливаюсь"). It never reads the
- * world and never decides anything: the caller applies it only when a
- * journey is actually active, otherwise the replica flows through the
- * normal interpretation path (and an unknown destination still blocks
- * honestly). Matching is anchored to the whole replica so a trailing
- * destination ("продолжаю путь к реке") stays a normal journey request.
+ * name no NEW destination and only continue an already active journey
+ * ("продолжаю путь", "иду дальше", "не останавливаюсь", "ищу безопасный
+ * проход дальше"). It never reads the world and never decides anything: the
+ * caller applies it only when a journey is actually active, otherwise the
+ * replica flows through the normal interpretation path (and an unknown
+ * destination still blocks honestly). Matching is anchored to the whole
+ * replica so a trailing destination ("продолжаю путь к реке") stays a normal
+ * journey request. Movement/entry forms that re-name the ACTIVE destination
+ * ("двигаюсь к городу", "вхожу в город") are handled by isContinuingJourneyTo.
  */
 
 const CONTINUATION_PATTERNS: readonly RegExp[] = [
@@ -29,6 +31,9 @@ const CONTINUATION_PATTERNS: readonly RegExp[] = [
   /^не останавливаться$/iu,
   /^без остановки$/iu,
   /^не стою на месте$/iu,
+  // Path-finding while already on the road ("ищу безопасный проход дальше") is
+  // a continuation of the active leg, never a new destination.
+  /^ищу\s+(?:себе\s+)?(?:безопасн[а-яё]*\s+)?(?:проход|обход|путь|дорогу|тропу|брод|переправу|лазейку)(?:\s+.*)?$/iu,
 ];
 
 function normalizeContinuation(input: string): string {
@@ -84,12 +89,12 @@ export function isContinuingJourneyTo(input: string, activeDestinationName: stri
   if (parsed?.type === "JourneyIntent") {
     if (matches(contentWords(parsed.destination.raw))) return true;
   }
-  // "Продолжаю путь к X": the travel-verb parser does not own
-  // продолжаю-forms, so strip the leading continuation anchor and compare
-  // the remainder directly. Bare "продолжаю путь" belongs to
-  // isJourneyContinuation, not here.
+  // "Продолжаю путь к X" and kin: the travel-verb parser does not own every
+  // movement/entry form ("двигаюсь к городу", "вхожу в город"), so strip the
+  // leading continuation anchor or movement verb and compare the remainder
+  // directly. Bare "продолжаю путь" belongs to isJourneyContinuation.
   const stripped = normalizeContinuation(input)
-    .replace(/^(?:продолжаю|продолжить|продолжать|продолжим|продолжаем)\s+(?:путь|идти|двигаться|движение|дорогу|дорога)\s*/u, "")
+    .replace(/^(?:(?:продолжаю|продолжить|продолжать|продолжим|продолжаем)\s+(?:путь|идти|двигаться|движение|дорогу|дорога)|двигаюсь|движусь|двигаемся|вхожу|въезжаю|захожу|перехожу|ступаю)\s+/u, "")
     .trim();
   if (!stripped || stripped === normalizeContinuation(input).trim()) return false;
   return matches(contentWords(stripped));

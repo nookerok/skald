@@ -1,11 +1,11 @@
 // @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { COMPOSER, composerStateAfterSubmit, setComposerState } from "../public/composer-state.js";
+import { COMPOSER, composerStateAfterSubmit, composerStatusText, setComposerState } from "../public/composer-state.js";
 
 function createDocument() {
   const elements = new Map();
   const make = (id, extra = {}) => {
-    const element = { id, disabled: false, hidden: false, attributes: {}, ...extra };
+    const element = { id, disabled: false, hidden: false, attributes: {}, textContent: "", ...extra };
     element.setAttribute = (name, value) => { element.attributes[name] = String(value); };
     elements.set(id, element);
     return element;
@@ -16,6 +16,7 @@ function createDocument() {
   make("send-btn");
   make("retry-btn");
   make("voice-btn");
+  make("status-text");
   return {
     getElementById(id) { return elements.get(id) || null; },
     elements,
@@ -73,6 +74,20 @@ describe("composer state machine (plan_9 §8)", () => {
     setComposerState(COMPOSER.SUBMITTING);
     expect(setComposerState("flying")).toBe(COMPOSER.IDLE);
     expect(unlocked()).toBe(true);
+  });
+
+  it("owns the composer status text while non-idle (plan_9 §8)", () => {
+    setComposerState(COMPOSER.SUBMITTING);
+    expect(doc.elements.get("status-text").textContent).toBe("МАСТЕР отвечает…");
+    expect(doc.elements.get("status-text").attributes["aria-live"]).toBe("assertive");
+
+    // Idle never overwrites an outcome message written by the reducer/shell.
+    doc.elements.get("status-text").textContent = "Ход записан";
+    setComposerState(COMPOSER.IDLE);
+    expect(doc.elements.get("status-text").textContent).toBe("Ход записан");
+
+    expect(composerStatusText(COMPOSER.IDLE)).toBe(null);
+    expect(composerStatusText(COMPOSER.RETRYABLE_FAILURE)).toContain("повторить");
   });
 
   it("classifies submit outcomes through one policy", () => {

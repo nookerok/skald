@@ -580,7 +580,7 @@ describe("surface-only model referents (review P1)", () => {
 
     expect(result.status).toBe("clarification");
     if (result.status !== "clarification") return;
-    expect(result.question).toBe("Что именно ты хочешь сделать?");
+    expect(result.question).toBe("Что именно ты хочешь сделать — мокрый настил у самой воды или ищу следы?");
     expect(result.options.map((option) => option.label)).toEqual([
       "мокрый настил у самой воды",
       "ищу следы",

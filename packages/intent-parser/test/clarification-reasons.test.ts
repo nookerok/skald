@@ -39,6 +39,21 @@ describe("clarification taxonomy (plan_9 §2)", () => {
       .toEqual(["осмотреть двор", "идти к реке"]);
   });
 
+  it("names the conflicting actions in the question (plan_9 §2)", () => {
+    const question = conflictingActions(["осмотреть двор", "идти к реке"]).question;
+    expect(question).toContain("осмотреть двор");
+    expect(question).toContain("идти к реке");
+    expect(isGenericFallbackText(question)).toBe(false);
+  });
+
+  it("never quotes a whole replica as an unknown target (plan_9 §2)", () => {
+    const replica = "Я осматриваю переправу и хочу понять, куда лучше идти — что подсказывает вода?";
+    const question = unknownObservedTarget(replica).question;
+    expect(question).not.toContain(replica);
+    expect(question).not.toContain("подсказывает вода");
+    expect(isGenericFallbackText(question)).toBe(false);
+  });
+
   it("carries the executable text on conflicting-action options (review P1)", () => {
     const options = conflictingActions(["осмотреть двор", "идти к реке"]).options;
     expect(options.map((o) => o.optionId)).toEqual(["deterministic-1", "deterministic-2"]);

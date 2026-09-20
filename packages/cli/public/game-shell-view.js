@@ -21,7 +21,7 @@ export function addClarification(...args) { return addClarificationModel(...args
 export function upsertConfirmedPair(...args) { return upsertConfirmedPairModel(...args); }
 export function clearLocalIntents(...args) { currentJournal = null; return clearLocalIntentsModel(...args); }
 function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value == null ? "" : String(value); }
-export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; setText("status-text", message || "Готов"); }
+export function renderShellConnection(mode, message) { const dot = document.getElementById("connection-dot"); if (dot) dot.dataset.mode = mode || "ready"; if (message !== null && message !== undefined) setText("status-text", message || "Готов"); }
 /**
  * Shell/loading presentation only (single composer owner: composer-state.js).
  * Toggles the shell-busy backdrop and the loading stage text. It never

@@ -553,16 +553,63 @@ function extractApproachTarget(text: string): string | undefined {
   return target.length > 0 ? target : undefined;
 }
 
+/** Player-facing Russian verbs for the internal operation tokens. */
+const OPERATION_RU: Readonly<Record<string, string>> = Object.freeze({
+  observe: "осмотреть",
+  listen: "прислушаться",
+  approach: "подойти",
+  enter: "войти",
+  wait: "подождать",
+  speak: "заговорить",
+  call: "окликнуть",
+  heat: "нагреть",
+  cool: "остудить",
+  create_mark: "оставить знак",
+  open: "открыть",
+  close: "закрыть",
+  take: "взять",
+  put: "положить",
+  give: "отдать",
+  use: "использовать",
+  move: "двинуться",
+  travel: "идти",
+  interrupt: "остановиться",
+  push: "толкнуть",
+  throw: "бросить",
+  strike: "ударить",
+});
+
+/**
+ * Turns an internal candidate label ("observe — переправу") into player
+ * prose ("осмотреть «переправу»"). The operation token and the "no target"
+ * placeholder never reach the player (presentation contract, plan_9 §2).
+ */
+function playerFacingCandidate(label: string): string {
+  const separator = label.indexOf(" — ");
+  const head = (separator >= 0 ? label.slice(0, separator) : label).trim();
+  const target = (separator >= 0 ? label.slice(separator + 3) : "").trim();
+  const hasTarget = target.length > 0 && target !== "окружение" && target !== "no target";
+  const verb = /^[а-яё]/iu.test(head) ? head : OPERATION_RU[head] ?? null;
+  if (verb && hasTarget) return `${verb} «${target}»`;
+  if (verb) return verb;
+  if (hasTarget) return `«${target}»`;
+  return "действовать";
+}
+
 function buildClarification(
   _text: string,
   candidates: Array<{ mode: IntentMode; operation: IntentOperation; label: string }>,
   clarificationId: string,
 ): ClarificationRequest {
+  const playerLabels = candidates.map((candidate) => playerFacingCandidate(candidate.label));
+  const named = playerLabels.filter((label) => label.length > 0).slice(0, 3);
   return {
     type: "ClarificationRequired",
     clarificationId,
-    question: "Что именно ты хочешь сделать?",
-    interpretations: candidates.map((c) => c.label),
+    question: named.length > 0
+      ? `Что именно ты хочешь сделать — ${named.join(" или ")}?`
+      : "Что именно ты хочешь сделать?",
+    interpretations: candidates.map((c, index) => playerLabels[index] ?? c.label),
   };
 }
 

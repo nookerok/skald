@@ -144,9 +144,15 @@ export function unclearDestination(): ClassifiedClarification {
  * filling a referent slot.
  */
 export function conflictingActions(actions: readonly string[]): ClassifiedClarification {
+  const named = actions
+    .map((action) => action.trim().replace(/\s+/gu, " "))
+    .filter((action) => action.length > 0)
+    .slice(0, 3);
   return Object.freeze({
     reason: "conflicting_actions" as const,
-    question: "Что именно ты хочешь сделать?",
+    question: named.length > 0
+      ? `Что именно ты хочешь сделать — ${named.join(" или ")}?`
+      : "Что именно ты хочешь сделать?",
     options: actions.length > 0
       ? actions.slice(0, 3).map((label, index) => ({
         optionId: `deterministic-${index + 1}`,
@@ -168,9 +174,16 @@ export function unsafeCombination(action: string): ClassifiedClarification {
 
 /** Named target outside observer scope: quote it back, offer a rephrase. */
 export function unknownObservedTarget(target: string): ClassifiedClarification {
+  const surface = target.trim().replace(/\s+/gu, " ");
+  const words = surface.split(" ").filter((word) => word.length > 0);
+  // Quote the entity only when it looks like one: a whole replica is never
+  // echoed back (plan_9 §2 — a clarification names the entity or action).
+  const quotable = surface.length > 0 && surface.length <= 60 && words.length <= 6;
   return Object.freeze({
     reason: "unknown_observed_target" as const,
-    question: `Я не нахожу «${target}» среди того, что тебе доступно сейчас. Что именно ты хочешь сделать?`,
+    question: quotable
+      ? `Я не нахожу «${surface}» среди того, что тебе доступно сейчас. Что именно ты хочешь сделать?`
+      : "Я не нахожу названное тобой среди того, что тебе доступно сейчас. Что именно ты хочешь сделать?",
     options: [{ optionId: "rephrase", label: "Уточнить цель" }],
   });
 }

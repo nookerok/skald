@@ -11,7 +11,7 @@ import { buildBootstrapEvents } from "@skald/world";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand, handleWorldWait } from "../src/http/world-handlers.js";
-import { masterTurnKey } from "../src/conversation/master-turn.js";
+import { buildMasterTurn, masterTurnKey, withMasterTurnNarration } from "../src/conversation/master-turn.js";
 import type { WorldRuntime } from "../src/runtime/world-runtime-manager.js";
 
 function tmpDb(): string {
@@ -117,5 +117,28 @@ describe("MasterTurn envelope (plan_9 §6)", () => {
     } finally {
       store.close();
     }
+  });
+
+  it("advances the narration lifecycle to ready/unavailable (plan_9 §6)", () => {
+    const base = buildMasterTurn({
+      worldId: "w",
+      idempotencyKey: "k",
+      kind: "action_outcome",
+      worldTimeBefore: 0,
+      worldTimeAfter: 1,
+      deterministicText: "Ты осматриваешься.",
+      narrationPending: true,
+    });
+    expect(base.narration).toEqual({ status: "pending" });
+
+    const ready = withMasterTurnNarration(base, "ready", "Ты осматриваешься, и ветер несёт запах воды.");
+    expect(ready.narration).toEqual({ status: "ready", text: "Ты осматриваешься, и ветер несёт запах воды." });
+    expect(ready.turnKey).toBe(base.turnKey);
+    expect(ready.deterministicText).toBe(base.deterministicText);
+    expect(base.narration).toEqual({ status: "pending" });
+
+    const unavailable = withMasterTurnNarration(base, "unavailable");
+    expect(unavailable.narration).toEqual({ status: "unavailable" });
+    expect(Object.isFrozen(unavailable)).toBe(true);
   });
 });

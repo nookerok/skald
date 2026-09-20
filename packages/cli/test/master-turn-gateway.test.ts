@@ -468,6 +468,66 @@ describe("master turn gateway V2", () => {
   });
 });
 
+describe("deterministic compound resolution (plan_9 §1)", () => {
+  /** No model configured: the pure deterministic path. */
+  const noModel = null;
+  /** A configured but dead model: the deterministic fallback must recover. */
+  function dead() {
+    return { chat: vi.fn(() => { throw new Error("model down"); }) } as any;
+  }
+
+  it("resolves the flagship replica into one action plus both questions", async () => {
+    const result = await interpretMasterTurn(
+      "Я осматриваю переправу и хочу понять, куда лучше идти — что подсказывает вода?",
+      snapshot(),
+      noModel,
+      { timeoutMs: 50 },
+    );
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.kind).toBe("mixed");
+    expect(result.plan.execution?.intent.type).toBe("InteractionCommand");
+    expect(result.plan.postActionInquiries.map((inquiry) => inquiry.queryId)).toEqual([
+      "available_routes",
+      "environmental_indication",
+    ]);
+  });
+
+  it("recovers the same flagship plan after the model fails", async () => {
+    const result = await interpretMasterTurn(
+      "Я осматриваю переправу и хочу понять, куда лучше идти — что подсказывает вода?",
+      snapshot(),
+      dead(),
+      { timeoutMs: 50 },
+    );
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.postActionInquiries.map((inquiry) => inquiry.queryId)).toEqual([
+      "available_routes",
+      "environmental_indication",
+    ]);
+  });
+
+  it("answers two questions in one turn without a model", async () => {
+    const result = await interpretMasterTurn("где я? и кто рядом?", snapshot(), noModel, { timeoutMs: 50 });
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution).toBeNull();
+    expect(result.plan.postActionInquiries.map((inquiry) => inquiry.queryId)).toEqual([
+      "current_location",
+      "who_is_nearby",
+    ]);
+  });
+
+  it("names both actions for an action+action compound", async () => {
+    const result = await interpretMasterTurn("осматриваю переправу и слушаю воду", snapshot(), dead(), { timeoutMs: 50 });
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toContain("осматриваю переправу");
+    expect(result.question).toContain("слушаю воду");
+  });
+});
+
 describe("mixed-corpus generic-fallback gate (plan_9 §1-2)", () => {
   function mentionSnapshot(): MasterTurnSnapshot {
     const snap = snapshot();
@@ -557,7 +617,8 @@ describe("mixed-corpus generic-fallback gate (plan_9 §1-2)", () => {
     { input: "прислушиваюсь к шуму воды", snap: "empty" },
     { input: "слушаю перевозчика", snap: "empty" },
     { input: "Осматриваю двор.", snap: "empty" },
-    { input: "иду за лосем", snap: "empty" },
+    // Plan flagship: one action + two questions, resolved without the model.
+    { input: "Я осматриваю переправу и хочу понять, куда лучше идти — что подсказывает вода?", snap: "empty" },
     // Genuine garbage: the only allowed generic fallback (2% budget).
     { input: "абракадабра", snap: "empty", allowGeneric: true },
   ];

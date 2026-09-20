@@ -211,7 +211,8 @@ describe("HTTP Server", () => {
     expect(compound.status).toBe(200);
     expect(compound.body.ok).toBe(true);
     expect(compound.body.status).toBe("clarification");
-    expect(compound.body.question).toBe("Что именно ты хочешь сделать?");
+    expect(compound.body.question).toContain("мокрый настил у самой воды");
+    expect(compound.body.question).toContain("ищу следы");
 
     const after = await api("/api/state");
     expect(after.body.state.worldTime).toBe(before.body.state.worldTime);

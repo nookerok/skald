@@ -63,6 +63,8 @@ export type { InquiryFocus, InquiryQueryId, InquiryRelation, InquiryRequest, Pla
 export { interpretIntent, targetRequirementForInteraction, targetRequirementForOperation } from "./deterministic-interpreter.js";
 export type { InterpreterOptions } from "./deterministic-interpreter.js";
 export { isJourneyContinuation, isContinuingJourneyTo } from "./journey-continuation.js";
+export { splitReplicaClauses, classifyReplicaClauses } from "./replica-clauses.js";
+export type { ReplicaActionClause, ReplicaInquiryClause, ReplicaClauseClassification } from "./replica-clauses.js";
 export { RUSSIAN_STEM_MIN_LENGTH, sameRussianStem, stemRussianToken } from "./russian-morphology.js";
 export { INTENT_CAPABILITIES, INQUIRY_CAPABILITIES, isIntentProposal, parseIntentProposal, isInquiryProposal, parseInquiryProposal } from "./intent-proposal.js";
 export type { ClarificationIntentPatch, ClarificationOption, ExecutableIntent, IntentCapabilitiesManifest, IntentProposalAmbiguity, IntentProposalClause, IntentProposalInput, IntentProposalV1, IntentProposalValidation, InquiryCapabilitiesManifest, InquiryProposalV1, InquiryProposalValidation } from "./intent-proposal.js";
