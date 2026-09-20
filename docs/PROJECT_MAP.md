@@ -104,7 +104,9 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 
     WSL repository task -> fixed NTFS Codex browser task
     -> in-app browser at LAN URL -> screenshots/DOM/console evidence
-    -> PASS/FAIL/BLOCKED returned to repository task
+    -> atomic ACK/progress/reports/completion receipt on NTFS
+    -> repository task verifies jobId + runToken + report hashes
+    -> PASS/FAIL/BLOCKED (thread message is advisory only)
 
 ## Authority boundaries
 
