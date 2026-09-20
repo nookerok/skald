@@ -19,7 +19,8 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
 | Orange Pi operations | .agents/skills/skald-orange-pi-deploy/SKILL.md |
-| Browser and visual QA | .agents/skills/skald-ntfs-browser-qa/SKILL.md |
+| Browser and visual QA (fixed Codex runner) | .agents/skills/skald-ntfs-browser-qa/SKILL.md |
+| Browser and visual QA (non-Codex Traycer session) | .agents/skills/skald-traycer-browser-qa/SKILL.md |
 
 ## Package ownership
 

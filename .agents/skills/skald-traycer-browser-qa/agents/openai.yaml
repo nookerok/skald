@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skald Traycer Browser QA"
+  short_description: "Run Skald browser QA in a non-Codex Traycer session"
+  default_prompt: "Use $skald-traycer-browser-qa to run evidence-based browser QA against the deployed Skald UI from this Traycer session."

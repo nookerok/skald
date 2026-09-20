@@ -151,6 +151,11 @@ Project-specific operational workflows live under `.agents/skills/`.
 - Use `$skald-ntfs-browser-qa` for every actual Skald browser or visual QA run,
   including screenshots, console inspection, interaction smoke, responsive
   checks, accessibility checks and post-deploy UI verification.
+- Use `$skald-traycer-browser-qa` only when the fixed NTFS Codex runner is not
+  addressable from the session (for example a native opencode/Traycer session
+  with no Codex thread-messaging tool). It runs the same contract on the
+  Traycer in-app browser against a scratch world; the report must state that the
+  Codex runner was not used.
 
 The repository task is WSL-backed. Do not repeatedly attempt its in-app browser
 when visual QA is required. Route the run through the fixed projectless NTFS
@@ -172,9 +177,10 @@ observer scope, freshness decay, contradiction persistence, immutable DTOs and
 absence of forbidden truth fields, plus HTTP DTO-shape tests.
 
 Browser-facing changes also require a real run through
-`$skald-ntfs-browser-qa`. Gameplay clicks change the canonical Event Log, so
-the delegated prompt must state an authorized click budget. Record visual QA as
-PASS, FAIL or BLOCKED independently from `npm run validate`.
+`$skald-ntfs-browser-qa`, or `$skald-traycer-browser-qa` when that fixed runner
+is not addressable. Gameplay clicks change the canonical Event Log, so the
+delegated prompt must state an authorized click budget and use a scratch world.
+Record visual QA as PASS, FAIL or BLOCKED independently from `npm run validate`.
 
 ## Validation
 
