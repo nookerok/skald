@@ -1,3 +1,31 @@
+# Current work (2026-09-21 — AI-master next tickets deployed as a56c741; CLOSED)
+
+- Seven tickets from the `ai-master-next` story closed and pushed:
+  lexicon `подхожу`, mixed action+question, local scene observation,
+  localization leak, live intent/narration contract gate, simulation-backed
+  opening Situation, MasterBrief. Commits `02aec5f`, `3ba062d`, `d107592`,
+  `80df7e9`, `a56c741`; `main == origin/main`.
+- Orange Pi updated via `$skald-orange-pi-deploy` as `nooker`: remote clean,
+  restricted restart verified; updater fast-forwarded to `a56c741`, on-device
+  `npm run validate` PASS, narrative manifest installed, restart + health gate
+  PASS, AI readiness `degraded but playable` (ollama_cloud `gemma4:31b-cloud`
+  serves both routes ok).
+- New loopback live contract probe verified live: `POST /api/ops/intent-probe`
+  returns 200 `pass=true` — phrases 1-2 deterministic, phrase 3 a named
+  clarification, narration `ok`. `/api/ops/ai-probe` stays 503 for degraded
+  (accepted by the gate).
+- Smoke PASS on scratch world `world-29ca2ce8` (keeper /
+  river_waystation_arrival): create 201, 10 commands ok (6 ticked exactly +1),
+  identical replay 200 + `replayed` + frozen log, same key with a different
+  payload 409 `idempotency_conflict`, `/api/health` 200, scoped state matches
+  the final worldTime. Canonical player world untouched.
+- Deploy caveat: the INSTALLED `/usr/local/bin/update-orange-pi.sh` is a copy
+  and does not reinstall itself, so the new intent gate in the repo updater is
+  not yet enforced on the device. Re-run `install-orange-pi.sh` once to activate
+  it; the endpoint itself is live and checkable via a manual probe.
+- Open: scratch browser QA (`$skald-ntfs-browser-qa`, or the Traycer skill in a
+  non-Codex session) and the 30–60 min human playtest.
+
 # Current work (2026-09-20 — plan_9 literal-gap closure; uncommitted)
 
 - Audit of plan_9 against the code found the frame nearly complete but
