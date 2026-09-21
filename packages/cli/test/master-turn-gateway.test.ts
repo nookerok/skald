@@ -88,7 +88,7 @@ describe("master turn gateway V2", () => {
       referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
     }));
 
-    const result = await interpretMasterTurn("Подхожу к ограде.", snap, router);
+    const result = await interpretMasterTurn("Подхожу к ограде и осматриваю двор.", snap, router);
 
     expect(result.status).toBe("plan");
     if (result.status !== "plan") return;
@@ -96,7 +96,7 @@ describe("master turn gateway V2", () => {
     expect(router.chat).toHaveBeenCalledTimes(1);
     const [category, messages] = router.chat.mock.calls[0] as any[];
     expect(category).toBe("interpret");
-    expect(messages[0].content).not.toContain("Подхожу к ограде.");
+    expect(messages[0].content).not.toContain("Подхожу к ограде и осматриваю двор.");
   });
 
   it("sends the master_turn envelope with bindings bound to the snapshot scene", async () => {
@@ -192,7 +192,7 @@ describe("master turn gateway V2", () => {
         .mockResolvedValueOnce({ text: fixed }),
     } as any;
 
-    const result = await interpretMasterTurn("Подхожу к ограде.", snap, router, {
+    const result = await interpretMasterTurn("Подхожу к ограде и осматриваю двор.", snap, router, {
       diagnostics: (event) => events.push(event),
     });
 
@@ -202,7 +202,7 @@ describe("master turn gateway V2", () => {
     expect(secondMessages.map((message: any) => message.role)).toEqual(["system", "user", "assistant", "user"]);
     expect(secondMessages[2].content).toBe(enveloped);
     expect(secondMessages[3].content).toContain("rejected");
-    expect(secondMessages[3].content).not.toContain("Подхожу к ограде.");
+    expect(secondMessages[3].content).not.toContain("Подхожу к ограде и осматриваю двор.");
     expect(events.map((event) => event.category)).toContain("proposal_repair_requested");
   });
 
@@ -288,7 +288,7 @@ describe("master turn gateway V2", () => {
       referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
     }));
 
-    const result = await interpretMasterTurn("Подхожу к ограде.", snap, router, {
+    const result = await interpretMasterTurn("Подхожу к ограде и осматриваю двор.", snap, router, {
       diagnostics: (event) => events.push(event),
       correlationId: "master-turn-test-1",
       worldTime: 3,
@@ -309,7 +309,7 @@ describe("master turn gateway V2", () => {
       mentionCount: expect.any(Number),
       truncated: expect.any(Boolean),
     }));
-    expect(JSON.stringify(events)).not.toContain("Подхожу к ограде.");
+    expect(JSON.stringify(events)).not.toContain("Подхожу к ограде и осматриваю двор.");
   });
 
   it("asks a specific question for a pronoun with no scene candidates without calling the model", async () => {
@@ -525,6 +525,23 @@ describe("deterministic compound resolution (plan_9 §1)", () => {
     if (result.status !== "clarification") return;
     expect(result.question).toContain("осматриваю переправу");
     expect(result.question).toContain("слушаю воду");
+  });
+
+  it("resolves the plan's live phrases without a generic fallback", async () => {
+    const ambient = await interpretMasterTurn("я осматриваюсь", snapshot(), noModel, { timeoutMs: 50 });
+    expect(ambient.status).toBe("deterministic");
+
+    const approach = await interpretMasterTurn("подхожу к ограде", snapshot(), noModel, { timeoutMs: 50 });
+    expect(approach.status).toBe("deterministic");
+    if (approach.status === "deterministic") expect(approach.intent.type).toBe("ActionIntentCommand");
+
+    // Positioning + a second action + a question: two actions is a real
+    // conflict, so the master names both parts instead of a generic fallback.
+    const compound = await interpretMasterTurn("подхожу к ограде и осматриваю двор, что я вижу?", snapshot(), noModel, { timeoutMs: 50 });
+    expect(compound.status).toBe("clarification");
+    if (compound.status !== "clarification") return;
+    expect(compound.question).toContain("подхожу к ограде");
+    expect(compound.question).toContain("осматриваю двор");
   });
 });
 

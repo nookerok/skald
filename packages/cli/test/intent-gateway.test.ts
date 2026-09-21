@@ -234,7 +234,7 @@ describe("intent gateway", () => {
       schemaVersion: 1,
       primary: { kind: "legacy", operation: "approach", target: "ограда" },
     }));
-    const result = await interpretPlayerInput("подхожу к ограде", router);
+    const result = await interpretPlayerInput("ковыляю к ограде", router);
 
     expect(result).toMatchObject({ status: "accepted", source: "llm" });
     expect((result as any).intent.operation).toBe("approach");

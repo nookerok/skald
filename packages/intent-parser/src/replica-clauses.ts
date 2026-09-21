@@ -75,15 +75,51 @@ export function classifyReplicaClauses(
     const classified = classifyPlayerInput(text, parseAction);
     if (classified.kind === "inquiry") {
       inquiries.push(Object.freeze({ text, inquiry: classified.inquiry }));
-    } else if ((classified.kind === "action" || classified.kind === "speech") && isExecutableIntent(classified.intent)) {
-      actions.push(Object.freeze({ text, intent: classified.intent }));
-    } else {
-      unknown.push(text);
+      continue;
     }
+    // "осматриваю двор, что я вижу?" — an action and a question joined by a
+    // comma. The whole-clause parse would swallow the question into the action
+    // target, so try the comma split before accepting the action (plan_9 §1).
+    const joined = splitActionAndQuestion(text, parseAction);
+    if (joined) {
+      actions.push(Object.freeze({ text: joined.action.text, intent: joined.action.intent }));
+      inquiries.push(Object.freeze({ text: joined.inquiry.text, inquiry: joined.inquiry.inquiry }));
+      continue;
+    }
+    if ((classified.kind === "action" || classified.kind === "speech") && isExecutableIntent(classified.intent)) {
+      actions.push(Object.freeze({ text, intent: classified.intent }));
+      continue;
+    }
+    unknown.push(text);
   }
   return Object.freeze({
     actions: Object.freeze(actions),
     inquiries: Object.freeze(inquiries),
     unknown: Object.freeze(unknown),
   });
+}
+
+/**
+ * Splits "<action>, <question>" into its two parts when the head is an
+ * executable action and the tail is a recognised inquiry. Returns null when
+ * either half is unclear, so genuine frames ("хочу узнать, кто рядом") and
+ * unknown clauses keep their current handling.
+ */
+function splitActionAndQuestion(
+  text: string,
+  parseAction: (value: string) => IntentResult,
+): { readonly action: ReplicaActionClause; readonly inquiry: ReplicaInquiryClause } | null {
+  const comma = text.lastIndexOf(",");
+  if (comma <= 0) return null;
+  const head = text.slice(0, comma).trim();
+  const tail = text.slice(comma + 1).trim();
+  if (head.length === 0 || tail.length === 0) return null;
+  const tailClassified = classifyPlayerInput(tail, parseAction);
+  if (tailClassified.kind !== "inquiry") return null;
+  const headClassified = classifyPlayerInput(head, parseAction);
+  if ((headClassified.kind !== "action" && headClassified.kind !== "speech") || !isExecutableIntent(headClassified.intent)) return null;
+  return {
+    action: Object.freeze({ text: head, intent: headClassified.intent }),
+    inquiry: Object.freeze({ text: tail, inquiry: tailClassified.inquiry }),
+  };
 }

@@ -81,12 +81,24 @@ describe("interpretIntent — approach/relocate", () => {
     "приблизиться к двери",
     "направиться к окну",
     "обойти башню",
+    // Present-tense подойти forms alternate the stem (д→ж): "подхожу" is not
+    // "подход" + ending, so the conjugations are listed explicitly (plan).
+    "подхожу к ограде",
+    "подходишь к ограде",
+    "подходит к ограде",
+    "подходим к ограде",
+    "подходят к ограде",
   ])("recognizes approach verb: %j", (input) => {
     const result = interpretIntent(input);
     expect(result.type).toBe("ActionIntentCommand");
     const cmd = result as ActionIntentCommand;
     expect(cmd.mode).toBe("relocate");
     expect(cmd.operation).toBe("approach");
+  });
+
+  it("extracts the target of a present-tense подхожу form", () => {
+    const cmd = interpretIntent("подхожу к ограде") as ActionIntentCommand;
+    expect(cmd.target?.raw).toBe("ограде");
   });
 
   it("recognizes direction from text", () => {

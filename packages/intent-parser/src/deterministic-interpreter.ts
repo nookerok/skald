@@ -78,6 +78,14 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "потрогать", mode: "perceive", operation: "touch", target: "required" },
   // approach / relocate
   { verb: "подойти", mode: "relocate", operation: "approach", target: "required" },
+  // Present-tense forms of подойти alternate the stem (д→ж): listed explicitly
+  // like the идти conjugations, because "подхожу" is not "подход" + ending.
+  { verb: "подхожу", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подходишь", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подходит", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подходим", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подходите", mode: "relocate", operation: "approach", target: "required" },
+  { verb: "подходят", mode: "relocate", operation: "approach", target: "required" },
   { verb: "приблизиться", mode: "relocate", operation: "approach", target: "required" },
   { verb: "приблизить", mode: "relocate", operation: "approach", target: "required" },
   { verb: "направиться", mode: "relocate", operation: "approach", target: "required" },

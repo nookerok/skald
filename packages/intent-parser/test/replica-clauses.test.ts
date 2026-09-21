@@ -53,4 +53,19 @@ describe("classifyReplicaClauses (plan_9 §1)", () => {
       "who_is_nearby",
     ]);
   });
+
+  it("splits an action joined to a question by a comma", () => {
+    const clauses = classifyReplicaClauses("осматриваю двор, что я вижу?", parseIntent);
+    expect(clauses.actions).toHaveLength(1);
+    expect(clauses.actions[0]!.intent.type).toBe("InteractionCommand");
+    expect(clauses.inquiries.map((clause) => clause.inquiry.queryId)).toEqual(["visible_scene"]);
+    expect(clauses.unknown).toHaveLength(0);
+  });
+
+  it("keeps a want-to-know frame as one inquiry", () => {
+    const clauses = classifyReplicaClauses("хочу узнать, кто рядом", parseIntent);
+    expect(clauses.actions).toHaveLength(0);
+    expect(clauses.inquiries.map((clause) => clause.inquiry.queryId)).toEqual(["who_is_nearby"]);
+    expect(clauses.unknown).toHaveLength(0);
+  });
 });
