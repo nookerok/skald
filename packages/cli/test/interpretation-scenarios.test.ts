@@ -7,7 +7,7 @@ import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
 import { classifyCommandResponse, evaluateScenarioStep, INTERPRETATION_SCENARIOS } from "../src/acceptance/interpretation-scenarios.js";
-import { mergeServiceEnv } from "../src/acceptance/service-env.js";
+import { applyServiceEnv } from "../src/acceptance/service-env.js";
 
 describe("sequential interpretation scenarios (full-master Stage 1)", () => {
   it("classifies confirmed command responses into observations", () => {
@@ -30,6 +30,8 @@ describe("sequential interpretation scenarios (full-master Stage 1)", () => {
       { statusCode: 200, body: { ok: true } },
       { statusCode: 200, body: { ok: true, conversationTurn: {} } },
       { statusCode: 200, body: { ok: true, status: "weird" } },
+      // Unknown status must fail even WITH a familiar responseKind.
+      { statusCode: 200, body: { ok: true, status: "weird", conversationTurn: { responseKind: "action_outcome" } } },
     ]) {
       expect(classifyCommandResponse(bad).kind, JSON.stringify(bad)).toBe("unavailable");
     }
@@ -48,17 +50,21 @@ describe("sequential interpretation scenarios (full-master Stage 1)", () => {
     expect(evaluation.ok).toBe(false);
   });
 
-  it("parses provider settings as systemd data, not shell syntax", () => {
+  it("parses provider settings as systemd data and rejects unusable env", () => {
     const target: NodeJS.ProcessEnv = {};
     // systemd keeps an inline `#` as part of a bare value; Bash would treat it
     // as a comment. Quoted values keep their spaces.
-    mergeServiceEnv(target, 'SKALD_KEY=a # not a comment\nSKALD_OTHER="two words"\n');
+    expect(applyServiceEnv(target, 'SKALD_KEY=a # not a comment\nSKALD_OTHER="two words"\n').ok).toBe(true);
     expect(target["SKALD_KEY"]).toBe("a # not a comment");
     expect(target["SKALD_OTHER"]).toBe("two words");
-    // Existing process env wins.
-    const preset: NodeJS.ProcessEnv = { SKALD_KEY: "preset" };
-    mergeServiceEnv(preset, "SKALD_KEY=from-file\n");
-    expect(preset["SKALD_KEY"]).toBe("preset");
+
+    // Fail-closed: malformed line, duplicate keys and ambient conflicts reject.
+    expect(applyServiceEnv({}, "1BAD=x\n").ok).toBe(false);
+    expect(applyServiceEnv({}, 'SKALD_KEY="unterminated\n').ok).toBe(false);
+    expect(applyServiceEnv({}, "SKALD_KEY=one\nSKALD_KEY=two\n").ok).toBe(false);
+    const conflict = applyServiceEnv({ SKALD_KEY: "ambient" }, "SKALD_KEY=from-file\n");
+    expect(conflict.ok).toBe(false);
+    if (!conflict.ok) expect(conflict.reason).toContain("SKALD_KEY");
   });
 
   it("runs every scenario step through the command path without a generic fallback", async () => {
