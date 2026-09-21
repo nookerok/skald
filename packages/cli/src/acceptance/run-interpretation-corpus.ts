@@ -23,7 +23,7 @@ import {
   buildMasterTurnSceneContext,
   rebuildProjection,
 } from "@skald/world";
-import { createRouterConfiguration } from "../runtime/router-factory.js";
+import { createLiveRouterConfiguration, createRouterConfiguration } from "../runtime/router-factory.js";
 import { buildMasterConversationContext } from "../conversation/context-builder.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
 import { createMultiWorldStore } from "../persistence/sqlite-store.js";
@@ -145,7 +145,13 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const configuration = createRouterConfiguration();
+  // Use the SAME router construction as skald.service: live discovery
+  // activates the provider's working models. The sync configuration would
+  // leave the interpret route on unprobed candidates and score fallback
+  // instead of the model.
+  const configuration = process.env["SKALD_AI_REQUIRED"] === "1"
+    ? await createLiveRouterConfiguration()
+    : createRouterConfiguration();
   const router = configuration?.router ?? null;
   const liveSelection = (router as unknown as { liveModelSelection?: () => { activeModel?: string; provider?: string; status?: string } | undefined })?.liveModelSelection?.();
   const activeModel = liveSelection?.activeModel ?? configuration?.selectionReport?.activeModel ?? null;
