@@ -55,6 +55,14 @@ export const INTERPRETATION_SCENARIOS: readonly Scenario[] = [
       { input: "а что за ним?", expect: ["inquiry", "clarification"], primary: ["inquiry"] },
     ],
   },
+  {
+    id: "speech-to-known-contact",
+    description: "Addressing a contact confirmed in the scene resolves as speech.",
+    steps: [
+      { input: "кто рядом?", expect: ["inquiry"], primary: ["inquiry"], queryId: "who_is_nearby" },
+      { input: "обратиться к перевозчику", expect: ["speech", "clarification"], primary: ["speech"] },
+    ],
+  },
 ];
 
 /** Executable response statuses that may accompany a confirmed turn. */

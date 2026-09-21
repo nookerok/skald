@@ -14,7 +14,9 @@ import { targetRequirementForInteraction, targetRequirementForOperation } from "
 import type { ClarificationOption } from "./intent-proposal.js";
 import {
   TURN_AUTHORITY_FIELDS,
+  diagnoseTurnProposalShape,
   parseTurnProposal,
+  type ProposalShapeCode,
   type ProposedReferent,
   type TurnConversationRelation,
   type TurnProposalV2,
@@ -46,7 +48,7 @@ export type TurnProposalValidation =
      */
     readonly framedProposal?: FramedProposalCandidate | undefined;
   }
-  | { readonly status: "invalid"; readonly code: TurnProposalInvalidCode; readonly reason: string };
+  | { readonly status: "invalid"; readonly code: TurnProposalInvalidCode; readonly reason: string; readonly shapeCode?: ProposalShapeCode | undefined; readonly shapeKey?: string | undefined };
 
 /** Referent slot a clarification choice fills inside a stored proposal. */
 export type AmbiguitySlot = "target" | "addressee" | "destination";
@@ -79,7 +81,16 @@ export function validateTurnProposal(raw: unknown): TurnProposalValidation {
   const authority = findAuthorityField(raw);
   if (authority) return { status: "invalid", code: "authority_field", reason: `proposal contains authority field: ${authority}` };
   const proposal = parseTurnProposal(raw);
-  if (!proposal) return { status: "invalid", code: "shape", reason: "proposal does not match TurnProposalV2" };
+  if (!proposal) {
+    const shape = diagnoseTurnProposalShape(raw);
+    return {
+      status: "invalid",
+      code: "shape",
+      shapeCode: shape.code,
+      ...(shape.key ? { shapeKey: shape.key } : {}),
+      reason: `proposal does not match TurnProposalV2 (${shape.code}${shape.key ? `:${shape.key}` : ""})`,
+    };
+  }
 
   // A proposal that reports ONLY ambiguity carries a null primaryIntent by
   // contract; kind consistency must not reject a field the schema allows.

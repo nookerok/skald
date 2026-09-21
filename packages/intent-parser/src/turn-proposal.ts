@@ -505,3 +505,63 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
 export function isTurnQueryId(value: unknown): value is (typeof INQUIRY_QUERY_IDS)[number] {
   return isInquiryQueryId(value);
 }
+
+/**
+ * Safe shape sub-category for a proposal that failed static parsing. Only the
+ * category and an optional top-level KEY NAME are reported — never a value,
+ * never player text, never the raw reply.
+ */
+export type ProposalShapeCode =
+  | "not_object"
+  | "bad_version_or_kind"
+  | "unknown_key"
+  | "missing_key"
+  | "bad_field_type"
+  | "nested_invalid";
+
+/** One shape diagnosis: a closed code plus the offending top-level key name. */
+export interface ProposalShapeDiagnosis {
+  readonly code: ProposalShapeCode;
+  readonly key?: string;
+}
+
+const TURN_TOP_LEVEL_KEYS: readonly string[] = [
+  "schemaVersion", "kind", "primaryIntent", "supportingClauses", "addressedEntity",
+  "target", "goal", "manner", "question", "referents", "ambiguity", "conversationRelation",
+];
+
+/**
+ * Diagnoses WHY `parseTurnProposal` rejected a raw reply, in the same check
+ * order, without echoing any value. Pure and total; `not_object` for anything
+ * that is not a plain object. Callers pass already-parsed JSON (a non-JSON
+ * reply is diagnosed by the decode layer as `not_json`).
+ */
+export function diagnoseTurnProposalShape(raw: unknown): ProposalShapeDiagnosis {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { code: "not_object" };
+  const candidate = raw as Record<string, unknown>;
+  if (candidate.schemaVersion !== 2) return { code: "bad_version_or_kind", key: "schemaVersion" };
+  if (candidate.kind !== "action" && candidate.kind !== "inquiry" && candidate.kind !== "speech" && candidate.kind !== "mixed" && candidate.kind !== "meta") {
+    return { code: "bad_version_or_kind", key: "kind" };
+  }
+  const allowed = new Set(TURN_TOP_LEVEL_KEYS);
+  for (const key of Object.keys(candidate)) {
+    if (!allowed.has(key)) return { code: "unknown_key", key };
+  }
+  for (const required of ["primaryIntent", "supportingClauses", "referents"]) {
+    if (!(required in candidate)) return { code: "missing_key", key: required };
+  }
+  if (parsePrimary(candidate.primaryIntent) === undefined) return { code: "nested_invalid", key: "primaryIntent" };
+  if (!Array.isArray(candidate.supportingClauses) || candidate.supportingClauses.length > TURN_MAX_SUPPORTING) {
+    return { code: "bad_field_type", key: "supportingClauses" };
+  }
+  if (candidate.supportingClauses.some((entry) => parseSupportingClause(entry) === null)) return { code: "nested_invalid", key: "supportingClauses" };
+  if (!parseReferentList(candidate.referents, TURN_MAX_REFERENTS)) return { code: "nested_invalid", key: "referents" };
+  if (candidate.addressedEntity !== undefined && !parseReferent(candidate.addressedEntity)) return { code: "nested_invalid", key: "addressedEntity" };
+  if (candidate.target !== undefined && !parseReferent(candidate.target)) return { code: "nested_invalid", key: "target" };
+  if (candidate.goal !== undefined && !isCleanString(candidate.goal, TURN_MAX_STRING, false)) return { code: "nested_invalid", key: "goal" };
+  if (candidate.manner !== undefined && !isCleanString(candidate.manner, TURN_MAX_STRING, false)) return { code: "nested_invalid", key: "manner" };
+  if (candidate.conversationRelation !== undefined && !isConversationRelation(candidate.conversationRelation)) return { code: "nested_invalid", key: "conversationRelation" };
+  if (candidate.question !== undefined && !parseQuestion(candidate.question)) return { code: "nested_invalid", key: "question" };
+  if (candidate.ambiguity !== undefined && !parseAmbiguity(candidate.ambiguity)) return { code: "nested_invalid", key: "ambiguity" };
+  return { code: "nested_invalid" };
+}

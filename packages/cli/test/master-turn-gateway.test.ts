@@ -545,6 +545,25 @@ describe("deterministic compound resolution (plan_9 §1)", () => {
   });
 });
 
+describe("deterministic meta and inquiry patterns (full-master Stage 1)", () => {
+  const noModel = null;
+
+  it("resolves read-only meta phrases without a model", async () => {
+    const result = await interpretMasterTurn("открой карту", snapshot(), noModel, { timeoutMs: 50 });
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.kind).toBe("meta");
+    expect(result.plan.metaInquiry?.operation).toBe("open_map_hint");
+  });
+
+  it("recognizes «кто здесь?» as a nearby inquiry", async () => {
+    const result = await interpretMasterTurn("кто здесь?", snapshot(), noModel, { timeoutMs: 50 });
+    expect(result.status).toBe("inquiry");
+    if (result.status !== "inquiry") return;
+    expect(result.inquiry.queryId).toBe("who_is_nearby");
+  });
+});
+
 describe("mixed-corpus generic-fallback gate (plan_9 §1-2)", () => {
   function mentionSnapshot(): MasterTurnSnapshot {
     const snap = snapshot();

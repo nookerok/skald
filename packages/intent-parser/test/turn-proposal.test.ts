@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  diagnoseTurnProposalShape,
   findAuthorityField,
   inferAmbiguitySlot,
   parseTurnProposal,
@@ -434,5 +435,20 @@ describe("static rejection codes (full-master Stage 1c)", () => {
       expect(result.status).toBe("invalid");
       if (result.status === "invalid") expect(codes.has(result.code)).toBe(true);
     }
+  });
+
+  it("diagnoses shape failures into safe sub-categories and key names", () => {
+    expect(diagnoseTurnProposalShape("nope")).toMatchObject({ code: "not_object" });
+    expect(diagnoseTurnProposalShape({ ...base, schemaVersion: 3 })).toMatchObject({ code: "bad_version_or_kind", key: "schemaVersion" });
+    expect(diagnoseTurnProposalShape({ ...base, kind: "weird" })).toMatchObject({ code: "bad_version_or_kind", key: "kind" });
+    expect(diagnoseTurnProposalShape({ ...base, nope: true })).toMatchObject({ code: "unknown_key", key: "nope" });
+    const { primaryIntent: _drop, ...missingPrimary } = base;
+    expect(diagnoseTurnProposalShape(missingPrimary)).toMatchObject({ code: "missing_key", key: "primaryIntent" });
+    expect(diagnoseTurnProposalShape({ ...base, supportingClauses: "x" })).toMatchObject({ code: "bad_field_type", key: "supportingClauses" });
+    expect(diagnoseTurnProposalShape({ ...base, primaryIntent: { kind: "interaction", verb: "nope", sourceText: "x" } })).toMatchObject({ code: "nested_invalid", key: "primaryIntent" });
+  });
+
+  it("carries the shape sub-code and key through validation", () => {
+    expect(validateTurnProposal({ ...base, nope: true })).toMatchObject({ status: "invalid", code: "shape", shapeCode: "unknown_key", shapeKey: "nope" });
   });
 });

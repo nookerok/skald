@@ -35,6 +35,7 @@ import {
   type InquiryRequest,
   type PlayerInputClassification,
   type TurnConversationRelation,
+  type TurnMetaOperation,
   type TurnProposalV2,
 } from "@skald/intent-parser";
 import type { AIDiagnosticSink, ChatMessage, MasterSceneReference, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
@@ -988,6 +989,54 @@ function resolveDeterministicCompound(
 }
 
 /**
+ * Deterministic meta recognizer (read-only UI help). These phrases need no
+ * model: they are unambiguous requests for help, map to a closed meta
+ * operation and never touch the world. Returns null when the replica is not a
+ * recognised meta request.
+ */
+const DETERMINISTIC_META_PATTERNS: readonly (readonly [TurnMetaOperation, RegExp])[] = [
+  ["repeat_last_answer", /^(?:повтори|повторить|скажи\s+заново)\s+(?:последний\s+)?ответ/iu],
+  ["explain_available_actions", /^(?:какие\s+действия|что\s+я\s+умею|что\s+можно\s+сделать)/iu],
+  ["open_map_hint", /^(?:открой|открыть|покажи|показать)\s+карт/iu],
+  ["explain_interface", /^(?:объясни|как\s+пользоваться)\s+(?:интерфейс|управление)/iu],
+];
+
+function resolveDeterministicMeta(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  const normalized = input.trim().toLowerCase().replace(/ё/gu, "е");
+  for (const [operation, pattern] of DETERMINISTIC_META_PATTERNS) {
+    if (!pattern.test(normalized)) continue;
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "deterministic_fast_path",
+      outcome: "accepted",
+      phase: "fast_path",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+      queryId: operation,
+    });
+    return {
+      status: "plan",
+      plan: Object.freeze({
+        contextRevision: Object.freeze({ worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber }),
+        kind: "meta" as const,
+        execution: null,
+        postActionInquiries: Object.freeze([]),
+        metaInquiry: Object.freeze({ type: "MetaRequest" as const, operation }),
+        deferredClauses: Object.freeze([]),
+        focus: Object.freeze([]),
+        goal: null,
+        conversationRelation: null,
+      }),
+      scene: snapshot.scene,
+    };
+  }
+  return null;
+}
+
+/**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
  */
@@ -1005,6 +1054,8 @@ export async function interpretMasterTurn(
     const framed = await interpretFramedInput(input, snapshot, router, options);
     if (framed) return framed;
   }
+  const meta = resolveDeterministicMeta(input, snapshot, options);
+  if (meta) return meta;
   let classification = classifyPlayerInput(input, parseIntent);
   const modelUnavailable = (options?.mode ?? readMode()) === "off" || router === null;
   // Deterministic compound (plan_9 §1): when no model is available, one safe
@@ -1154,6 +1205,7 @@ export async function interpretMasterTurn(
       category: "proposal_schema_rejected",
       outcome: "invalid",
       phase: "response_decode",
+      failureCategory: "shape:not_json",
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
@@ -1192,7 +1244,7 @@ export async function interpretMasterTurn(
       category: "proposal_schema_rejected",
       outcome: "invalid",
       phase: "schema_validation",
-      failureCategory: staticCheck.code,
+      failureCategory: shapeFailureCategory(staticCheck),
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
@@ -1270,6 +1322,17 @@ function mapLegacyFallback(result: { readonly status: string; readonly question?
   if (result.status === "unsupported" && result.message) return { status: "unsupported", message: result.message };
   if (result.status === "unavailable" && result.message) return { status: "unavailable", message: result.message };
   return null;
+}
+
+/**
+ * Safe failure category for a static rejection: a closed code plus, for a shape
+ * failure, its sub-code and (only when it looks like a schema key) the
+ * offending key name. Never a value, never player text.
+ */
+function shapeFailureCategory(check: { readonly code: string; readonly shapeCode?: string | undefined; readonly shapeKey?: string | undefined }): string {
+  if (check.code !== "shape" || !check.shapeCode) return check.code;
+  const key = typeof check.shapeKey === "string" && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(check.shapeKey) ? `:${check.shapeKey}` : "";
+  return `shape:${check.shapeCode}${key}`;
 }
 
 /**

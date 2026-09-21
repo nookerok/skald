@@ -93,10 +93,13 @@ export {
   TURN_MAX_STRING,
   TURN_MAX_SUPPORTING,
   TURN_META_OPERATIONS,
+  diagnoseTurnProposalShape,
   isTurnQueryId,
   parseTurnProposal,
 } from "./turn-proposal.js";
 export type {
+  ProposalShapeCode,
+  ProposalShapeDiagnosis,
   ProposedAction,
   ProposedAmbiguity,
   ProposedInquiry,
