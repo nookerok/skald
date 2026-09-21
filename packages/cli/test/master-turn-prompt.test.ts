@@ -59,6 +59,15 @@ describe("master turn prompt contract", () => {
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("role addressee");
   });
 
+  it("spells out every primaryIntent shape with no synonyms (Stage 1b)", () => {
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("primaryIntent is EXACTLY one of these shapes");
+    for (const kind of ["\"kind\":\"interaction\"", "\"kind\":\"journey\"", "\"kind\":\"legacy\"", "\"kind\":\"inquiry\"", "\"kind\":\"speech\"", "\"kind\":\"meta\""]) {
+      expect(MASTER_TURN_SYSTEM_PROMPT).toContain(kind);
+    }
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("no synonyms");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("A supportingClauses entry is EXACTLY one of");
+  });
+
   it("packs context into the master_turn envelope with a conversationContext", () => {
     const prompt = buildMasterTurnPrompt({ playerText: "подхожу к ограде", scene: SCENE, conversation: CONVERSATION });
     const block = JSON.parse(prompt.user) as Record<string, unknown>;
