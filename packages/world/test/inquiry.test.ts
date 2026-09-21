@@ -37,6 +37,20 @@ describe("read-only inquiry builder", () => {
     const request = { type: "InquiryRequest" as const, queryId: "map_position" as const, rawText: "где я на карте?", confidence: 1, source: "deterministic" as const };
     expect(buildInquiryAnswer(request, context())).toEqual(buildInquiryAnswer(request, context()));
   });
+
+  it("never repeats one scene line twice in a visible-scene answer", () => {
+    const { shell, background } = context();
+    const locationLine = shell.world.locationDescription ?? "";
+    expect(locationLine.length).toBeGreaterThan(0);
+    // The previous turn's primary is normally the current location line, so
+    // the raw parts would hold the same sentence twice.
+    const patched = { ...shell, lastTurn: { primary: { text: locationLine }, notable: [] } };
+    const result = buildInquiryAnswer(
+      { type: "InquiryRequest", queryId: "visible_scene", rawText: "что я вижу?", confidence: 1, source: "deterministic" },
+      { shell: patched as never, background },
+    );
+    expect(result.answer.split(locationLine).length - 1).toBe(1);
+  });
 });
 
 describe("focused scene questions", () => {

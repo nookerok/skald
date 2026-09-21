@@ -75,6 +75,19 @@ describe("master turn response composer", () => {
     );
   });
 
+  it("never repeats an identical sentence in one mixed answer", () => {
+    const response = composeMasterTurnResponse(input({
+      kind: "mixed",
+      actionPresentation: { text: "Посад за стенами при изгибе реки.", rejected: false },
+      inquiryAnswers: [
+        { text: "Посад за стенами при изгибе реки. Вода поднялась. Посад за стенами при изгибе реки." },
+      ],
+      deferredClauses: [],
+    }));
+
+    expect(response.text).toBe("Посад за стенами при изгибе реки. Вода поднялась.");
+  });
+
   it("keeps rejected actions inside mixed answers", () => {
     const response = composeMasterTurnResponse(input({
       kind: "mixed",

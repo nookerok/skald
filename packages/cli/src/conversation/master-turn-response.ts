@@ -103,6 +103,25 @@ function joinProse(parts: readonly (string | null | undefined)[]): string {
     .join(" ");
 }
 
+/**
+ * Collapses exact-duplicate sentences (case/ё/whitespace-normalized) while
+ * preserving order. A mixed turn's parts legitimately overlap — an ambient
+ * observe outcome and the `visible_scene` answer are both the location line —
+ * and repeating a sentence back-to-back reads as a defect to the player.
+ */
+function dedupeSentences(text: string): string {
+  const sentences = text.split(/(?<=[.!?…])\s+/u).map((part) => part.trim()).filter((part) => part.length > 0);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const sentence of sentences) {
+    const key = sentence.toLowerCase().replace(/ё/gu, "е").replace(/\s+/gu, " ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(sentence);
+  }
+  return out.join(" ");
+}
+
 function clarificationResponse(
   clarification: NonNullable<MasterTurnResponseInput["clarification"]>,
 ): MasterTurnResponse {
@@ -144,7 +163,7 @@ export function composeMasterTurnResponse(input: MasterTurnResponseInput): Maste
   switch (input.kind) {
     case "inquiry": {
       if (input.inquiryAnswers.length === 0) return clarificationResponse(fallbackClarification());
-      const text = joinProse(input.inquiryAnswers.map((answer) => answer.text));
+      const text = dedupeSentences(joinProse(input.inquiryAnswers.map((answer) => answer.text)));
       if (!text) return clarificationResponse(fallbackClarification());
       const moved = applyMomentum(text, input);
       const scrubbed = scrub(moved);
@@ -178,11 +197,11 @@ export function composeMasterTurnResponse(input: MasterTurnResponseInput): Maste
       });
     }
     case "mixed": {
-      const text = joinProse([
+      const text = dedupeSentences(joinProse([
         input.actionPresentation?.text ?? null,
         ...input.inquiryAnswers.map((answer) => answer.text),
         deferredNote(input.deferredClauses),
-      ]);
+      ]));
       if (!text) return clarificationResponse(fallbackClarification());
       const moved = applyMomentum(text, input);
       const scrubbed = scrub(moved);

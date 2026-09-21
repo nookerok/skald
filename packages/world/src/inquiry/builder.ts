@@ -30,12 +30,32 @@ function buildCurrentLocation(_request: InquiryRequest, context: InquiryReadCont
   return answer("current_location", `Ты находишься у «${locationName(shell)}».${routeText}`, shell);
 }
 
+/**
+ * Drops exact-duplicate observer-safe lines (case/ё/whitespace-normalized)
+ * while preserving order. The visible-scene answer legitimately draws from
+ * several read-side sources that often share one line (the previous turn's
+ * primary is usually the current location description), and repeating the
+ * same sentence back-to-back reads as a defect.
+ */
+function dedupeProse(parts: readonly (string | undefined | null)[]): readonly string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    if (typeof part !== "string") continue;
+    const trimmed = part.trim();
+    if (trimmed.length === 0) continue;
+    const key = trimmed.toLowerCase().replace(/ё/gu, "е").replace(/\s+/gu, " ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 function buildVisibleScene(request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   if (request.focus) return buildFocusedScene(request, context);
   const { shell } = context;
-  const parts = [shell.world.locationDescription, shell.currentSituation?.description, shell.lastTurn?.primary?.text]
-    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .slice(0, 3);
+  const parts = dedupeProse([shell.world.locationDescription, shell.currentSituation?.description, shell.lastTurn?.primary?.text]).slice(0, 3);
   return answer("visible_scene", parts.length > 0 ? parts.join(" ") : "В твоих текущих наблюдениях нет ничего, что можно уверенно описать.", shell);
 }
 
