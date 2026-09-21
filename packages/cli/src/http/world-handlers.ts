@@ -65,6 +65,8 @@ import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
 import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js";
 import { splitTargetCompound } from "../runtime/master-turn-validator.js";
+import { bindSceneSurface } from "../runtime/master-turn-validator.js";
+import type { ValidatedConversationReferent } from "../runtime/master-turn-validator.js";
 import { emitMasterTurnDiagnostic } from "../runtime/master-turn-diagnostics.js";
 import { executeMasterTurnPlan } from "../runtime/master-turn-executor.js";
 import type { ValidatedMasterTurnPlan } from "../runtime/master-turn-validator.js";
@@ -1689,6 +1691,37 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
     }),
   };
 }
+/**
+ * Stage 4 item 1: a confirmed mention for an accepted deterministic action.
+ * The target surface is bound to the scene table, so the next replica can bind
+ * a pronoun ("осмотрю её") to the same referent. No scene match means no
+ * mention — never an invented one. Pure read-side.
+ */
+function deterministicActionFocus(
+  intent: { readonly type: string; readonly target?: { readonly raw?: string } | undefined; readonly destination?: { readonly raw?: string } | undefined },
+  events: readonly DomainEvent[],
+  world: ReturnType<WorldRuntime["projection"]["getSnapshot"]>,
+): readonly ValidatedConversationReferent[] {
+  const raw = intent.type === "JourneyIntent"
+    ? intent.destination?.raw?.trim()
+    : intent.target?.raw?.trim();
+  if (!raw) return [];
+  const scene = buildMasterTurnSceneContext(events, world).context;
+  const entries = [
+    ...scene.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+  ];
+  const bound = bindSceneSurface(raw, entries);
+  if (bound.status !== "unique") return [];
+  return [Object.freeze({
+    observerRef: bound.entry.observerRef,
+    surface: bound.entry.label,
+    kind: intent.type === "JourneyIntent" ? "destination" as const : "target" as const,
+  })];
+}
+
 export async function runCommandCycleForRuntime(
   runtime: WorldRuntime,
   input: string,
@@ -1740,24 +1773,34 @@ export async function runCommandCycleForRuntime(
   };
 
   const options: ProcessOptions<ReturnType<WorldRuntime["projection"]["getSnapshot"]>> = {
-    prepareCommitContext: (stagedEvents, projectedWorld) => ({
-      idempotencyKey,
-      requestKind: "command",
-      correlationId,
-      conversationTurn: buildActionConversationTurn({
-        worldId: runtime.worldId,
-        correlationId,
+    prepareCommitContext: (stagedEvents, projectedWorld) => {
+      // Stage 4 item 1: persist a confirmed mention for an accepted
+      // deterministic action (bound against the POST-command scene, so a
+      // freshly observed target is mentionable) so the next replica can bind a
+      // pronoun to the same referent.
+      const actionFocus = deterministicActionFocus(commandIntent, [...preEvents, ...stagedEvents], projectedWorld);
+      return {
         idempotencyKey,
-        playerText: input,
-        worldTimeBefore,
-        stagedEvents,
-        projectedWorld,
-        continuationHint: deterministicContinuationHint(runtime, preEvents, stagedEvents, projectedWorld),
-        ...(memory?.continuationLink ? {
-          contextMetadata: buildTurnMemoryMetadata({ continuationLink: memory.continuationLink }),
-        } : {}),
-      }),
-    }),
+        requestKind: "command",
+        correlationId,
+        conversationTurn: buildActionConversationTurn({
+          worldId: runtime.worldId,
+          correlationId,
+          idempotencyKey,
+          playerText: input,
+          worldTimeBefore,
+          stagedEvents,
+          projectedWorld,
+          continuationHint: deterministicContinuationHint(runtime, preEvents, stagedEvents, projectedWorld),
+          ...(memory?.continuationLink || actionFocus.length > 0 ? {
+            contextMetadata: buildTurnMemoryMetadata({
+              focus: actionFocus,
+              ...(memory?.continuationLink ? { continuationLink: memory.continuationLink } : {}),
+            }),
+          } : {}),
+        }),
+      };
+    },
   };
 
   const activeJourney = runtime.projection.getSnapshot().activeJourneyId;

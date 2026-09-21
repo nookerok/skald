@@ -254,16 +254,19 @@ function rankCandidates(
   const routes = wantsPlace ? scene.knownRoutes : [];
 
   // Newest conversation mention stem-matched into the scene boosts first.
+  // Every content word of the mention must be present in the candidate's
+  // label/aliases: a partial word overlap ("переправы" shared by "Ограда
+  // переправы" and "Перевозчик у переправы") must not boost both.
   const boosted: string[] = [];
   let mention: PronounBinding["mention"] = null;
   for (const focus of conversation.recentFocus) {
     if (!mention) mention = freeze({ surface: focus.surface, turnSeq: focus.turnSeq });
-    const focusStem = stem(normalizeWord(focus.surface));
-    if (focusStem.length < 2) continue;
+    const focusWords = splitWords(focus.surface).map(stem).filter((word) => word.length >= 3);
+    if (focusWords.length === 0) continue;
     for (const referent of [...people, ...objects]) {
       if (boosted.includes(referent.observerRef)) continue;
-      const words = [referent.label, ...referent.knownAs].flatMap((label) => splitWords(label).map(stem));
-      if (words.some((word) => word === focusStem)) boosted.push(referent.observerRef);
+      const words = new Set([referent.label, ...referent.knownAs].flatMap((label) => splitWords(label).map(stem)));
+      if (focusWords.every((word) => words.has(word))) boosted.push(referent.observerRef);
     }
   }
 
@@ -271,6 +274,10 @@ function rankCandidates(
   for (const referent of [...objects, ...people]) {
     if (!boosted.includes(referent.observerRef)) rest.push(referent.observerRef);
   }
+  // Mentioned candidates rank first, but the rest stay: a single mention does
+  // not erase the other scene candidates, so the count rule still asks when
+  // several people or objects are present. Without a mention every class
+  // candidate stays in scene order.
   const candidates = freeze([
     ...boosted,
     ...rest,
@@ -285,8 +292,22 @@ function rankCandidates(
     mention = freeze({ surface: newest.surface, turnSeq: newest.turnSeq });
   }
 
+  const classOf = (ref: string): FocusReferenceClass | null =>
+    people.some((referent) => referent.observerRef === ref) ? "person"
+    : objects.some((referent) => referent.observerRef === ref) ? "thing"
+    : topics.some((topic) => topic.observerRef === ref) ? "topic"
+    : routes.some((route) => route.observerRef === ref) ? "place"
+    : null;
+
   const resolution: PronounResolution =
-    candidates.length === 0 ? "missing" : candidates.length === 1 ? "single" : "ambiguous";
+    candidates.length === 0 ? "missing"
+    : candidates.length === 1 ? "single"
+    // A single mention that is the only candidate of its class settles the
+    // binding ("осмотрю её" right after "осматриваю ограду" binds the sole
+    // object even while one person is present). A mention competing with a
+    // same-class candidate stays ambiguous ("подойду к нему" with two people).
+    : boosted.length === 1 && !candidates.some((ref) => ref !== boosted[0] && classOf(ref) === classOf(boosted[0]!)) ? "single"
+    : "ambiguous";
   return { candidates, mention, resolution };
 }
 

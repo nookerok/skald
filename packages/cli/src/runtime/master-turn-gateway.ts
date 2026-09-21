@@ -528,7 +528,11 @@ function sceneLabelForRef(scene: MasterTurnSceneContext, observerRef: string): s
 
 /** Replaces the first whole-word occurrence of a pronoun with a surface. Pronoun forms are closed-vocabulary lowercase letters, safe to inline. */
 function substitutePronoun(input: string, pronoun: string, surface: string): string {
-  return input.replace(new RegExp(`(^|[^\\p{L}\\p{N}_])${pronoun}($|[^\\p{L}\\p{N}_])`, "iu"), `$1${surface}$2`);
+  // The focus stack normalizes ё→е, but the player may write either form
+  // ("осмотрю её" vs a stored "ее"). Treat е/ё as interchangeable per letter
+  // so the rewrite lands regardless of which form the replica used.
+  const pattern = pronoun.replace(/[её]/giu, "[её]");
+  return input.replace(new RegExp(`(^|[^\\p{L}\\p{N}_])${pattern}($|[^\\p{L}\\p{N}_])`, "iu"), `$1${surface}$2`);
 }
 
 function rephraseOption(): readonly [{ readonly optionId: string; readonly label: string }] {
@@ -1037,6 +1041,22 @@ function resolveDeterministicMeta(
 }
 
 /**
+ * A deterministic compound plan wins over a model clarification for the SAME
+ * replica: when every clause is understood (one safe primary + its questions),
+ * answering them is exactly plan_9 §1 and never loses an understood part. A
+ * clarification that the deterministic layer cannot resolve is kept as-is.
+ */
+function preferCompoundOverClarification(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options: MasterTurnGatewayOptions | undefined,
+  clarification: MasterTurnGatewayOutcome,
+): MasterTurnGatewayOutcome {
+  const compound = resolveDeterministicCompound(input, snapshot, options);
+  return compound && compound.status === "plan" ? compound : clarification;
+}
+
+/**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
  */
@@ -1193,7 +1213,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return fallbackAfterModelFailure(input, deterministic, snapshot, options);
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
   }
 
   let parsed: unknown;
@@ -1209,7 +1229,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return fallbackAfterModelFailure(input, deterministic, snapshot, options);
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
   }
 
   emitMasterTurnDiagnostic(options?.diagnostics, {
@@ -1225,7 +1245,7 @@ export async function interpretMasterTurn(
   if (staticCheck.status === "clarification") {
     // Stamp the asking scene revision onto the structured candidate so an
     // exact answer revalidates without a second model call (review P1).
-    return {
+    return preferCompoundOverClarification(input, snapshot, options, {
       status: "clarification",
       question: staticCheck.question,
       options: staticCheck.options,
@@ -1237,7 +1257,7 @@ export async function interpretMasterTurn(
           revision: snapshot.scene.context.revision,
         },
       } : {}),
-    };
+    });
   }
   if (staticCheck.status === "invalid") {
     emitMasterTurnDiagnostic(options?.diagnostics, {
@@ -1248,7 +1268,7 @@ export async function interpretMasterTurn(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return fallbackAfterModelFailure(input, deterministic, snapshot, options);
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
   }
 
   const contextual = validateMasterTurnPlan({
@@ -1262,14 +1282,14 @@ export async function interpretMasterTurn(
     return { status: "plan", plan: contextual.plan, scene: snapshot.scene };
   }
   if (contextual.status === "clarification") {
-    return {
+    return preferCompoundOverClarification(input, snapshot, options, {
       status: "clarification",
       question: contextual.question,
       options: contextual.options,
       ...(contextual.framed ? { framed: contextual.framed } : {}),
-    };
+    });
   }
-  return fallbackAfterModelFailure(input, deterministic, snapshot, options);
+  return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
 }
 
 /**
@@ -1287,6 +1307,7 @@ function fallbackAfterModelFailure(
   deterministic: ReturnType<typeof parseIntent>,
   snapshot: MasterTurnSnapshot,
   options?: MasterTurnGatewayOptions,
+  pronounRewritten = false,
 ): MasterTurnGatewayOutcome {
   if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
   if (
@@ -1302,7 +1323,10 @@ function fallbackAfterModelFailure(
         options: [{ optionId: "rephrase", label: "Переформулировать действие" }],
       };
     }
-    if (isSafeDeterministic(deterministic)) {
+    // A settled pronoun rewrite already names its referent, so it stays
+    // executable even when the rewritten parse is not "simple" enough for the
+    // fast path. Without a model this is the only way a bound pronoun acts.
+    if (isSafeDeterministic(deterministic) || pronounRewritten) {
       return { status: "deterministic", intent: deterministic };
     }
   }

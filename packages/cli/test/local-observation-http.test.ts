@@ -71,4 +71,38 @@ describe("local scene observation at the crossing", () => {
       store.close();
     }
   });
+
+  it("records a mention for a deterministic action so a pronoun binds (Stage 4)", async () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "skald-mention-")), "events.sqlite");
+    const store = createMultiWorldStore(dbPath);
+    try {
+      const worldId = "mention-pronoun";
+      store.createWorld({
+        worldId,
+        idempotencyKey: `create-${worldId}`,
+        requestHash: `hash-${worldId}`,
+        saveLabel: "Mention pronoun",
+        characterName: "Tester",
+        characterPresetId: "wanderer",
+        worldTemplateId: "living_region",
+        characterWound: "none",
+        characterPromise: "observe",
+        characterPrinciple: "care",
+        characterProfileVersion: 1,
+        bootstrapEvents: buildBootstrapEvents("living_region"),
+      });
+      const throwing = { apiKey: "", chat: vi.fn(() => { throw new Error("model down"); }) } as any;
+      const runtime: WorldRuntime = await new WorldRuntimeManager(store, throwing).get(worldId);
+
+      const first = parse(await handleWorldCommand(runtime, { input: "осматриваю ограду", idempotencyKey: "mp-1" }));
+      expect(first.ok).toBe(true);
+      const second = parse(await handleWorldCommand(runtime, { input: "осмотрю её внимательнее", idempotencyKey: "mp-2" }));
+      expect(second.ok).toBe(true);
+      // The mention from the first action binds the pronoun; the turn must not
+      // fall back to a missing-referent clarification.
+      expect(second.status).not.toBe("clarification");
+    } finally {
+      store.close();
+    }
+  });
 });

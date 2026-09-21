@@ -562,6 +562,22 @@ describe("deterministic meta and inquiry patterns (full-master Stage 1)", () => 
     if (result.status !== "inquiry") return;
     expect(result.inquiry.queryId).toBe("who_is_nearby");
   });
+
+  it("prefers a deterministic compound plan over a model clarification", async () => {
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваю двор" },
+      supportingClauses: [],
+      referents: [],
+      ambiguity: { kind: "action", question: "Что именно?", candidates: ["осмотреть двор", "идти"] },
+    }));
+    const result = await interpretMasterTurn("осматриваю двор, что я вижу?", snapshot(), router);
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.kind).toBe("mixed");
+    expect(result.plan.postActionInquiries.map((inquiry) => inquiry.queryId)).toEqual(["visible_scene"]);
+  });
 });
 
 describe("mixed-corpus generic-fallback gate (plan_9 §1-2)", () => {

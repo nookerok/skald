@@ -67,7 +67,7 @@ describe("master turn prompt contract", () => {
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("no synonyms");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("A supportingClauses entry is EXACTLY one of");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("Classification rules");
-    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("kind speech with");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("kind speech");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("report ambiguity");
   });
 

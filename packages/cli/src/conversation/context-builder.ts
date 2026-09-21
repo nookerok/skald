@@ -515,20 +515,29 @@ function matchSceneMention(
     { kind: "topic", entries: scene.knownTopics.map((entry) => ({ observerRef: entry.observerRef, labels: [entry.text] })) },
   ];
   const wantedWords = wanted.split(" ").filter((word) => word.length >= 3);
-  const matches = (labels: readonly string[]): boolean => labels.some((label) => {
-    const normalized = normalizeLabel(label);
-    if (!normalized) return false;
-    if (normalized === wanted) return true;
-    const labelWords = normalized.split(" ").filter((word) => word.length >= 3);
-    return wantedWords.some((word) => labelWords.includes(word))
-      || labelWords.some((word) => wantedWords.includes(word));
-  });
+  // Score every entry and keep the BEST match: exact label equality beats any
+  // word overlap, and more shared words beat fewer. A first-group-wins scan
+  // mis-bound "Ограда переправы" to the person "Перевозчик у переправы"
+  // (shared word "переправы") before the object was considered.
+  let best: { kind: ConversationMemoryMentionKind; observerRef: string; score: number } | null = null;
   for (const group of groups) {
     for (const entry of group.entries) {
-      if (matches(entry.labels)) return { kind: group.kind, observerRef: entry.observerRef };
+      let score = 0;
+      for (const label of entry.labels) {
+        const normalized = normalizeLabel(label);
+        if (!normalized) continue;
+        if (normalized === wanted) {
+          score = Math.max(score, 1000 + normalized.length);
+          continue;
+        }
+        const labelWords = normalized.split(" ").filter((word) => word.length >= 3);
+        const overlap = wantedWords.filter((word) => labelWords.includes(word)).length;
+        if (overlap > 0) score = Math.max(score, overlap);
+      }
+      if (score > 0 && (!best || score > best.score)) best = { kind: group.kind, observerRef: entry.observerRef, score };
     }
   }
-  return null;
+  return best ? { kind: best.kind, observerRef: best.observerRef } : null;
 }
 
 /**
