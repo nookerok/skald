@@ -143,6 +143,30 @@ verdict to the tested `packages/cli/deploy/intent-acceptance.ts` helper reading
 turn fails the deploy. Run it manually with `npm run acceptance:intent:contract`
 (Traycer/opencode sessions can use the same probe as an opt-in check).
 
+## Post-deploy state check (multi-world)
+
+`GET /api/health` proves simulation liveness only. The unscoped
+`GET /api/state` maps to `store.getPrimaryWorldId() ?? "legacy-world"`, so a
+deployment that holds several worlds and has no primary answers
+`404 world_not_found: legacy-world`. That is the routing default, not a
+simulation failure, and it must not be "fixed" by assigning a primary world
+just for a check.
+
+Resolve the current world the same way the client does, through
+`GET /api/continue` (primary when it is active, otherwise the most recently
+played active world), then require the scoped state:
+
+```bash
+worldId=$(curl --fail --silent http://127.0.0.1:3000/api/continue \
+  | sed -n 's/.*"worldId":"\([^"]*\)".*/\1/p')
+curl --fail --silent "http://127.0.0.1:3000/api/worlds/${worldId}/state"
+```
+
+A no-primary multi-world deployment is valid: verify the world catalog
+(`GET /api/worlds` is non-empty) and the scoped `/api/worlds/<worldId>/state`
+rather than the unscoped path. A deployment smoke test runs against a scratch
+world created for the check, never an existing player world.
+
 ## Daily model re-discovery
 
 Startup discovery runs once before the server accepts requests. After that a

@@ -211,8 +211,12 @@ Deployment is operational, not a game Rule or Domain Event.
 5. Restore only through /usr/local/bin/restore-skald.sh. Stop timers/services,
    replace the DB, remove WAL/SHM, start the server, pass HTTP health, then
    re-enable timers.
-6. Success requires active systemd service, /api/health, /api/state and one
-   idempotent game smoke request.
+6. Success requires active systemd service, /api/health, the current world's
+   scoped state and one idempotent game smoke request. The current world is
+   resolved through /api/continue (primary when active, otherwise the most
+   recently played active world); the unscoped /api/state requires a primary
+   world and 404s `legacy-world` on a no-primary multi-world deployment, which
+   is a routing default, not a failure.
 7. On failure use the saved commit and backup for rollback. Do not report
    success before health recovery.
 8. Without authentication/TLS expose the server only to a trusted LAN.

@@ -67,7 +67,7 @@ branch, cleanliness, and service identity. Abort on any mismatch.
    The updater owns backup, SQLite integrity, fast-forward pull, exact Node
    selection, dependency install, tests, restart, and its health gate.
 
-5. Confirm the deployed commit and services:
+5. Confirm the deployed commit, services and current world state:
 
    ```bash
    ssh -i /home/nook/.ssh/id_ed25519_skald nooker@192.168.0.5 \
@@ -75,10 +75,24 @@ branch, cleanliness, and service identity. Abort on any mismatch.
       systemctl is-active skald.service \
       skald-healthcheck.timer skald-backup.timer; \
       curl --fail --silent http://127.0.0.1:3000/api/health; echo; \
-      curl --fail --silent http://127.0.0.1:3000/api/state; echo'
+      curl --fail --silent http://127.0.0.1:3000/api/worlds; echo; \
+      worldId=$(curl --fail --silent http://127.0.0.1:3000/api/continue \
+        | sed -n "s/.*\"worldId\":\"\([^\"]*\)\".*/\1/p"); \
+      echo "current world: ${worldId}"; \
+      curl --fail --silent "http://127.0.0.1:3000/api/worlds/${worldId}/state"; echo'
    ```
 
    Require the remote commit to equal the pushed commit.
+
+   `GET /api/health` is liveness only. The unscoped `GET /api/state` maps to the
+   primary world (`store.getPrimaryWorldId() ?? "legacy-world"`), so a
+   deployment that has several worlds and no primary answers `404
+   world_not_found: legacy-world` — a routing default, not a simulation
+   failure. Resolve the current world with `GET /api/continue` (the primary when
+   it is active, otherwise the most recently played active world) and require
+   the scoped `GET /api/worlds/<worldId>/state` to return 200. Do not assign a
+   primary world just to satisfy a check: a no-primary multi-world deployment is
+   valid and is verified through the world catalog plus the scoped state.
 
    The updater/installer also run the loopback live intent/narration contract
    probe (`/api/ops/intent-probe`, read-only, no world mutation). A failure is
@@ -106,10 +120,12 @@ Never invoke the installer with external `sudo`.
 
 ## Ten-turn smoke test
 
-An API smoke test changes the canonical world by ten turns. Run it only as part
-of an authorized deployment check. Send ten sequential `POST /api/command`
-requests with unique idempotency keys and a mix of movement, wait, and social
-actions. For every response require:
+An API smoke test changes a canonical world by ten turns. Run it only as part
+of an authorized deployment check, and only against a scratch world created for
+the check (`POST /api/worlds`), never an existing player world. Send ten
+sequential `POST /api/worlds/<scratchWorldId>/command` requests with unique
+idempotency keys and a mix of movement, wait, and social actions. For every
+response require:
 
 - HTTP 200;
 - `ok: true`;
@@ -117,8 +133,17 @@ actions. For every response require:
 - `state` present;
 - world time increasing by exactly one.
 
-After turn ten, require `/api/health` HTTP 200 and `/api/state` to match the last
-response. Re-send one completed request with the same key and require HTTP 409.
+After turn ten, require `/api/health` HTTP 200 and the scratch world's scoped
+`GET /api/worlds/<worldId>/state` to match the last response. Then check
+idempotency against a completed turn's key:
+
+- the SAME body replayed under the SAME key answers HTTP 200 with
+  `replayed: true` and creates no second Event;
+- a DIFFERENT body under the SAME key answers HTTP 409
+  `idempotency_conflict`.
+
+Do not expect 409 from a same-body replay: 409 is the conflict signal for a
+reused key with changed input, not the normal duplicate path.
 
 For visual QA, invoke `$skald-ntfs-browser-qa`; the WSL repository task is not
 the browser execution surface. Send the deployed commit, current world time,
