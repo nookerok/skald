@@ -22,7 +22,7 @@
       },
       "openingProblem": "Ночной поток вынес к переправе след, которому никто не может дать имени.",
       "openingProblemRef": "presentation:river_waystation_arrival:opening-problem",
-      "openingProblemMode": "presentation_only",
+      "openingProblemMode": "simulation",
       "localContactRef": "contact:waystation-keeper",
       "initialRouteRefs": [
         "river_crossing",
@@ -101,8 +101,8 @@
           "payload": {
             "regionId": "riverwatch-basin",
             "regionVersion": 4,
-            "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
-            "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+            "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
+            "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
             "compilerVersion": "pilot-region-compiler-v6",
             "canonicalRefs": [
               "regions.pilot-region.elevation.f1",
@@ -176,8 +176,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -886,8 +886,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -939,8 +939,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -963,8 +963,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -988,8 +988,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1012,8 +1012,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1036,8 +1036,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1060,8 +1060,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1084,8 +1084,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1108,8 +1108,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1133,8 +1133,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1167,8 +1167,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1202,8 +1202,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1240,8 +1240,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1275,8 +1275,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1311,8 +1311,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1346,8 +1346,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1381,8 +1381,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1409,8 +1409,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1437,8 +1437,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1464,8 +1464,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1491,8 +1491,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1519,8 +1519,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1546,8 +1546,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1574,8 +1574,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1602,8 +1602,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1630,8 +1630,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1655,8 +1655,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1678,8 +1678,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1706,8 +1706,8 @@
                 "universal.laws.heat_dynamics"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1734,8 +1734,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1762,8 +1762,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1789,8 +1789,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1816,8 +1816,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1843,8 +1843,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1871,8 +1871,8 @@
                 "regions.pilot-region.monolith.f1"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1898,8 +1898,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1925,8 +1925,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1953,8 +1953,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -1980,8 +1980,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2031,8 +2031,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2080,8 +2080,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2118,8 +2118,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2158,8 +2158,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2187,8 +2187,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2212,8 +2212,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2264,8 +2264,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2295,8 +2295,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2318,8 +2318,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -2424,8 +2424,8 @@
           "payload": {
             "regionId": "riverwatch-basin",
             "regionVersion": 4,
-            "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
-            "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+            "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
+            "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
             "compilerVersion": "pilot-region-compiler-v6",
             "canonicalRefs": [
               "regions.pilot-region.elevation.f1",
@@ -2499,8 +2499,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3209,8 +3209,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3262,8 +3262,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3286,8 +3286,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3311,8 +3311,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3335,8 +3335,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3359,8 +3359,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3383,8 +3383,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3407,8 +3407,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3431,8 +3431,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3456,8 +3456,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3490,8 +3490,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3525,8 +3525,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3563,8 +3563,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3598,8 +3598,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3634,8 +3634,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3669,8 +3669,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3704,8 +3704,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3732,8 +3732,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3760,8 +3760,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3787,8 +3787,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3814,8 +3814,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3842,8 +3842,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3869,8 +3869,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3897,8 +3897,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3925,8 +3925,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3953,8 +3953,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -3978,8 +3978,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4001,8 +4001,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4029,8 +4029,8 @@
                 "universal.laws.heat_dynamics"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4057,8 +4057,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4085,8 +4085,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4112,8 +4112,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4139,8 +4139,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4166,8 +4166,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4193,8 +4193,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4220,8 +4220,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4271,8 +4271,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4320,8 +4320,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4358,8 +4358,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4398,8 +4398,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4427,8 +4427,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4452,8 +4452,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4473,8 +4473,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4505,8 +4505,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4529,8 +4529,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -4617,8 +4617,8 @@
           "payload": {
             "regionId": "riverwatch-basin",
             "regionVersion": 4,
-            "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
-            "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+            "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
+            "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
             "compilerVersion": "pilot-region-compiler-v6",
             "canonicalRefs": [
               "regions.pilot-region.elevation.f1",
@@ -4692,8 +4692,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5402,8 +5402,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5455,8 +5455,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5479,8 +5479,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5504,8 +5504,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5528,8 +5528,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5552,8 +5552,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5576,8 +5576,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5600,8 +5600,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5624,8 +5624,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5649,8 +5649,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5683,8 +5683,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5718,8 +5718,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5756,8 +5756,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5791,8 +5791,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5827,8 +5827,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5862,8 +5862,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5897,8 +5897,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5925,8 +5925,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5953,8 +5953,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -5980,8 +5980,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6007,8 +6007,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6035,8 +6035,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6062,8 +6062,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6090,8 +6090,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6118,8 +6118,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6146,8 +6146,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6171,8 +6171,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6194,8 +6194,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6222,8 +6222,8 @@
                 "universal.laws.heat_dynamics"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6250,8 +6250,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6278,8 +6278,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6305,8 +6305,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6332,8 +6332,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6383,8 +6383,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6432,8 +6432,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6470,8 +6470,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6510,8 +6510,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6539,8 +6539,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6564,8 +6564,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6584,8 +6584,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6615,8 +6615,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6638,8 +6638,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6677,8 +6677,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6709,8 +6709,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6733,8 +6733,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6775,8 +6775,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6804,8 +6804,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6827,8 +6827,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6853,8 +6853,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6877,8 +6877,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6934,8 +6934,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6967,8 +6967,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -6992,8 +6992,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7035,8 +7035,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7065,8 +7065,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7089,8 +7089,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7116,8 +7116,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7141,8 +7141,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7194,8 +7194,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7225,8 +7225,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7248,8 +7248,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7288,8 +7288,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7316,8 +7316,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7338,8 +7338,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7363,8 +7363,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7386,8 +7386,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+              "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
               "regionVersion": 4
             }
           },
@@ -7513,9 +7513,9 @@
   ],
   "compilerVersion": "pilot-region-compiler-v6",
   "provenance": {
-    "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
-    "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-    "bootstrapDigest": "5e85731c46ade9c6e5a3e0f7e91271934bae856dc8b75915282a83980e66be59",
+    "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
+    "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+    "bootstrapDigest": "a23c9e7889d7e7a5e392226c8d57e8419ab2d1bb4767210bd8d740fee871e3bf",
     "canonicalRefs": [
       "regions.pilot-region.elevation.f1",
       "regions.pilot-region.elevation.f2",
@@ -9455,8 +9455,8 @@
       "payload": {
         "regionId": "riverwatch-basin",
         "regionVersion": 4,
-        "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
-        "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+        "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
+        "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
         "compilerVersion": "pilot-region-compiler-v6",
         "canonicalRefs": [
           "regions.pilot-region.elevation.f1",
@@ -9530,8 +9530,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10240,8 +10240,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10293,8 +10293,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10317,8 +10317,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10342,8 +10342,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10366,8 +10366,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10390,8 +10390,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10414,8 +10414,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10438,8 +10438,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10462,8 +10462,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10487,8 +10487,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10521,8 +10521,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10556,8 +10556,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10594,8 +10594,8 @@
             "regions.pilot-region.history.f4"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10629,8 +10629,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10665,8 +10665,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10700,8 +10700,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10735,8 +10735,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10787,8 +10787,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10815,8 +10815,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10843,8 +10843,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10870,8 +10870,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10897,8 +10897,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10925,8 +10925,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10952,8 +10952,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -10980,8 +10980,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11008,8 +11008,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11036,8 +11036,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11061,8 +11061,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11084,8 +11084,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11112,8 +11112,8 @@
             "universal.laws.heat_dynamics"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11140,8 +11140,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11168,8 +11168,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11195,8 +11195,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11222,8 +11222,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11249,8 +11249,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11277,8 +11277,8 @@
             "regions.pilot-region.monolith.f1"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11304,8 +11304,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11331,8 +11331,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11359,8 +11359,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11386,8 +11386,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11413,8 +11413,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11440,8 +11440,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11467,8 +11467,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11494,8 +11494,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11521,8 +11521,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11572,8 +11572,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11621,8 +11621,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11659,8 +11659,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11699,8 +11699,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11728,8 +11728,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },
@@ -11753,8 +11753,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
-          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "compilerInputDigest": "62c9c7a42fd711e1403cb4e269b89af3decd02cf9f69b6d035352e9148997cdf",
+          "canonDigest": "6a456d78938523c36606d92c827d2fcc2d47aa77172f936d33e6d0b1ab92e314",
           "regionVersion": 4
         }
       },

@@ -7,6 +7,13 @@ const FEAR_THRESHOLD = 2;
 const DURATION = 8;
 const SPREAD_INTERVAL = 2;
 
+/** Local objects whose observation starts the crossing watch (observable start). */
+const OPENING_WATCH_OBJECTS: ReadonlySet<string> = new Set(["crossing_upper_stones", "water_trace_marks"]);
+/** Ticks the crossing watch stands before the generic end rule closes it. */
+const WATCH_DURATION = 12;
+export const OPENING_SITUATION_ID = "river_waystation_flood";
+export const OPENING_SITUATION_TYPE = "crossing_watch";
+
 export const start: Rule<ReadonlyWorld> = {
   id: "situations.start",
   phase: "consequence",
@@ -79,6 +86,74 @@ export const forestFireSpread: Rule<ReadonlyWorld> = {
     }
 
     return [];
+  },
+};
+
+/**
+ * Simulation-backed opening problem (plan: opening Situation).
+ *
+ * The crossing's own water traces and upper stones are the observable start:
+ * observing them raises the watch. The situation carries its participants,
+ * stakes and the ways forward as observer-safe data; the rising water (an
+ * existing CrossingCondition/river process) is the temporal process, and a
+ * reopened crossing resolves it early. No QuestManager, no dialogue tree —
+ * only the existing Situation/observation machinery.
+ */
+export const crossingWatchStart: Rule<ReadonlyWorld> = {
+  id: "situations.crossing_watch_start",
+  phase: "consequence",
+  listens: ["ObjectObserved"],
+  produces: ["SituationStarted"],
+  handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
+    const { objectId } = event.payload as { objectId?: string };
+    if (!objectId || !OPENING_WATCH_OBJECTS.has(objectId)) return [];
+    if (world.activeSituations.has(OPENING_SITUATION_ID)) return [];
+    return [{
+      eventId: ruleEventId(event.eventId, "SituationStarted", 0),
+      type: "SituationStarted",
+      schemaVersion: 1,
+      payload: {
+        situationId: OPENING_SITUATION_ID,
+        type: OPENING_SITUATION_TYPE,
+        startedAt: event.timestamp,
+        duration: WATCH_DURATION,
+        data: {
+          participant: "carrier",
+          approaches: ["осмотреть следы воды", "расспросить перевозчика", "найти обход или дождаться спада"],
+          stakes: "к Речному Стражу не пройти напрямую, пока переправа трудная",
+          completion: "понять причину подъёма воды, найти обход или дождаться спада",
+        },
+      },
+      timestamp: event.timestamp,
+      correlationId: event.correlationId,
+      causationId: event.eventId,
+    }];
+  },
+};
+
+/**
+ * Early resolution: the crossing watch ends as soon as the crossing reopens.
+ * The generic end rule still closes it after its duration if the water never
+ * recedes within the watch window.
+ */
+export const crossingWatchResolve: Rule<ReadonlyWorld> = {
+  id: "situations.crossing_watch_resolve",
+  phase: "consequence",
+  listens: ["CrossingConditionChanged"],
+  produces: ["SituationEnded"],
+  handle: (event: DomainEvent, world: ReadonlyWorld): DomainEvent[] => {
+    if (!world.activeSituations.has(OPENING_SITUATION_ID)) return [];
+    const { condition } = event.payload as { condition?: string };
+    if (condition !== "open") return [];
+    return [{
+      eventId: ruleEventId(event.eventId, "SituationEnded", 0),
+      type: "SituationEnded",
+      schemaVersion: 1,
+      payload: { situationId: OPENING_SITUATION_ID },
+      timestamp: event.timestamp,
+      correlationId: event.correlationId,
+      causationId: event.eventId,
+    }];
   },
 };
 

@@ -15,7 +15,7 @@ export {
   observationRules,
 } from "./rules/observations.js";
 export { repercussion, expire, fire } from "./rules/consequences.js";
-export { start, forestFireSpread, end } from "./rules/situations.js";
+export { start, forestFireSpread, end, crossingWatchStart, crossingWatchResolve, OPENING_SITUATION_ID, OPENING_SITUATION_TYPE } from "./rules/situations.js";
 export {
   buildBiographyGraph,
   findCausalChain,

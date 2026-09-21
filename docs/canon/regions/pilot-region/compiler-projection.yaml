@@ -61,7 +61,7 @@ compilerProjection:
         openingSituation: Переправа готовится к утру, но течение уже принесло новости, которым никто не рад.
         openingProblem: Ночной поток вынес к переправе след, которому никто не может дать имени.
         openingProblemRef: presentation:river_waystation_arrival:opening-problem
-        openingProblemMode: presentation_only
+        openingProblemMode: simulation
         localContact:
           id: contact:waystation-keeper
           name: Перевозчик у переправы

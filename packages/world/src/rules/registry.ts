@@ -3,7 +3,7 @@ import type { ReadonlyWorld } from "../projection.js";
 import { physicsMovement } from "./physics-movement.js";
 import { observationRules } from "./observations.js";
 import { repercussion, expire, fire } from "./consequences.js";
-import { start, forestFireSpread, end } from "./situations.js";
+import { start, forestFireSpread, end, crossingWatchStart, crossingWatchResolve } from "./situations.js";
 import { giveRule } from "./relations.js";
 import { heatSpread } from "./heat.js";
 import { durationCheck } from "./duration-check.js";
@@ -69,6 +69,8 @@ export function createRules(
   registry.register(fire);
   registry.register(start);
   registry.register(forestFireSpread);
+  registry.register(crossingWatchStart);
+  registry.register(crossingWatchResolve);
   registry.register(end);
   registry.register(giveRule);
   registry.register(heatSpread);

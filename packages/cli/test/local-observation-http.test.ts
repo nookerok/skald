@@ -12,6 +12,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildBootstrapEvents } from "@skald/world";
+import { OPENING_SITUATION_ID } from "@skald/world";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
@@ -61,6 +62,11 @@ describe("local scene observation at the crossing", () => {
       // The far landmarks' descriptions are not dumped into the presentation
       // (a known route may still be named by the continuation hint).
       expect(texts).not.toContain("Несколько потоков падают с уступа");
+
+      // The opening Situation is simulation-backed now: observing the
+      // crossing's water traces raises the watch, and the scene carries it.
+      expect(runtime.projection.getSnapshot().activeSituations.has(OPENING_SITUATION_ID)).toBe(true);
+      expect(response.shellDelta?.currentSituation ?? null).not.toBeNull();
     } finally {
       store.close();
     }

@@ -11,6 +11,15 @@ const SITUATION_TEMPLATES: Record<string, { title: string; description: string; 
       { label: "Животные бегут", tone: "neutral" },
     ],
   },
+  crossing_watch: {
+    title: "Переправа перекрыта водой",
+    description: "Вода поднялась и скрыла верхний ряд камней; переправа стала трудной. Перевозчик держится у плоскодонки и не спешит говорить о ночном течении.",
+    effects: [
+      { label: "Вода продолжает подниматься", tone: "warning" },
+      { label: "Прямой путь трудный", tone: "danger" },
+      { label: "Перевозчик что-то скрывает", tone: "neutral" },
+    ],
+  },
 };
 
 export function buildSituationView(world: ReadonlyWorld): SituationView | null {
