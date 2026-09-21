@@ -19,10 +19,13 @@
   identical replay 200 + `replayed` + frozen log, same key with a different
   payload 409 `idempotency_conflict`, `/api/health` 200, scoped state matches
   the final worldTime. Canonical player world untouched.
-- Deploy caveat: the INSTALLED `/usr/local/bin/update-orange-pi.sh` is a copy
-  and does not reinstall itself, so the new intent gate in the repo updater is
-  not yet enforced on the device. Re-run `install-orange-pi.sh` once to activate
-  it; the endpoint itself is live and checkable via a manual probe.
+- The installer was re-run once to install the refreshed helper scripts and the
+  `SKALD_AI_REQUIRED=1` gate. The installed `/usr/local/bin/update-orange-pi.sh`
+  now enforces the live intent/narration contract, and the re-run passed it
+  live (`[OK] Live intent/narration contract passed`). Post-install confirm:
+  commit `a56c741`, clean `main`, service + healthcheck/backup timers active,
+  `/api/health` 200, `/api/ops/intent-probe` 200 `pass=true`; installed updater
+  references `intent-probe`.
 - Open: scratch browser QA (`$skald-ntfs-browser-qa`, or the Traycer skill in a
   non-Codex session) and the 30–60 min human playtest.
 
