@@ -58,23 +58,34 @@ export const INTERPRETATION_SCENARIOS: readonly Scenario[] = [
 ];
 
 /**
- * Classifies a `handleWorldCommand` HTTP-shaped body into an observation.
- * Pure and total; never throws.
+ * Classifies one `handleWorldCommand` response into an observation. Pure and
+ * total; never throws. A non-200 status, a non-`ok` body, an unknown status or
+ * an action without a confirmed persisted turn all classify as `unavailable`
+ * (a FAIL for any step), so an error can never masquerade as an action.
  */
-export function classifyHttpResponse(body: unknown): InterpretationObservation {
-  const response = (body ?? {}) as Record<string, unknown>;
-  const status = typeof response.status === "string" ? response.status : "unknown";
-  const turn = (response.conversationTurn ?? {}) as Record<string, unknown>;
-  const responseKind = typeof turn.responseKind === "string" ? turn.responseKind : null;
-  const genericFallback = status === "clarification" && typeof response.question === "string" && isGenericFallbackText(response.question);
-  if (status === "clarification") return { status, kind: "clarification", primary: null, queryId: null, genericFallback };
-  if (status === "inquiry") {
-    const inquiry = (response.inquiry ?? {}) as Record<string, unknown>;
-    return { status, kind: "inquiry", primary: "inquiry", queryId: typeof inquiry.queryId === "string" ? inquiry.queryId : null, genericFallback };
+export function classifyCommandResponse(response: { readonly statusCode: number; readonly body: unknown }): InterpretationObservation {
+  const unavailable = (status = "error"): InterpretationObservation => ({ status, kind: "unavailable", primary: null, queryId: null, genericFallback: false });
+  if (!response || response.statusCode !== 200) return unavailable();
+  const body = (response.body ?? {}) as Record<string, unknown>;
+  if (body.ok !== true) return unavailable();
+  const status = typeof body.status === "string" ? body.status : "unknown";
+  if (status === "clarification") {
+    const genericFallback = typeof body.question === "string" && isGenericFallbackText(body.question);
+    return { status, kind: "clarification", primary: null, queryId: null, genericFallback };
   }
-  if (status === "meta") return { status, kind: "meta", primary: "meta", queryId: null, genericFallback };
-  const kind: ReplyClass = responseKind === "mixed_outcome" ? "mixed" : responseKind === "speech_reaction" ? "speech" : "action";
-  return { status, kind, primary: "action", queryId: null, genericFallback };
+  if (status === "inquiry") {
+    const inquiry = (body.inquiry ?? {}) as Record<string, unknown>;
+    return { status, kind: "inquiry", primary: "inquiry", queryId: typeof inquiry.queryId === "string" ? inquiry.queryId : null, genericFallback: false };
+  }
+  if (status === "meta") return { status, kind: "meta", primary: "meta", queryId: null, genericFallback: false };
+  // An executable turn must carry a persisted conversation turn with a known
+  // response kind; otherwise the response is not a confirmed action.
+  const turn = (body.conversationTurn ?? {}) as Record<string, unknown>;
+  const responseKind = typeof turn.responseKind === "string" ? turn.responseKind : null;
+  if (responseKind === "mixed_outcome") return { status, kind: "mixed", primary: "action", queryId: null, genericFallback: false };
+  if (responseKind === "speech_reaction") return { status, kind: "speech", primary: "action", queryId: null, genericFallback: false };
+  if (responseKind === "action_outcome" || responseKind === "action_rejection") return { status, kind: "action", primary: "action", queryId: null, genericFallback: false };
+  return unavailable(status);
 }
 
 /** Scores one scenario step. Reuses the corpus evaluation rules. */

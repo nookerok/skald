@@ -13,7 +13,7 @@
  * clarification appeared; 1 otherwise.
  */
 
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { DomainEvent } from "@skald/event-bus";
@@ -29,9 +29,26 @@ import { createMultiWorldStore } from "../persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../http/world-handlers.js";
 import { INTERPRETATION_CORPUS, classifyOutcome, scoreCorpus, type InterpretationObservation } from "./interpretation-corpus.js";
-import { INTERPRETATION_SCENARIOS, classifyHttpResponse, evaluateScenarioStep, type Scenario } from "./interpretation-scenarios.js";
+import { INTERPRETATION_SCENARIOS, classifyCommandResponse, evaluateScenarioStep, type Scenario } from "./interpretation-scenarios.js";
+import { mergeServiceEnv } from "./service-env.js";
 
 const THRESHOLD = 0.95;
+
+/**
+ * Loads provider settings the SAME way systemd does: `SKALD_ENV_FILE` is parsed
+ * by the project's systemd-subset parser and its keys are added as data, never
+ * executed as a shell script. Existing process env wins. Values are never
+ * printed.
+ */
+function loadServiceEnv(): void {
+  const envFile = process.env["SKALD_ENV_FILE"];
+  if (!envFile) return;
+  try {
+    mergeServiceEnv(process.env, readFileSync(envFile, "utf8"));
+  } catch {
+    // Best effort: an unreadable file leaves the ambient env in place.
+  }
+}
 
 function moveEvent(locationId: string): DomainEvent {
   return { eventId: `fixture-move-${locationId}`, type: "PlayerLocationChanged", schemaVersion: 1, payload: { locationId }, timestamp: 0, correlationId: "fixture", causationId: null };
@@ -96,7 +113,7 @@ async function runScenario(router: ReturnType<typeof createRouterConfiguration>[
     for (const step of scenario.steps) {
       const response = await handleWorldCommand(runtime, { input: step.input, idempotencyKey: `${scenario.id}-${index}` });
       const body = JSON.parse(response.body) as unknown;
-      const evaluation = evaluateScenarioStep(step, classifyHttpResponse(body));
+      const evaluation = evaluateScenarioStep(step, classifyCommandResponse({ statusCode: response.statusCode, body }));
       results.push({ scenario: scenario.id, input: step.input, ok: evaluation.ok, reason: evaluation.reason });
       index += 1;
     }
@@ -107,6 +124,7 @@ async function runScenario(router: ReturnType<typeof createRouterConfiguration>[
 }
 
 async function main(): Promise<number> {
+  loadServiceEnv();
   const configuration = createRouterConfiguration();
   const router = configuration?.router ?? null;
 

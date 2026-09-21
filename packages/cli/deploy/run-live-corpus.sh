@@ -6,13 +6,16 @@
 # The service reads its keys through systemd EnvironmentFile
 # (/home/nooker/skald-data/skald.env). A plain SSH login shell does NOT have
 # those variables, so running the corpus directly over SSH would score the
-# deterministic fallback instead of the provider. This wrapper sources the
-# same file into the current shell (no echo, no xtrace) and runs the runner.
+# deterministic fallback instead of the provider.
+#
+# This wrapper does NOT source the file as a shell script: systemd's
+# EnvironmentFile rules differ from Bash (see packages/cli/deploy/env-policy.ts).
+# Instead it passes the path via SKALD_ENV_FILE and the runner parses it with
+# the project's systemd-subset parser, adding the keys as data. Values are
+# never printed.
 #
 # Run as the deployment user (never with external sudo):
 #   packages/cli/deploy/run-live-corpus.sh
-#
-# Output is the sanitized scorecard only; key names/values are never printed.
 
 set -euo pipefail
 
@@ -24,12 +27,5 @@ if [ ! -r "${ENV_FILE}" ]; then
   exit 1
 fi
 
-# Never trace; source the service env so the router sees the same providers.
-set +x
-set -a
-# shellcheck disable=SC1090
-. "${ENV_FILE}"
-set +a
-
 cd "${CODE_DIR}"
-exec npm run acceptance:interpretation:corpus
+SKALD_ENV_FILE="${ENV_FILE}" exec npm run acceptance:interpretation:corpus
