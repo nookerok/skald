@@ -106,7 +106,6 @@ describe("Slice 1 — observe without a target describes surroundings", () => {
       event("InteractionValidated", "law-1", { law: "perception", locationId: "tower_approach", verb: "observe" }),
       towerWorld(),
     );
-    expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
       type: "ActionResolved",
       payload: {
@@ -114,6 +113,22 @@ describe("Slice 1 — observe without a target describes surroundings", () => {
         description: "Трава и камни у основания башни. Здесь стоит потухшая жаровня и кучка пепла.",
       },
     });
+  });
+
+  it("ambient observe also notices the location's own objects, bounded", () => {
+    const out = perceptionObserve.handle(
+      event("InteractionValidated", "local-law-1", { law: "perception", locationId: "river_waystation", verb: "observe" }),
+      livingRegionWorld(),
+    );
+    const objects = out.filter((entry) => entry.type === "ObjectObserved");
+    // Local scene details first, capped so the master keeps one primary + a few
+    // notable lines rather than dumping the whole location.
+    expect(objects.length).toBeGreaterThan(0);
+    expect(objects.length).toBeLessThanOrEqual(4);
+    for (const observed of objects) {
+      expect(observed.payload).toHaveProperty("objectId");
+      expect(observed.payload).toHaveProperty("name");
+    }
   });
 
   it("living-region observe records only observer-scoped visibility facts", () => {

@@ -101,8 +101,8 @@
           "payload": {
             "regionId": "riverwatch-basin",
             "regionVersion": 4,
-            "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
-            "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
+            "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+            "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
             "compilerVersion": "pilot-region-compiler-v6",
             "canonicalRefs": [
               "regions.pilot-region.elevation.f1",
@@ -176,8 +176,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -886,8 +886,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -939,8 +939,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -963,8 +963,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -988,8 +988,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1012,8 +1012,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1036,8 +1036,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1060,8 +1060,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1084,8 +1084,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1108,8 +1108,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1133,8 +1133,42 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#crossing_upper_stones",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "crossing_upper_stones",
+            "name": "Верхние камни переправы",
+            "aliases": [
+              "верхние камни",
+              "камни переправы",
+              "верхний ряд камней"
+            ],
+            "description": "Верхний ряд камней переправы то скрывается под водой, то показывается вновь.",
+            "material": "stone",
+            "locationId": "river_waystation",
+            "integrity": 84,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1168,8 +1202,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1206,8 +1240,114 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#water_trace_marks",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "water_trace_marks",
+            "name": "Следы воды на настиле",
+            "aliases": [
+              "следы воды",
+              "настил",
+              "настила",
+              "мокрый настил"
+            ],
+            "description": "На настиле остались тёмные следы воды выше обычного уровня.",
+            "material": "water",
+            "locationId": "river_waystation",
+            "integrity": 100,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#waystation_boat",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "waystation_boat",
+            "name": "Плоскодонка",
+            "aliases": [
+              "лодка",
+              "лодку",
+              "лодкой",
+              "плоскодонка",
+              "челн"
+            ],
+            "description": "Старая плоскодонка вытащена на берег; борт недавно просмолён заново.",
+            "material": "wood",
+            "locationId": "river_waystation",
+            "integrity": 72,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#waystation_fence",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "waystation_fence",
+            "name": "Ограда переправы",
+            "aliases": [
+              "ограда",
+              "ограду",
+              "оградой",
+              "забор"
+            ],
+            "description": "Столбы ограды покосились, а между ними видна протоптанная тропа к воде.",
+            "material": "wood",
+            "locationId": "river_waystation",
+            "integrity": 55,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1241,8 +1381,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1269,8 +1409,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1297,8 +1437,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1324,8 +1464,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1351,8 +1491,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1379,8 +1519,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1406,8 +1546,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1434,8 +1574,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1462,8 +1602,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1490,8 +1630,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1515,8 +1655,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1538,8 +1678,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1566,8 +1706,8 @@
                 "universal.laws.heat_dynamics"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1594,8 +1734,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1622,8 +1762,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1649,8 +1789,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1676,8 +1816,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1703,8 +1843,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1731,8 +1871,8 @@
                 "regions.pilot-region.monolith.f1"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1758,8 +1898,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1785,8 +1925,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1813,8 +1953,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1840,8 +1980,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1891,8 +2031,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1940,8 +2080,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -1978,8 +2118,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2018,8 +2158,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2047,8 +2187,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2072,8 +2212,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2124,8 +2264,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2155,8 +2295,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2178,8 +2318,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -2284,8 +2424,8 @@
           "payload": {
             "regionId": "riverwatch-basin",
             "regionVersion": 4,
-            "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
-            "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
+            "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+            "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
             "compilerVersion": "pilot-region-compiler-v6",
             "canonicalRefs": [
               "regions.pilot-region.elevation.f1",
@@ -2359,8 +2499,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3069,8 +3209,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3122,8 +3262,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3146,8 +3286,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3171,8 +3311,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3195,8 +3335,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3219,8 +3359,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3243,8 +3383,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3267,8 +3407,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3291,8 +3431,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3316,8 +3456,42 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#crossing_upper_stones",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "crossing_upper_stones",
+            "name": "Верхние камни переправы",
+            "aliases": [
+              "верхние камни",
+              "камни переправы",
+              "верхний ряд камней"
+            ],
+            "description": "Верхний ряд камней переправы то скрывается под водой, то показывается вновь.",
+            "material": "stone",
+            "locationId": "river_waystation",
+            "integrity": 84,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3351,8 +3525,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3389,8 +3563,114 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#water_trace_marks",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "water_trace_marks",
+            "name": "Следы воды на настиле",
+            "aliases": [
+              "следы воды",
+              "настил",
+              "настила",
+              "мокрый настил"
+            ],
+            "description": "На настиле остались тёмные следы воды выше обычного уровня.",
+            "material": "water",
+            "locationId": "river_waystation",
+            "integrity": 100,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#waystation_boat",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "waystation_boat",
+            "name": "Плоскодонка",
+            "aliases": [
+              "лодка",
+              "лодку",
+              "лодкой",
+              "плоскодонка",
+              "челн"
+            ],
+            "description": "Старая плоскодонка вытащена на берег; борт недавно просмолён заново.",
+            "material": "wood",
+            "locationId": "river_waystation",
+            "integrity": 72,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#waystation_fence",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "waystation_fence",
+            "name": "Ограда переправы",
+            "aliases": [
+              "ограда",
+              "ограду",
+              "оградой",
+              "забор"
+            ],
+            "description": "Столбы ограды покосились, а между ними видна протоптанная тропа к воде.",
+            "material": "wood",
+            "locationId": "river_waystation",
+            "integrity": 55,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3424,8 +3704,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3452,8 +3732,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3480,8 +3760,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3507,8 +3787,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3534,8 +3814,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3562,8 +3842,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3589,8 +3869,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3617,8 +3897,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3645,8 +3925,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3673,8 +3953,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3698,8 +3978,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3721,8 +4001,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3749,8 +4029,8 @@
                 "universal.laws.heat_dynamics"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3777,8 +4057,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3805,8 +4085,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3832,8 +4112,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3859,8 +4139,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3886,8 +4166,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3913,8 +4193,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3940,8 +4220,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -3991,8 +4271,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4040,8 +4320,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4078,8 +4358,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4118,8 +4398,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4147,8 +4427,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4172,8 +4452,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4193,8 +4473,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4225,8 +4505,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4249,8 +4529,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -4337,8 +4617,8 @@
           "payload": {
             "regionId": "riverwatch-basin",
             "regionVersion": 4,
-            "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
-            "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
+            "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+            "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
             "compilerVersion": "pilot-region-compiler-v6",
             "canonicalRefs": [
               "regions.pilot-region.elevation.f1",
@@ -4412,8 +4692,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5122,8 +5402,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5175,8 +5455,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5199,8 +5479,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5224,8 +5504,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5248,8 +5528,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5272,8 +5552,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5296,8 +5576,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5320,8 +5600,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5344,8 +5624,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5369,8 +5649,42 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#crossing_upper_stones",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "crossing_upper_stones",
+            "name": "Верхние камни переправы",
+            "aliases": [
+              "верхние камни",
+              "камни переправы",
+              "верхний ряд камней"
+            ],
+            "description": "Верхний ряд камней переправы то скрывается под водой, то показывается вновь.",
+            "material": "stone",
+            "locationId": "river_waystation",
+            "integrity": 84,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5404,8 +5718,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5442,8 +5756,114 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#water_trace_marks",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "water_trace_marks",
+            "name": "Следы воды на настиле",
+            "aliases": [
+              "следы воды",
+              "настил",
+              "настила",
+              "мокрый настил"
+            ],
+            "description": "На настиле остались тёмные следы воды выше обычного уровня.",
+            "material": "water",
+            "locationId": "river_waystation",
+            "integrity": 100,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#waystation_boat",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "waystation_boat",
+            "name": "Плоскодонка",
+            "aliases": [
+              "лодка",
+              "лодку",
+              "лодкой",
+              "плоскодонка",
+              "челн"
+            ],
+            "description": "Старая плоскодонка вытащена на берег; борт недавно просмолён заново.",
+            "material": "wood",
+            "locationId": "river_waystation",
+            "integrity": 72,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+              "regionVersion": 4
+            }
+          },
+          "timestamp": 0,
+          "correlationId": "boot#region",
+          "causationId": "boot#region"
+        },
+        {
+          "eventId": "boot#region#WorldObjectPlaced#waystation_fence",
+          "type": "WorldObjectPlaced",
+          "schemaVersion": 1,
+          "payload": {
+            "id": "waystation_fence",
+            "name": "Ограда переправы",
+            "aliases": [
+              "ограда",
+              "ограду",
+              "оградой",
+              "забор"
+            ],
+            "description": "Столбы ограды покосились, а между ними видна протоптанная тропа к воде.",
+            "material": "wood",
+            "locationId": "river_waystation",
+            "integrity": 55,
+            "temperature": 8,
+            "state": {
+              "contentKind": "local_detail"
+            },
+            "provenance": {
+              "canonicalRefs": [
+                "regions.pilot-region.geography.f5"
+              ],
+              "compilerVersion": "pilot-region-compiler-v6",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5477,8 +5897,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5505,8 +5925,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5533,8 +5953,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5560,8 +5980,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5587,8 +6007,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5615,8 +6035,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5642,8 +6062,8 @@
                 "regions.pilot-region.geography.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5670,8 +6090,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5698,8 +6118,8 @@
                 "regions.pilot-region.visual-interpretation.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5726,8 +6146,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5751,8 +6171,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5774,8 +6194,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5802,8 +6222,8 @@
                 "universal.laws.heat_dynamics"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5830,8 +6250,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5858,8 +6278,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5885,8 +6305,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5912,8 +6332,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -5963,8 +6383,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6012,8 +6432,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6050,8 +6470,8 @@
                 "regions.pilot-region.geography.f2"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6090,8 +6510,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6119,8 +6539,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6144,8 +6564,8 @@
                 "universal.laws.time_and_ticks"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6164,8 +6584,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6195,8 +6615,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6218,8 +6638,8 @@
                 "regions.pilot-region.geography.f6"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6257,8 +6677,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6289,8 +6709,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6313,8 +6733,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6355,8 +6775,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6384,8 +6804,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6407,8 +6827,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6433,8 +6853,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6457,8 +6877,8 @@
                 "regions.pilot-region.history.f3"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6514,8 +6934,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6547,8 +6967,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6572,8 +6992,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6615,8 +7035,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6645,8 +7065,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6669,8 +7089,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6696,8 +7116,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6721,8 +7141,8 @@
                 "regions.pilot-region.history.f4"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6774,8 +7194,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6805,8 +7225,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6828,8 +7248,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6868,8 +7288,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6896,8 +7316,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6918,8 +7338,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6943,8 +7363,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -6966,8 +7386,8 @@
                 "regions.pilot-region.geography.f5"
               ],
               "compilerVersion": "pilot-region-compiler-v6",
-              "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-              "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+              "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+              "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
               "regionVersion": 4
             }
           },
@@ -7093,9 +7513,9 @@
   ],
   "compilerVersion": "pilot-region-compiler-v6",
   "provenance": {
-    "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
-    "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-    "bootstrapDigest": "6a53708cc9edc28cc6a22cf2c0f6808dad0feb26139092ac0ce58439c07f8775",
+    "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+    "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+    "bootstrapDigest": "5e85731c46ade9c6e5a3e0f7e91271934bae856dc8b75915282a83980e66be59",
     "canonicalRefs": [
       "regions.pilot-region.elevation.f1",
       "regions.pilot-region.elevation.f2",
@@ -8072,6 +8492,26 @@
   },
   "contentDefinitions": [
     {
+      "id": "crossing_upper_stones",
+      "name": "Верхние камни переправы",
+      "aliases": [
+        "верхние камни",
+        "камни переправы",
+        "верхний ряд камней"
+      ],
+      "description": "Верхний ряд камней переправы то скрывается под водой, то показывается вновь.",
+      "material": "stone",
+      "locationId": "river_waystation",
+      "integrity": 84,
+      "temperature": 8,
+      "initialState": {
+        "contentKind": "local_detail"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    {
       "id": "glass_crater_surface",
       "name": "Стеклянная поверхность впадины",
       "aliases": [
@@ -8117,6 +8557,70 @@
       ]
     },
     {
+      "id": "water_trace_marks",
+      "name": "Следы воды на настиле",
+      "aliases": [
+        "следы воды",
+        "настил",
+        "настила",
+        "мокрый настил"
+      ],
+      "description": "На настиле остались тёмные следы воды выше обычного уровня.",
+      "material": "water",
+      "locationId": "river_waystation",
+      "integrity": 100,
+      "temperature": 8,
+      "initialState": {
+        "contentKind": "local_detail"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    {
+      "id": "waystation_boat",
+      "name": "Плоскодонка",
+      "aliases": [
+        "лодка",
+        "лодку",
+        "лодкой",
+        "плоскодонка",
+        "челн"
+      ],
+      "description": "Старая плоскодонка вытащена на берег; борт недавно просмолён заново.",
+      "material": "wood",
+      "locationId": "river_waystation",
+      "integrity": 72,
+      "temperature": 8,
+      "initialState": {
+        "contentKind": "local_detail"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    {
+      "id": "waystation_fence",
+      "name": "Ограда переправы",
+      "aliases": [
+        "ограда",
+        "ограду",
+        "оградой",
+        "забор"
+      ],
+      "description": "Столбы ограды покосились, а между ними видна протоптанная тропа к воде.",
+      "material": "wood",
+      "locationId": "river_waystation",
+      "integrity": 55,
+      "temperature": 8,
+      "initialState": {
+        "contentKind": "local_detail"
+      },
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    {
       "id": "western_cliff_waterfalls",
       "name": "Водопады западных утёсов",
       "aliases": [
@@ -8147,14 +8651,14 @@
         "road_city_ruins"
       ],
       "signalKind": "physical_trace",
-      "title": "Road without a destination",
-      "question": "What abandoned route once crossed the eastern heights?",
+      "title": "Дорога без назначения",
+      "question": "Какой заброшенный путь когда-то шёл через восточные высоты?",
       "summaries": {
-        "trace": "The old road continues beyond the settled paths.",
-        "hypothesis": "The road may belong to infrastructure older than the city.",
-        "discovered": "Repeated traces support an abandoned route rather than a natural track."
+        "trace": "Старая дорога уходит дальше обжитых троп.",
+        "hypothesis": "Возможно, дорога — часть построек древнее города.",
+        "discovered": "Повторяющиеся следы говорят скорее о заброшенном пути, чем о природной тропе."
       },
-      "evidenceText": "Cut stones and a regular grade mark an older route.",
+      "evidenceText": "Тёсаные камни и ровный уклон отмечают древний путь.",
       "evidenceRules": [
         {
           "id": "abandoned_infrastructure.support",
@@ -8197,14 +8701,14 @@
         "old_ruins"
       ],
       "signalKind": "structural_trace",
-      "title": "Echoes of an older culture",
-      "question": "Were the ruins built by one older tradition?",
+      "title": "Отзвуки древней культуры",
+      "question": "Не построены ли развалины одной древней традицией?",
       "summaries": {
-        "trace": "The stonework repeats a pattern you have seen before.",
-        "hypothesis": "The ruins may share a building tradition with distant works.",
-        "discovered": "Independent observations support a shared older building tradition."
+        "trace": "Кладка повторяет узор, который ты уже видел.",
+        "hypothesis": "Возможно, развалины делят строительную традицию с далёкими постройками.",
+        "discovered": "Независимые наблюдения подтверждают общую древнюю строительную традицию."
       },
-      "evidenceText": "Masonry joints and alignments repeat across the ruin.",
+      "evidenceText": "Швы и линии кладки повторяются по всему разрушенному строению.",
       "evidenceRules": [
         {
           "id": "ancient_culture_traces.support",
@@ -8247,14 +8751,14 @@
         "blackwood_edge"
       ],
       "signalKind": "physical_trace",
-      "title": "The old forest line",
-      "question": "Did the forest once reach farther into the valley?",
+      "title": "Старая граница леса",
+      "question": "Не доходил ли лес когда-то дальше в долину?",
       "summaries": {
-        "trace": "The vegetation changes along a strangely regular boundary.",
-        "hypothesis": "The boundary may record climate change or older land use.",
-        "discovered": "Independent traces support a former forest line without choosing its cause."
+        "trace": "Растительность меняется вдоль подозрительно ровной границы.",
+        "hypothesis": "Граница может хранить след смены климата или древнего землепользования.",
+        "discovered": "Независимые следы подтверждают прежнюю границу леса, не выбирая причину."
       },
-      "evidenceText": "Soil and vegetation change beyond the present forest edge.",
+      "evidenceText": "За нынешней кромкой леса меняются почва и растительность.",
       "evidenceRules": [
         {
           "id": "climate_shift.support",
@@ -8297,14 +8801,14 @@
         "old_ruins"
       ],
       "signalKind": "structural_trace",
-      "title": "A scar in the stone",
-      "question": "Was the eastern site damaged by conflict?",
+      "title": "Шрам в камне",
+      "question": "Был ли восточный участок повреждён в столкновении?",
       "summaries": {
-        "trace": "One masonry layer is darker and more damaged than the rest.",
-        "hypothesis": "The damage may have followed a violent event, but fire and weather remain possible.",
-        "discovered": "Repeated evidence supports a damaged layer while leaving its cause unresolved."
+        "trace": "Один слой кладки темнее и повреждён сильнее остальных.",
+        "hypothesis": "Повреждение могло остаться от насилия, но возможны и огонь, и непогода.",
+        "discovered": "Повторяющиеся свидетельства подтверждают повреждённый слой, но причина остаётся неясной."
       },
-      "evidenceText": "A darkened masonry layer interrupts the older stonework.",
+      "evidenceText": "Потемневший слой кладки перерезает более древнюю каменную работу.",
       "evidenceRules": [
         {
           "id": "conflict_trace.support",
@@ -8368,14 +8872,14 @@
         "river_basin"
       ],
       "signalKind": "water_trace",
-      "title": "The river remembers another course",
-      "question": "Did the river once run through a different channel?",
+      "title": "Река помнит другое русло",
+      "question": "Не текла ли река когда-то по другому руслу?",
       "summaries": {
-        "trace": "Dry cuts remain beside the present river.",
-        "hypothesis": "The basin may preserve an older course.",
-        "discovered": "Independent water traces support a former channel without fixing its cause."
+        "trace": "Рядом с нынешней рекой остались сухие протоки.",
+        "hypothesis": "Возможно, в бассейне сохранилось древнее русло.",
+        "discovered": "Независимые следы воды подтверждают прежнее русло, не называя его причину."
       },
-      "evidenceText": "Sediment and a dry channel suggest water once moved here.",
+      "evidenceText": "Наносы и сухая протока говорят, что здесь когда-то двигалась вода.",
       "evidenceRules": [
         {
           "id": "river_course_shift.support",
@@ -8821,6 +9325,11 @@
         "regions.pilot-region.visual-interpretation.f5"
       ]
     },
+    "crossing_upper_stones": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
     "glass_crater_surface": {
       "canonicalRefs": [
         "regions.pilot-region.visual-interpretation.f5"
@@ -8830,6 +9339,21 @@
       "canonicalRefs": [
         "regions.pilot-region.history.f1",
         "regions.pilot-region.history.f4"
+      ]
+    },
+    "water_trace_marks": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    "waystation_boat": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
+      ]
+    },
+    "waystation_fence": {
+      "canonicalRefs": [
+        "regions.pilot-region.geography.f5"
       ]
     },
     "resource.blackwood_herbs": {
@@ -8931,8 +9455,8 @@
       "payload": {
         "regionId": "riverwatch-basin",
         "regionVersion": 4,
-        "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
-        "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
+        "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+        "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
         "compilerVersion": "pilot-region-compiler-v6",
         "canonicalRefs": [
           "regions.pilot-region.elevation.f1",
@@ -9006,8 +9530,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9716,8 +10240,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9769,8 +10293,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9793,8 +10317,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9818,8 +10342,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9842,8 +10366,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9866,8 +10390,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9890,8 +10414,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9914,8 +10438,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9938,8 +10462,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9963,8 +10487,42 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#crossing_upper_stones",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "crossing_upper_stones",
+        "name": "Верхние камни переправы",
+        "aliases": [
+          "верхние камни",
+          "камни переправы",
+          "верхний ряд камней"
+        ],
+        "description": "Верхний ряд камней переправы то скрывается под водой, то показывается вновь.",
+        "material": "stone",
+        "locationId": "river_waystation",
+        "integrity": 84,
+        "temperature": 8,
+        "state": {
+          "contentKind": "local_detail"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v6",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -9998,8 +10556,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10036,8 +10594,114 @@
             "regions.pilot-region.history.f4"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#water_trace_marks",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "water_trace_marks",
+        "name": "Следы воды на настиле",
+        "aliases": [
+          "следы воды",
+          "настил",
+          "настила",
+          "мокрый настил"
+        ],
+        "description": "На настиле остались тёмные следы воды выше обычного уровня.",
+        "material": "water",
+        "locationId": "river_waystation",
+        "integrity": 100,
+        "temperature": 8,
+        "state": {
+          "contentKind": "local_detail"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v6",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#waystation_boat",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "waystation_boat",
+        "name": "Плоскодонка",
+        "aliases": [
+          "лодка",
+          "лодку",
+          "лодкой",
+          "плоскодонка",
+          "челн"
+        ],
+        "description": "Старая плоскодонка вытащена на берег; борт недавно просмолён заново.",
+        "material": "wood",
+        "locationId": "river_waystation",
+        "integrity": 72,
+        "temperature": 8,
+        "state": {
+          "contentKind": "local_detail"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v6",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
+          "regionVersion": 4
+        }
+      },
+      "timestamp": 0,
+      "correlationId": "boot#region",
+      "causationId": "boot#region"
+    },
+    {
+      "eventId": "boot#region#WorldObjectPlaced#waystation_fence",
+      "type": "WorldObjectPlaced",
+      "schemaVersion": 1,
+      "payload": {
+        "id": "waystation_fence",
+        "name": "Ограда переправы",
+        "aliases": [
+          "ограда",
+          "ограду",
+          "оградой",
+          "забор"
+        ],
+        "description": "Столбы ограды покосились, а между ними видна протоптанная тропа к воде.",
+        "material": "wood",
+        "locationId": "river_waystation",
+        "integrity": 55,
+        "temperature": 8,
+        "state": {
+          "contentKind": "local_detail"
+        },
+        "provenance": {
+          "canonicalRefs": [
+            "regions.pilot-region.geography.f5"
+          ],
+          "compilerVersion": "pilot-region-compiler-v6",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10071,8 +10735,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10123,8 +10787,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10151,8 +10815,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10179,8 +10843,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10206,8 +10870,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10233,8 +10897,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10261,8 +10925,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10288,8 +10952,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10316,8 +10980,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10344,8 +11008,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10372,8 +11036,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10397,8 +11061,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10420,8 +11084,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10448,8 +11112,8 @@
             "universal.laws.heat_dynamics"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10476,8 +11140,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10504,8 +11168,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10531,8 +11195,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10558,8 +11222,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10585,8 +11249,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10613,8 +11277,8 @@
             "regions.pilot-region.monolith.f1"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10640,8 +11304,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10667,8 +11331,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10695,8 +11359,8 @@
             "regions.pilot-region.visual-interpretation.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10722,8 +11386,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10749,8 +11413,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10776,8 +11440,8 @@
             "regions.pilot-region.geography.f3"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10803,8 +11467,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10830,8 +11494,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10857,8 +11521,8 @@
             "regions.pilot-region.geography.f6"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10908,8 +11572,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10957,8 +11621,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -10995,8 +11659,8 @@
             "regions.pilot-region.geography.f2"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -11035,8 +11699,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -11064,8 +11728,8 @@
             "regions.pilot-region.geography.f5"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },
@@ -11089,8 +11753,8 @@
             "universal.laws.time_and_ticks"
           ],
           "compilerVersion": "pilot-region-compiler-v6",
-          "compilerInputDigest": "b9dfb44857ec26726befb214b41832af2af5b4fb222caf0ecd949edb8b0f1e4d",
-          "canonDigest": "e601d29b48259d91f817d1477712b4181593fee6fad5782dbff3f7d85cfa1802",
+          "compilerInputDigest": "d3d12da3e9bb62b595c31df3dd0719384b17ab8d8cc84e3e8edb81c90436a913",
+          "canonDigest": "2713b044d77c27ae1a966600c862a7312bd2f4683d7b44d74f369ceaddbf2984",
           "regionVersion": 4
         }
       },

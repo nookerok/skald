@@ -105,7 +105,8 @@ describe("first living region", () => {
     const simulation = buildPilotRegionSimulationDefinitions();
     const content = buildPilotRegionContentDefinitions();
     expect(simulation).toHaveLength(8);
-    expect(content).toHaveLength(3);
+    // 3 far landmarks/nodes + 4 local scene details at the crossing.
+    expect(content).toHaveLength(7);
     expect(content).toEqual(expect.arrayContaining([expect.objectContaining({ id: "old_ruins_masonry", locationId: "old_ruins", aliases: expect.arrayContaining(["каменную кладку"]) })]));
     expect(JSON.stringify(simulation)).not.toContain("candidate.blackwood-timber");
     expect(JSON.stringify(simulation)).not.toContain("hypotheses.");

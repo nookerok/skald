@@ -116,7 +116,7 @@ describe("World creation", () => {
     expect(body.ok).toBe(true);
     expect(body.world.templateId).toBe("living_region");
     expect(body.world.entrypointId).toBe("river_waystation_arrival");
-    const events = await api("/api/worlds/new-story-entrypoint-001/events");
+    const events = await api("/api/worlds/new-story-entrypoint-001/events?limit=200");
     expect(events.status).toBe(200);
     expect(events.body.events.some((event: any) => event.type === "KnowledgeAcquired" && event.payload.knowledgeId === "background:keeper")).toBe(true);
     const shell = await api("/api/worlds/new-story-entrypoint-001/game-shell");

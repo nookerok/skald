@@ -896,6 +896,73 @@ compilerProjection:
         - regions.pilot-region.history.f1
         - regions.pilot-region.history.f4
 
+    # Local scene details at the crossing: what "осматриваюсь" should surface
+    # before the wider neighbourhood (plan: local observation first).
+    - id: waystation_fence
+      name: Ограда переправы
+      aliases:
+        - ограда
+        - ограду
+        - оградой
+        - забор
+      description: Столбы ограды покосились, а между ними видна протоптанная тропа к воде.
+      material: wood
+      locationId: river_waystation
+      integrity: 55
+      temperature: 8
+      initialState:
+        contentKind: local_detail
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - id: waystation_boat
+      name: Плоскодонка
+      aliases:
+        - лодка
+        - лодку
+        - лодкой
+        - плоскодонка
+        - челн
+      description: Старая плоскодонка вытащена на берег; борт недавно просмолён заново.
+      material: wood
+      locationId: river_waystation
+      integrity: 72
+      temperature: 8
+      initialState:
+        contentKind: local_detail
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - id: crossing_upper_stones
+      name: Верхние камни переправы
+      aliases:
+        - верхние камни
+        - камни переправы
+        - верхний ряд камней
+      description: Верхний ряд камней переправы то скрывается под водой, то показывается вновь.
+      material: stone
+      locationId: river_waystation
+      integrity: 84
+      temperature: 8
+      initialState:
+        contentKind: local_detail
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+    - id: water_trace_marks
+      name: Следы воды на настиле
+      aliases:
+        - следы воды
+        - настил
+        - настила
+        - мокрый настил
+      description: На настиле остались тёмные следы воды выше обычного уровня.
+      material: water
+      locationId: river_waystation
+      integrity: 100
+      temperature: 8
+      initialState:
+        contentKind: local_detail
+      canonicalRefs:
+        - regions.pilot-region.geography.f5
+
   discoveryDefinitions:
     - id: western_waterfalls
       version: 1
@@ -936,13 +1003,13 @@ compilerProjection:
       subjectIds:
         - old_ruins
       signalKind: structural_trace
-      title: Echoes of an older culture
-      question: Were the ruins built by one older tradition?
+      title: Отзвуки древней культуры
+      question: Не построены ли развалины одной древней традицией?
       summaries:
-        trace: The stonework repeats a pattern you have seen before.
-        hypothesis: The ruins may share a building tradition with distant works.
-        discovered: Independent observations support a shared older building tradition.
-      evidenceText: Masonry joints and alignments repeat across the ruin.
+        trace: Кладка повторяет узор, который ты уже видел.
+        hypothesis: Возможно, развалины делят строительную традицию с далёкими постройками.
+        discovered: Независимые наблюдения подтверждают общую древнюю строительную традицию.
+      evidenceText: Швы и линии кладки повторяются по всему разрушенному строению.
       evidenceRules:
         - id: ancient_culture_traces.support
           subjectRefs:
@@ -970,13 +1037,13 @@ compilerProjection:
       subjectIds:
         - road_city_ruins
       signalKind: physical_trace
-      title: Road without a destination
-      question: What abandoned route once crossed the eastern heights?
+      title: Дорога без назначения
+      question: Какой заброшенный путь когда-то шёл через восточные высоты?
       summaries:
-        trace: The old road continues beyond the settled paths.
-        hypothesis: The road may belong to infrastructure older than the city.
-        discovered: Repeated traces support an abandoned route rather than a natural track.
-      evidenceText: Cut stones and a regular grade mark an older route.
+        trace: Старая дорога уходит дальше обжитых троп.
+        hypothesis: Возможно, дорога — часть построек древнее города.
+        discovered: Повторяющиеся следы говорят скорее о заброшенном пути, чем о природной тропе.
+      evidenceText: Тёсаные камни и ровный уклон отмечают древний путь.
       evidenceRules:
         - id: abandoned_infrastructure.support
           subjectRefs:
@@ -1004,13 +1071,13 @@ compilerProjection:
       subjectIds:
         - river_basin
       signalKind: water_trace
-      title: The river remembers another course
-      question: Did the river once run through a different channel?
+      title: Река помнит другое русло
+      question: Не текла ли река когда-то по другому руслу?
       summaries:
-        trace: Dry cuts remain beside the present river.
-        hypothesis: The basin may preserve an older course.
-        discovered: Independent water traces support a former channel without fixing its cause.
-      evidenceText: Sediment and a dry channel suggest water once moved here.
+        trace: Рядом с нынешней рекой остались сухие протоки.
+        hypothesis: Возможно, в бассейне сохранилось древнее русло.
+        discovered: Независимые следы воды подтверждают прежнее русло, не называя его причину.
+      evidenceText: Наносы и сухая протока говорят, что здесь когда-то двигалась вода.
       evidenceRules:
         - id: river_course_shift.support
           subjectRefs:
@@ -1038,13 +1105,13 @@ compilerProjection:
       subjectIds:
         - old_ruins
       signalKind: structural_trace
-      title: A scar in the stone
-      question: Was the eastern site damaged by conflict?
+      title: Шрам в камне
+      question: Был ли восточный участок повреждён в столкновении?
       summaries:
-        trace: One masonry layer is darker and more damaged than the rest.
-        hypothesis: The damage may have followed a violent event, but fire and weather remain possible.
-        discovered: Repeated evidence supports a damaged layer while leaving its cause unresolved.
-      evidenceText: A darkened masonry layer interrupts the older stonework.
+        trace: Один слой кладки темнее и повреждён сильнее остальных.
+        hypothesis: Повреждение могло остаться от насилия, но возможны и огонь, и непогода.
+        discovered: Повторяющиеся свидетельства подтверждают повреждённый слой, но причина остаётся неясной.
+      evidenceText: Потемневший слой кладки перерезает более древнюю каменную работу.
       evidenceRules:
         - id: conflict_trace.support
           subjectRefs:
@@ -1072,13 +1139,13 @@ compilerProjection:
       subjectIds:
         - blackwood_edge
       signalKind: physical_trace
-      title: The old forest line
-      question: Did the forest once reach farther into the valley?
+      title: Старая граница леса
+      question: Не доходил ли лес когда-то дальше в долину?
       summaries:
-        trace: The vegetation changes along a strangely regular boundary.
-        hypothesis: The boundary may record climate change or older land use.
-        discovered: Independent traces support a former forest line without choosing its cause.
-      evidenceText: Soil and vegetation change beyond the present forest edge.
+        trace: Растительность меняется вдоль подозрительно ровной границы.
+        hypothesis: Граница может хранить след смены климата или древнего землепользования.
+        discovered: Независимые следы подтверждают прежнюю границу леса, не выбирая причину.
+      evidenceText: За нынешней кромкой леса меняются почва и растительность.
       evidenceRules:
         - id: climate_shift.support
           subjectRefs:

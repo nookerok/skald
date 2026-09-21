@@ -26,6 +26,9 @@ function baseFrom(event: DomainEvent) {
   } as const;
 }
 
+/** Local objects one ambient observe may notice (one primary + notable lines). */
+const MAX_LOCAL_OBSERVATION = 4;
+
 /** Physics-law outcome of the perception law (observe + inspect). */
 export const perceptionObserve: Rule<ReadonlyWorld> = {
   id: "perception.observe",
@@ -50,6 +53,30 @@ export const perceptionObserve: Rule<ReadonlyWorld> = {
           description: location.description,
         },
       }];
+      // Local scene details first (plan: local observation before the wider
+      // neighbourhood). Observe-without-a-target notices the objects placed in
+      // this location, bounded, so the master can describe the yard itself.
+      const localObjects = location.objectIds
+        .map((id) => world.objects.get(id))
+        .filter((object): object is NonNullable<typeof object> => object !== undefined)
+        .slice(0, MAX_LOCAL_OBSERVATION);
+      for (let local = 0; local < localObjects.length; local += 1) {
+        const object = localObjects[local]!;
+        events.push({
+          ...baseFrom(event),
+          eventId: ruleEventId(event.eventId, "ObjectObserved", 100 + local),
+          type: "ObjectObserved",
+          payload: {
+            objectId: object.id,
+            name: object.name,
+            description: object.description,
+            material: object.material,
+            temperature: object.temperature,
+            integrity: object.integrity,
+            state: object.state,
+          },
+        });
+      }
       const spatial = world.spatial;
       const spatialLocations = spatial?.locations;
       const spatialLandmarks = spatial?.landmarks;
