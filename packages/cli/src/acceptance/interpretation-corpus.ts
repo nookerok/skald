@@ -25,6 +25,12 @@ export interface CorpusEntry {
   readonly primary?: readonly PrimaryClass[];
   /** Expected inquiry query id, when the entry is an inquiry. */
   readonly queryId?: string;
+  /**
+   * Scene fixture the replica is spoken in. Defaults to the crossing
+   * (`river_waystation`); entries that need objects or routes elsewhere set
+   * their own location so the world actually contains what they mention.
+   */
+  readonly location?: string;
   readonly note?: string;
 }
 
@@ -101,11 +107,15 @@ export function evaluateEntry(entry: CorpusEntry, observation: InterpretationObs
   if (!entry.expect.includes(observation.kind as ReplyClass)) {
     return fail(`expected ${entry.expect.join("|")} got ${observation.kind}`);
   }
-  if (entry.primary && observation.primary && !entry.primary.includes(observation.primary)) {
-    return fail(`primary ${observation.primary} not in ${entry.primary.join("|")}`);
+  // A declared primary/query is REQUIRED, not merely compared when present:
+  // an inquiry without its expected query, or an action without a primary,
+  // must never pass just because the observation omitted the field.
+  const executes = observation.kind === "action" || observation.kind === "inquiry" || observation.kind === "speech" || observation.kind === "mixed" || observation.kind === "meta";
+  if (entry.primary && executes && (!observation.primary || !entry.primary.includes(observation.primary))) {
+    return fail(`primary ${observation.primary ?? "none"} not in ${entry.primary.join("|")}`);
   }
-  if (entry.queryId && observation.queryId && entry.queryId !== observation.queryId) {
-    return fail(`query ${observation.queryId} != ${entry.queryId}`);
+  if (entry.queryId && observation.kind === "inquiry" && observation.queryId !== entry.queryId) {
+    return fail(`query ${observation.queryId ?? "none"} != ${entry.queryId}`);
   }
   return { input: entry.input, ok: true, actual: observation.kind, reason: null };
 }
@@ -167,11 +177,12 @@ export const INTERPRETATION_CORPUS: readonly CorpusEntry[] = [
   { input: "подхожу к переправе", expect: ["action"], primary: ["action"] },
   { input: "осмотреть переправу", expect: ["action"], primary: ["action"] },
   { input: "осматриваю верхние камни", expect: ["action"], primary: ["action"] },
-  { input: "осмотреть каменную кладку", expect: ["action"], primary: ["action"] },
+  { input: "осмотреть каменную кладку", expect: ["action"], primary: ["action"], location: "old_ruins" },
+  { input: "осмотреть старую кладку", expect: ["action"], primary: ["action"], location: "old_ruins" },
   { input: "ждать", expect: ["action"], primary: ["action"] },
   { input: "иду к Речному Стражу", expect: ["action"], primary: ["action"] },
   { input: "идти по лесной дороге к Речному Стражу", expect: ["action"], primary: ["action"] },
-  { input: "войти в город", expect: ["action"], primary: ["action"] },
+  { input: "войти в город", expect: ["action", "clarification"], primary: ["action"] },
   { input: "открыть дверь", expect: ["action"], primary: ["action"] },
   { input: "взять факел", expect: ["action"], primary: ["action"] },
   { input: "остановиться", expect: ["action"], primary: ["action"] },

@@ -43,6 +43,20 @@ describe("interpretation corpus (full-master Stage 1)", () => {
     expect(evaluateEntry(entry, observation({ kind: "inquiry", primary: "inquiry", queryId: "who_is_nearby" })).ok).toBe(false);
   });
 
+  it("fails when a declared primary or query is missing entirely", () => {
+    const inquiry: CorpusEntry = { input: "где я?", expect: ["inquiry"], primary: ["inquiry"], queryId: "current_location" };
+    // An inquiry outcome without its expected query must not pass.
+    expect(evaluateEntry(inquiry, observation({ kind: "inquiry", primary: "inquiry", queryId: null })).ok).toBe(false);
+    // An executable class without any primary must not pass.
+    const action: CorpusEntry = { input: "осматриваюсь", expect: ["action"], primary: ["action"] };
+    expect(evaluateEntry(action, observation({ kind: "action", primary: null })).ok).toBe(false);
+  });
+
+  it("still accepts a declared clarification when the entry allows it", () => {
+    const entry: CorpusEntry = { input: "подхожу к нему", expect: ["action", "clarification"], primary: ["action"] };
+    expect(evaluateEntry(entry, observation({ kind: "clarification", primary: null })).ok).toBe(true);
+  });
+
   it("aggregates a corpus score with failures and generic count", () => {
     const entries: readonly CorpusEntry[] = [
       { input: "осматриваюсь", expect: ["action"] },
