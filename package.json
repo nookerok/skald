@@ -35,6 +35,7 @@
     "acceptance:adventure:live": "node --import tsx packages/cli/src/acceptance/run-live.ts",
     "acceptance:adventure:review": "node --import tsx packages/cli/src/acceptance/run-playtest-review.ts",
     "acceptance:intent:contract": "node --import tsx packages/cli/src/acceptance/run-intent-contract.ts",
+    "acceptance:interpretation:corpus": "node --import tsx packages/cli/src/acceptance/run-interpretation-corpus.ts",
     "browser:smoke": "python3 scripts/browser/smoke.py",
     "start:repl": "node --import tsx packages/cli/src/repl.ts",
     "start:server": "node --import tsx packages/cli/src/server.ts",

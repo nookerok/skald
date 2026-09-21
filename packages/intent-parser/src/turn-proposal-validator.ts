@@ -20,6 +20,16 @@ import {
   type TurnProposalV2,
 } from "./turn-proposal.js";
 
+/** Closed static rejection codes: safe for production diagnostics. */
+export type TurnProposalInvalidCode =
+  | "authority_field"
+  | "shape"
+  | "kind_primary_mismatch"
+  | "question_placement"
+  | "valency"
+  | "referent_membership"
+  | "primary_missing";
+
 /** Static validation outcome for a TurnProposalV2. */
 export type TurnProposalValidation =
   | { readonly status: "accepted"; readonly proposal: TurnProposalV2 }
@@ -36,7 +46,7 @@ export type TurnProposalValidation =
      */
     readonly framedProposal?: FramedProposalCandidate | undefined;
   }
-  | { readonly status: "invalid"; readonly reason: string };
+  | { readonly status: "invalid"; readonly code: TurnProposalInvalidCode; readonly reason: string };
 
 /** Referent slot a clarification choice fills inside a stored proposal. */
 export type AmbiguitySlot = "target" | "addressee" | "destination";
@@ -67,9 +77,16 @@ export function inferAmbiguitySlot(proposal: TurnProposalV2): AmbiguitySlot | nu
  */
 export function validateTurnProposal(raw: unknown): TurnProposalValidation {
   const authority = findAuthorityField(raw);
-  if (authority) return { status: "invalid", reason: `proposal contains authority field: ${authority}` };
+  if (authority) return { status: "invalid", code: "authority_field", reason: `proposal contains authority field: ${authority}` };
   const proposal = parseTurnProposal(raw);
-  if (!proposal) return { status: "invalid", reason: "proposal does not match TurnProposalV2" };
+  if (!proposal) return { status: "invalid", code: "shape", reason: "proposal does not match TurnProposalV2" };
+
+  // A proposal that reports ONLY ambiguity carries a null primaryIntent by
+  // contract; kind consistency must not reject a field the schema allows.
+  if (proposal.primaryIntent === null) {
+    if (proposal.ambiguity) return ambiguityClarification(proposal);
+    return { status: "invalid", code: "primary_missing", reason: "proposal primary intent is missing without ambiguity" };
+  }
 
   const consistency = checkKindConsistency(proposal);
   if (consistency) return consistency;
@@ -80,20 +97,20 @@ export function validateTurnProposal(raw: unknown): TurnProposalValidation {
   const membership = checkReferentMembership(proposal);
   if (membership) return membership;
 
-  if (proposal.ambiguity) {
-    const slot = inferAmbiguitySlot(proposal);
-    return {
-      status: "clarification",
-      question: proposal.ambiguity.question,
-      options: proposal.ambiguity.candidates.map((label, index) => ({ optionId: `option-${index + 1}`, label })),
-      ...(proposal.conversationRelation !== undefined ? { relation: proposal.conversationRelation } : {}),
-      ...(slot ? { framedProposal: { proposal, slot } } : {}),
-    };
-  }
-  if (proposal.primaryIntent === null) {
-    return { status: "invalid", reason: "proposal primary intent is missing without ambiguity" };
-  }
+  if (proposal.ambiguity) return ambiguityClarification(proposal);
   return { status: "accepted", proposal };
+}
+
+/** Maps a reported ambiguity onto a clarification (with its structured slot). */
+function ambiguityClarification(proposal: TurnProposalV2): TurnProposalValidation {
+  const slot = inferAmbiguitySlot(proposal);
+  return {
+    status: "clarification",
+    question: proposal.ambiguity!.question,
+    options: proposal.ambiguity!.candidates.map((label, index) => ({ optionId: `option-${index + 1}`, label })),
+    ...(proposal.conversationRelation !== undefined ? { relation: proposal.conversationRelation } : {}),
+    ...(slot ? { framedProposal: { proposal, slot } } : {}),
+  };
 }
 
 /**
@@ -129,33 +146,33 @@ function checkKindConsistency(proposal: TurnProposalV2): TurnProposalValidation 
   switch (proposal.kind) {
     case "action":
       if (!primary || (primary.kind !== "interaction" && primary.kind !== "journey" && primary.kind !== "legacy")) {
-        return { status: "invalid", reason: "action turn requires an action primary intent" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "action turn requires an action primary intent" };
       }
       return null;
     case "inquiry":
       if (!primary || primary.kind !== "inquiry") {
-        return { status: "invalid", reason: "inquiry turn requires an inquiry primary intent" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "inquiry turn requires an inquiry primary intent" };
       }
       return null;
     case "speech":
       if (!primary || primary.kind !== "speech") {
-        return { status: "invalid", reason: "speech turn requires a speech primary intent with utterance" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "speech turn requires a speech primary intent with utterance" };
       }
       return null;
     case "mixed":
       if (!primary || (primary.kind !== "interaction" && primary.kind !== "journey" && primary.kind !== "legacy")) {
-        return { status: "invalid", reason: "mixed turn requires one executable action primary intent" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "mixed turn requires one executable action primary intent" };
       }
       if (!proposal.question && proposal.supportingClauses.length === 0) {
-        return { status: "invalid", reason: "mixed turn requires a question or supporting clause" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "mixed turn requires a question or supporting clause" };
       }
       return null;
     case "meta":
       if (!primary || primary.kind !== "meta") {
-        return { status: "invalid", reason: "meta turn requires a registered meta operation" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "meta turn requires a registered meta operation" };
       }
       if (proposal.supportingClauses.length > 0) {
-        return { status: "invalid", reason: "meta turn carries no supporting clauses" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "meta turn carries no supporting clauses" };
       }
       return null;
   }
@@ -165,7 +182,7 @@ function checkKindConsistency(proposal: TurnProposalV2): TurnProposalValidation 
 function checkQuestionPlacement(proposal: TurnProposalV2): TurnProposalValidation | null {
   if (!proposal.question) return null;
   if (proposal.kind === "mixed" || proposal.kind === "inquiry") return null;
-  return { status: "invalid", reason: "question is allowed only for mixed or inquiry turns" };
+  return { status: "invalid", code: "question_placement", reason: "question is allowed only for mixed or inquiry turns" };
 }
 
 /** Enforces target valency for interaction verbs and legacy operations. */
@@ -175,10 +192,10 @@ function checkTargetValency(proposal: TurnProposalV2): TurnProposalValidation | 
   if (proposal.kind !== "action" && proposal.kind !== "mixed") return null;
   if (primary.kind === "journey") {
     if (!primary.destination.surface.trim()) {
-      return { status: "invalid", reason: "journey destination is missing" };
+      return { status: "invalid", code: "valency", reason: "journey destination is missing" };
     }
     if (primary.destination.role !== "destination") {
-      return { status: "invalid", reason: "journey destination must use the destination role" };
+      return { status: "invalid", code: "valency", reason: "journey destination must use the destination role" };
     }
     return null;
   }
@@ -189,13 +206,13 @@ function checkTargetValency(proposal: TurnProposalV2): TurnProposalValidation | 
   // Operations without canonical valency stay compatible (mirrors V1).
   if (valency === undefined) return null;
   if (proposal.target && proposal.target.role !== "target") {
-    return { status: "invalid", reason: "turn target must use the target role" };
+    return { status: "invalid", code: "valency", reason: "turn target must use the target role" };
   }
   if (valency === "forbidden" && proposal.target) {
-    return { status: "invalid", reason: "action forbids a target" };
+    return { status: "invalid", code: "valency", reason: "action forbids a target" };
   }
   if (valency === "required" && !proposal.target) {
-    return { status: "invalid", reason: "action requires a target" };
+    return { status: "invalid", code: "valency", reason: "action requires a target" };
   }
   return null;
 }
@@ -222,14 +239,14 @@ function checkReferentMembership(proposal: TurnProposalV2): TurnProposalValidati
     if (!referent?.observerRef) continue;
     const declared = table.get(referent.observerRef);
     if (declared === undefined) {
-      return { status: "invalid", reason: `referent ${referent.observerRef} is not declared` };
+      return { status: "invalid", code: "referent_membership", reason: `referent ${referent.observerRef} is not declared` };
     }
     if (declared !== referent.surface) {
-      return { status: "invalid", reason: `referent ${referent.observerRef} surface mismatch` };
+      return { status: "invalid", code: "referent_membership", reason: `referent ${referent.observerRef} surface mismatch` };
     }
   }
   if (proposal.addressedEntity && proposal.addressedEntity.role !== "addressee") {
-    return { status: "invalid", reason: "addressed entity must use the addressee role" };
+    return { status: "invalid", code: "referent_membership", reason: "addressed entity must use the addressee role" };
   }
   return null;
 }

@@ -407,3 +407,32 @@ describe("inferAmbiguitySlot (review P1)", () => {
     expect((result.framedProposal?.proposal as { target?: { surface?: string } })?.target?.surface).toBe("ней");
   });
 });
+
+describe("static rejection codes (full-master Stage 1c)", () => {
+  const base = {
+    schemaVersion: 2,
+    kind: "action",
+    primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваюсь" },
+    supportingClauses: [],
+    referents: [],
+  };
+
+  it("labels each failure class with a closed code", () => {
+    expect(validateTurnProposal({ ...base, nope: true })).toMatchObject({ status: "invalid", code: "shape" });
+    expect(validateTurnProposal({ ...base, success: true })).toMatchObject({ status: "invalid", code: "authority_field" });
+    expect(validateTurnProposal({ ...base, kind: "inquiry" })).toMatchObject({ status: "invalid", code: "kind_primary_mismatch" });
+    expect(validateTurnProposal({ ...base, question: { queryId: "visible_scene" } })).toMatchObject({ status: "invalid", code: "question_placement" });
+    expect(validateTurnProposal({ ...base, primaryIntent: { kind: "legacy", operation: "approach", sourceText: "подхожу" } })).toMatchObject({ status: "invalid", code: "valency" });
+    expect(validateTurnProposal({ ...base, target: { role: "target", observerRef: "object_1", surface: "реку" } })).toMatchObject({ status: "invalid", code: "referent_membership" });
+    expect(validateTurnProposal({ ...base, primaryIntent: null, ambiguity: { kind: "action", question: "Что именно?", candidates: ["осмотреться", "идти"] } })).toMatchObject({ status: "clarification" });
+  });
+
+  it("keeps every code inside the closed set", () => {
+    const codes = new Set(["authority_field", "shape", "kind_primary_mismatch", "question_placement", "valency", "referent_membership", "primary_missing"]);
+    for (const bad of [{ ...base, nope: true }, { ...base, success: true }, { ...base, kind: "inquiry" }]) {
+      const result = validateTurnProposal(bad);
+      expect(result.status).toBe("invalid");
+      if (result.status === "invalid") expect(codes.has(result.code)).toBe(true);
+    }
+  });
+});

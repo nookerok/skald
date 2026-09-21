@@ -197,7 +197,9 @@ export function buildMasterTurnSceneContext(
     if (reference) objectRefById.set(reference.internalId, referent.observerRef);
   }
 
-  const knownPeople: MasterSceneReferent[] = guidance.knownContacts.map((contact, index) => {
+  // Presence, not acquaintance: only contacts whose own evidence places them
+  // at the current location may be addressed or answered as "nearby".
+  const knownPeople: MasterSceneReferent[] = guidance.presentContacts.map((contact, index) => {
     const observerRef = `person_${index + 1}`;
     claimRef(observerRef, { kind: "person", internalId: contact.id, label: contact.label });
     return freeze({

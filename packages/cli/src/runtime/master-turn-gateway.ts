@@ -1192,6 +1192,7 @@ export async function interpretMasterTurn(
       category: "proposal_schema_rejected",
       outcome: "invalid",
       phase: "schema_validation",
+      failureCategory: staticCheck.code,
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
@@ -1289,7 +1290,7 @@ function repairNoteFor(raw: unknown): string | null {
   }
   const check = validateTurnProposal(parsed);
   if (check.status === "invalid") {
-    return `Your previous reply was rejected (${check.reason}). Return ONLY corrected TurnProposalV2 JSON with the exact top-level keys.`;
+    return `Your previous reply was rejected (${check.code}: ${check.reason}). Return ONLY corrected TurnProposalV2 JSON with the exact top-level keys.`;
   }
   return null;
 }

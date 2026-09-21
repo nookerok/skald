@@ -50,6 +50,15 @@ describe("master turn prompt contract", () => {
     }
   });
 
+  it("states the literal optional-field and placement contract (full-master Stage 1b)", () => {
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("Required top-level keys, ALWAYS present");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("OMIT an optional key when unused");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("never send null");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("allowed only on mixed and");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("role destination");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("role addressee");
+  });
+
   it("packs context into the master_turn envelope with a conversationContext", () => {
     const prompt = buildMasterTurnPrompt({ playerText: "подхожу к ограде", scene: SCENE, conversation: CONVERSATION });
     const block = JSON.parse(prompt.user) as Record<string, unknown>;

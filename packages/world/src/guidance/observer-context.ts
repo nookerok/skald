@@ -33,7 +33,10 @@ export interface AccessibleItem {
 
 export interface ObserverGuidanceContext {
   readonly observedObjects: readonly ObservedObject[];
+  /** Contacts the player knows (relation, memory, testimony) — not presence. */
   readonly knownContacts: readonly KnownContact[];
+  /** Known contacts whose own contact evidence places them at the current location. */
+  readonly presentContacts: readonly KnownContact[];
   readonly knownRoutes: readonly KnownRoute[];
   readonly activeSituation: SituationView | null;
   readonly accessibleItems: readonly AccessibleItem[];
@@ -276,14 +279,26 @@ function buildLocalSituation(
   return null;
 }
 
+/**
+ * Known contacts that are actually HERE: their own contact evidence places
+ * them at the player's current location. Acquaintance alone never proves
+ * presence, so an NPC named at the crossing does not follow the player to
+ * the city. Pure and total.
+ */
+function buildPresentContacts(world: ReadonlyWorld, known: readonly KnownContact[]): readonly KnownContact[] {
+  return freeze(known.filter((contact) => world.entities.get(contact.id)?.components.contact?.locationId === world.currentLocationId));
+}
+
 export function buildObserverGuidanceContext(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
   narrativeContext?: NarrativeAdapterContext | null,
 ): ObserverGuidanceContext {
+  const knownContacts = buildKnownContacts(world, narrativeContext);
   return freeze({
     observedObjects: buildObservedObjects(events, world),
-    knownContacts: buildKnownContacts(world, narrativeContext),
+    knownContacts,
+    presentContacts: buildPresentContacts(world, knownContacts),
     knownRoutes: buildKnownRoutes(world),
     activeSituation: buildLocalSituation(events, world, narrativeContext),
     accessibleItems: buildAccessibleItems(world),
