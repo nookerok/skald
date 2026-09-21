@@ -1,3 +1,23 @@
+# Current work (2026-09-21 — mixed-reply duplication fixed and deployed as 12167a3)
+
+- Reported defect: «осматриваюсь, что я вижу?» rendered the location line three
+  times, then the local objects a second time once narration arrived.
+- Fix 1 (`607d74f`): `buildVisibleScene` dedupes its observer-safe parts (its
+  `lastTurn.primary.text` was normally the same location line), and the mixed
+  composer collapses exact-duplicate sentences. Live-verified: the location line
+  now appears once.
+- Fix 2 (`12167a3`): the chat feed suppresses the raw notable/background lines
+  while a READY narration is the master replica, so the scene is not described
+  twice (narration + raw). Pending/unavailable narration keeps the raw lines.
+- Orange Pi updater fast-forwarded to `12167a3`: `npm run validate` PASS,
+  health gate PASS, AI readiness `degraded but playable`, live intent/narration
+  contract PASS. `main == origin/main`.
+- Live browser check on scratch world `world-b5b8ff2a`: Ход 8, primary carries
+  the location once; narration was still pending so the raw notable lines showed
+  (expected); both fixes in place.
+- Open: the 30–60 min human playtest, and the browser `visual` verdict stays
+  blocked (screenshot capability unavailable in the Traycer session).
+
 # Current work (2026-09-21 — AI-master next tickets deployed as a56c741; CLOSED)
 
 - Seven tickets from the `ai-master-next` story closed and pushed:
