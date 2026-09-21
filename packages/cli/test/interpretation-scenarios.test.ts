@@ -18,7 +18,7 @@ describe("sequential interpretation scenarios (full-master Stage 1)", () => {
     expect(classifyCommandResponse({ statusCode: 200, body: { ok: true, conversationTurn: { responseKind: "mixed_outcome" } } }))
       .toMatchObject({ kind: "mixed", primary: "action" });
     expect(classifyCommandResponse({ statusCode: 200, body: { ok: true, conversationTurn: { responseKind: "speech_reaction" } } }))
-      .toMatchObject({ kind: "speech", primary: "action" });
+      .toMatchObject({ kind: "speech", primary: "speech" });
     expect(classifyCommandResponse({ statusCode: 200, body: { ok: true, conversationTurn: { responseKind: "action_outcome" } } }))
       .toMatchObject({ kind: "action", primary: "action" });
   });

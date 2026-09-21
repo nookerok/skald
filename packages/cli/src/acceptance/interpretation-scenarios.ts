@@ -96,7 +96,7 @@ export function classifyCommandResponse(response: { readonly statusCode: number;
   const turn = (body.conversationTurn ?? {}) as Record<string, unknown>;
   const responseKind = typeof turn.responseKind === "string" ? turn.responseKind : null;
   if (responseKind === "mixed_outcome") return { status: status ?? "ok", kind: "mixed", primary: "action", queryId: null, genericFallback: false };
-  if (responseKind === "speech_reaction") return { status: status ?? "ok", kind: "speech", primary: "action", queryId: null, genericFallback: false };
+  if (responseKind === "speech_reaction") return { status: status ?? "ok", kind: "speech", primary: "speech", queryId: null, genericFallback: false };
   if (responseKind === "action_outcome" || responseKind === "action_rejection") return { status: status ?? "ok", kind: "action", primary: "action", queryId: null, genericFallback: false };
   return unavailable(status ?? "unknown");
 }

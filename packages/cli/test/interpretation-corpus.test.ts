@@ -85,5 +85,10 @@ describe("interpretation corpus (full-master Stage 1)", () => {
       plan: { kind: "mixed", execution: { intent: { type: "InteractionCommand" } }, postActionInquiries: [{ queryId: "visible_scene" }] },
       scene: {},
     } as never)).toMatchObject({ kind: "mixed", primary: "action", queryId: "visible_scene" });
+    expect(classifyOutcome({
+      status: "plan",
+      plan: { kind: "speech", execution: { intent: { type: "ActionIntentCommand" } }, postActionInquiries: [] },
+      scene: {},
+    } as never)).toMatchObject({ kind: "speech", primary: "speech" });
   });
 });

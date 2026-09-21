@@ -84,9 +84,13 @@ export function classifyOutcome(outcome: MasterTurnGatewayOutcome): Interpretati
     case "plan": {
       const plan = outcome.plan;
       const kind = plan.kind as ReplyClass;
-      const primary: PrimaryClass | null = plan.execution
-        ? primaryOf(plan.execution.intent as { type: string })
-        : kind === "inquiry" ? "inquiry" : kind === "meta" ? "meta" : null;
+      // A speech turn executes through a speak command, but its PRIMARY class
+      // is speech, not action; mixed stays action-led.
+      const primary: PrimaryClass | null = kind === "speech"
+        ? "speech"
+        : plan.execution
+          ? primaryOf(plan.execution.intent as { type: string })
+          : kind === "inquiry" ? "inquiry" : kind === "meta" ? "meta" : null;
       return { status: outcome.status, kind, primary, queryId: plan.postActionInquiries[0]?.queryId ?? null, genericFallback: false };
     }
     case "unsupported":
@@ -237,7 +241,7 @@ export const INTERPRETATION_CORPUS: readonly CorpusEntry[] = [
   { input: "поболтаем?", expect: ["speech", "clarification"], primary: ["speech"] },
 
   // --- deliberately ambiguous / garbage ---------------------------------
-  { input: "сделай что-нибудь полезное", expect: ["clarification"], note: "no concrete intent" },
+  { input: "сделай что-нибудь полезное", expect: ["meta", "clarification"], note: "a request for available actions is a fair meta reading" },
   { input: "это", expect: ["clarification"], note: "no referent" },
   { input: "абракадабра", expect: ["clarification"], note: "garbage" },
   { input: "квк квк", expect: ["clarification"], note: "garbage" },
