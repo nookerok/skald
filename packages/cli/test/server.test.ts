@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createPoisonExitScheduler, isLoopbackRequest, startServer } from "../src/http-server.js";
 import { decideAiAcceptance } from "../deploy/ai-acceptance.js";
+import { decideIntentAcceptance } from "../deploy/intent-acceptance.js";
 import { EventEmitter } from "node:events";
 import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
 import { LLM_CONFIG } from "@skald/world";
@@ -378,6 +379,47 @@ describe("HTTP Server", () => {
       expect(decideAiAcceptance(body)).toEqual({ accepted: true, status: "ready", playable: true });
     } finally {
       await acceptServer.close();
+    }
+  });
+
+  it("gates the live intent contract on loopback and fails without a provider", async () => {
+    const probeRouter = {
+      chat: vi.fn(async (category: "interpret" | "narrate") => ({
+        text: category === "narrate"
+          ? "Тихая переправа ждёт рассвета."
+          : JSON.stringify({ schemaVersion: 2, kind: "action", primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваюсь" }, supportingClauses: [], referents: [] }),
+      })),
+    };
+    const contractServer = await startServer({ host: "127.0.0.1", port: 0, dbPath: join(dbDir, "intent-probe.sqlite"), router: probeRouter as any });
+    try {
+      const response = await fetch(`${contractServer.url}/api/ops/intent-probe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json() as any;
+      expect(body.ok).toBe(true);
+      expect(body.contract.phrases).toHaveLength(3);
+      expect(decideIntentAcceptance(body).accepted).toBe(true);
+      expect(JSON.stringify(body)).not.toMatch(/key|eventId|worldId/i);
+    } finally {
+      await contractServer.close();
+    }
+
+    const noModel = await startServer({ host: "127.0.0.1", port: 0, dbPath: join(dbDir, "intent-probe-none.sqlite"), router: null });
+    try {
+      const response = await fetch(`${noModel.url}/api/ops/intent-probe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      expect(response.status).toBe(503);
+      const body = await response.json() as any;
+      expect(body.ok).toBe(false);
+      expect(decideIntentAcceptance(body).accepted).toBe(false);
+    } finally {
+      await noModel.close();
     }
   });
 

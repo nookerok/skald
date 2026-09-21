@@ -80,6 +80,18 @@ branch, cleanliness, and service identity. Abort on any mismatch.
 
    Require the remote commit to equal the pushed commit.
 
+   The updater/installer also run the loopback live intent/narration contract
+   probe (`/api/ops/intent-probe`, read-only, no world mutation). A failure is
+   an incomplete deployment. To check manually:
+
+   ```bash
+   curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' \
+     http://127.0.0.1:3000/api/ops/intent-probe
+   ```
+
+   or run `npm run acceptance:intent:contract` locally against the configured
+   providers.
+
 ## Install workflow
 
 Use installation only when `/home/nooker/skald` or the systemd deployment is

@@ -6,6 +6,7 @@ SKALD_DATA="/home/nooker/skald-data"
 BACKUP_DIR="${SKALD_DATA}/backups"
 DB="${SKALD_DATA}/events.sqlite"
 AI_PROBE_URL="http://127.0.0.1:3000/api/ops/ai-probe"
+INTENT_PROBE_URL="http://127.0.0.1:3000/api/ops/intent-probe"
 NODE_BINARY="/home/nooker/.nvm/versions/node/v22.23.1/bin/node"
 NODE_BIN_DIR="$(dirname "${NODE_BINARY}")"
 
@@ -220,6 +221,26 @@ else
   echo "Current commit: ${CURRENT_COMMIT}"
   echo "Sanitized readiness report: ${AI_BODY}"
   echo "Rollback guidance: inspect model/configuration and restore ${PREV_COMMIT} only if the deployed code is incompatible."
+  restore_agent_manifest
+  exit 1
+fi
+
+# 11b. The master-turn contract. AI readiness alone never proves the deployed
+# providers can understand and answer a live phrase. The intent probe runs the
+# plan's three live phrases read-only (no world mutation) plus one narration
+# round-trip; a failure means the deployment is incomplete.
+echo "Checking live intent/narration contract (loopback probe)..."
+INTENT_RESPONSE=$(curl --silent --show-error --max-time 120 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' "${INTENT_PROBE_URL}" 2>&1 || true)
+INTENT_HTTP_STATUS="${INTENT_RESPONSE##*$'\n'}"
+INTENT_BODY="${INTENT_RESPONSE%$'\n'*}"
+if INTENT_GATE_OUT=$(printf '%s' "${INTENT_BODY}" | node --import tsx "${SKALD_CODE}/packages/cli/deploy/intent-acceptance.ts"); then
+  echo "[OK] ${INTENT_GATE_OUT}"
+else
+  echo "[ERROR] ${INTENT_GATE_OUT:-intent contract gate failed} (HTTP ${INTENT_HTTP_STATUS})"
+  echo "Deployment acceptance: FAILED"
+  echo "Previous commit: ${PREV_COMMIT}"
+  echo "Current commit: ${CURRENT_COMMIT}"
+  echo "Sanitized contract report: ${INTENT_BODY}"
   restore_agent_manifest
   exit 1
 fi

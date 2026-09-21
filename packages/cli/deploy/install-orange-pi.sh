@@ -184,6 +184,23 @@ else
   exit 1
 fi
 
+# 13. Master-turn contract gate: readiness alone never proves the deployed
+# providers can understand and answer a live phrase. The intent probe runs the
+# plan's three live phrases read-only plus one narration round-trip; a failure
+# is an incomplete installation.
+echo "Checking live intent/narration contract (loopback probe)..."
+INTENT_RESPONSE=$(curl --silent --show-error --max-time 120 -X POST -H "Content-Type: application/json" -d '{}' -w $'\n%{http_code}' http://127.0.0.1:3000/api/ops/intent-probe 2>&1 || true)
+INTENT_HTTP_STATUS="${INTENT_RESPONSE##*$'\n'}"
+INTENT_BODY="${INTENT_RESPONSE%$'\n'*}"
+if INTENT_GATE_OUT=$(printf '%s' "${INTENT_BODY}" | node --import tsx "${SKALD_CODE}/packages/cli/deploy/intent-acceptance.ts"); then
+  echo "[OK] ${INTENT_GATE_OUT}"
+else
+  echo "[ERROR] ${INTENT_GATE_OUT:-intent contract gate failed} (HTTP ${INTENT_HTTP_STATUS})"
+  echo "Deployment acceptance: FAILED"
+  echo "Sanitized contract report: ${INTENT_BODY}"
+  exit 1
+fi
+
 echo ""
 echo "=== Installation complete ==="
 echo "curl http://127.0.0.1:3000/api/health"

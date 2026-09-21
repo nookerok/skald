@@ -65,6 +65,23 @@ describe("Orange Pi non-interactive restart policy", () => {
     expect(installer.indexOf("Deployment acceptance: FAILED")).toBeLessThan(installer.indexOf("Installation complete"));
   });
 
+  it("gates deployment on the live intent/narration contract", () => {
+    const installer = read("packages/cli/deploy/install-orange-pi.sh");
+    const updater = read("packages/cli/deploy/update-orange-pi.sh");
+
+    for (const script of [installer, updater]) {
+      // Readiness alone never proves the master can carry a turn: the intent
+      // probe runs the plan's three live phrases plus narration, and a failure
+      // is an incomplete deployment. The verdict is the tested fail-closed
+      // intent-acceptance helper. See intent-acceptance.test.ts.
+      expect(script).toContain("/api/ops/intent-probe");
+      expect(script).toContain("packages/cli/deploy/intent-acceptance.ts");
+      expect(script).toContain("node --import tsx");
+    }
+    expect(updater.indexOf("intent-acceptance.ts")).toBeLessThan(updater.indexOf("Update complete."));
+    expect(installer.indexOf("intent-acceptance.ts")).toBeLessThan(installer.indexOf("Installation complete"));
+  });
+
   it("keeps HOME fully read-only: the isolated transport needs no home writes", () => {
     const unit = read("packages/cli/deploy/skald.service");
 

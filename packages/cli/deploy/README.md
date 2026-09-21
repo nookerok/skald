@@ -132,6 +132,17 @@ fail acceptance. With `SKALD_AI_REQUIRED=0`, deterministic fallback
 keeps the server usable but an AI readiness failure is not deployment
 acceptance.
 
+`POST http://127.0.0.1:3000/api/ops/intent-probe` is loopback-only, read-only
+and never creates a world or writes the Event Log. It runs the plan's three
+live phrases ("я осматриваюсь", "подхожу к ограде", "подхожу к ограде и
+осматриваю двор, что я вижу?") through the real master-turn gateway plus one
+narration round-trip, and returns 200 only when every phrase resolves without a
+generic fallback and narration answers. Install/update acceptance delegates the
+verdict to the tested `packages/cli/deploy/intent-acceptance.ts` helper reading
+`contract.pass`; readiness alone is not enough — a provider that cannot carry a
+turn fails the deploy. Run it manually with `npm run acceptance:intent:contract`
+(Traycer/opencode sessions can use the same probe as an opt-in check).
+
 ## Daily model re-discovery
 
 Startup discovery runs once before the server accepts requests. After that a
@@ -194,7 +205,12 @@ The update script:
     the `ai-acceptance.ts` helper (the endpoint answers HTTP 200 only for
     `ready`); it accepts `ready` or `degraded` with both routes live and
     exits non-zero on `unavailable`, `misconfigured`, a dead route or an
-    unparsable probe, printing `Update complete` only after acceptance
+    unparsable probe
+11. Runs the loopback live intent/narration contract probe and feeds the
+    sanitized body to the `intent-acceptance.ts` helper; it exits non-zero
+    when the plan's three live phrases do not resolve without a generic
+    fallback or narration does not answer, printing `Update complete` only
+    after both gates pass
 
 > **Do not run update-orange-pi.sh with sudo.** It refuses root.
 

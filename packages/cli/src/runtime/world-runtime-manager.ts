@@ -3,6 +3,9 @@ import { RuleRegistry, RuleEngine, type CommitContext } from "@skald/rule-engine
 import {
   WorldProjector,
   bootstrapWorldEvents,
+  buildBootstrapEvents,
+  buildMasterTurnSceneContext,
+  rebuildProjection,
   LLM_CONFIG,
   ModelRouter,
   createRules,
@@ -22,6 +25,9 @@ import { AIReadinessService } from "./ai-readiness.js";
 import { DiscoveryRefresher, type DiscoveryRefreshEvent } from "./discovery-refresh.js";
 import { createRouterConfiguration, type RouterConfiguration } from "./router-factory.js";
 import type { AIReadinessReport } from "@skald/world";
+import { probeLiveIntentContract, type LiveIntentContractReport } from "../acceptance/live-intent-contract.js";
+import { buildMasterConversationContext } from "../conversation/context-builder.js";
+import type { MasterTurnSnapshot } from "./master-turn-gateway.js";
 
 export interface WorldRuntime {
   worldId: WorldId;
@@ -84,6 +90,36 @@ export class WorldRuntimeManager {
   /** Return the most recent probe without invoking a provider. */
   cachedAIReadiness(): AIReadinessReport | null {
     return this.readiness.cached();
+  }
+
+  private liveContractSnapshot: MasterTurnSnapshot | null = null;
+
+  /** Read-only living-region snapshot for the live contract probe (cached). */
+  private liveContractSnapshotFor(): MasterTurnSnapshot {
+    if (!this.liveContractSnapshot) {
+      const events = buildBootstrapEvents("living_region");
+      const world = rebuildProjection(events).getSnapshot();
+      this.liveContractSnapshot = {
+        events,
+        world,
+        scene: buildMasterTurnSceneContext(events, world),
+        conversation: buildMasterConversationContext([], "live-contract"),
+      };
+    }
+    return this.liveContractSnapshot;
+  }
+
+  /**
+   * Read-only live intent/narration contract probe (plan: real acceptance).
+   * Runs the plan's three live phrases through the real gateway and one
+   * narration round-trip. It never creates a world or mutates the Event Log.
+   */
+  liveIntentContract(timeoutMs?: number): Promise<LiveIntentContractReport> {
+    return probeLiveIntentContract(
+      this.liveContractSnapshotFor(),
+      this.sharedRouter,
+      timeoutMs !== undefined ? { timeoutMs } : undefined,
+    );
   }
 
   /**

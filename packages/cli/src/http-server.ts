@@ -266,6 +266,13 @@ export async function startServer(options?: {
         handle(report.status === "ready" ? 200 : 503, { ok: report.status === "ready", readiness: report });
         return;
       }
+      if (url.pathname === "/api/ops/intent-probe") {
+        if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
+        if (method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
+        const report = await runtimes.liveIntentContract();
+        handle(report.pass ? 200 : 503, { ok: report.pass, contract: report });
+        return;
+      }
       if (url.pathname === "/api/ops/ai-readiness") {
         if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
         if (method !== "GET") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }
