@@ -244,12 +244,17 @@ function turnNode(turn, conversationTurn = null) {
   if (narrationState === "pending") {
     node.appendChild(makeNode("p", { className: "chat-narration-status", text: "МАСТЕР дополняет эту запись…", attrs: { role: "status", "aria-live": "polite" } }));
   }
-  for (const entry of (presentation.notable || []).slice(0, 2)) {
-    node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
-  }
-  const background = (presentation.background || []).slice(0, 3).map((entry) => entry.text).filter(Boolean);
-  if (background.length) {
-    node.appendChild(makeNode("p", { className: "chat-background", text: background.join(" · ") }));
+  // When a ready narration is the master replica, the raw deterministic
+  // notable/background lines would repeat the same facts in a second voice;
+  // they stay only while narration is pending/unavailable.
+  if (!merged.narrated) {
+    for (const entry of (presentation.notable || []).slice(0, 2)) {
+      node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
+    }
+    const background = (presentation.background || []).slice(0, 3).map((entry) => entry.text).filter(Boolean);
+    if (background.length) {
+      node.appendChild(makeNode("p", { className: "chat-background", text: background.join(" · ") }));
+    }
   }
   return node;
 }
@@ -341,13 +346,16 @@ function chainTurnNode(unit) {
   if (turns.some((turn) => turn.narrationState === "pending")) {
     node.appendChild(makeNode("p", { className: "chat-narration-status", text: "МАСТЕР дополняет эту запись…", attrs: { role: "status", "aria-live": "polite" } }));
   }
-  const notable = turns.flatMap((turn) => (turn.presentation && turn.presentation.notable) || []).slice(0, 2);
-  for (const entry of notable) {
-    node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
-  }
-  const background = turns.flatMap((turn) => (turn.presentation && turn.presentation.background) || []).slice(0, 3).map((entry) => entry.text).filter(Boolean);
-  if (background.length) {
-    node.appendChild(makeNode("p", { className: "chat-background", text: background.join(" · ") }));
+  // A ready narration replaces the deterministic notable/background lines too.
+  if (!narratedText) {
+    const notable = turns.flatMap((turn) => (turn.presentation && turn.presentation.notable) || []).slice(0, 2);
+    for (const entry of notable) {
+      node.appendChild(makeNode("p", { className: "chat-notable", text: entry.text }));
+    }
+    const background = turns.flatMap((turn) => (turn.presentation && turn.presentation.background) || []).slice(0, 3).map((entry) => entry.text).filter(Boolean);
+    if (background.length) {
+      node.appendChild(makeNode("p", { className: "chat-background", text: background.join(" · ") }));
+    }
   }
   return node;
 }

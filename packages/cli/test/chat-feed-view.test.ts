@@ -111,6 +111,25 @@ describe("Chronicle Feed (ADR-0024) — chat core", () => {
     expect(allText(doc.feed)).not.toContain("Ты осматриваешь двор.");
   });
 
+  it("suppresses raw notable/background lines once narration is ready", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const item = turn(5, "Ты осматриваешь двор.");
+    item.narrativeLLM = { text: "Двор открывается в вечернем свете; у ограды сыро.", usedFallback: false };
+    item.presentation.notable = [{ text: "Столбы ограды покосились." }];
+    item.presentation.background = [{ text: "Следы воды на настиле." }];
+    renderChatFeed([item], []);
+    const classes = doc.feed.children[0].children.map((child) => child.className);
+    expect(classes).toContain("chat-world-narrated");
+    expect(classes).not.toContain("chat-notable");
+    expect(classes).not.toContain("chat-background");
+
+    const pending = turn(6, "Ты осматриваешь двор.");
+    pending.narrationState = "pending";
+    pending.presentation.notable = [{ text: "Столбы ограды покосились." }];
+    renderChatFeed([pending], []);
+    expect(doc.feed.children[0].children.map((child) => child.className)).toContain("chat-notable");
+  });
+
   it("renders a single bubble when narration duplicates the outcome", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const item = turn(5, "Перед тобой нет свободного прохода.");
