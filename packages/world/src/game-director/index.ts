@@ -48,6 +48,8 @@ export {
   ensureGameMomentum,
   hasGameMomentum,
 } from "./continuation.js";
+export { buildMasterBrief, MASTER_BRIEF_MAX_CHARS, MASTER_BRIEF_MAX_LEADS } from "./brief.js";
+export type { MasterBrief, MasterBriefInput, MasterBriefJourney, MasterBriefLabel } from "./brief.js";
 export {
   GAME_NARRATION_MAX_CHARS,
   GAME_NARRATION_MAX_SENTENCES,

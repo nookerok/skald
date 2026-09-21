@@ -56,6 +56,15 @@ function director(): GameDirectorContext {
       changeAfterActions: OUTCOME,
       completionCondition: null,
     },
+    masterBrief: {
+      whatJustHappened: OUTCOME,
+      whatChanged: OUTCOME,
+      whoReacted: null,
+      whatIsUrgent: null,
+      whatRemainsUncertain: null,
+      availableLeads: ["проверить путь к «Речной Страж»"],
+      personalConnection: "найти стража",
+    },
   };
 }
 

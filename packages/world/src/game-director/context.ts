@@ -19,6 +19,7 @@ import type { MasterTurnSceneContext } from "../master-turn/observer-context.js"
 import type { NarrativeAdapterContext } from "../setup/background-context.js";
 import { consequenceLabel } from "../game-shell/player-facing.js";
 import { buildSceneRhythm, type SceneRhythm } from "./scene-rhythm.js";
+import { buildMasterBrief, type MasterBrief } from "./brief.js";
 
 /** Bounds: the director window stays inside the 8–12 replica plan range. */
 export const GAME_DIRECTOR_MAX_LIST = 8;
@@ -124,6 +125,8 @@ export interface GameDirectorContext {
   readonly journeyState: GameDirectorJourney;
   readonly unresolvedPersonalHook: string | null;
   readonly sceneRhythm: SceneRhythm;
+  /** Deterministic selection of what matters now (plan P2). */
+  readonly masterBrief: MasterBrief;
 }
 
 /**
@@ -422,6 +425,19 @@ export function buildGameDirectorContext(
     ...(opportunityCandidate ? { opportunityCandidate } : {}),
   });
 
+  const masterBrief = buildMasterBrief({
+    sceneRhythm,
+    journey: journeyState,
+    knownContacts,
+    availableRoutes,
+    accessibleItems: accessibleItemsAndAffordances,
+    recentConsequences,
+    knownUncertainties,
+    lastMasterText: lastTurns.filter((turn) => turn.speaker === "master").at(-1)?.text ?? null,
+    pendingQuestion: pending?.question ?? null,
+    personalHook: unresolvedPersonalHook,
+  });
+
   return freeze({
     characterBackground,
     currentScene,
@@ -439,5 +455,6 @@ export function buildGameDirectorContext(
     journeyState,
     unresolvedPersonalHook,
     sceneRhythm,
+    masterBrief,
   });
 }

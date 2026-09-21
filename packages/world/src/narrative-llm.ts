@@ -698,6 +698,15 @@ export function gameDirectorPromptSlice(director: GameDirectorContext): Record<s
     pendingClarification: director.pendingClarification,
     journeyState: { status: director.journeyState.status, text: director.journeyState.text },
     sceneRhythm: director.sceneRhythm,
+    masterBrief: {
+      whatJustHappened: director.masterBrief.whatJustHappened,
+      whatChanged: director.masterBrief.whatChanged,
+      whoReacted: director.masterBrief.whoReacted,
+      whatIsUrgent: director.masterBrief.whatIsUrgent,
+      whatRemainsUncertain: director.masterBrief.whatRemainsUncertain,
+      availableLeads: [...director.masterBrief.availableLeads],
+      personalConnection: director.masterBrief.personalConnection,
+    },
     knownContacts: director.knownContacts.map((entry) => entry.label),
     availableRoutes: director.availableRoutes.map((entry) => ({ label: entry.label, status: entry.status })),
     accessibleItems: director.accessibleItemsAndAffordances.map((entry) => ({ label: entry.label, affordances: [...entry.affordances] })),
@@ -743,6 +752,11 @@ export function gameDirectorAllowedFacts(
   for (const line of [rhythm.question, rhythm.pressure, rhythm.opportunity, rhythm.inactionCost, rhythm.changeAfterActions, rhythm.completionCondition]) {
     if (line) facts.push(line);
   }
+  const brief = director.masterBrief;
+  for (const line of [brief.whatJustHappened, brief.whatChanged, brief.whoReacted, brief.whatIsUrgent, brief.whatRemainsUncertain, brief.personalConnection]) {
+    if (line) facts.push(line);
+  }
+  facts.push(...brief.availableLeads);
   return Object.freeze(facts.filter((line) => line.trim().length > 0));
 }
 
