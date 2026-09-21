@@ -48,14 +48,52 @@ function loadServiceEnv(): ServiceEnvResult {
   return applyServiceEnv(process.env, text);
 }
 
-type DiagnosticEvent = { readonly category?: unknown; readonly failureCategory?: unknown };
-type DiagnosticSink = (event: DiagnosticEvent) => void;
+type DiagnosticSink = (event: unknown) => void;
 
-function countFailure(byCategory: Map<string, number>, event: DiagnosticEvent): void {
-  const category = typeof event.failureCategory === "string" && event.failureCategory.length > 0
+/** Per-call and per-category diagnostics collected from one run. */
+interface CorpusDiagnostics {
+  readonly byCategory: Map<string, number>;
+  readonly calls: { model: string; provider: string; outcome: string; durationMs: number }[];
+  readonly referent: { total: number; inTable: number; notInTable: number; surfaceMismatch: number };
+}
+
+function newDiagnostics(): CorpusDiagnostics {
+  return { byCategory: new Map(), calls: [], referent: { total: 0, inTable: 0, notInTable: 0, surfaceMismatch: 0 } };
+}
+
+function collect(diagnostics: CorpusDiagnostics, raw: unknown): void {
+  const event = (raw ?? {}) as Record<string, unknown>;
+  const failure = typeof event.failureCategory === "string" && event.failureCategory.length > 0
     ? event.failureCategory
     : typeof event.category === "string" && event.category.length > 0 ? event.category : "unknown";
-  byCategory.set(category, (byCategory.get(category) ?? 0) + 1);
+  diagnostics.byCategory.set(failure, (diagnostics.byCategory.get(failure) ?? 0) + 1);
+  // Provider calls: name the model and provider PER CALL, not just once.
+  if (typeof event.model === "string" || event.kind === "llm") {
+    diagnostics.calls.push({
+      model: typeof event.model === "string" ? event.model : typeof event.configuredModel === "string" ? event.configuredModel : "?",
+      provider: typeof event.provider === "string" ? event.provider : "?",
+      outcome: typeof event.outcome === "string" ? event.outcome : "?",
+      durationMs: typeof event.durationMs === "number" ? event.durationMs : 0,
+    });
+  }
+  if (typeof event.referentInTable === "boolean") {
+    diagnostics.referent.total += 1;
+    if (event.referentInTable) diagnostics.referent.inTable += 1; else diagnostics.referent.notInTable += 1;
+    if (event.referentSurfaceMatch === false) diagnostics.referent.surfaceMismatch += 1;
+  }
+}
+
+function histogram(values: readonly string[]): Record<string, number> {
+  const out = new Map<string, number>();
+  for (const value of values) out.set(value, (out.get(value) ?? 0) + 1);
+  return Object.fromEntries([...out.entries()].sort((a, b) => b[1] - a[1]));
+}
+
+function percentile(values: readonly number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
+  return sorted[index]!;
 }
 
 function moveEvent(locationId: string): DomainEvent {
@@ -156,8 +194,8 @@ async function main(): Promise<number> {
   const liveSelection = (router as unknown as { liveModelSelection?: () => { activeModel?: string; provider?: string; status?: string } | undefined })?.liveModelSelection?.();
   const activeModel = liveSelection?.activeModel ?? configuration?.selectionReport?.activeModel ?? null;
 
-  const byCategory = new Map<string, number>();
-  const diagnostics: DiagnosticSink = (event) => countFailure(byCategory, event);
+  const diagnosticsState = newDiagnostics();
+  const diagnostics: DiagnosticSink = (event) => collect(diagnosticsState, event);
 
   const corpusScore = scoreCorpus(INTERPRETATION_CORPUS, await runCorpus(router, diagnostics));
   const scenarioResults: ScenarioStepResult[] = [];
@@ -175,7 +213,24 @@ async function main(): Promise<number> {
       configFingerprint: configuration?.configFingerprint ?? null,
       required: configuration?.required ?? false,
       missingProviders: configuration?.missingProviders ?? [],
-      failureCategories: Object.fromEntries([...byCategory.entries()].sort((a, b) => b[1] - a[1])),
+      failureCategories: Object.fromEntries([...diagnosticsState.byCategory.entries()].sort((a, b) => b[1] - a[1])),
+      calls: {
+        total: diagnosticsState.calls.length,
+        byModel: histogram(diagnosticsState.calls.map((call) => call.model)),
+        byProvider: histogram(diagnosticsState.calls.map((call) => call.provider)),
+        outcomes: histogram(diagnosticsState.calls.map((call) => call.outcome)),
+        latencyMs: {
+          p50: percentile(diagnosticsState.calls.map((call) => call.durationMs), 50),
+          p95: percentile(diagnosticsState.calls.map((call) => call.durationMs), 95),
+          max: diagnosticsState.calls.reduce((max, call) => Math.max(max, call.durationMs), 0),
+        },
+      },
+      referentRejections: {
+        total: diagnosticsState.referent.total,
+        inTable: diagnosticsState.referent.inTable,
+        notInTable: diagnosticsState.referent.notInTable,
+        surfaceMismatch: diagnosticsState.referent.surfaceMismatch,
+      },
     },
     corpus: { total: corpusScore.total, correct: corpusScore.correct, rate: corpusScore.rate, genericFallback: corpusScore.genericFallback, failures: corpusScore.failures.slice(0, 25) },
     scenarios: { steps: scenarioResults.length, failures: scenarioFailures },

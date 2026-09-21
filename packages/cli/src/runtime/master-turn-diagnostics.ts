@@ -75,6 +75,8 @@ export interface MasterTurnDiagnosticDimensions {
   readonly contextEventNumber?: number | undefined;
   readonly queryId?: string | undefined;
   readonly failureCategory?: string | undefined;
+  readonly referentInTable?: boolean | undefined;
+  readonly referentSurfaceMatch?: boolean | undefined;
   readonly messageCount?: number | undefined;
   readonly mentionCount?: number | undefined;
   readonly hasPendingClarification?: boolean | undefined;
@@ -126,6 +128,8 @@ export function emitMasterTurnDiagnostic(
       ...(asCount(dimensions.contextEventNumber) !== undefined ? { contextEventNumber: asCount(dimensions.contextEventNumber)! } : {}),
       ...(asText(dimensions.queryId, 80) ? { queryId: asText(dimensions.queryId, 80)! } : {}),
       ...(asText(dimensions.failureCategory, 80) ? { failureCategory: asText(dimensions.failureCategory, 80)! } : {}),
+      ...(typeof dimensions.referentInTable === "boolean" ? { referentInTable: dimensions.referentInTable } : {}),
+      ...(typeof dimensions.referentSurfaceMatch === "boolean" ? { referentSurfaceMatch: dimensions.referentSurfaceMatch } : {}),
       ...(asCount(dimensions.messageCount) !== undefined ? { messageCount: asCount(dimensions.messageCount)! } : {}),
       ...(asCount(dimensions.mentionCount) !== undefined ? { mentionCount: asCount(dimensions.mentionCount)! } : {}),
       ...(typeof dimensions.hasPendingClarification === "boolean" ? { hasPendingClarification: dimensions.hasPendingClarification } : {}),

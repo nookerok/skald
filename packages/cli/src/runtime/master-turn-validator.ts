@@ -251,8 +251,22 @@ export type MasterTurnValidation =
      * without a second model call. Absent for slot-less questions.
      */
     readonly framed?: FramedClarification | undefined;
+    /**
+     * Safe referent-rejection diagnostic: the transient observerRef the model
+     * proposed, whether it existed in the scene table, and whether its surface
+     * matched. Never a value, never player text. Absent for non-referent
+     * clarifications (e.g. ambiguity).
+     */
+    readonly referent?: ReferentRejection | undefined;
   }
   | { readonly status: "invalid"; readonly reason: string };
+
+/** Safe shape of a rejected referent, for diagnostics only. */
+export interface ReferentRejection {
+  readonly observerRef: string | null;
+  readonly inTable: boolean;
+  readonly surfaceMatch: boolean;
+}
 
 /** Input for contextual validation. */
 export interface MasterTurnValidationInput {
@@ -296,11 +310,12 @@ function normalizeSurface(value: string): string {
 /** Stale-reference clarification shared by the contextual checks. */
 type MasterTurnStaleClarification = Extract<MasterTurnValidation, { readonly status: "clarification" }>;
 
-function staleClarification(surface: string): MasterTurnStaleClarification {
+function staleClarification(surface: string, referent?: ReferentRejection): MasterTurnStaleClarification {
   return {
     status: "clarification",
     question: `«${surface}» сейчас не удаётся связать с тем, что видно. Назови это иначе или осмотрись.`,
     options: [{ optionId: "rephrase", label: "Переформулировать" }],
+    ...(referent ? { referent } : {}),
   };
 }
 
@@ -323,6 +338,10 @@ export function validateMasterTurnPlan(input: MasterTurnValidationInput): Master
       contextWorldTime: input.world.time,
       contextEventNumber: input.world.eventNumber,
       worldTime: input.world.time,
+      ...(result.referent ? {
+        referentInTable: result.referent.inTable,
+        referentSurfaceMatch: result.referent.surfaceMatch,
+      } : {}),
     });
   }
   return result;
@@ -512,8 +531,11 @@ function checkRef(
     return { ref: freeze({ observerRef: null, surface: referent.surface, internalId: null, tableKind: null }), error: null };
   }
   const entry = scene.references.get(referent.observerRef);
-  if (!entry || normalizeSurface(entry.label) !== normalizeSurface(referent.surface)) {
-    return { ref: null, error: staleClarification(referent.surface) };
+  if (!entry) {
+    return { ref: null, error: staleClarification(referent.surface, { observerRef: referent.observerRef, inTable: false, surfaceMatch: false }) };
+  }
+  if (normalizeSurface(entry.label) !== normalizeSurface(referent.surface)) {
+    return { ref: null, error: staleClarification(referent.surface, { observerRef: referent.observerRef, inTable: true, surfaceMatch: false }) };
   }
   return {
     ref: freeze({ observerRef: referent.observerRef, surface: referent.surface, internalId: entry.internalId, tableKind: entry.kind }),

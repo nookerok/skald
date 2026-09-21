@@ -706,3 +706,50 @@ describe("splitTargetCompound", () => {
     expect(splitTargetCompound("именно его, что случилось с переправой?")).toBeNull();
   });
 });
+
+describe("referent rejection diagnostics (full-master Stage 1)", () => {
+  function speechProposal(addressee: { role: "addressee"; observerRef?: string; surface: string }): TurnProposalV2 {
+    return {
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "Здравствуй.", sourceText: "обратиться к перевозчику" },
+      supportingClauses: [],
+      addressedEntity: addressee,
+      referents: addressee.observerRef ? [{ role: "addressee", observerRef: addressee.observerRef, surface: addressee.surface }] : [],
+    } as TurnProposalV2;
+  }
+
+  it("reports an out-of-table observerRef and a surface mismatch safely", () => {
+    const { world, scene } = livingWorld();
+    const person = scene.context.knownPeople[0];
+    expect(person).toBeDefined();
+
+    const outOfTable = validateMasterTurnPlan({
+      proposal: speechProposal({ role: "addressee", observerRef: "person_99", surface: person!.label }),
+      scene, world, rawText: "обратиться к перевозчику",
+    });
+    expect(outOfTable).toMatchObject({ status: "clarification", referent: { observerRef: "person_99", inTable: false, surfaceMatch: false } });
+
+    const wrongSurface = validateMasterTurnPlan({
+      proposal: speechProposal({ role: "addressee", observerRef: person!.observerRef, surface: "Кто-то другой" }),
+      scene, world, rawText: "обратиться",
+    });
+    expect(wrongSurface).toMatchObject({ status: "clarification", referent: { observerRef: person!.observerRef, inTable: true, surfaceMatch: false } });
+  });
+
+  it("keeps the prompt's observerRefs and the validator's scene table identical", () => {
+    const { scene } = livingWorld();
+    const referents = [
+      ...scene.context.knownPeople,
+      ...scene.context.visibleObjects,
+      ...scene.context.knownRoutes,
+      ...scene.context.accessibleItems,
+    ];
+    expect(referents.length).toBeGreaterThan(0);
+    for (const referent of referents) {
+      const entry = scene.references.get(referent.observerRef);
+      expect(entry, referent.observerRef).toBeDefined();
+      expect(entry!.label).toBe(referent.label);
+    }
+  });
+});
