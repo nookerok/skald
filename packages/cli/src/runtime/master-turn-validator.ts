@@ -303,10 +303,6 @@ function freeze<T>(value: T): T {
   return Object.freeze(value);
 }
 
-function normalizeSurface(value: string): string {
-  return value.trim().toLowerCase().replace(/ё/gu, "е");
-}
-
 /** Stale-reference clarification shared by the contextual checks. */
 type MasterTurnStaleClarification = Extract<MasterTurnValidation, { readonly status: "clarification" }>;
 
@@ -534,11 +530,18 @@ function checkRef(
   if (!entry) {
     return { ref: null, error: staleClarification(referent.surface, { observerRef: referent.observerRef, inTable: false, surfaceMatch: false }) };
   }
-  if (normalizeSurface(entry.label) !== normalizeSurface(referent.surface)) {
+  // The observerRef is the machine binding, but the model's surface must still
+  // plausibly name the SAME entry. Exact equality rejected valid inflections
+  // (live scorecard: 9/9 rejections were in-table surface mismatches such as
+  // "перевозчику" vs the label "Перевозчик у переправы"), so compare with the
+  // shared tolerant binder: an inflection/abbreviation binds, an unrelated
+  // surface does not. The table label is used for display.
+  const bound = bindSceneSurface(referent.surface, [{ observerRef: referent.observerRef, label: entry.label, knownAs: [] }]);
+  if (bound.status !== "unique") {
     return { ref: null, error: staleClarification(referent.surface, { observerRef: referent.observerRef, inTable: true, surfaceMatch: false }) };
   }
   return {
-    ref: freeze({ observerRef: referent.observerRef, surface: referent.surface, internalId: entry.internalId, tableKind: entry.kind }),
+    ref: freeze({ observerRef: referent.observerRef, surface: entry.label, internalId: entry.internalId, tableKind: entry.kind }),
     error: null,
   };
 }

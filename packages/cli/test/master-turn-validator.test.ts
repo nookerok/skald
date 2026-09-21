@@ -719,7 +719,7 @@ describe("referent rejection diagnostics (full-master Stage 1)", () => {
     } as TurnProposalV2;
   }
 
-  it("reports an out-of-table observerRef and a surface mismatch safely", () => {
+  it("reports an out-of-table observerRef and tolerates an inflected surface", () => {
     const { world, scene } = livingWorld();
     const person = scene.context.knownPeople[0];
     expect(person).toBeDefined();
@@ -730,11 +730,19 @@ describe("referent rejection diagnostics (full-master Stage 1)", () => {
     });
     expect(outOfTable).toMatchObject({ status: "clarification", referent: { observerRef: "person_99", inTable: false, surfaceMatch: false } });
 
-    const wrongSurface = validateMasterTurnPlan({
-      proposal: speechProposal({ role: "addressee", observerRef: person!.observerRef, surface: "Кто-то другой" }),
+    // An inflected echo of the table label binds to the same ref.
+    const inflected = validateMasterTurnPlan({
+      proposal: speechProposal({ role: "addressee", observerRef: person!.observerRef, surface: "перевозчику" }),
+      scene, world, rawText: "обратиться к перевозчику",
+    });
+    expect(inflected.status).toBe("accepted");
+
+    // An unrelated surface still clarifies even with a valid ref.
+    const unrelated = validateMasterTurnPlan({
+      proposal: speechProposal({ role: "addressee", observerRef: person!.observerRef, surface: "Выдуманная башня" }),
       scene, world, rawText: "обратиться",
     });
-    expect(wrongSurface).toMatchObject({ status: "clarification", referent: { observerRef: person!.observerRef, inTable: true, surfaceMatch: false } });
+    expect(unrelated).toMatchObject({ status: "clarification", referent: { inTable: true, surfaceMatch: false } });
   });
 
   it("keeps the prompt's observerRefs and the validator's scene table identical", () => {
