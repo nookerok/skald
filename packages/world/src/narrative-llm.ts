@@ -752,6 +752,7 @@ export function gameDirectorAllowedFacts(
   for (const line of [rhythm.question, rhythm.pressure, rhythm.opportunity, rhythm.inactionCost, rhythm.changeAfterActions, rhythm.completionCondition]) {
     if (line) facts.push(line);
   }
+  for (const approach of rhythm.approaches) facts.push(approach);
   const brief = director.masterBrief;
   for (const line of [brief.whatJustHappened, brief.whatChanged, brief.whoReacted, brief.whatIsUrgent, brief.whatRemainsUncertain, brief.personalConnection]) {
     if (line) facts.push(line);

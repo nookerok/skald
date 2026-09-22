@@ -52,6 +52,7 @@ function director(): GameDirectorContext {
       question: "дойти до Речного Стража",
       pressure: null,
       opportunity: "Открыт путь к «Речному Стражу».",
+      approaches: [],
       inactionCost: null,
       changeAfterActions: OUTCOME,
       completionCondition: null,

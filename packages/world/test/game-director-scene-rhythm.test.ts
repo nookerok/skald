@@ -153,6 +153,7 @@ describe("buildSceneRhythm", () => {
       question: null,
       pressure: null,
       opportunity: null,
+      approaches: [],
       inactionCost: null,
       changeAfterActions: null,
       completionCondition: null,

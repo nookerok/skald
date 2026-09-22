@@ -26,6 +26,12 @@ export interface SceneRhythm {
   readonly pressure: string | null;
   /** A concrete observer-safe opportunity (a contact who knows, a route, an affordance). */
   readonly opportunity: string | null;
+  /**
+   * Distinct approaches the scene honestly offers (full-master Stage 5),
+   * drawn from the authored situation material. Empty when none — never an
+   * invented menu; the master weaves them into speech, not buttons.
+   */
+  readonly approaches: readonly string[];
   /** Honest price of inaction, only when the world state implies one. */
   readonly inactionCost: string | null;
   /** What changed after the player's recent actions (last outcome, arrival, blockage). */
@@ -98,6 +104,9 @@ export function rhythmPressure(input: Pick<SceneRhythmInput, "situation" | "jour
   if (journey.status === "blocked") {
     return journey.text.trim().length > 0 ? journey.text : null;
   }
+  // Authored stakes are the scene's own pressure line (full-master Stage 5).
+  const stakes = clean(input.situation?.stakes ?? null);
+  if (stakes) return stakes;
   const description = clean(input.situation?.description ?? null) ?? "";
   const lowered = description.toLowerCase();
   if (lowered.includes("закрыта") || lowered.includes("высокая вода") || lowered.includes("поднялась")) {
@@ -150,6 +159,7 @@ export function buildSceneRhythm(input: SceneRhythmInput & { readonly opportunit
     question: rhythmQuestion(input),
     pressure: rhythmPressure(input),
     opportunity: rhythmOpportunity(input.opportunityCandidate ?? null),
+    approaches: freeze((input.situation?.approaches ?? []).map((entry) => entry.trim()).filter((entry) => entry.length > 0).slice(0, 3)),
     inactionCost: rhythmInactionCost(input),
     changeAfterActions: clean(input.lastOutcome ?? null),
     completionCondition: rhythmCompletion(input),
@@ -175,6 +185,9 @@ export function rhythmCompletion(
   }
   const pending = clean(input.pendingQuestion ?? null);
   if (pending) return "Ответ на открытый вопрос мастера закроет эту сцену.";
+  // The authored completion is the scene's own observable close (Stage 5).
+  const authored = clean(input.situation?.completion ?? null);
+  if (authored) return authored;
   if (input.situation) return "Выбор пути, свидетельство или причина изменения течения закроют эту сцену.";
   return null;
 }

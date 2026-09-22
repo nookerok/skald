@@ -436,6 +436,7 @@ export function buildGameDirectorContext(
     lastMasterText: lastTurns.filter((turn) => turn.speaker === "master").at(-1)?.text ?? null,
     pendingQuestion: pending?.question ?? null,
     personalHook: unresolvedPersonalHook,
+    activeGoal: goal?.summary ?? null,
   });
 
   return freeze({

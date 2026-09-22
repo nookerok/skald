@@ -60,6 +60,18 @@ export interface JourneyView {
   text: string;
 }
 
+/**
+ * Authored, observer-safe game material carried by a Situation for the master
+ * (full-master Stage 5): the open question, the stakes and the distinct
+ * approaches. It is deliberately stripped from the player-facing shell DTO —
+ * the master weaves it into speech, it is never a button menu.
+ */
+export interface SituationMasterMaterial {
+  readonly approaches: readonly string[];
+  readonly stakes: string | null;
+  readonly completion: string | null;
+}
+
 export interface SituationView {
   situationId: string;
   title: string;
@@ -67,6 +79,8 @@ export interface SituationView {
   effects: { label: string; tone: "neutral" | "warning" | "danger" }[];
   startedAt: number;
   remainingTicks: number | null;
+  /** Master-only game material; never sent to the browser. */
+  masterMaterial?: SituationMasterMaterial | undefined;
 }
 
 export interface CausalStep {

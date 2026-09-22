@@ -72,6 +72,10 @@ export interface MasterKnowledgeTopic {
 export interface MasterSceneSituation {
   readonly title: string;
   readonly description: string;
+  /** Authored open question material (full-master Stage 5); absent when none. */
+  readonly approaches?: readonly string[] | undefined;
+  readonly stakes?: string | null | undefined;
+  readonly completion?: string | null | undefined;
 }
 
 /**
@@ -269,7 +273,17 @@ export function buildMasterTurnSceneContext(
     accessibleItems: freeze(accessibleItems),
     availableActions: MASTER_TURN_AVAILABLE_ACTIONS,
     currentSituation: guidance.activeSituation
-      ? freeze({ title: guidance.activeSituation.title, description: guidance.activeSituation.description })
+      ? freeze({
+        title: guidance.activeSituation.title,
+        description: guidance.activeSituation.description,
+        ...(guidance.activeSituation.masterMaterial
+          ? {
+            approaches: guidance.activeSituation.masterMaterial.approaches,
+            stakes: guidance.activeSituation.masterMaterial.stakes,
+            completion: guidance.activeSituation.masterMaterial.completion,
+          }
+          : {}),
+      })
       : null,
     knownTopics: freeze(knownTopics),
   });

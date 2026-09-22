@@ -1,5 +1,5 @@
 import type { ReadonlyWorld } from "../projection.js";
-import type { SituationView } from "./types.js";
+import type { SituationMasterMaterial, SituationView } from "./types.js";
 
 const SITUATION_TEMPLATES: Record<string, { title: string; description: string; effects: { label: string; tone: "neutral" | "warning" | "danger" }[] }> = {
   forest_fire: {
@@ -22,6 +22,21 @@ const SITUATION_TEMPLATES: Record<string, { title: string; description: string; 
   },
 };
 
+function clean(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/** Authored, observer-safe game material from a Situation's stored data. */
+function masterMaterial(data: Readonly<Record<string, unknown>>): SituationMasterMaterial | undefined {
+  const approaches = Array.isArray(data["approaches"])
+    ? data["approaches"].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim()).slice(0, 3)
+    : [];
+  const stakes = clean(data["stakes"]);
+  const completion = clean(data["completion"]);
+  if (approaches.length === 0 && !stakes && !completion) return undefined;
+  return Object.freeze({ approaches: Object.freeze(approaches), stakes, completion });
+}
+
 export function buildSituationView(world: ReadonlyWorld): SituationView | null {
   if (world.activeSituations.size === 0) return null;
 
@@ -33,6 +48,7 @@ export function buildSituationView(world: ReadonlyWorld): SituationView | null {
     const description = template?.description ?? "Вокруг заметна перемена, но её причина пока неясна.";
     const effects = template?.effects ?? [];
     const remaining = (s.startedAt + s.duration) - world.time;
+    const material = masterMaterial(s.data ?? {});
 
     return {
       situationId: id,
@@ -41,6 +57,7 @@ export function buildSituationView(world: ReadonlyWorld): SituationView | null {
       effects,
       startedAt: s.startedAt,
       remainingTicks: remaining > 0 ? remaining : null,
+      ...(material ? { masterMaterial: material } : {}),
     };
   }
 

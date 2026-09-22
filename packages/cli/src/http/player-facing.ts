@@ -78,7 +78,7 @@ export function toPlayerFacingGameShellSnapshot(snapshot: GameShellSnapshot): Pl
     ? (({ turnId: _turnId, ...turn }) => turn)(lastTurn)
     : null;
   const safeSituation = currentSituation
-    ? (({ situationId: _situationId, ...situation }) => situation)(currentSituation)
+    ? (({ situationId: _situationId, masterMaterial: _masterMaterial, ...situation }) => situation)(currentSituation)
     : null;
   return {
     ...rest,
@@ -97,7 +97,7 @@ export function toPlayerFacingShellDelta(delta: ShellDelta) {
     ? (({ turnId: _turnId, ...turn }) => turn)(delta.turn)
     : null;
   const safeSituation = delta.currentSituation
-    ? (({ situationId: _situationId, ...situation }) => situation)(delta.currentSituation)
+    ? (({ situationId: _situationId, masterMaterial: _masterMaterial, ...situation }) => situation)(delta.currentSituation)
     : null;
   return { ...delta, turn: safeTurn, currentSituation: safeSituation };
 }

@@ -7,6 +7,7 @@ function rhythm(overrides: Partial<SceneRhythm> = {}): SceneRhythm {
     question: null,
     pressure: null,
     opportunity: null,
+    approaches: [],
     inactionCost: null,
     changeAfterActions: null,
     completionCondition: null,
@@ -96,5 +97,20 @@ describe("buildMasterBrief (plan P2)", () => {
       availableLeads: [],
       personalConnection: null,
     });
+  });
+
+  it("offers the authored scene approaches as leads, capped and deduped", () => {
+    const brief = buildMasterBrief(input({
+      sceneRhythm: rhythm({ approaches: ["осмотреть следы воды", "расспросить перевозчика", "найти обход", "четвёртый подход"] }),
+    }));
+    expect(brief.availableLeads).toEqual(["осмотреть следы воды", "расспросить перевозчика", "найти обход"]);
+  });
+
+  it("ranks the lead that matches the stated goal first, stably", () => {
+    const brief = buildMasterBrief(input({
+      sceneRhythm: rhythm({ approaches: ["осмотреть следы воды", "найти обход переправы"] }),
+      activeGoal: "хочу найти обход",
+    }));
+    expect(brief.availableLeads[0]).toBe("найти обход переправы");
   });
 });

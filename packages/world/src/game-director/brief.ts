@@ -44,6 +44,11 @@ export interface MasterBriefInput {
   readonly pendingQuestion?: string | null | undefined;
   /** Unresolved personal hook or obligation. */
   readonly personalHook?: string | null | undefined;
+  /**
+   * The player's stated goal (full-master Stage 5). Leads sharing a content
+   * word with it rank first; absent, the deterministic priority order stands.
+   */
+  readonly activeGoal?: string | null | undefined;
 }
 
 /** What the master should be conscious of this turn. All prose is player-safe. */
@@ -92,6 +97,9 @@ export function buildMasterBrief(input: MasterBriefInput): MasterBrief {
   const push = (lead: string | null): void => {
     if (lead && !leads.includes(lead) && leads.length < MASTER_BRIEF_MAX_LEADS) leads.push(lead);
   };
+  // Authored scene approaches first (full-master Stage 5): they are the
+  // distinct, honest ways forward the situation itself names.
+  for (const approach of rhythm.approaches) push(approach);
   if (input.journey.status === "in_progress" && input.journey.to) push(`продолжить путь к «${input.journey.to}»`);
   if (input.journey.status === "blocked" && input.journey.to) push(`поискать обход к «${input.journey.to}»`);
   const contact = firstLabel(input.knownContacts);
@@ -101,13 +109,29 @@ export function buildMasterBrief(input: MasterBriefInput): MasterBrief {
   const item = firstLabel(input.accessibleItems);
   if (item) push(`использовать ${item}`);
 
+  // Deterministic relevance: leads sharing a content word with the stated
+  // goal rank first (stable, so ties keep the priority order above).
+  const goalWords = new Set(contentWords(input.activeGoal ?? null));
+  const ordered = goalWords.size === 0
+    ? leads
+    : leads
+      .map((lead, index) => ({ lead, index, score: contentWords(lead).filter((word) => goalWords.has(word)).length }))
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .map((entry) => entry.lead);
+
   return freeze({
     whatJustHappened,
     whatChanged,
     whoReacted,
     whatIsUrgent,
     whatRemainsUncertain,
-    availableLeads: freeze(leads),
+    availableLeads: freeze(ordered),
     personalConnection: clean(input.personalHook),
   });
+}
+
+/** Normalized content words (>=4 chars) for deterministic relevance. */
+function contentWords(text: string | null): readonly string[] {
+  if (!text) return [];
+  return text.toLowerCase().replace(/ё/gu, "е").split(/[^a-zа-я0-9]+/u).filter((word) => word.length >= 4);
 }
