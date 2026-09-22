@@ -1,3 +1,20 @@
+# Current work (2026-09-21 — Stage 6 human finding fixed as e8c0577)
+
+- The first human playtest (Stage 6) found the master's inquiry answers
+  unusable at Речной Страж: «где я и что вижу?» returned a route list,
+  «что я вижу?» only the one-line location label, «кто рядом?» bare names.
+  Provisional Coherent/Playable REVISE.
+- Fix `e8c0577`: `current_location` describes the place; `visible_scene`
+  composes the place, the situation, the player's seen knowledge and the
+  present objects and people; `who_is_nearby` annotates the relation; the
+  persisted mixed turn and the response share one scene. `npm run validate`
+  PASS (210 files / 2632 passed, 1 skipped); deployed `e8c0577`, health + AI
+  readiness + live contract PASS; live re-check confirms the new answers.
+- Stage 6 stays OPEN: the human session must re-test on `e8c0577` and give the
+  four verdicts (Playable/Coherent/Responsive/Memorable). Re-test world:
+  `world-ae6fc15f-652b-4009-a816-d4b63ea02af2` (one-off).
+- Next: re-run the human session, record the four verdicts, close Stage 6.
+
 # Current work (2026-09-21 — full-master Stage 6 acceptance: 3 of 4 verdicts)
 
 - Stage 6 publishes four verdicts. Three are green; the human session is pending.
