@@ -654,4 +654,20 @@ describe("Chronicle Feed — read-side narration (full-master Stage 3)", () => {
     const masterBubbles = doc.feed.children.filter((node) => (node.className || "").includes("chat-turn"));
     expect(masterBubbles).toHaveLength(1);
   });
+
+  it("keeps the SAME bubble when a retried rephrase settles (pending -> ready)", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    const pending = inquiryTurn({ narrationState: "pending" });
+    renderChatFeed([], [pending], [], null);
+    const pendingBubble = doc.feed.children.find((node) => (node.className || "").includes("chat-turn"));
+    const key = pendingBubble?.attributes["data-turn-key"];
+    expect(doc.feed.children.filter((node) => (node.className || "").includes("chat-turn"))).toHaveLength(1);
+    // The retry resolves the same turn: still one bubble, same key, rephrase in.
+    renderChatFeed([], [{ ...pending, narrationState: "ready", narrationText: "Перевозчик стоит рядом." }], [], null);
+    const bubbles = doc.feed.children.filter((node) => (node.className || "").includes("chat-turn"));
+    expect(bubbles).toHaveLength(1);
+    expect(bubbles[0].attributes["data-turn-key"]).toBe(key);
+    expect(allText(doc.feed)).toContain("Перевозчик стоит рядом.");
+    expect(allText(doc.feed)).not.toContain("Рядом с тобой");
+  });
 });

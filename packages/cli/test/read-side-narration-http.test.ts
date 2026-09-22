@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { startServer } from "../src/http-server.js";
 import { FixedNarrationProvider } from "../src/acceptance/fixed-narration-provider.js";
 import type { ChatMessage, ChatResult } from "@skald/world";
+import { ProviderRequestError } from "@skald/world";
 
 const dbPath = join(mkdtempSync(join(tmpdir(), "skald-read-side-narration-")), "events.sqlite");
 let server: Awaited<ReturnType<typeof startServer>>;
@@ -106,4 +107,95 @@ describe("read-side answer narration", () => {
     const after = await api(`/api/worlds/${worldId}/state`);
     expect(after.body.state.worldTime).toBe(before.body.state.worldTime);
   });
+});
+
+/** Fails the first read-side rephrase with a transient 5xx, then succeeds. */
+class FlakyReadSideProvider extends FixedNarrationProvider {
+  private failed = false;
+  readonly rephraseCalls: string[] = [];
+  override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
+    if (category !== "narrate") return super.chat(category, messages);
+    const user = messages.find((message) => message.role === "user")?.content ?? "";
+    let answer: string | null = null;
+    try {
+      const parsed = JSON.parse(user) as { answer?: unknown };
+      if (typeof parsed.answer === "string" && parsed.answer.trim().length > 0) answer = parsed.answer.trim();
+    } catch {
+      answer = null;
+    }
+    if (answer === null) return super.chat(category, messages);
+    this.rephraseCalls.push(answer);
+    if (!this.failed) {
+      this.failed = true;
+      throw new ProviderRequestError({ provider: "opencode_zen", model: "flaky-narrator", phase: "response_shape", httpStatus: 503 });
+    }
+    const claim = answer.split(/(?<=[.!?])\s/u, 1)[0] || answer;
+    return {
+      model: "read-side-narrator",
+      configuredModel: "read-side-narrator",
+      responseModel: "read-side-narrator",
+      usedFallback: false,
+      text: JSON.stringify({ narration: claim, claims: [{ text: claim, sourceFactId: "answer", epistemicClass: "observed_fact" }] }),
+      latencyMs: 0,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      provider: "opencode_zen",
+    };
+  }
+}
+
+describe("read-side narration retry (transient failure once, then success)", () => {
+  it("retries into the SAME turn with no second Event or ConversationTurn", async () => {
+    const provider = new FlakyReadSideProvider();
+    const server = await startServer({
+      host: "127.0.0.1",
+      port: 0,
+      dbPath: join(mkdtempSync(join(tmpdir(), "skald-read-side-retry-")), "events.sqlite"),
+      router: provider,
+    });
+    try {
+      const created = await fetch(`${server.url}/api/worlds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "read-side-retry-create" },
+        body: JSON.stringify({ characterName: "Тест", backgroundId: "wanderer", entrypointId: "river_waystation_arrival" }),
+      });
+      const world = (await created.json() as any).world.worldId as string;
+      const getState = async () => (await (await fetch(`${server.url}/api/worlds/${world}/state`)).json() as any).state;
+
+      const before = await getState();
+      const cmd = await (await fetch(`${server.url}/api/worlds/${world}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: "кто рядом?", idempotencyKey: "read-side-retry-1" }),
+      })).json() as any;
+      expect(cmd.status).toBe("inquiry");
+      expect(cmd.conversationTurn.narrationState).toBe("pending");
+      const masterTurnKey = cmd.masterTurn.turnKey as string;
+
+      // Poll for the retried rephrase to settle ready.
+      let ready: any = null;
+      const started = Date.now();
+      while (Date.now() - started < 8000) {
+        const journal = await (await fetch(`${server.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
+        const turn = journal.conversationTurns?.find((candidate: any) => candidate.responseKind === "inquiry_answer");
+        if (turn?.narrationState === "ready") { ready = turn; break; }
+        await tick();
+      }
+      expect(ready).not.toBeNull();
+      // The transient failure was retried (two provider attempts for one turn).
+      expect(provider.rephraseCalls.length).toBeGreaterThanOrEqual(2);
+
+      const journal = await (await fetch(`${server.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
+      const inquiryTurns = journal.conversationTurns.filter((candidate: any) => candidate.responseKind === "inquiry_answer");
+      // One input, one turn: the retry did not append a second conversation turn.
+      expect(inquiryTurns).toHaveLength(1);
+      expect(inquiryTurns[0].turnKey).toBe(masterTurnKey);
+
+      // Retrying narration created no Domain Event and moved no world time.
+      const after = await getState();
+      expect(after.eventNumber).toBe(before.eventNumber);
+      expect(after.worldTime).toBe(before.worldTime);
+    } finally {
+      await server.close();
+    }
+  }, 20000);
 });
