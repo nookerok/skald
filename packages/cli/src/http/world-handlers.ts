@@ -1010,8 +1010,18 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const scene = buildMasterTurnSceneContext(events, world).context;
         const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
+        // A focused question records the referent it names (full-master
+        // Stage 4): the deterministic answer leaves the same semantic hook an
+        // accepted plan does, so a later pronoun can continue the topic.
+        const inquiryFocus = deterministicInquiryFocus(inquiryRequest.focus?.surface, events, world);
+        const inquiryMetadata = (inquiryFocus.length > 0 || interpretation.pendingLink)
+          ? buildTurnMemoryMetadata({
+            ...(inquiryFocus.length > 0 ? { focus: inquiryFocus } : {}),
+            ...(interpretation.pendingLink ? { continuationLink: interpretation.pendingLink } : {}),
+          })
+          : undefined;
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer,
-          interpretation.pendingLink ? buildTurnMemoryMetadata({ continuationLink: interpretation.pendingLink }) : undefined);
+          inquiryMetadata);
         const scheduled = scheduleAnswerNarration(runtime, input, inquiry.answer, "inquiry_answer", conversationTurn.correlationId);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
@@ -1768,15 +1778,14 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
  * a pronoun ("осмотрю её") to the same referent. No scene match means no
  * mention — never an invented one. Pure read-side.
  */
-function deterministicActionFocus(
-  intent: { readonly type: string; readonly target?: { readonly raw?: string } | undefined; readonly destination?: { readonly raw?: string } | undefined },
+function sceneFocusForSurface(
+  raw: string | undefined,
   events: readonly DomainEvent[],
   world: ReturnType<WorldRuntime["projection"]["getSnapshot"]>,
+  role: ValidatedConversationReferent["kind"],
 ): readonly ValidatedConversationReferent[] {
-  const raw = intent.type === "JourneyIntent"
-    ? intent.destination?.raw?.trim()
-    : intent.target?.raw?.trim();
-  if (!raw) return [];
+  const surface = raw?.trim();
+  if (!surface) return [];
   const scene = buildMasterTurnSceneContext(events, world).context;
   const entries = [
     ...scene.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
@@ -1784,13 +1793,53 @@ function deterministicActionFocus(
     ...scene.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...scene.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
   ];
-  const bound = bindSceneSurface(raw, entries);
+  const bound = bindSceneSurface(surface, entries);
   if (bound.status !== "unique") return [];
   return [Object.freeze({
     observerRef: bound.entry.observerRef,
     surface: bound.entry.label,
-    kind: intent.type === "JourneyIntent" ? "destination" as const : "target" as const,
+    kind: role,
   })];
+}
+
+function deterministicActionFocus(
+  intent: { readonly type: string; readonly target?: { readonly raw?: string } | undefined; readonly destination?: { readonly raw?: string } | undefined },
+  events: readonly DomainEvent[],
+  world: ReturnType<WorldRuntime["projection"]["getSnapshot"]>,
+): readonly ValidatedConversationReferent[] {
+  return sceneFocusForSurface(
+    intent.type === "JourneyIntent" ? intent.destination?.raw : intent.target?.raw,
+    events,
+    world,
+    intent.type === "JourneyIntent" ? "destination" : "target",
+  );
+}
+
+/**
+ * A focused question's own referent (full-master Stage 4): "что за ограда?"
+ * records the object it names, so a deterministic question leaves the same
+ * semantic hook an accepted plan does. Unbound surfaces record nothing.
+ */
+function deterministicInquiryFocus(
+  surface: string | undefined,
+  events: readonly DomainEvent[],
+  world: ReturnType<WorldRuntime["projection"]["getSnapshot"]>,
+): readonly ValidatedConversationReferent[] {
+  return sceneFocusForSurface(surface, events, world, "target");
+}
+
+/**
+ * A stated goal in the player's own replica (full-master Stage 4, item 2): an
+ * intention ("хочу найти старое русло") is recorded as the active goal, an
+ * interpretation the master may follow — never a world fact. Only explicit
+ * goal markers count, so a plain action ("осматриваюсь") records no goal.
+ */
+const GOAL_MARKERS = /(?:^|\s)(?:хочу|хотел бы|хотела бы|намерен|намерена|мечтаю|стремлюсь|моя цель|цель)(?![а-яё])/iu;
+
+function deterministicGoal(playerText: string): string | null {
+  const text = playerText.trim();
+  if (text.length === 0) return null;
+  return GOAL_MARKERS.test(text) ? text : null;
 }
 
 export async function runCommandCycleForRuntime(
@@ -1850,6 +1899,7 @@ export async function runCommandCycleForRuntime(
       // freshly observed target is mentionable) so the next replica can bind a
       // pronoun to the same referent.
       const actionFocus = deterministicActionFocus(commandIntent, [...preEvents, ...stagedEvents], projectedWorld);
+      const goal = deterministicGoal(input);
       return {
         idempotencyKey,
         requestKind: "command",
@@ -1863,9 +1913,10 @@ export async function runCommandCycleForRuntime(
           stagedEvents,
           projectedWorld,
           continuationHint: deterministicContinuationHint(runtime, preEvents, stagedEvents, projectedWorld),
-          ...(memory?.continuationLink || actionFocus.length > 0 ? {
+          ...(memory?.continuationLink || actionFocus.length > 0 || goal !== null ? {
             contextMetadata: buildTurnMemoryMetadata({
               focus: actionFocus,
+              ...(goal !== null ? { goal } : {}),
               ...(memory?.continuationLink ? { continuationLink: memory.continuationLink } : {}),
             }),
           } : {}),
