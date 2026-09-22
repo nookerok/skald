@@ -1,3 +1,21 @@
+# Current work (2026-09-21 — full-master Stage 6 acceptance: 3 of 4 verdicts)
+
+- Stage 6 publishes four verdicts. Three are green; the human session is pending.
+  - Repository gate: PASS — `npm run validate` (210 files / 2629 passed, 1
+    skipped) + deterministic adventure `pass:true` (40/40 beats, 4 journey legs,
+    4 meaningful choices, 4 world changes, 4 discoveries, 0 truth leaks, 0
+    narration duplicates, replay purity, idempotency, persistence restart).
+  - Live-provider: PASS — `/api/ops/intent-probe` `pass:true`; interpretation
+    corpus 0.9886 (87/88), scenarios 8/8, genericFallback 0, provider
+    `gemma4:31b-cloud`/`ollama_cloud`.
+  - Browser: DOM PASS / visual BLOCKED — compound one bubble, journey +1 tick,
+    arrival, pending atomic, reload persists, 0 console errors (scratch
+    `world-46d46acf`, deployed `a1a289b`); screenshots unavailable.
+  - Human 30–60 min session: PENDING (the reviewer's; protocol in the Stage 6
+    artifact).
+- No code changes this stage; production stays on `a1a289b`.
+- Next: the human playtest, then close Stage 6.
+
 # Current work (2026-09-21 — full-master Stage 5 material, deployed as a1a289b)
 
 - Stage 5 (game material for a scene) implemented and deployed. The authored
