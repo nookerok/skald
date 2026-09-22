@@ -1,3 +1,20 @@
+# Current work (2026-09-21 — Stage 3 retry closure as 23d42b3)
+
+- Stage 3 retry gap closed with a test-injectable provider: a transient 5xx on
+  the first read-side rephrase, then success. The retry lands in the SAME turn —
+  one `masterTurnKey`, exactly one `inquiry_answer` conversation turn, unchanged
+  `eventNumber`/`worldTime` — and the same DOM bubble (same `data-turn-key`)
+  replaces the exact answer with the rephrase.
+  `packages/cli/test/read-side-narration-http.test.ts`,
+  `packages/cli/test/chat-feed-view.test.ts`.
+- `npm run validate` PASS (207 files / 2618 passed, 1 skipped) at `23d42b3`;
+  `main == origin/main`. Test-only change, production stays on `35d384e`.
+- Remaining for Stage 3 final acceptance: a live browser retry click is only
+  reachable after a natural transport failure (forcing one is forbidden); the
+  retry code path is otherwise covered. Pixel-level visual QA stays blocked
+  (screenshot capability unavailable).
+- Next: Stage 3 acceptance, then full-master Stage 4 (conversational memory).
+
 # Current work (2026-09-21 — full-master Stage 3: one voice, deployed as 35d384e)
 
 - Stage 3 (one voice for every reply kind) implemented and deployed. Read-side
