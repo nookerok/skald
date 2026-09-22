@@ -174,7 +174,13 @@ describe("master turn production path", () => {
       ]);
       for (const entry of response.inquiryAnswers) {
         expect(entry.answer.length).toBeGreaterThan(0);
-        expect(response.conversationTurn.responseText).toContain(entry.answer);
+        // The mixed composer dedupes a sentence the action outcome already
+        // stated (the location line), so assert every sentence of the answer
+        // is represented rather than the whole answer as a verbatim substring.
+        const sentences = entry.answer.split(/(?<=[.!?…])\s+/u).map((sentence: string) => sentence.trim()).filter(Boolean);
+        for (const sentence of sentences) {
+          expect(response.conversationTurn.responseText).toContain(sentence);
+        }
       }
       // At most one game tick for the whole mixed turn.
       expect(runtime.projection.getSnapshot().time - timeBefore).toBeLessThanOrEqual(1);

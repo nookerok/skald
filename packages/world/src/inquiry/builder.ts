@@ -23,11 +23,11 @@ function visibleRoutes(shell: GameShellSnapshot): readonly { label: string; deta
 
 function buildCurrentLocation(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   const { shell } = context;
-  const routes = visibleRoutes(shell).slice(0, 3);
-  const routeText = routes.length > 0
-    ? ` Из известных направлений рядом: ${routes.map((route) => `«${route.label}»`).join(", ")}.`
-    : " Известного пути рядом пока нет.";
-  return answer("current_location", `Ты находишься у «${locationName(shell)}».${routeText}`, shell);
+  // Describe the place, not the routes: a "where am I" answer names the
+  // location and what it looks like. Directions belong to available_routes.
+  const parts = dedupeProse([shell.world.locationDescription, shell.currentSituation?.description]).slice(0, 2);
+  const body = parts.length > 0 ? parts.join(" ") : "Это место пока не описано в твоих наблюдениях.";
+  return answer("current_location", `Ты находишься у «${locationName(shell)}». ${body}`, shell);
 }
 
 /**
@@ -54,9 +54,29 @@ function dedupeProse(parts: readonly (string | undefined | null)[]): readonly st
 
 function buildVisibleScene(request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   if (request.focus) return buildFocusedScene(request, context);
-  const { shell } = context;
-  const parts = dedupeProse([shell.world.locationDescription, shell.currentSituation?.description, shell.lastTurn?.primary?.text]).slice(0, 3);
-  return answer("visible_scene", parts.length > 0 ? parts.join(" ") : "В твоих текущих наблюдениях нет ничего, что можно уверенно описать.", shell);
+  const { shell, scene } = context;
+  // Describe what the observer can actually see: the place, the active
+  // situation, the player's own seen knowledge and the last turn's
+  // observations — not just the one-line location label. Objects and people
+  // present in the scene are named so the player knows what is there.
+  const seenKnowledge = shell.knowledge.entries.filter((entry) => entry.category === "seen").slice(0, 3).map((entry) => entry.text);
+  const topics = (scene?.knownTopics ?? []).slice(0, 3).map((topic) => topic.text);
+  const notable = shell.lastTurn?.notable?.slice(0, 2).map((entry) => entry.text) ?? [];
+  const parts = dedupeProse([
+    shell.world.locationDescription,
+    shell.currentSituation?.description,
+    ...seenKnowledge,
+    ...topics,
+    ...notable,
+    shell.lastTurn?.primary?.text,
+  ]).slice(0, 5);
+  const objects = (scene?.visibleObjects ?? []).slice(0, 3).map((object) => object.label);
+  const people = (scene?.knownPeople ?? []).slice(0, 3).map((person) => person.label);
+  const clauses: string[] = [];
+  if (objects.length > 0) clauses.push(`В поле зрения: ${objects.map((label) => `«${label}»`).join(", ")}.`);
+  if (people.length > 0) clauses.push(`Рядом: ${people.map((label) => `«${label}»`).join(", ")}.`);
+  const text = [parts.join(" "), ...clauses].filter((part) => part.length > 0).join(" ");
+  return answer("visible_scene", text || "В твоих текущих наблюдениях нет ничего, что можно уверенно описать.", shell);
 }
 
 /**
@@ -251,10 +271,17 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
     return answer("who_is_nearby", "Рядом с тобой сейчас никого различимого нет. Осмотрись действием — может, кто-то покажется.", shell);
   }
   const parts: string[] = [];
+  // A bare name is not an answer: attach the relation the player already has,
+  // so the master names someone the player can actually place.
+  const relationByLabel = new Map(shell.character.relations.map((relation) => [normalizePersonLabel(relation.targetLabel), relation.relationLabel.trim()]));
+  const annotate = (label: string): string => {
+    const relation = relationByLabel.get(normalizePersonLabel(label));
+    return relation ? `«${label}» (${relation.toLowerCase()})` : `«${label}»`;
+  };
   for (const key of order) {
     const group = groups.get(key)!;
     if (group.count === 1) {
-      if (parts.length < 5) parts.push(`«${group.label}»`);
+      if (parts.length < 5) parts.push(annotate(group.label));
     } else {
       for (let index = 0; index < group.count && parts.length < 5; index += 1) {
         parts.push(`«${group.label}» (${PERSON_ORDINALS[index]})`);
@@ -262,7 +289,7 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
     }
     if (parts.length >= 5) break;
   }
-  return answer("who_is_nearby", `Рядом с тобой: ${parts.join(", ")}.`, shell);
+  return answer("who_is_nearby", `Рядом с тобой: ${parts.join(", ")}. Осмотрись или обратись к кому-то действием, чтобы узнать больше.`, shell);
 }
 
 /** Default water/river keywords when the question names no focus. */

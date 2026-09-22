@@ -239,3 +239,52 @@ describe("environmental indication", () => {
     expect(JSON.stringify({ shell, background })).toBe(before);
   });
 });
+
+describe("observational answers (full-master Stage 6 finding)", () => {
+  it("describes the place instead of answering with a route list", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(
+      { type: "InquiryRequest", queryId: "current_location", rawText: "где я и что вижу?", confidence: 1, source: "deterministic" },
+      { shell, background },
+    );
+    expect(result.answer).toContain("Переправа у Чёрного леса");
+    expect(result.answer).toContain("Камни скрыты высокой водой");
+    expect(result.answer).not.toContain("Из известных направлений");
+  });
+
+  it("visible scene includes seen knowledge and what is present, not one line", () => {
+    const { shell, background } = context();
+    const patched = {
+      ...shell,
+      knowledge: { ...shell.knowledge, entries: [{ category: "seen", text: "У воды видны свежие следы.", origin: "Ты заметил это сам.", status: "current", worldTime: 0 }] },
+    };
+    const scene = {
+      knownTopics: [],
+      visibleObjects: [{ observerRef: "object_1", kind: "object" as const, label: "Ограда", knownAs: ["Ограда"] }],
+      knownPeople: [],
+    };
+    const result = buildInquiryAnswer(
+      { type: "InquiryRequest", queryId: "visible_scene", rawText: "что я вижу?", confidence: 1, source: "deterministic" },
+      { shell: patched as never, background, scene: scene as never },
+    );
+    expect(result.answer).toContain("Камни скрыты высокой водой");
+    expect(result.answer).toContain("свежие следы");
+    expect(result.answer).toContain("Ограда");
+  });
+
+  it("annotates a nearby person with the relation the player has", () => {
+    const { shell, background } = context();
+    const patched = {
+      ...shell,
+      character: { ...shell.character, relations: [{ targetLabel: "Перевозчик у переправы", relationLabel: "Знакомство" }] },
+    };
+    const scene = { knownPeople: [{ observerRef: "person_1", kind: "person" as const, label: "Перевозчик у переправы", knownAs: ["Перевозчик у переправы"] }] };
+    const result = buildInquiryAnswer(
+      { type: "InquiryRequest", queryId: "who_is_nearby", rawText: "кто рядом?", confidence: 1, source: "deterministic" },
+      { shell: patched as never, background, scene: scene as never },
+    );
+    expect(result.answer).toContain("Перевозчик у переправы");
+    expect(result.answer).toContain("знакомство");
+    expect(result.answer).not.toContain("person_1");
+  });
+});

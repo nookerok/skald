@@ -7,6 +7,7 @@ import {
   buildBackgroundNarrativeContext,
   buildGameShellSnapshot,
   buildInquiryAnswer,
+  buildMasterTurnSceneContext,
   ensureGameMomentum,
   isGenericActionFallback,
   localizedPlayerText,
@@ -199,8 +200,12 @@ export function buildMixedConversationTurn(params: {
     const postEvents = [...params.preEvents, ...params.stagedEvents];
     const shell = buildGameShellSnapshot(postEvents, params.projectedWorld, params.characterProfile, params.worldId, undefined);
     const background = buildBackgroundNarrativeContext(postEvents, params.projectedWorld, params.profile);
+    // Same observer-safe scene the executor used, so the persisted answer and
+    // the response's inquiryAnswers stay identical (including present objects
+    // and people).
+    const scene = buildMasterTurnSceneContext(postEvents, params.projectedWorld).context;
     for (const inquiry of params.inquiries) {
-      inquiryTexts.push(buildInquiryAnswer(inquiry, { shell, background }).answer);
+      inquiryTexts.push(buildInquiryAnswer(inquiry, { shell, background, scene }).answer);
     }
   }
   const response = composeMasterTurnResponse({
