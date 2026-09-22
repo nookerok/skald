@@ -1,3 +1,20 @@
+# Current work (2026-09-21 — full-master Stage 4 memory, deployed as 2ffff00)
+
+- Stage 4 (conversational memory) implemented and deployed. Structured hooks no
+  longer depend only on the accepted AI plan: a focused deterministic question
+  records its referent (`deterministicInquiryFocus`), and a stated goal in the
+  player's replica is stored as an interpretation (never a world fact). A
+  mention confirmed at the crossing stays a label but is not re-bound after a
+  scene change; clarification continuity (original replica, options, asking
+  scene revision) and the bounded window were already complete.
+- `npm run validate` PASS (208 files / 2622 passed, 1 skipped) at `2ffff00`;
+  Orange Pi fast-forwarded to `2ffff00`, health + AI readiness + live
+  intent/narration contract PASS.
+- New tests: `packages/cli/test/conversation-memory-focus.test.ts` (4).
+- Known limit: a topic named only in the master's prose is not captured —
+  mentions are structured read-side hooks from the player's replica.
+- Next: Stage 4 acceptance, then full-master Stage 5 (game material for a scene).
+
 # Current work (2026-09-21 — Stage 3 retry closure as 23d42b3)
 
 - Stage 3 retry gap closed with a test-injectable provider: a transient 5xx on
