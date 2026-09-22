@@ -1,3 +1,26 @@
+# Current work (2026-09-21 — full-master Stage 5 material, deployed as a1a289b)
+
+- Stage 5 (game material for a scene) implemented and deployed. The authored
+  Situation now carries its game material to the master only: approaches,
+  stakes and completion reach `MasterSceneSituation` and `SceneRhythm`
+  (`approaches`, pressure, completionCondition), and `MasterBrief` offers the
+  approaches as leads, ranking the ones matching the player's goal first.
+  `SituationView.masterMaterial` is stripped from the player shell DTO, so it is
+  never a button menu. No QuestManager; new consequences would still go through
+  Canon → bootstrap → Event/Rule.
+- `npm run validate` PASS (210 files / 2629 passed, 1 skipped) at `a1a289b`;
+  Orange Pi fast-forwarded to `a1a289b`, health + AI readiness + live
+  intent/narration contract PASS.
+- New tests: `packages/world/test/stage5-game-material.test.ts` (3),
+  `packages/cli/test/stage5-player-facing.test.ts` (2), brief leads/goal-ranking,
+  rhythm approaches.
+- Live (scratch `world-82681c96`): the crossing situation appears and
+  `masterMaterial` is absent from the player DTO.
+- Known limit: «старое русло» is still a discovery/rumor theme, not a spatial
+  node — a Canon authoring task left out of this code pass.
+- Next: Stage 5 acceptance, then full-master Stage 6 (real acceptance, four
+  verdicts).
+
 # Current work (2026-09-21 — full-master Stage 4 memory, deployed as 2ffff00)
 
 - Stage 4 (conversational memory) implemented and deployed. Structured hooks no
