@@ -1,3 +1,24 @@
+# Current work (2026-09-21 — full-master Stage 3: one voice, deployed as 35d384e)
+
+- Stage 3 (one voice for every reply kind) implemented and deployed. Read-side
+  answers (inquiry, and meta when scheduled) now get a safe literary rephrase of
+  the EXACT answer: `narrateAnswerLLM` (kind-aware prompt, answer as the only
+  fact, epistemic guard rejects added facts/class upgrades) settles into the
+  same conversation turn, `pending` -> `ready`. Clarification and meta stay
+  deterministic by design; action/rejection/speech/mixed keep their narration.
+  `conversationOnlyMasterNode` replaces the exact answer with the rephrase in
+  the SAME bubble; the poller scans `conversationTurns` too. Technical-sounding
+  deterministic fallbacks de-technicalised.
+- `npm run validate` PASS (207 files / 2616 passed, 1 skipped) at `35d384e`;
+  Orange Pi fast-forwarded to `35d384e`, health + AI readiness + live
+  intent/narration contract PASS.
+- Live: inquiry on scratch `world-a1f53691` -> exact answer, `pending` ->
+  `ready`, rephrase «Рядом с тобой находятся два перевозчика у переправы.»,
+  worldTime 0->0. DOM (Traycer browser, scratch `world-342efe05`): one МАСТЕР
+  bubble, pending then replaced, reload keeps one replica, 0 console errors;
+  screenshot capability blocked (visual verdict unavailable).
+- Next: acceptance of Stage 3, then full-master Stage 4 (conversational memory).
+
 # Current work (2026-09-21 — full-master Stage 1 PASS and Stage 2 fully closed)
 
 - Full-master Stage 1 (understanding reliability): the live corpus is above
