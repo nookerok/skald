@@ -1,3 +1,24 @@
+# Current work (2026-09-21 — full-master Stage 1 PASS and Stage 2 fully closed)
+
+- Full-master Stage 1 (understanding reliability): the live corpus is above
+  threshold in two consecutive runs (0.9886 and 0.9773) with all 8 scenario
+  steps green, `genericFallback 0`, on the deployed `bab99b3`; the compound and
+  pronoun clusters are closed. See `full-master/stage-1-scorecard-bab99b3`.
+- Deploy workflow codified (`8bd0fa1`): the post-deploy gate checks the current
+  world's scoped state (resolved via `/api/continue`) instead of the
+  primary-only unscoped `/api/state`; the smoke's idempotency expectation is
+  corrected (same key+body → 200 `replayed:true`; same key+different body → 409
+  `idempotency_conflict`). Browser QA: gameplay PASS, visual BLOCKED
+  (screenshot capability unavailable).
+- Full-master Stage 2 (truthful scene presence) fully closed (`e0cd95f`): the
+  addressing path is now covered end-to-end — an absent known contact stays in
+  `knownContacts` but leaves `presentContacts`/`knownPeople`, addressing him
+  clarifies with a named absence, and the full command path does not move the
+  NPC or advance world time. `npm run validate` PASS (205 files / 2606 passed,
+  1 skipped). Live presence confirmed on scratch `world-ecdcd464` (deployed
+  `bab99b3`).
+- Next: full-master Stage 3 (one voice for every reply kind, P1).
+
 # Current work (2026-09-21 — mixed-reply duplication fixed and deployed as 12167a3)
 
 - Reported defect: «осматриваюсь, что я вижу?» rendered the location line three
