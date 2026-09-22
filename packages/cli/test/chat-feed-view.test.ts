@@ -614,3 +614,44 @@ describe("Chronicle Feed — confirmed master pairs (one input, one MasterTurn)"
     expect(mod.getConfirmedPairs()).toEqual([]);
   });
 });
+
+describe("Chronicle Feed — read-side narration (full-master Stage 3)", () => {
+  let doc;
+  beforeEach(() => {
+    doc = createDocument();
+    vi.stubGlobal("document", doc);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function inquiryTurn(overrides = {}) {
+    return {
+      turnSeq: 1, worldId: "world", correlationId: "conversation:q1", idempotencyKey: "q1",
+      playerText: "кто рядом?", inputClass: "inquiry", worldTimeBefore: 3, worldTimeAfter: 3,
+      responseKind: "inquiry_answer", responseText: "Рядом с тобой: «Перевозчик у переправы».",
+      createdAt: 1, turnKey: "tk-q1", narrationHandle: "nh-q1", ...overrides,
+    };
+  }
+
+  it("replaces the exact answer with the ready rephrase in the SAME bubble", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([], [inquiryTurn({ narrationState: "ready", narrationText: "Перевозчик стоит рядом у плоскодонки." })], [], null);
+    expect(doc.feed.children).toHaveLength(2); // ТЫ + one МАСТЕР bubble
+    expect(allText(doc.feed)).toContain("Перевозчик стоит рядом у плоскодонки.");
+    expect(allText(doc.feed)).not.toContain("Рядом с тобой");
+  });
+
+  it("shows the exact answer plus a pending status before the rephrase arrives", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([], [inquiryTurn({ narrationState: "pending" })], [], null);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed)).toContain("Рядом с тобой: «Перевозчик у переправы».");
+    expect(allText(doc.feed)).toContain("МАСТЕР дополняет эту запись…");
+  });
+
+  it("never renders the deterministic answer and the rephrase as two master bubbles", async () => {
+    const { renderChatFeed } = await import("../public/chat-feed-view.js");
+    renderChatFeed([], [inquiryTurn({ narrationState: "ready", narrationText: "Перевозчик стоит рядом." })], [], null);
+    const masterBubbles = doc.feed.children.filter((node) => (node.className || "").includes("chat-turn"));
+    expect(masterBubbles).toHaveLength(1);
+  });
+});

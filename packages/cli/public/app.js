@@ -41,7 +41,12 @@ async function narrationPollTick({ worldId, targetWorldTime, targetNarrationHand
   const data = await refreshJournal();
   if (currentWorldId !== worldId || isExitInProgress()) return "unavailable";
   if (!data) return "pending";
-  return resolveNarrationPollState(data.turns, { targetWorldTime, targetNarrationHandle });
+  // Read-side answers (inquiry/meta) carry narration on the conversation
+  // turn, not the event journal, so poll both collections.
+  return resolveNarrationPollState(
+    [...(data.turns || []), ...(data.conversationTurns || [])],
+    { targetWorldTime, targetNarrationHandle },
+  );
 }
 
 function scheduleNarrationRefresh(routerAvailable, targetWorldTime, targetNarrationHandle) {
@@ -195,6 +200,11 @@ async function handle(input, overrideKey) {
       if (inputElement) inputElement.value = "";
       dispatch("COMMAND_SUCCESS");
       await refreshJournal();
+      // The exact answer is shown; a literary rephrase settles into the same
+      // bubble when the server scheduled one.
+      if (result.body.conversationTurn?.narrationState === "pending") {
+        scheduleNarrationRefresh(true, result.body.conversationTurn.worldTimeAfter, result.body.conversationTurn.narrationHandle);
+      }
       renderShellConnection("ready", "Мастер отвечает");
       return;
     }

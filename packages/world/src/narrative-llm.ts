@@ -985,3 +985,164 @@ export async function narrateTurnLLM(
   // Unreachable — satisfies TS exhaustiveness
   return fallbackNarration(playerAction, presentation, "chat_error", opts?.narrativeContext);
 }
+
+/**
+ * Read-side reply kinds that get a safe literary rephrase of an exact answer
+ * (full-master Stage 3, "one voice for every reply kind"). Questions and
+ * clarifications keep their deterministic text; only a direct answer is
+ * rephrased, and only into the same facts.
+ */
+export type AnswerNarrationKind = "inquiry_answer" | "meta_answer";
+
+/**
+ * Kind-aware system prompt: the fixed "2–4 sentences past tense" action frame
+ * does not fit a direct answer, so the answer voice is short, present-tense and
+ * strictly a rephrase of the exact text already shown.
+ */
+function answerSystemPrompt(kind: AnswerNarrationKind): string {
+  const lead = kind === "inquiry_answer"
+    ? "Игрок задал вопрос миру. Ниже — точный ответ, который уже дан."
+    : "Игрок попросил пояснение. Ниже — точный ответ, который уже дан.";
+  return lead + " Перефразируй ровно этот ответ голосом мастера: естественно и коротко, 1–3 предложения, настоящее время. " +
+    "Сохрани смысл, состав и объём ответа: ничего не добавляй, не додумывай, не создавай предметы, людей, места, причины или события, не решай за игрока и не превращай догадку в факт. " +
+    "Не упоминай внутренние идентификаторы и технические детали. " +
+    "Ответь ТОЛЬКО одним JSON-объектом без пояснений: {\"narration\": \"связный текст 1-3 предложения\", \"claims\": [{\"text\": \"одно предложение\", \"sourceFactId\": \"answer\", \"epistemicClass\": \"observed_fact\"}]}. " +
+    "Каждое предложение привяжи к sourceFactId \"answer\" и не повышай класс факта. " +
+    EPISTEMIC_PROMPT;
+}
+
+function answerFallback(reason: string): TurnNarration {
+  return { text: "", model: "", usedFallback: true, fallbackReason: reason, latencyMs: 0 };
+}
+
+/**
+ * Safe literary rephrase of one exact read-side answer. Non-authoritative:
+ * on any failure it returns `usedFallback`, so the caller keeps the exact
+ * deterministic answer instead of prose. The epistemic guard receives the
+ * answer as its only fact, so the rephrase cannot assert anything new.
+ */
+export async function narrateAnswerLLM(
+  playerQuestion: string,
+  answerText: string,
+  kind: AnswerNarrationKind,
+  worldTime: number,
+  router: ModelRouter | null,
+  opts?: NarrationOptions,
+): Promise<TurnNarration> {
+  const sink = opts?.diagnostics;
+  const priority = opts?.priority ?? "interactive";
+  const answer = answerText.trim();
+  if (!answer) return answerFallback("empty_answer");
+  if (!router || !router.apiKey) {
+    emitDiagnostic(sink, {
+      kind: "llm",
+      category: "no_api_key",
+      outcome: "deterministic_fallback",
+      provider: router?.providerId ?? "",
+      durationMs: 0,
+      turn: worldTime,
+      worldTime,
+      attempt: 1,
+      priority,
+      timeout: 0,
+      retryOutcome: "none",
+      worldId: opts?.worldId,
+      recordedAt: new Date().toISOString(),
+      correlationId: opts?.correlationId,
+    });
+    return answerFallback("no_api_key");
+  }
+
+  const maxAttempts = 1 + retryCount(opts?.maxRetries);
+  const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+  const guardFacts: GuardFact[] = [{ id: "answer", epistemicClass: "observed_fact", source: "answer", usableNow: true }];
+  const messages: ChatMessage[] = [
+    { role: "system", content: answerSystemPrompt(kind) },
+    { role: "user", content: JSON.stringify({ playerQuestion, answer, kind, worldTime }) },
+  ];
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const start = performance.now();
+    try {
+      const result: ChatResult = await router.chat("narrate", messages, {
+        ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+        ...(sink ? { diagnostics: sink } : {}),
+        ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
+        worldTime,
+        priority,
+      });
+      const durationMs = Math.round(performance.now() - start);
+      const guard = verifyEpistemicNarration(result.text, guardFacts, { requireClaims: true });
+      if (!guard.ok) {
+        emitDiagnostic(sink, {
+          kind: "llm",
+          category: "schema_rejection",
+          outcome: "deterministic_fallback",
+          provider: result.provider,
+          durationMs,
+          turn: worldTime,
+          worldTime,
+          attempt,
+          priority,
+          timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+          retryOutcome: "none",
+          worldId: opts?.worldId,
+          recordedAt: new Date().toISOString(),
+          correlationId: opts?.correlationId,
+          model: result.model,
+          configuredModel: result.configuredModel,
+        });
+        return answerFallback(`epistemic_violation:${guard.reason}`);
+      }
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category: "success",
+        outcome: "success",
+        provider: result.provider,
+        durationMs,
+        turn: worldTime,
+        worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome: attempt > 1 ? "succeeded_on_retry" : "none",
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: result.model,
+        configuredModel: result.configuredModel,
+      });
+      return { text: guard.narration.trim(), model: result.model, usedFallback: false, fallbackReason: null, latencyMs: result.latencyMs };
+    } catch (err) {
+      const durationMs = Math.round(performance.now() - start);
+      const category = classifyNarrationError(err, null);
+      const failure = diagnosticProviderFailure(router, err);
+      const isTransient = isTransientNarrationError(category);
+      const isLastAttempt = attempt >= maxAttempts;
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category,
+        outcome: isTransient ? (isLastAttempt ? "retry_exhausted" : "retrying") : "deterministic_fallback",
+        provider: diagnosticProvider(router, err),
+        durationMs,
+        turn: worldTime,
+        worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome: isLastAttempt && isTransient ? "exhausted" : "none",
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: diagnosticField(err, "model"),
+        configuredModel: diagnosticField(err, "configuredModel"),
+        ...(failure?.phase ? { phase: failure.phase } : {}),
+        ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
+        ...(failure?.providerCode ? { providerCode: failure.providerCode } : {}),
+      });
+      if (!isTransient || isLastAttempt) return answerFallback("chat_error");
+      await sleep(retryBaseMs * Math.pow(2, attempt - 1));
+    }
+  }
+  return answerFallback("chat_error");
+}

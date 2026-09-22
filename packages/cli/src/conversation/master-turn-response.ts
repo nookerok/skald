@@ -82,7 +82,7 @@ const FORBIDDEN_MARKERS: readonly string[] = [
   "intentgateway",
 ];
 
-const SANITIZED_FALLBACK = "Не удалось собрать ответ Мастера. Уточни намерение.";
+const SANITIZED_FALLBACK = "Мастер не расслышал намерение. Скажи иначе, что ты хочешь сделать.";
 
 function freeze<T>(value: T): T {
   return Object.freeze(value);
@@ -229,7 +229,7 @@ export function composeMasterTurnResponse(input: MasterTurnResponseInput): Maste
 
 function fallbackClarification(): NonNullable<MasterTurnResponseInput["clarification"]> {
   return freeze({
-    question: "Не удалось собрать ответ. Уточни, чего ты хочешь добиться.",
+    question: "Мастер не понял намерение. Скажи иначе, чего ты хочешь добиться.",
     options: freeze([{ optionId: "rephrase", label: "Уточнить намерение" }]),
   });
 }

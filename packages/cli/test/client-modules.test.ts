@@ -240,7 +240,10 @@ describe("Browser ES modules — import link integrity", () => {
     // by elapsed time; app.js wires a single session per command.
     expect(app).toContain('import { createNarrationPoll, resolveNarrationPollState } from "./narration-poll.js"');
     expect(app).toContain("narrationPoll.start(narrationPollTick,");
-    expect(app).toContain("resolveNarrationPollState(data.turns");
+    expect(app).toContain("resolveNarrationPollState(");
+    // Read-side answers (inquiry/meta) carry narration on the conversation
+    // turn, so the poll must scan both collections.
+    expect(app).toContain("data.conversationTurns");
     expect(app).toContain("watchdogMs: 150000");
     // The poll module owns stale-tick/generation semantics so a rearm can
     // never leave two timers running.

@@ -98,7 +98,7 @@ export { buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } from "./inquiry/index.js";
 export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { localizedPlayerText } from "./game-shell/player-facing.js";
-export { narrateLLM, narrateTurnLLM, verifyEpistemicNarration } from "./narrative-llm.js";
+export { narrateLLM, narrateTurnLLM, narrateAnswerLLM, verifyEpistemicNarration } from "./narrative-llm.js";
 export type {
   TurnNarration,
   NarrativeLLMResult,
@@ -107,6 +107,7 @@ export type {
   StructuredNarration,
   NarrationGuardResult,
   NarrationGuardOptions,
+  AnswerNarrationKind,
 } from "./narrative-llm.js";
 export {
   classifyNarrationError,

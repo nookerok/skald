@@ -26,6 +26,7 @@ import {
   buildObserverMap,
   buildSpatialWorldProjection,
   narrateTurnLLM,
+  narrateAnswerLLM,
   buildBackgroundNarrativeContext,
   buildNarrativeAdapterContext,
   localizedPlayerText,
@@ -37,6 +38,7 @@ import {
   narrateLLM,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
+import type { AnswerNarrationKind, TurnNarration } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { classifyPlayerInput, conflictingActions, isContinuingJourneyTo, isJourneyContinuation, parseIntent, unknownObservedTarget, validateActionProposal } from "@skald/intent-parser";
@@ -673,6 +675,68 @@ function scheduleNarration(
 }
 
 /**
+ * Read-side answer narration (full-master Stage 3): the exact answer is shown
+ * immediately; when a provider is available a safe literary rephrase of the
+ * SAME answer settles into the same bubble. Returns true when a job was
+ * scheduled, so the caller marks the envelope `pending`.
+ */
+function scheduleAnswerNarration(
+  runtime: WorldRuntime,
+  input: string,
+  answerText: string,
+  kind: AnswerNarrationKind,
+  correlationId: string,
+): boolean {
+  const router = runtime.router;
+  if (!router || input.trim().length === 0 || answerText.trim().length === 0) return false;
+  const worldId = runtime.worldId;
+  const worldTime = runtime.projection.getSnapshot().time;
+  runtime.narration.schedule({
+    priority: "interactive",
+    worldTime,
+    correlationId,
+    run: async () => {
+      const narration = await narrateAnswerLLM(input, answerText, kind, worldTime, router, {
+        diagnostics: runtime.diagnostics,
+        priority: "interactive",
+        timeoutMs: router.timeoutSeconds * 1000,
+        worldId,
+        correlationId,
+      });
+      if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
+      try {
+        runtime.store.saveTurnNarration(worldId, worldTime, narration, correlationId);
+      } catch {
+        runtime.narration.markUnavailable(worldTime, correlationId);
+        return;
+      }
+      runtime.narration.markReady(worldTime, correlationId);
+    },
+    onDrop: () => runtime.narration.markUnavailable(worldTime, correlationId),
+  });
+  return true;
+}
+
+/**
+ * Read-side narration lifecycle for a persisted conversation turn. Only the
+ * kinds that get a rephrase carry it; action/speech/mixed ride the journal.
+ * Returns null for every other kind so the DTO stays byte-identical.
+ */
+function readSideNarration(
+  runtime: WorldRuntime,
+  turn: { readonly responseKind: ConversationResponseKind; readonly worldTimeAfter: number; readonly correlationId: string },
+  narrations: ReadonlyMap<number | string, TurnNarration>,
+): { readonly state: "pending" | "ready" | "unavailable" | "not_requested"; readonly text?: string } | null {
+  if (turn.responseKind !== "inquiry_answer" && turn.responseKind !== "meta_answer") return null;
+  const row = narrations.get(narrationKey(turn.worldTimeAfter, turn.correlationId));
+  const state = resolveNarrationState(
+    { hasNonFallback: Boolean(row && !row.usedFallback) },
+    runtime.narration.statusOf(turn.worldTimeAfter, turn.correlationId),
+  );
+  return state === "ready" && row ? { state, text: row.text } : { state };
+}
+
+/**
  * Best-effort read-side narration for the multiple turns produced by
  * `advance N`. Each tick is its own chronicle turn with its own worldTime, so
  * a single presentation cannot cover them. Each target turn is scheduled as
@@ -948,8 +1012,9 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer,
           interpretation.pendingLink ? buildTurnMemoryMetadata({ continuationLink: interpretation.pendingLink }) : undefined);
+        const scheduled = scheduleAnswerNarration(runtime, input, inquiry.answer, "inquiry_answer", conversationTurn.correlationId);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-        return json({ ok: true, status: "inquiry", inquiry, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
+        return json({ ok: true, status: "inquiry", inquiry, conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
       });
     }
     pendingClarificationSeq = snapshot.conversation.pendingClarification?.turnSeq ?? null;
@@ -1258,7 +1323,13 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
     limit: conversationLimitP.value,
     ...(conversationBefore !== undefined ? { beforeTurnSeq: conversationBefore } : {}),
   });
-  const conversationTurns = conversationRows.map(toConversationTurnDTO);
+  const conversationTurns = conversationRows.map((row) => {
+    const dto = toConversationTurnDTO(row);
+    const narration = readSideNarration(runtime, dto, narrations);
+    return narration
+      ? { ...dto, narrationState: narration.state, ...(narration.text ? { narrationText: narration.text } : {}) }
+      : dto;
+  });
   const conversationHasMore = conversationRows.length === conversationLimitP.value;
   const conversationNextBefore = conversationHasMore ? conversationRows[0]?.turnSeq ?? null : null;
 

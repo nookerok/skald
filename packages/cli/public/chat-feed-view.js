@@ -261,10 +261,15 @@ function turnNode(turn, conversationTurn = null) {
 
 function conversationOnlyMasterNode(turn) {
   const node = makeNode("article", { className: "chat-turn chat-turn--" + turn.inputClass, attrs: turnKeyAttrs(turn) });
-  node.append(
-    makeNode("div", { className: "chat-turn-header", text: "МАСТЕР" }),
-    makeNode("p", { className: "chat-world-primary", text: turn.responseText }),
-  );
+  node.appendChild(makeNode("div", { className: "chat-turn-header", text: "МАСТЕР" }));
+  // Read-side answers (full-master Stage 3): the exact answer shows first; a
+  // ready literary rephrase replaces it in the SAME bubble.
+  const merged = replaceWithNarration(turn.responseText, turn.narrationText || "");
+  if (merged.primary) node.appendChild(makeNode("p", { className: "chat-world-primary", text: merged.primary }));
+  if (merged.narrated) node.appendChild(makeNode("p", { className: "chat-world-narrated", text: merged.narrated }));
+  if (turn.narrationState === "pending") {
+    node.appendChild(makeNode("p", { className: "chat-narration-status", text: "МАСТЕР дополняет эту запись…", attrs: { role: "status", "aria-live": "polite" } }));
+  }
   return node;
 }
 

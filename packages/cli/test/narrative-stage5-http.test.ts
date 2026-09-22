@@ -20,7 +20,9 @@ class ContextNarrator extends ModelRouter {
     if (category !== "narrate") throw new Error("stage5 test provider only serves narration");
     const raw = messages.find((message) => message.role === "user")?.content ?? "{}";
     const payload = JSON.parse(raw) as { turnFacts?: readonly { id?: unknown; text?: unknown; epistemicClass?: unknown }[]; backgroundFacts?: readonly { id?: unknown; text?: unknown; epistemicClass?: unknown }[]; openingWindow?: boolean };
-    this.prompts.push(payload);
+    // This provider models TURN narration context only; a read-side answer
+    // rephrase (no turnFacts) is not part of the opening-window assertions.
+    if (Array.isArray(payload.turnFacts)) this.prompts.push(payload);
     const turn = payload.turnFacts?.find((fact) => typeof fact.id === "string" && typeof fact.text === "string" && typeof fact.epistemicClass === "string");
     const background = payload.backgroundFacts?.find((fact) => typeof fact.id === "string" && (fact.id === "background:obligation" || fact.id === "arrival:reason" || fact.id === "arrival:hook" || fact.id === "situation:opening-problem" || fact.id.startsWith("item:") || fact.id.startsWith("contact:") || fact.id.startsWith("testimony:")));
     const turnText = typeof turn?.text === "string" ? (turn.text.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? turn.text) : undefined;
