@@ -1,3 +1,20 @@
+# Current work (2026-09-21 — contact identity T1 deployed as 6d508ed)
+
+- New plan block «one character — one identity — observable description» broken
+  into five tickets (story `contact-identity`: T1 identity, T2 card, T3 observer
+  portrait, T4 inquiry answers, T5 policy/acceptance).
+- T1 done and deployed. Canon now has a `bootstrap.contacts` catalogue; the
+  crossing entrypoint and the `wanderer` background reference the SAME
+  `contact:waystation-keeper`, so the hero is never given two same-named
+  ferrymen. `contact:waystation-ferryman` is removed. The IR rejects duplicate
+  definitions and unknown refs; the compiler resolves refs; the bootstrap
+  materializes each contact once and applies one acquaintance per pair.
+- `npm run validate` PASS (211 files / 2635 passed, 1 skipped) at `6d508ed`;
+  deployed `6d508ed`, health + AI readiness + live contract PASS; live new story
+  `world-d72d1fec` → «кто рядом?» → one «Перевозчик у переправы» (знакомство).
+- Next: T2 (structured contact card through existing events) → T3 (observer
+  portrait at first presence) → T4 (inquiry answers) → T5 (policy/acceptance).
+
 # Current work (2026-09-21 — Stage 6 human finding fixed as e8c0577)
 
 - The first human playtest (Stage 6) found the master's inquiry answers
