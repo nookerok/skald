@@ -1,3 +1,23 @@
+# Current work (2026-09-21 — contact identity T2–T4 deployed as b66a496)
+
+- T2–T4 of the `contact-identity` block implemented, validated and deployed:
+  - **T2** (`8c7ade8`): a structured author card on the existing
+    `ContactComponent` (`ContactProfile`), projected by the compiler, frozen and
+    replay-stable; `backgroundId` demoted to a marked legacy-placement field;
+    `knownAs` is author-only (default `[]`) so no name leaks.
+  - **T3** (`c28e306`): `visibleContacts` (present whether known or not) and a
+    gated master-scene portrait — presence, acquaintance and the name are
+    independent; the shell carries no portrait.
+  - **T4** (`b66a496`): «кто рядом?» / «опиши людей», «как выглядит X?» /
+    «кто этот X?» answered deterministically from the portrait; no reaction is
+    invented.
+- `npm run validate` PASS (214 files / 2649 passed, 1 skipped) at `b66a496`;
+  deployed `b66a496`, health + AI readiness + live contract PASS.
+- Live new story `world-340fb76a`: «кто рядом?» → «Перевозчик у переправы» —
+  держит переправу и плоскодонку; на рукавах — старые заплаты.»; «как выглядит
+  перевозчик?» → full portrait + «Ты знаешь этого человека.»
+- T5 (old-save policy + full behaviour acceptance) remains open.
+
 # Current work (2026-09-21 — contact identity T1 deployed as 6d508ed)
 
 - New plan block «one character — one identity — observable description» broken
