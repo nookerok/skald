@@ -29,10 +29,39 @@ export interface InventoryComponent {
   readonly itemIds: readonly string[];
 }
 
-/** Minimal contact metadata; this is not an NPC simulation model. */
+/**
+ * Stable, observer-safe author card of a contact (contact-identity T2).
+ * Only durable, publicly observable data: how the person looks, a
+ * distinguishing feature, their usual role, the designations and address forms
+ * the player may use. Conditional reactions and hidden facts never live here.
+ * `identityRef` is the canonical id and is internal (never shown to the player).
+ */
+export interface ContactProfile {
+  readonly identityRef: string;
+  readonly visibleAppearance: readonly string[];
+  readonly distinguishingFeatures: readonly string[];
+  readonly publicRole: string | null;
+  /**
+   * Author-declared PUBLIC designations only. The canonical proper name is not
+   * stored here; the observer layer surfaces the name only for someone the
+   * player actually knows, so an empty list never leaks an unknown name.
+   */
+  readonly knownAs: readonly string[];
+  readonly addressForms: readonly string[];
+}
+
+/**
+ * Minimal contact metadata; this is not an NPC simulation model.
+ * A person's identity never depends on a background: the acquaintance and its
+ * origin live in `RelationChanged` and testimony facts, not here.
+ */
 export interface ContactComponent {
   readonly locationId: string;
-  readonly backgroundId: string;
+  /** Placement origin only (where the entity was placed), never identity. */
+  readonly entrypointId?: string | undefined;
+  /** Legacy origin field on old events; carried but never read as identity. */
+  readonly backgroundId?: string | undefined;
+  readonly profile?: ContactProfile | undefined;
 }
 
 export interface EntityComponents {

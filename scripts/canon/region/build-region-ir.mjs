@@ -38,6 +38,13 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     if (contact.status != null && contact.status !== 'approved') { continue; }
     if (typeof contact.name !== 'string' || typeof contact.description !== 'string' || typeof contact.locationId !== 'string') throw new Error('bootstrap contact is incomplete: ' + contact.id);
     if (!locationIds.has(contact.locationId)) throw new Error('bootstrap contact location is not declared: ' + contact.id);
+    if (contact.profile) {
+      for (const field of ['visibleAppearance', 'distinguishingFeatures', 'addressForms']) {
+        if (contact.profile[field] != null && (!Array.isArray(contact.profile[field]) || contact.profile[field].some((entry) => typeof entry !== 'string'))) throw new Error('bootstrap contact profile ' + field + ' is invalid: ' + contact.id);
+      }
+      if (contact.profile.publicRole != null && typeof contact.profile.publicRole !== 'string') throw new Error('bootstrap contact profile publicRole is invalid: ' + contact.id);
+    }
+    if (contact.knownAs != null && (!Array.isArray(contact.knownAs) || contact.knownAs.some((entry) => typeof entry !== 'string'))) throw new Error('bootstrap contact knownAs is invalid: ' + contact.id);
     contactsById.set(contact.id, contact);
   }
   const entrypointIds = new Set();

@@ -99,6 +99,21 @@ function buildEvents(p, region, inputDigest, canonDigest) {
   return events;
 }
 
+/** Observer-safe author card projected onto the contact entity (T2). */
+function contactProfile(contact) {
+  return {
+    identityRef: contact.id,
+    visibleAppearance: contact.profile?.visibleAppearance ?? [],
+    distinguishingFeatures: contact.profile?.distinguishingFeatures ?? [],
+    publicRole: contact.profile?.publicRole ?? null,
+    // Author-declared public designations only. The canonical name is NOT put
+    // here: whether the player may use it depends on acquaintance, which the
+    // observer layer decides (T3). An empty list never reveals an unknown name.
+    knownAs: contact.knownAs ?? [],
+    addressForms: contact.profile?.addressForms ?? [],
+  };
+}
+
 function buildBackgroundBindings(p, inputDigest, canonDigest) {
   const bindings = [];
   const contactsById = new Map((p.bootstrap?.contacts ?? []).map((contact) => [contact.id, contact]));
@@ -138,7 +153,7 @@ function buildBackgroundBindings(p, inputDigest, canonDigest) {
       name: contact.name,
       aliases: [],
       description: contact.description,
-      components: { contact: { locationId: contact.locationId, backgroundId: background.id } },
+      components: { contact: { locationId: contact.locationId, profile: contactProfile(contact) } },
     }, events.at(-1).eventId));
     const relation = background.relation;
     events.push(event("RelationChanged", "RelationChanged", {
@@ -272,7 +287,7 @@ function buildEntrypointDefinitions(projection, events, inputDigest, canonDigest
           name: contact.name,
           aliases: [],
           description: contact.description,
-          components: { contact: { locationId: contact.locationId ?? entrypoint.locationId, entrypointId: entrypoint.id } },
+          components: { contact: { locationId: contact.locationId ?? entrypoint.locationId, entrypointId: entrypoint.id, profile: contactProfile(contact) } },
           provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion),
         },
         timestamp: 0,

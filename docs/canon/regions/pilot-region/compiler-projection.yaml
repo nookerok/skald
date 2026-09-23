@@ -55,26 +55,71 @@ compilerProjection:
         name: Перевозчик у переправы
         description: Он знает, кто проходил здесь до тебя, и первым замечает перемены в воде.
         locationId: river_waystation
+        profile:
+          visibleAppearance:
+            - в потёртом плаще, седина у висков
+          distinguishingFeatures:
+            - на рукавах — старые заплаты
+          publicRole: держит переправу и плоскодонку
+          addressForms:
+            - перевозчик
+            - хозяин лодки
       - id: contact:riverwatch-gatekeeper
         status: approved
         name: Смотритель речных ворот
         description: Он ведёт журнал проходов и знает, кто последним уходил по восточному тракту.
         locationId: riverwatch_city
+        profile:
+          visibleAppearance:
+            - в тёмном кафтане с ремённым поясом
+          distinguishingFeatures:
+            - у пояса связка ключей от ворот
+          publicRole: ведёт журнал проходов у ворот
+          addressForms:
+            - смотритель
+            - страж ворот
       - id: contact:southern-borough-warden
         status: approved
         name: Староста южного посада
         description: Он отвечает за склады и помнит, где на старых сваях отмечали прежние подъёмы воды.
         locationId: southern_borough
+        profile:
+          visibleAppearance:
+            - в добротном суконном кафтане
+          distinguishingFeatures:
+            - у пояса счётная бирка
+          publicRole: отвечает за склады посада
+          addressForms:
+            - староста
+            - хозяин складов
       - id: contact:riverwatch-archivist
         status: approved
         name: Архивист Речного Стража
         description: Хранитель городских записей, знакомый с архивной манерой героя.
         locationId: riverwatch_city
+        profile:
+          visibleAppearance:
+            - в выцветшем рабочем платье
+          distinguishingFeatures:
+            - руки обвязаны тканью, под ногтями угольная пыль
+          publicRole: хранит городские записи
+          addressForms:
+            - архивист
+            - хранитель записей
       - id: contact:night-ferryman
         status: approved
         name: Ночной перевозчик
         description: Перевозчик, который дежурил у переправы в ночь старого происшествия.
         locationId: river_waystation
+        profile:
+          visibleAppearance:
+            - в тёмной рабочей одежде, лицо обветрено
+          distinguishingFeatures:
+            - на боку — старый багор
+          publicRole: ходит через реку по ночам
+          addressForms:
+            - перевозчик
+            - ночной перевозчик
     entrypoints:
       - id: river_waystation_arrival
         status: approved

@@ -242,7 +242,20 @@ function deepCloneComponents(components: EntityComponents): EntityComponents {
     inventory: components.inventory
       ? Object.freeze({ ...components.inventory, itemIds: Object.freeze([...components.inventory.itemIds]) })
       : undefined,
-    contact: components.contact ? Object.freeze({ ...components.contact }) : undefined,
+    contact: components.contact ? Object.freeze({
+      ...components.contact,
+      ...(components.contact.profile
+        ? {
+          profile: Object.freeze({
+            ...components.contact.profile,
+            visibleAppearance: Object.freeze([...components.contact.profile.visibleAppearance]),
+            distinguishingFeatures: Object.freeze([...components.contact.profile.distinguishingFeatures]),
+            knownAs: Object.freeze([...components.contact.profile.knownAs]),
+            addressForms: Object.freeze([...components.contact.profile.addressForms]),
+          }),
+        }
+        : {}),
+    }) : undefined,
   });
 }
 
