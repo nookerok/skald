@@ -116,6 +116,7 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^кого\s+(?:я\s+)?вижу\s+рядом/iu,
     /^с\s+кем\s+(?:я\s+)?имею\s+дело\s+здесь/iu,
     /^кто\s+из\s+людей(?=\s|$)/iu,
+    /^опиши\s+(?:всех\s+)?(?:людей|присутствующих|окружающих)/iu,
   ]],
   ["environmental_indication", [
     /^что\s+подсказывает\s+(?:вода|река|лес|ветер|течение|природа)/iu,
@@ -205,7 +206,30 @@ function directInquiry(input: string): InquiryRequest | null {
       return Object.freeze({ type: "InquiryRequest", queryId, rawText: input, confidence: 1, source: "deterministic" });
     }
   }
-  return knowledgeFocusInquiry(input) ?? spatialFocusInquiry(input, withoutPrefix);
+  return knowledgeFocusInquiry(input) ?? personFocusInquiry(input) ?? spatialFocusInquiry(input, withoutPrefix);
+}
+
+/**
+ * "Как выглядит X?" / "Кто этот X?" for a named person: a read-only focus on
+ * the person, answered from their observer-safe portrait. Pronouns stay
+ * contextual (the focus stack owns them).
+ */
+function personFocusInquiry(input: string): InquiryRequest | null {
+  const normalized = normalizeQuestion(input);
+  const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").replace(WANT_TO_KNOW_PREFIX, "").trim();
+  const match = /^(?:как\s+выглядит|кто\s+(?:этот|эта|это))\s+(.+)$/iu.exec(withoutPrefix);
+  if (!match?.[1]) return null;
+  const surface = match[1].trim().slice(0, MAX_FOCUS_SURFACE).trim();
+  if (!/[а-яёa-z]/iu.test(surface)) return null;
+  if (isUnresolvedFocusSurface(surface)) return null;
+  return Object.freeze({
+    type: "InquiryRequest",
+    queryId: "visible_scene",
+    rawText: input,
+    confidence: 1,
+    source: "deterministic",
+    focus: Object.freeze({ surface }),
+  });
 }
 
 /**

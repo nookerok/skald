@@ -2,6 +2,7 @@ import type { InquiryQueryId, InquiryRequest } from "@skald/intent-parser";
 import { sameRussianStem } from "@skald/intent-parser";
 import type { GameShellSnapshot } from "../game-shell/types.js";
 import type { BackgroundNarrativeContext } from "../setup/background-context.js";
+import type { MasterTurnSceneContext } from "../master-turn/observer-context.js";
 import type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./types.js";
 
 function revision(shell: GameShellSnapshot): InquiryAnswerDTO["revision"] {
@@ -141,6 +142,26 @@ function buildFocusedScene(request: InquiryRequest, context: InquiryReadContext)
   const { shell } = context;
   const label = focusLabel(request.focus?.surface ?? "");
   const key = focusMatchKey(label);
+  // A question about a present person is answered from the observer-safe
+  // portrait: appearance and features are visible; the name only when known.
+  const person = key === null
+    ? undefined
+    : (context.scene?.knownPeople ?? []).find((candidate) =>
+      candidate.kind === "person"
+      && candidate.label !== "Незнакомый человек"
+      && [candidate.label, ...candidate.knownAs].some((name) => normalizeFocus(name).includes(key)));
+  if (person) {
+    const known = person.known !== false;
+    const name = known ? `«${person.label}»` : "Незнакомый человек";
+    const details = [
+      ...(person.portrait?.visibleAppearance ?? []),
+      ...(person.portrait?.distinguishingFeatures ?? []),
+      ...(person.portrait?.publicRole ? [person.portrait.publicRole] : []),
+    ];
+    const body = details.length > 0 ? details.join("; ") : "в твоих наблюдениях о нём пока нет подробностей";
+    const acquaintance = known ? " Ты знаешь этого человека." : " Ты его не знаешь.";
+    return answer("visible_scene", `${name}: ${body}.${acquaintance}`, shell);
+  }
   const matched = key === null ? [] : focusSearchTexts(shell)
     .filter((text) => normalizeFocus(text).includes(key))
     .slice(0, 2);
@@ -248,48 +269,64 @@ function normalizePersonLabel(label: string): string {
  * entities sharing one name are never silently merged — each keeps a
  * player-safe ordinal distinguisher.
  */
+/** One present person's line: the name (only if known) plus the visible portrait. */
+function personLine(
+  person: MasterTurnSceneContext["knownPeople"][number],
+  relationByLabel: ReadonlyMap<string, string>,
+  ordinal?: string,
+): string {
+  // Backward-compatible: a person without an explicit `known` flag is treated
+  // as known (legacy scene fixtures); only `known === false` withholds the name.
+  const known = person.known !== false;
+  const name = known ? `«${person.label}»` : "Незнакомый человек";
+  const titled = ordinal ? `${name} (${ordinal})` : name;
+  const parts: string[] = [];
+  if (person.portrait?.publicRole) parts.push(person.portrait.publicRole);
+  if (person.portrait?.distinguishingFeatures.length) parts.push(person.portrait.distinguishingFeatures.join(", "));
+  // Without a portrait, fall back to the relation the player already has.
+  if (parts.length === 0 && known) {
+    const relation = relationByLabel.get(normalizePersonLabel(person.label));
+    if (relation) parts.push(relation.toLowerCase());
+  }
+  return parts.length > 0 ? `${titled} — ${parts.join("; ")}` : titled;
+}
+
 function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
   const { shell } = context;
+  const people = (context.scene?.knownPeople ?? []).filter((person) => person.kind === "person" && person.label.trim().length > 0);
+  if (people.length === 0) {
+    return answer("who_is_nearby", "Рядом с тобой сейчас никого различимого нет. Осмотрись действием — может, кто-то покажется.", shell);
+  }
   const seenRefs = new Set<string>();
-  const groups = new Map<string, { label: string; count: number }>();
+  const groups = new Map<string, { person: MasterTurnSceneContext["knownPeople"][number]; count: number }>();
   const order: string[] = [];
-  for (const person of context.scene?.knownPeople ?? []) {
-    const label = person.label.trim();
-    if (label.length === 0) continue;
+  for (const person of people) {
     if (seenRefs.has(person.observerRef)) continue;
     seenRefs.add(person.observerRef);
-    const key = normalizePersonLabel(label);
+    // Distinct unknown people never merge under one neutral label.
+    const key = person.known === false ? `unknown:${person.observerRef}` : normalizePersonLabel(person.label);
     const group = groups.get(key);
     if (group) {
       group.count += 1;
     } else {
-      groups.set(key, { label, count: 1 });
+      groups.set(key, { person, count: 1 });
       order.push(key);
     }
   }
-  if (order.length === 0) {
-    return answer("who_is_nearby", "Рядом с тобой сейчас никого различимого нет. Осмотрись действием — может, кто-то покажется.", shell);
-  }
-  const parts: string[] = [];
-  // A bare name is not an answer: attach the relation the player already has,
-  // so the master names someone the player can actually place.
+  const lines: string[] = [];
   const relationByLabel = new Map(shell.character.relations.map((relation) => [normalizePersonLabel(relation.targetLabel), relation.relationLabel.trim()]));
-  const annotate = (label: string): string => {
-    const relation = relationByLabel.get(normalizePersonLabel(label));
-    return relation ? `«${label}» (${relation.toLowerCase()})` : `«${label}»`;
-  };
   for (const key of order) {
     const group = groups.get(key)!;
     if (group.count === 1) {
-      if (parts.length < 5) parts.push(annotate(group.label));
+      if (lines.length < 5) lines.push(personLine(group.person, relationByLabel));
     } else {
-      for (let index = 0; index < group.count && parts.length < 5; index += 1) {
-        parts.push(`«${group.label}» (${PERSON_ORDINALS[index]})`);
+      for (let index = 0; index < group.count && lines.length < 5; index += 1) {
+        lines.push(personLine(group.person, relationByLabel, PERSON_ORDINALS[index]));
       }
     }
-    if (parts.length >= 5) break;
+    if (lines.length >= 5) break;
   }
-  return answer("who_is_nearby", `Рядом с тобой: ${parts.join(", ")}. Осмотрись или обратись к кому-то действием, чтобы узнать больше.`, shell);
+  return answer("who_is_nearby", `Рядом с тобой: ${lines.join("; ")}. Осмотрись или обратись к кому-то действием, чтобы узнать больше.`, shell);
 }
 
 /** Default water/river keywords when the question names no focus. */
