@@ -1,5 +1,6 @@
 import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "../projection.js";
+import type { ContactProfile } from "../entities/types.js";
 import type { NarrativeAdapterContext } from "../setup/background-context.js";
 import { buildSituationView } from "../game-shell/situation-view.js";
 import type { SituationView } from "../game-shell/types.js";
@@ -15,6 +16,18 @@ export interface ObservedObject {
 export interface KnownContact {
   readonly id: string;
   readonly label: string;
+}
+
+/**
+ * A contact present at the current location, whether or not the hero knows them
+ * (contact-identity T3). Present is not the same as known: an unknown but
+ * visible person may be described from the portrait without revealing a name.
+ */
+export interface VisibleContact {
+  readonly id: string;
+  readonly label: string;
+  readonly known: boolean;
+  readonly portrait: ContactProfile | null;
 }
 
 export interface KnownRoute {
@@ -37,6 +50,8 @@ export interface ObserverGuidanceContext {
   readonly knownContacts: readonly KnownContact[];
   /** Known contacts whose own contact evidence places them at the current location. */
   readonly presentContacts: readonly KnownContact[];
+  /** Every contact present at the current location, known or not. */
+  readonly visibleContacts: readonly VisibleContact[];
   readonly knownRoutes: readonly KnownRoute[];
   readonly activeSituation: SituationView | null;
   readonly accessibleItems: readonly AccessibleItem[];
@@ -289,6 +304,31 @@ function buildPresentContacts(world: ReadonlyWorld, known: readonly KnownContact
   return freeze(known.filter((contact) => world.entities.get(contact.id)?.components.contact?.locationId === world.currentLocationId));
 }
 
+/**
+ * Every contact entity present at the current location, known or not
+ * (contact-identity T3). The acquaintance flag is separate: a present person
+ * may be visible without the hero knowing their name.
+ */
+function buildVisibleContacts(world: ReadonlyWorld): readonly VisibleContact[] {
+  const knownIds = new Set<string>();
+  for (const relation of world.relations.values()) {
+    if (relation.from === "player") knownIds.add(relation.to);
+  }
+  const contacts: VisibleContact[] = [];
+  for (const entity of world.entities.values()) {
+    const contact = entity.components.contact;
+    if (!contact || contact.locationId !== world.currentLocationId) continue;
+    if (entity.name.trim().length === 0) continue;
+    contacts.push(freeze({
+      id: entity.id,
+      label: entity.name,
+      known: knownIds.has(entity.id),
+      portrait: contact.profile ?? null,
+    }));
+  }
+  return freeze(contacts.sort((a, b) => a.label.localeCompare(b.label, "ru")));
+}
+
 export function buildObserverGuidanceContext(
   events: readonly DomainEvent[],
   world: ReadonlyWorld,
@@ -299,6 +339,7 @@ export function buildObserverGuidanceContext(
     observedObjects: buildObservedObjects(events, world),
     knownContacts,
     presentContacts: buildPresentContacts(world, knownContacts),
+    visibleContacts: buildVisibleContacts(world),
     knownRoutes: buildKnownRoutes(world),
     activeSituation: buildLocalSituation(events, world, narrativeContext),
     accessibleItems: buildAccessibleItems(world),

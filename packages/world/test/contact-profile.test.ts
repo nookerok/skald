@@ -58,17 +58,21 @@ describe("contact profile", () => {
     expect(Object.isFrozen(first?.visibleAppearance)).toBe(true);
   });
 
-  it("does not expose the profile through the master scene or the shell", () => {
+  it("keeps identityRef and hidden author fields out of the shell and the scene", () => {
     const events = buildBootstrapEvents({ templateId: "living_region", entrypointId: "river_waystation_arrival", backgroundId: "wanderer" });
     const world = rebuildProjection(events).getSnapshot();
     const scene = buildMasterTurnSceneContext(events, world).context;
     const shell = buildGameShellSnapshot(events, world, null, "contact-boundary");
-    const dump = JSON.stringify({ scene, shell });
-    // Identity and the author card are internal: no read-side surface carries them.
-    expect(dump).not.toContain("identityRef");
-    expect(dump).not.toContain("visibleAppearance");
-    expect(dump).not.toContain("distinguishingFeatures");
-    expect(dump).not.toContain("publicRole");
+    // Internal identity and author-only fields never cross any read-side boundary.
+    const sceneDump = JSON.stringify(scene);
+    expect(sceneDump).not.toContain("identityRef");
+    expect(sceneDump).not.toContain("speechManner");
+    expect(sceneDump).not.toContain("provenance");
+    // The player-facing shell carries no portrait at all (master-only material).
+    const shellDump = JSON.stringify(shell);
+    expect(shellDump).not.toContain("identityRef");
+    expect(shellDump).not.toContain("visibleAppearance");
+    expect(shellDump).not.toContain("publicRole");
   });
 
   it("replays an old contact event without a profile", () => {

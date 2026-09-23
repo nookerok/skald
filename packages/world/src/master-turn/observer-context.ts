@@ -43,6 +43,22 @@ export interface MasterSceneReferent {
   readonly knownAs: readonly string[];
   /** Route passability; present only when kind is "route". */
   readonly status?: "open" | "difficult" | "closed";
+  /** Person only: whether the hero actually knows them (name is gated). */
+  readonly known?: boolean | undefined;
+  /** Person only: the allowed, observer-safe portrait (never the full card). */
+  readonly portrait?: MasterScenePortrait | undefined;
+}
+
+/**
+ * Observer-safe portrait of a present person (contact-identity T3). Appearance
+ * and features are observable; the name is not part of the portrait and is
+ * surfaced only when the hero knows the person.
+ */
+export interface MasterScenePortrait {
+  readonly visibleAppearance: readonly string[];
+  readonly distinguishingFeatures: readonly string[];
+  readonly publicRole: string | null;
+  readonly addressForms: readonly string[];
 }
 
 /** One accessible item. Shares the `object_N` namespace with visibleObjects. */
@@ -201,16 +217,29 @@ export function buildMasterTurnSceneContext(
     if (reference) objectRefById.set(reference.internalId, referent.observerRef);
   }
 
-  // Presence, not acquaintance: only contacts whose own evidence places them
-  // at the current location may be addressed or answered as "nearby".
-  const knownPeople: MasterSceneReferent[] = guidance.presentContacts.map((contact, index) => {
+  // Presence, not acquaintance: a contact whose own evidence places them at
+  // the current location may be described. The NAME is surfaced only for
+  // someone the hero actually knows; an unknown but present person stays
+  // describable through their portrait.
+  const knownPeople: MasterSceneReferent[] = guidance.visibleContacts.map((contact, index) => {
     const observerRef = `person_${index + 1}`;
     claimRef(observerRef, { kind: "person", internalId: contact.id, label: contact.label });
     return freeze({
       observerRef,
       kind: "person" as const,
-      label: contact.label,
-      knownAs: uniqueStrings([contact.label]),
+      label: contact.known ? contact.label : "Незнакомый человек",
+      knownAs: contact.known ? uniqueStrings([contact.label]) : freeze<string[]>([]),
+      known: contact.known,
+      ...(contact.portrait
+        ? {
+          portrait: freeze({
+            visibleAppearance: contact.portrait.visibleAppearance,
+            distinguishingFeatures: contact.portrait.distinguishingFeatures,
+            publicRole: contact.portrait.publicRole,
+            addressForms: contact.portrait.addressForms,
+          }),
+        }
+        : {}),
     });
   });
 
