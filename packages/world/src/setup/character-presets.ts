@@ -24,7 +24,7 @@ const _backgrounds: Record<string, CharacterBackground> = {
     familiarPlace: "Дорога от переправы к Речному Стражу.",
     procedureKnowledge: "Чтение старых дорожных знаков.",
     startingTestimonyRefs: ["testimony:wanderer-north-road-marker"],
-    contactRefs: ["contact:waystation-ferryman"],
+    contactRefs: ["contact:waystation-keeper"],
     startingItemRefs: ["item:wanderer-road-marker"],
     familiarSpatialRefs: ["relation:road_waystation_city", "relation:river_crossing"],
     procedureKnowledgeRefs: ["knowledge:read-road-signs"],

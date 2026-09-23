@@ -14,6 +14,38 @@ export interface BootstrapSelection {
   readonly backgroundId?: string | undefined;
 }
 
+/**
+ * One canonical contact, one materialization (full-master contact identity).
+ * The entrypoint and a background may reference the SAME contact; the region
+ * catalogue makes their definition identical, so keeping the first placement
+ * and the first friend relation of a pair is safe and never merges two
+ * genuinely different people (they would have different ids).
+ */
+function dedupeContactFacts(events: readonly DomainEvent[]): DomainEvent[] {
+  const placed = new Set<string>();
+  const relations = new Set<string>();
+  const out: DomainEvent[] = [];
+  for (const event of events) {
+    if (event.type === "ObjectPlaced") {
+      const entityId = (event.payload as { entityId?: unknown }).entityId;
+      if (typeof entityId === "string" && entityId.startsWith("contact:")) {
+        if (placed.has(entityId)) continue;
+        placed.add(entityId);
+      }
+    }
+    if (event.type === "RelationChanged") {
+      const payload = event.payload as { from?: unknown; to?: unknown; kind?: unknown };
+      if (typeof payload.from === "string" && typeof payload.to === "string" && payload.to.startsWith("contact:") && typeof payload.kind === "string") {
+        const key = `${payload.from}|${payload.to}|${payload.kind}`;
+        if (relations.has(key)) continue;
+        relations.add(key);
+      }
+    }
+    out.push(event);
+  }
+  return out;
+}
+
 /** Materialize only author-approved entrypoint knowledge as domain facts. */
 function buildEntrypointKnowledgeEvents(entrypoint: Exclude<ReturnType<typeof getRegionEntrypoint>, null>, regionEvents: readonly DomainEvent[]): DomainEvent[] {
   const observations = new Map<string, { readonly subjectKind: string; readonly subjectId: string; readonly knowledge?: string; readonly confidence?: number }>();
@@ -120,7 +152,7 @@ export function buildBootstrapEvents(selection: string | BootstrapSelection): re
         });
       }
     }
-    return Object.freeze(regionEvents);
+    return Object.freeze(dedupeContactFacts(regionEvents));
   }
 
   events.push({

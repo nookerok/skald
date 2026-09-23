@@ -29,6 +29,17 @@ export function buildRegionIR(projection, canonIds = new Set()) {
   for (const section of ['locations','landmarks','relations','travel','settlements','observations','content','discoveryDefinitions','simulationMetadata','resourceDefinitions','resourceProcessDefinitions','resourceDemandDefinitions','hydrography','elevation','toponymIndex','backgroundBindings']) checkRefs(projection[section], section);
   const locationIds = new Set((projection.locations ?? []).map((entry) => entry.id));
   const relationIds = new Set((projection.relations ?? []).map((entry) => entry.id));
+  // One canonical definition per start contact: entrypoints and backgrounds
+  // reference it, never redefine it. A duplicate id is a compile error.
+  const contactsById = new Map();
+  for (const contact of projection.bootstrap?.contacts ?? []) {
+    if (!contact || typeof contact.id !== 'string' || !contact.id) throw new Error('bootstrap contact requires id');
+    if (contactsById.has(contact.id)) throw new Error('duplicate bootstrap contact definition: ' + contact.id);
+    if (contact.status != null && contact.status !== 'approved') { continue; }
+    if (typeof contact.name !== 'string' || typeof contact.description !== 'string' || typeof contact.locationId !== 'string') throw new Error('bootstrap contact is incomplete: ' + contact.id);
+    if (!locationIds.has(contact.locationId)) throw new Error('bootstrap contact location is not declared: ' + contact.id);
+    contactsById.set(contact.id, contact);
+  }
   const entrypointIds = new Set();
   const approvedEntrypointIds = new Set();
   const declaredBackgroundIds = new Set((projection.backgroundBindings ?? []).map((entry) => entry.id));
@@ -41,7 +52,8 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     approvedEntrypointIds.add(entrypoint.id);
     if (!locationIds.has(entrypoint.locationId)) throw new Error('bootstrap entrypoint location is not declared: ' + entrypoint.locationId);
     for (const field of ['arrivalScene', 'openingSituation', 'openingProblem']) if (typeof entrypoint[field] !== 'string' || entrypoint[field].trim().length === 0) throw new Error('bootstrap entrypoint has invalid ' + field + ': ' + entrypoint.id);
-    if (!entrypoint.localContact || typeof entrypoint.localContact.id !== 'string' || typeof entrypoint.localContactRef !== 'string' || entrypoint.localContactRef !== entrypoint.localContact.id || typeof entrypoint.localContact.name !== 'string' || typeof entrypoint.localContact.description !== 'string' || typeof entrypoint.localContact.relationKind !== 'string') throw new Error('bootstrap entrypoint local contact is invalid: ' + entrypoint.id);
+    if (typeof entrypoint.localContactRef !== 'string' || !contactsById.has(entrypoint.localContactRef)) throw new Error('bootstrap entrypoint local contact ref is unknown: ' + entrypoint.id);
+    if (!entrypoint.localContactRelation || typeof entrypoint.localContactRelation.kind !== 'string' || entrypoint.localContactRelation.kind.length === 0) throw new Error('bootstrap entrypoint local contact relation is invalid: ' + entrypoint.id);
     if (typeof entrypoint.openingProblemRef !== 'string' || !entrypoint.openingProblemRef || !['presentation_only', 'simulation'].includes(entrypoint.openingProblemMode ?? 'presentation_only')) throw new Error('bootstrap entrypoint problem reference is invalid: ' + entrypoint.id);
     const routeRefs = entrypoint.initialRouteRefs ?? entrypoint.availableRouteRefs;
     if (!Array.isArray(routeRefs) || routeRefs.length === 0 || routeRefs.some((ref) => !relationIds.has(ref))) throw new Error('bootstrap entrypoint has unknown route: ' + entrypoint.id);
@@ -78,10 +90,10 @@ export function buildRegionIR(projection, canonIds = new Set()) {
     const available = new Set([...(projection.bootstrap?.entrypoints ?? [])].flatMap((entry) => entry.availableBackgroundIds ?? []));
     if (available.size > 0 && !available.has(background.id)) throw new Error('approved background is not available at any entrypoint: ' + background.id);
     if (!background.testimony || typeof background.testimony.claimId !== 'string' || typeof background.testimony.proposition !== 'string') throw new Error('approved background testimony is invalid: ' + background.id);
-    if (!background.contact || typeof background.contact.id !== 'string' || typeof background.contact.name !== 'string' || typeof background.contact.locationId !== 'string') throw new Error('approved background contact is invalid: ' + background.id);
-    if (!locationIds.has(background.contact.locationId)) throw new Error('background contact location is not declared: ' + background.id);
+    if (typeof background.contactRef !== 'string' || !contactsById.has(background.contactRef)) throw new Error('approved background contact ref is unknown: ' + background.id);
+    if (typeof background.bond !== 'string' || background.bond.trim().length === 0) throw new Error('approved background bond is invalid: ' + background.id);
     if (!background.relation || typeof background.relation.from !== 'string' || typeof background.relation.to !== 'string' || typeof background.relation.kind !== 'string') throw new Error('approved background relation is invalid: ' + background.id);
-    if (background.relation.to !== background.contact.id) throw new Error('background relation target must be its contact: ' + background.id);
+    if (background.relation.to !== background.contactRef) throw new Error('background relation target must be its contact: ' + background.id);
     if (!background.item || typeof background.item.id !== 'string' || typeof background.item.locationId !== 'string') throw new Error('approved background item is invalid: ' + background.id);
     if (!locationIds.has(background.item.locationId)) throw new Error('background item location is not declared: ' + background.id);
     if (!Array.isArray(background.observations) || background.observations.some((observation) => !observation || typeof observation.subjectKind !== 'string' || typeof observation.subjectId !== 'string')) throw new Error('background observations are invalid: ' + background.id);

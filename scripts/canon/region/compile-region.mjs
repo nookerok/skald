@@ -101,6 +101,7 @@ function buildEvents(p, region, inputDigest, canonDigest) {
 
 function buildBackgroundBindings(p, inputDigest, canonDigest) {
   const bindings = [];
+  const contactsById = new Map((p.bootstrap?.contacts ?? []).map((contact) => [contact.id, contact]));
   for (const background of p.backgroundBindings ?? []) {
     if (background.status !== "approved") continue;
     const refs = [...(background.canonicalRefs ?? [])].sort();
@@ -127,7 +128,8 @@ function buildBackgroundBindings(p, inputDigest, canonDigest) {
       receivedAt: 0,
       sourceEventId: "boot#background#" + background.id + "#TestimonyReceived",
     }));
-    const contact = background.contact;
+    const contact = contactsById.get(background.contactRef);
+    if (!contact) throw new Error("background references unknown contact: " + background.id + " -> " + background.contactRef);
     const contactLocation = p.locations.find((location) => location.id === contact.locationId);
     events.push(event("ContactPlaced", "ObjectPlaced", {
       entityId: contact.id,
@@ -195,6 +197,7 @@ function buildBackgroundBindings(p, inputDigest, canonDigest) {
       narrative: {
         startingTestimonyRefs: [testimony.claimId],
         contactRefs: [relation.to],
+        ...(background.bond ? { bond: background.bond } : {}),
         startingItemRefs: [item.id],
         familiarSpatialRefs: (background.observations ?? []).map((observation) => observation.subjectKind + ":" + observation.subjectId).sort(),
         procedureKnowledgeRefs: (background.knowledge ?? []).map((knowledge) => knowledge.knowledgeId).sort(),
@@ -229,6 +232,7 @@ function buildEntrypointBackgroundBindings(projection) {
 function buildEntrypointDefinitions(projection, events, inputDigest, canonDigest) {
   const authored = projection.bootstrap?.entrypoints ?? [];
   const relationById = new Map((projection.relations ?? []).map((relation) => [relation.id, relation]));
+  const contactsById = new Map((projection.bootstrap?.contacts ?? []).map((contact) => [contact.id, contact]));
   return authored.filter((entrypoint) => (entrypoint.status ?? "approved") === "approved").map((entrypoint) => {
     const observationRefs = new Set(entrypoint.initialObservationRefs ?? []);
     const selected = events.filter((event) => {
@@ -252,8 +256,11 @@ function buildEntrypointDefinitions(projection, events, inputDigest, canonDigest
     selected.push(locationEvent);
     const locationEvents = [locationEvent];
     const location = (projection.locations ?? []).find((candidate) => candidate.id === entrypoint.locationId);
-    const contact = entrypoint.localContact;
-    const contactEvents = contact ? [
+    const contact = contactsById.get(entrypoint.localContactRef);
+    if (!contact) throw new Error("entrypoint references unknown contact: " + entrypoint.id + " -> " + entrypoint.localContactRef);
+    const relationKind = entrypoint.localContactRelation?.kind ?? "knows";
+    const relationDelta = entrypoint.localContactRelation?.delta ?? 1;
+    const contactEvents = [
       {
         eventId: 'boot#entrypoint#' + entrypoint.id + '#ContactPlaced',
         type: 'ObjectPlaced',
@@ -265,7 +272,7 @@ function buildEntrypointDefinitions(projection, events, inputDigest, canonDigest
           name: contact.name,
           aliases: [],
           description: contact.description,
-          components: { contact: { locationId: entrypoint.locationId, entrypointId: entrypoint.id } },
+          components: { contact: { locationId: contact.locationId ?? entrypoint.locationId, entrypointId: entrypoint.id } },
           provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion),
         },
         timestamp: 0,
@@ -276,12 +283,12 @@ function buildEntrypointDefinitions(projection, events, inputDigest, canonDigest
         eventId: 'boot#entrypoint#' + entrypoint.id + '#RelationChanged',
         type: 'RelationChanged',
         schemaVersion: 1,
-        payload: { from: 'player', to: contact.id, kind: contact.relationKind, delta: contact.relationDelta ?? 1, provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion) },
+        payload: { from: 'player', to: contact.id, kind: relationKind, delta: relationDelta, provenance: provenance(entrypoint.canonicalRefs ?? [], inputDigest, canonDigest, projection.region.version, projection.compilerVersion) },
         timestamp: 0,
         correlationId: 'boot#entrypoint#' + entrypoint.id,
         causationId: 'boot#entrypoint#' + entrypoint.id + '#ContactPlaced',
       },
-    ] : [];
+    ];
     const routeRefs = entrypoint.initialRouteRefs ?? entrypoint.availableRouteRefs ?? [];
     const backgroundConnections = entrypoint.backgroundConnections ?? Object.entries(entrypoint.backgroundBridges ?? {}).map(([backgroundId, arrivalHook]) => ({ backgroundId, arrivalHook }));
     const backgroundBridges = Object.fromEntries(backgroundConnections.map((connection) => [connection.backgroundId, connection.arrivalHook]));

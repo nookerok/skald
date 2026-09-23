@@ -49,6 +49,32 @@ compilerProjection:
   bootstrap:
     startLocationId: river_waystation
     defaultEntrypointId: river_waystation_arrival
+    contacts:
+      - id: contact:waystation-keeper
+        status: approved
+        name: Перевозчик у переправы
+        description: Он знает, кто проходил здесь до тебя, и первым замечает перемены в воде.
+        locationId: river_waystation
+      - id: contact:riverwatch-gatekeeper
+        status: approved
+        name: Смотритель речных ворот
+        description: Он ведёт журнал проходов и знает, кто последним уходил по восточному тракту.
+        locationId: riverwatch_city
+      - id: contact:southern-borough-warden
+        status: approved
+        name: Староста южного посада
+        description: Он отвечает за склады и помнит, где на старых сваях отмечали прежние подъёмы воды.
+        locationId: southern_borough
+      - id: contact:riverwatch-archivist
+        status: approved
+        name: Архивист Речного Стража
+        description: Хранитель городских записей, знакомый с архивной манерой героя.
+        locationId: riverwatch_city
+      - id: contact:night-ferryman
+        status: approved
+        name: Ночной перевозчик
+        description: Перевозчик, который дежурил у переправы в ночь старого происшествия.
+        locationId: river_waystation
     entrypoints:
       - id: river_waystation_arrival
         status: approved
@@ -62,13 +88,10 @@ compilerProjection:
         openingProblem: Ночной поток вынес к переправе след, которому никто не может дать имени.
         openingProblemRef: presentation:river_waystation_arrival:opening-problem
         openingProblemMode: simulation
-        localContact:
-          id: contact:waystation-keeper
-          name: Перевозчик у переправы
-          description: Он знает, кто проходил здесь до тебя, и первым замечает перемены в воде.
-          relationKind: knows
-          relationDelta: 1
         localContactRef: contact:waystation-keeper
+        localContactRelation:
+          kind: knows
+          delta: 1
         initialRouteRefs:
           - road_waystation_city
           - river_crossing
@@ -119,13 +142,10 @@ compilerProjection:
         openingProblem: Восточный тракт открыт на карте, но его последние путевые знаки ведут к месту, которого никто не помнит.
         openingProblemRef: presentation:riverwatch_city_arrival:opening-problem
         openingProblemMode: presentation_only
-        localContact:
-          id: contact:riverwatch-gatekeeper
-          name: Смотритель речных ворот
-          description: Он ведёт журнал проходов и знает, кто последним уходил по восточному тракту.
-          relationKind: knows
-          relationDelta: 1
         localContactRef: contact:riverwatch-gatekeeper
+        localContactRelation:
+          kind: knows
+          delta: 1
         initialRouteRefs:
           - road_waystation_city
           - road_city_ruins
@@ -174,13 +194,10 @@ compilerProjection:
         openingProblem: Уровень реки меняется быстрее обычного, и южные жители ищут того, кто проверит старые отметки на сваях.
         openingProblemRef: presentation:southern_borough_arrival:opening-problem
         openingProblemMode: presentation_only
-        localContact:
-          id: contact:southern-borough-warden
-          name: Староста южного посада
-          description: Он отвечает за склады и помнит, где на старых сваях отмечали прежние подъёмы воды.
-          relationKind: knows
-          relationDelta: 1
         localContactRef: contact:southern-borough-warden
+        localContactRelation:
+          kind: knows
+          delta: 1
         initialRouteRefs:
           - road_city_south
         backgroundBridges:
@@ -223,14 +240,11 @@ compilerProjection:
         sourceId: northern-road-traveller
         proposition: На северной дороге свидетель видел дорожный знак, который не должен был оказаться у переправы.
         subjectId: road_waystation_forest
-      contact:
-        id: contact:waystation-ferryman
-        name: Перевозчик у переправы
-        description: Человек, к которому герой может обратиться по памяти северной дороги.
-        locationId: river_waystation
+      contactRef: contact:waystation-keeper
+      bond: Ты встречался с этим перевозчиком на северной дороге и помнишь его по тому разговору.
       relation:
         from: player
-        to: contact:waystation-ferryman
+        to: contact:waystation-keeper
         kind: knows
         delta: 1
       item:
@@ -275,11 +289,8 @@ compilerProjection:
         sourceId: burned-archive-catalogue
         proposition: Перед пожаром из архива исчезла запись о Бассейне Речного Стража.
         subjectId: old_ruins_masonry
-      contact:
-        id: contact:riverwatch-archivist
-        name: Архивист Речного Стража
-        description: Хранитель городских записей, знакомый с архивной манерой героя.
-        locationId: riverwatch_city
+      contactRef: contact:riverwatch-archivist
+      bond: Ты знаешь этого архивиста по совместной работе над городскими записями.
       relation:
         from: player
         to: contact:riverwatch-archivist
@@ -327,11 +338,8 @@ compilerProjection:
         sourceId: night-at-the-crossing
         proposition: В ту ночь течение вынесло к переправе нечто, чему свидетель не смог дать имени.
         subjectId: river_crossing
-      contact:
-        id: contact:night-ferryman
-        name: Ночной перевозчик
-        description: Перевозчик, который дежурил у переправы в ночь старого происшествия.
-        locationId: river_waystation
+      contactRef: contact:night-ferryman
+      bond: Ты помнишь этого перевозчика по ночной смене у переправы после старого происшествия.
       relation:
         from: player
         to: contact:night-ferryman
