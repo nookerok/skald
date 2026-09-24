@@ -99,6 +99,15 @@ export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { localizedPlayerText } from "./game-shell/player-facing.js";
 export { narrateLLM, narrateTurnLLM, narrateAnswerLLM, verifyEpistemicNarration } from "./narrative-llm.js";
+export { buildAllowedNarrativeFacts, ALLOWED_NARRATIVE_FACTS_MAX, ALLOWED_NARRATIVE_FACT_MAX_CHARS } from "./allowed-narrative-facts.js";
+export type {
+  AllowedNarrativeFact,
+  AllowedNarrativeFacts,
+  AllowedFactProvenance,
+  AllowedFactAssertion,
+  AllowedFactTemporal,
+  AllowedNarrativeFactsInput,
+} from "./allowed-narrative-facts.js";
 export type {
   TurnNarration,
   NarrativeLLMResult,
