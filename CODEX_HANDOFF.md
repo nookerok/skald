@@ -1,3 +1,22 @@
+# Current work (2026-09-21 — contact identity T5 deployed as d17c2be; browser QA BLOCKED)
+
+- T5 changes committed, pushed and deployed (`d17c2be`): a deterministic
+  `observed_reaction` answers «как он на меня смотрит?» / «что он обо мне
+  думает?» honestly (no invented goodwill/suspicion); address-form and
+  «я его знаю?» answers; acceptance/negative tests.
+- Repository/API/in-process: PASS (`npm run validate` 216 files / 2656 passed,
+  1 skipped). Old-save policy verified on the real pre-T1 world `world-ae6fc15f`:
+  Event Log unchanged, the two same-named entities stay separate, no retroactive
+  profile, neutral answers. No migration performed.
+- Live API on `d17c2be`: `observed_reaction` answers honestly; read-only
+  inquiries change no Event and no time.
+- Browser QA for the current T5 changes and visual: **BLOCKED** (Traycer browser
+  surface unavailable: `windows sandbox failed: helper_unknown_error` /
+  `stdout_eof`). T5 stays OPEN until a repeat scratch browser QA runs on the
+  deployed version.
+- Next: repeat scratch browser QA on `d17c2be` once the browser surface is
+  restored; then close T5.
+
 # Current work (2026-09-21 — contact identity T2–T4 deployed as b66a496)
 
 - T2–T4 of the `contact-identity` block implemented, validated and deployed:
