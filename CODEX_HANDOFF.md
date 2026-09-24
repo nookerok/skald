@@ -1,3 +1,16 @@
+# Current work (2026-09-21 — contact-identity T1–T5 closed; production d17c2be)
+
+- The `contact-identity` block is closed: T1 (one canonical ferryman), T2
+  (structured author card), T3 (observer portrait), T4 (person answers), T5
+  (compatibility + behaviour acceptance).
+- T5 verdicts: repository/API/in-process PASS, old-save PASS, browser DOM PASS
+  (scratch `world-f3f0ece3`, deployed `d17c2be`), visual BLOCKED
+  (`page.screenshot()` timeout), human acceptance PENDING.
+- T5 is closed by the compatibility and functional-behaviour contract, NOT by a
+  pixel-level or human acceptance PASS. Visual and human acceptance are separate
+  follow-ups for the overall game acceptance and must not reopen T5.
+- No new code changes; production stays on `d17c2be`.
+
 # Current work (2026-09-21 — T5 scratch browser QA on d17c2be: DOM PASS, visual BLOCKED)
 
 - Scratch browser QA ran on the deployed `d17c2be` via the Traycer in-app
