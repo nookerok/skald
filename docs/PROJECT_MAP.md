@@ -53,8 +53,9 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     -> static schema + contextual referent validation + stale-revision
     recheck -> at most one primary command handler / read-only Inquiry
     -> RuleEngine -> staged Domain Events -> EventBus + Projection
-    commit -> Presentation/Narrative -> unified Master response ->
-    HTTP/CLI output
+    commit -> Presentation/Narrative -> deterministic Master answer ->
+    optional LLM composition over backend `AllowedNarrativeFacts` (ADR-0037,
+    replaces the same bubble; mandatory results kept) -> HTTP/CLI output
     -> read-side transcript memory (mentions/goal/clarification/
     continuation/thread in conversation_context_json) -> reload restores
     the pending question; foreign inquiries never close it
@@ -116,7 +117,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Rule | Event and ReadonlyWorld | New Domain Events only |
 | Projection | Committed Domain Events | Derived snapshot during commit |
 | PresentationTemplate | Event and ReadonlyWorld | Presentation DTO only |
-| Narrative/LLM | Selected read-only presentation | Text only |
+| Narrative/LLM | Selects and orders backend `AllowedNarrativeFacts` (ADR-0037) | Text only |
 | Browser normal UI | BeliefModelDTO/current observations and explicitly documented read DTOs | External commands through HTTP |
 | Developer diagnostics | Explicitly opened trusted-LAN diagnostics DTOs | None |
 | Deployment | Git, SQLite and service state | Operational files/services only |

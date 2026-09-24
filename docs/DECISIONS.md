@@ -13,7 +13,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-006 | LLM/Narrative are read-only and non-authoritative | accepted | docs/ARCHITECTURE.md |
 | D-007 | Presentation importance is classified on backend | accepted | docs/PLAYABILITY_PRINCIPLES.md |
 | D-008 | Deployment is operational and outside RuleEngine | accepted | AGENTS.md |
-| D-009 | UX-0 separates current production capabilities from future concepts; LLM does not select facts or actions | accepted | docs/ux/UX_PRODUCT_CONTRACT.md |
+| D-009 | UX-0 separates current production capabilities from future concepts; the LLM does not select intents or actions (master fact selection within `AllowedNarrativeFacts` is scoped by D-037) | accepted | docs/ux/UX_PRODUCT_CONTRACT.md |
 | D-010 | Discovery is a read model derived from Event Log, not stored as Events; stages are monotonic; LLM does not classify evidence; definitions are static compile-time code | accepted | docs/adr/0001-discovery-read-model.md |
 | D-011 | Player Guidance is a read model derived from Event Log + World + DiscoveryJournal; phases are deterministic; suggestions come from a static allowlist; LLM does not select suggestions; browser dismissal is local Presentation state | accepted | docs/adr/0002-player-guidance-read-model.md |
 | D-012 | Multi-world persistence uses a single SQLite database with world_id isolation; WorldId = save slot; one character per world; autosave only; world_id is infrastructure, not a Domain Event field | accepted | docs/adr/0003-multi-world-persistence.md |
@@ -45,6 +45,7 @@ docs/ARCHITECTURE.md; do not duplicate the entire architecture here.
 | D-034 | FirstEntryDTO separates checkpoint-missing first launch from valid/incompatible return Presence; onboarding and Presence share a deterministic observer-safe scene, with idempotent one-click acknowledge | accepted | docs/adr/0034-first-entry-presence-modes.md |
 | D-035 | Player questions use a read-only Inquiry registry over observer-scoped Game Shell DTO; Actions and in-world speech remain on the existing command pipeline, and LLM may only select a registered query | accepted | docs/adr/0035-read-only-inquiry-gateway.md |
 | D-036 | Simulation liveness, AI readiness and deployment acceptance are separate; no-world AI probes are read-only and deployment fails on `unavailable`/`misconfigured` or a dead route, while `/api/health` remains simulation-only. Amendments 2026-09-12: `degraded` (one live model) is accepted because `ready` is unreachable by architecture; acceptance additionally requires `playable` (interpret+narrate each live) | accepted | docs/adr/0036-ai-liveness-readiness-deployment-acceptance.md |
+| D-037 | Master answer composition may select, group and order elements from backend-provided `AllowedNarrativeFacts` for the current replica; it cannot add elements or change availability, provenance or epistemic class, and the backend decides availability, game importance, mandatory action results and consequences | accepted | docs/adr/0037-master-answer-composition.md |
 
 New cross-package decisions should use docs/adr/NNNN-*.md and be added to
 this index. An ADR records context, alternatives, decision and consequences;

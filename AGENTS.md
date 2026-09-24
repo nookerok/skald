@@ -85,8 +85,13 @@ PresentationTemplate is a pure, non-authoritative adapter:
 
 It is not a Rule, emits no Domain Events and does not write Projection.
 Importance (primary, notable, background) is classified on the backend. The
-browser only renders the server DTO. LLM may rephrase selected facts but may
-not select facts, importance or actions.
+browser only renders the server DTO. The master may select, group and order
+elements from the backend-provided `AllowedNarrativeFacts` set for the current
+replica, but it cannot add elements, change their availability, provenance or
+epistemic class, or turn a hypothesis into an established fact. Availability,
+game importance and consequences are classified on the backend; a mandatory
+action result must appear in the answer
+(docs/adr/0037-master-answer-composition.md).
 
 Playability guidance is in docs/PLAYABILITY_PRINCIPLES.md. It is design
 guidance, not a new runtime invariant.

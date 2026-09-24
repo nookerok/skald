@@ -169,8 +169,9 @@ gratitude/fear/trust — downstream Rules may.
 Backend `PresentationTemplate`s classify importance (primary/notable/
 background); gate events stay hidden. The composer is the only action
 control (textarea + «Отправить»). No D-pad, no verb buttons, no action
-chips, no autocomplete that replaces the intent. The LLM may paraphrase
-only server-chosen facts, never select facts, importance or actions.
+chips, no autocomplete that replaces the intent. The LLM may select, order and
+paraphrase among the facts the server allows for the turn, but never decides
+availability, importance or actions (see ADR-0037).
 
 ### 7. Offline boundary
 

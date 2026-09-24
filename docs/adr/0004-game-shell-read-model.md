@@ -36,8 +36,9 @@ classifies importance, visibility, causation, or knowledge stage.
 
 ### LLM boundary
 
-LLM may rephrase text in `presentation` entries but may not select facts,
-classify importance, determine scope/origin, or build causal chains.
+LLM may select, order and rephrase among the presentation facts allowed for the
+player and turn, but may not classify importance, determine scope/origin, or
+build causal chains (see ADR-0037).
 
 ## Consequences
 

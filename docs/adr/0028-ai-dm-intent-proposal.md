@@ -137,3 +137,12 @@ survive reload; stale context never mutates the world; focused tests and
 `npm run validate` pass; and browser QA confirms the clarification is
 presented as a player-facing DM response rather than a technical parser
 error.
+
+## Amendment 2026-09-22 — intent vs answer composition
+
+`TurnProposalV2` interprets the replica only (question, action, speech,
+clarification) and never reports an action result. Answer composition is a
+separate step: after a read-only inquiry or an executed action, the backend
+freezes the allowed fact set (`AllowedNarrativeFacts`) and the mandatory turn
+results, and the master selects and orders a subset to answer. See
+ADR-0037.
