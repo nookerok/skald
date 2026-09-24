@@ -56,8 +56,13 @@ describe("person answers", () => {
     expect(result.answer).toMatch(/плащ|переправ/i);
   });
 
-  it("never invents a reaction that is not authored", () => {
-    const result = ask("visible_scene", "как он на меня смотрит?", "перевозчик");
-    expect(result.answer).not.toMatch(/насторож|недовер|улыб|приветл|дружелюб|смотрит с/i);
+  it("answers a reaction question honestly when no reaction is authored", () => {
+    const reaction = classifyPlayerInput("как он на меня смотрит?", parseIntent);
+    expect(reaction.kind).toBe("inquiry");
+    if (reaction.kind === "inquiry") expect(reaction.inquiry.queryId).toBe("observed_reaction");
+
+    const result = ask("observed_reaction", "как он на меня смотрит?");
+    expect(result.answer).toMatch(/не можешь понять|не различить|реакц/i);
+    expect(result.answer).not.toMatch(/насторож|недовер|улыб|приветл|дружелюб|злоб|расположен/i);
   });
 });

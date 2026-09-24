@@ -20,6 +20,7 @@ export const INQUIRY_QUERY_IDS = [
   "known_contacts",
   "map_position",
   "who_is_nearby",
+  "observed_reaction",
   "environmental_indication",
 ] as const;
 
@@ -108,6 +109,8 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^с\s+кем\s+я\s+знаком/iu,
     /^кого\s+я\s+знаю\s+(?:здесь|в\s+этом\s+месте)?/iu,
     /^кто\s+может\s+меня\s+знать/iu,
+    /^я\s+(?:его|ее|её|их)\s+знаю/iu,
+    /^я\s+знаком\s+с/iu,
   ]],
   ["who_is_nearby", [
     /^кто\s+(?:находится\s+)?рядом(?:\s+со\s+мной)?/iu,
@@ -117,6 +120,11 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^с\s+кем\s+(?:я\s+)?имею\s+дело\s+здесь/iu,
     /^кто\s+из\s+людей(?=\s|$)/iu,
     /^опиши\s+(?:всех\s+)?(?:людей|присутствующих|окружающих)/iu,
+  ]],
+  ["observed_reaction", [
+    /^как\s+(?:он|она|они|этот|эта|это)\s+(?:на\s+меня\s+смотр|ко\s+мне\s+отно)/iu,
+    /^что\s+(?:он|она|они)\s+(?:обо?\s+мне|про\s+меня)\s+(?:дума|говор)/iu,
+    /^как\s+(?:он|она)\s+ко\s+мне\s+(?:настроен|относится)/iu,
   ]],
   ["environmental_indication", [
     /^что\s+подсказывает\s+(?:вода|река|лес|ветер|течение|природа)/iu,
@@ -217,7 +225,7 @@ function directInquiry(input: string): InquiryRequest | null {
 function personFocusInquiry(input: string): InquiryRequest | null {
   const normalized = normalizeQuestion(input);
   const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").replace(WANT_TO_KNOW_PREFIX, "").trim();
-  const match = /^(?:как\s+выглядит|кто\s+(?:этот|эта|это))\s+(.+)$/iu.exec(withoutPrefix);
+  const match = /^(?:как\s+выглядит|кто\s+(?:этот|эта|это)|как\s+(?:мне\s+)?обратиться\s+к)\s+(.+)$/iu.exec(withoutPrefix);
   if (!match?.[1]) return null;
   const surface = match[1].trim().slice(0, MAX_FOCUS_SURFACE).trim();
   if (!/[а-яёa-z]/iu.test(surface)) return null;

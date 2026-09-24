@@ -160,7 +160,9 @@ function buildFocusedScene(request: InquiryRequest, context: InquiryReadContext)
     ];
     const body = details.length > 0 ? details.join("; ") : "в твоих наблюдениях о нём пока нет подробностей";
     const acquaintance = known ? " Ты знаешь этого человека." : " Ты его не знаешь.";
-    return answer("visible_scene", `${name}: ${body}.${acquaintance}`, shell);
+    const address = person.portrait?.addressForms ?? [];
+    const addressText = address.length > 0 ? ` К нему можно обратиться: ${address.map((form) => `«${form}»`).join(", ")}.` : "";
+    return answer("visible_scene", `${name}: ${body}.${acquaintance}${addressText}`, shell);
   }
   const matched = key === null ? [] : focusSearchTexts(shell)
     .filter((text) => normalizeFocus(text).includes(key))
@@ -380,6 +382,21 @@ function buildEnvironmentalIndication(request: InquiryRequest, context: InquiryR
   return answer("environmental_indication", `Что подсказывает округа: ${unique.join(" ")}`, shell);
 }
 
+/**
+ * A reaction question ("как он на меня смотрит?") is answered only from an
+ * authored, observable reaction fact. None is authored yet, so the honest
+ * answer is that the reaction cannot be read — never invented goodwill or
+ * suspicion (contact-identity T5).
+ */
+function buildObservedReaction(_request: InquiryRequest, context: InquiryReadContext): InquiryAnswerDTO {
+  const { shell } = context;
+  return answer(
+    "observed_reaction",
+    "Ты не можешь понять по его лицу, что он о тебе думает: явной реакции в твоих наблюдениях нет.",
+    shell,
+  );
+}
+
 export const INQUIRY_QUERY_HANDLERS: Readonly<Record<InquiryQueryId, InquiryQueryHandler>> = Object.freeze({
   current_location: buildCurrentLocation,
   visible_scene: buildVisibleScene,
@@ -392,6 +409,7 @@ export const INQUIRY_QUERY_HANDLERS: Readonly<Record<InquiryQueryId, InquiryQuer
   known_contacts: buildKnownContacts,
   map_position: buildMapPosition,
   who_is_nearby: buildWhoIsNearby,
+  observed_reaction: buildObservedReaction,
   environmental_indication: buildEnvironmentalIndication,
 });
 
