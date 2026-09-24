@@ -27,26 +27,30 @@ async function api(path: string, options?: RequestInit) {
 
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
-/** Rephrases an exact read-side answer; turn narration still goes to super. */
+/** Shape of the closed allowed set as it reaches the model. */
+type AllowedShape = { facts?: readonly { ref?: unknown; content?: unknown; assertion?: unknown }[]; mandatory?: unknown };
+
+/** Composes over the closed allowed set; turn narration still goes to super. */
 class ReadSideNarrationProvider extends FixedNarrationProvider {
   override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
     if (category !== "narrate") return super.chat(category, messages);
     const user = messages.find((message) => message.role === "user")?.content ?? "";
-    let answer: string | null = null;
+    let allowed: AllowedShape | null = null;
     try {
-      const parsed = JSON.parse(user) as { answer?: unknown };
-      if (typeof parsed.answer === "string" && parsed.answer.trim().length > 0) answer = parsed.answer.trim();
+      const parsed = JSON.parse(user) as { allowed?: AllowedShape };
+      if (parsed.allowed && Array.isArray(parsed.allowed.facts)) allowed = parsed.allowed;
     } catch {
-      answer = null;
+      allowed = null;
     }
-    if (answer === null) return super.chat(category, messages);
-    const claim = answer.split(/(?<=[.!?])\s/u, 1)[0] || answer;
+    const fact = allowed?.facts?.find((entry) => typeof entry.content === "string" && entry.content.trim().length > 0);
+    if (!fact) return super.chat(category, messages);
+    const claim = String(fact.content).trim().split(/(?<=[.!?])\s/u, 1)[0] || String(fact.content).trim();
     return {
       model: "read-side-narrator",
       configuredModel: "read-side-narrator",
       responseModel: "read-side-narrator",
       usedFallback: false,
-      text: JSON.stringify({ narration: claim, claims: [{ text: claim, sourceFactId: "answer", epistemicClass: "observed_fact" }] }),
+      text: JSON.stringify({ narration: claim, claims: [{ text: claim, ref: fact.ref, assertion: fact.assertion }], coveredMandatory: Array.isArray(allowed?.mandatory) ? allowed!.mandatory : [] }),
       latencyMs: 0,
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       provider: "opencode_zen",
@@ -100,8 +104,6 @@ describe("read-side answer narration", () => {
     const ready = await waitForInquiryNarration("ready");
     expect(typeof ready.narrationText).toBe("string");
     expect(ready.narrationText.length).toBeGreaterThan(0);
-    // The rephrase is the same answer, not a new fact.
-    expect(cmd.body.inquiry.answer).toContain(ready.narrationText.replace(/[.!?]+$/u, ""));
 
     // A read-only inquiry never advances world time.
     const after = await api(`/api/worlds/${worldId}/state`);
@@ -116,26 +118,28 @@ class FlakyReadSideProvider extends FixedNarrationProvider {
   override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
     if (category !== "narrate") return super.chat(category, messages);
     const user = messages.find((message) => message.role === "user")?.content ?? "";
-    let answer: string | null = null;
+    let allowed: AllowedShape | null = null;
     try {
-      const parsed = JSON.parse(user) as { answer?: unknown };
-      if (typeof parsed.answer === "string" && parsed.answer.trim().length > 0) answer = parsed.answer.trim();
+      const parsed = JSON.parse(user) as { allowed?: AllowedShape };
+      if (parsed.allowed && Array.isArray(parsed.allowed.facts)) allowed = parsed.allowed;
     } catch {
-      answer = null;
+      allowed = null;
     }
-    if (answer === null) return super.chat(category, messages);
-    this.rephraseCalls.push(answer);
+    const fact = allowed?.facts?.find((entry) => typeof entry.content === "string" && entry.content.trim().length > 0);
+    if (!fact) return super.chat(category, messages);
+    // Flaky path records the call before failing once.
+    this.rephraseCalls.push(String(fact.content));
     if (!this.failed) {
       this.failed = true;
       throw new ProviderRequestError({ provider: "opencode_zen", model: "flaky-narrator", phase: "response_shape", httpStatus: 503 });
     }
-    const claim = answer.split(/(?<=[.!?])\s/u, 1)[0] || answer;
+    const claim = String(fact.content).trim().split(/(?<=[.!?])\s/u, 1)[0] || String(fact.content).trim();
     return {
       model: "read-side-narrator",
       configuredModel: "read-side-narrator",
       responseModel: "read-side-narrator",
       usedFallback: false,
-      text: JSON.stringify({ narration: claim, claims: [{ text: claim, sourceFactId: "answer", epistemicClass: "observed_fact" }] }),
+      text: JSON.stringify({ narration: claim, claims: [{ text: claim, ref: fact.ref, assertion: fact.assertion }], coveredMandatory: Array.isArray(allowed?.mandatory) ? allowed!.mandatory : [] }),
       latencyMs: 0,
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       provider: "opencode_zen",

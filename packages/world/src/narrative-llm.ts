@@ -7,6 +7,7 @@ import type { ChatMessage, ChatResult } from "./llm/types.js";
 import type { NarrationOptions, NarrationDiagnosticSink, NarrationErrorCategory, NarrationOutcome, RetryOutcome } from "./narration-diagnostics.js";
 import { classifyNarrationError, isTransientNarrationError } from "./narration-diagnostics.js";
 import type { NarrativeAdapterContext, NarrativeFact } from "./setup/background-context.js";
+import type { AllowedFactAssertion, AllowedNarrativeFacts } from "./allowed-narrative-facts.js";
 import { actionFallbackText, isGenericActionFallback } from "./presentation/action-fallback.js";
 import { verifyGameNarration } from "./game-director/narration-quality.js";
 import type { GameDirectorContext } from "./game-director/index.js";
@@ -1114,6 +1115,207 @@ export async function narrateAnswerLLM(
         configuredModel: result.configuredModel,
       });
       return { text: guard.narration.trim(), model: result.model, usedFallback: false, fallbackReason: null, latencyMs: result.latencyMs };
+    } catch (err) {
+      const durationMs = Math.round(performance.now() - start);
+      const category = classifyNarrationError(err, null);
+      const failure = diagnosticProviderFailure(router, err);
+      const isTransient = isTransientNarrationError(category);
+      const isLastAttempt = attempt >= maxAttempts;
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category,
+        outcome: isTransient ? (isLastAttempt ? "retry_exhausted" : "retrying") : "deterministic_fallback",
+        provider: diagnosticProvider(router, err),
+        durationMs,
+        turn: worldTime,
+        worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome: isLastAttempt && isTransient ? "exhausted" : "none",
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: diagnosticField(err, "model"),
+        configuredModel: diagnosticField(err, "configuredModel"),
+        ...(failure?.phase ? { phase: failure.phase } : {}),
+        ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
+        ...(failure?.providerCode ? { providerCode: failure.providerCode } : {}),
+      });
+      if (!isTransient || isLastAttempt) return answerFallback("chat_error");
+      await sleep(retryBaseMs * Math.pow(2, attempt - 1));
+    }
+  }
+  return answerFallback("chat_error");
+}
+
+/**
+ * Assertion strength: a claim may not assert more than the fact it cites.
+ * Mirrors the epistemic ladder (established > observed > told > inferred).
+ */
+const ALLOWED_ASSERTION_STRENGTH: Record<AllowedFactAssertion, number> = {
+  established: 3,
+  observed: 2,
+  told: 1,
+  inferred: 0,
+};
+
+/** Result of validating a model answer against the closed allowed set (ADR-0037). */
+export interface AllowedNarrationVerification {
+  readonly ok: boolean;
+  readonly narration: string;
+  readonly usedRefs: readonly string[];
+  readonly reason: string | null;
+}
+
+/** True when `assertion` is a known allowed assertion. */
+function isAllowedAssertion(value: unknown): value is AllowedFactAssertion {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(ALLOWED_ASSERTION_STRENGTH, value);
+}
+
+/**
+ * Structural validation of one composed answer against `AllowedNarrativeFacts`:
+ * every cited ref must exist; a claim may not exceed its fact's assertion;
+ * mandatory turn results must be covered; internal references are rejected.
+ * Semantic grounding is not provable here — negative tests and the live corpus
+ * cover it.
+ */
+export function verifyAllowedNarration(response: string, allowed: AllowedNarrativeFacts): AllowedNarrationVerification {
+  const fail = (reason: string): AllowedNarrationVerification => ({ ok: false, narration: "", usedRefs: [], reason });
+  let parsed: { narration?: unknown; claims?: unknown; coveredMandatory?: unknown };
+  try {
+    parsed = JSON.parse(response) as typeof parsed;
+  } catch {
+    return fail("invalid_json");
+  }
+  const narration = typeof parsed.narration === "string" ? parsed.narration.trim() : "";
+  if (!narration) return fail("empty_narration");
+  if (INTERNAL_REFERENCE_PATTERN.test(narration)) return fail("internal_reference");
+
+  const byRef = new Map(allowed.facts.map((fact) => [fact.ref, fact]));
+  const claims = Array.isArray(parsed.claims) ? parsed.claims : [];
+  if (claims.length === 0) return fail("missing_claims");
+  const usedRefs: string[] = [];
+  for (const raw of claims) {
+    if (typeof raw !== "object" || raw === null) return fail("invalid_claim");
+    const claim = raw as { text?: unknown; ref?: unknown; assertion?: unknown };
+    if (typeof claim.text !== "string" || claim.text.trim().length === 0) return fail("invalid_claim");
+    if (typeof claim.ref !== "string" || !byRef.has(claim.ref)) return fail("unknown_ref");
+    if (!isAllowedAssertion(claim.assertion)) return fail("invalid_assertion");
+    const fact = byRef.get(claim.ref)!;
+    if (ALLOWED_ASSERTION_STRENGTH[claim.assertion] > ALLOWED_ASSERTION_STRENGTH[fact.assertion]) return fail("class_upgrade");
+    usedRefs.push(claim.ref);
+  }
+  const covered = new Set(Array.isArray(parsed.coveredMandatory) ? parsed.coveredMandatory.filter((entry): entry is string => typeof entry === "string") : []);
+  if (allowed.mandatory.some((result) => !covered.has(result))) return fail("missing_mandatory");
+  return { ok: true, narration, usedRefs, reason: null };
+}
+
+/** System prompt for composed answers: only the closed allowed set may be used. */
+function allowedAnswerSystemPrompt(): string {
+  return "Ты — мастер этого мира. Тебе дан закрытый набор разрешённых сведений (AllowedNarrativeFacts): " +
+    "вопрос, список facts (каждый с turn-local ref), mandatory (обязательные результаты хода), continuations и gaps. " +
+    "Выбери подмножество facts и порядок, чтобы ответить на реплику: можно выбирать, группировать и упорядочивать элементы набора. " +
+    "Нельзя добавлять сведения, менять их доступность, происхождение или epistemic-класс и превращать предположение в установленный факт. " +
+    "Все mandatory результаты обязаны быть отражены. Не упоминай внутренние идентификаторы, Event Log, Canon и provenance. " +
+    "Ответь ТОЛЬКО одним JSON-объектом без пояснений: " +
+    "{\"narration\": \"связный ответ\", \"claims\": [{\"text\": \"одно предложение\", \"ref\": \"f1\", \"assertion\": \"observed\"}], \"coveredMandatory\": [\"<mandatory entry>\"]}. " +
+    "Каждое содержательное предложение привяжи к ref использованного сведения; assertion не может быть сильнее assertion этого сведения.";
+}
+
+/**
+ * Composed read-side answer over the closed allowed set (ADR-0037). The prompt
+ * receives ONLY `AllowedNarrativeFacts` — never the raw `NarrativeAdapterContext`.
+ * On any failure it returns `usedFallback`, so the deterministic answer stands.
+ */
+export async function narrateAllowedAnswerLLM(
+  allowed: AllowedNarrativeFacts,
+  worldTime: number,
+  router: ModelRouter | null,
+  opts?: NarrationOptions,
+): Promise<TurnNarration> {
+  const sink = opts?.diagnostics;
+  const priority = opts?.priority ?? "interactive";
+  if (allowed.facts.length === 0) return answerFallback("empty_answer");
+  if (!router || !router.apiKey) {
+    emitDiagnostic(sink, {
+      kind: "llm",
+      category: "no_api_key",
+      outcome: "deterministic_fallback",
+      provider: router?.providerId ?? "",
+      durationMs: 0,
+      turn: worldTime,
+      worldTime,
+      attempt: 1,
+      priority,
+      timeout: 0,
+      retryOutcome: "none",
+      worldId: opts?.worldId,
+      recordedAt: new Date().toISOString(),
+      correlationId: opts?.correlationId,
+    });
+    return answerFallback("no_api_key");
+  }
+
+  const maxAttempts = 1 + retryCount(opts?.maxRetries);
+  const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+  const messages: ChatMessage[] = [
+    { role: "system", content: allowedAnswerSystemPrompt() },
+    { role: "user", content: JSON.stringify({ allowed }) },
+  ];
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const start = performance.now();
+    try {
+      const result: ChatResult = await router.chat("narrate", messages, {
+        ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+        ...(sink ? { diagnostics: sink } : {}),
+        ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
+        worldTime,
+        priority,
+      });
+      const durationMs = Math.round(performance.now() - start);
+      const verification = verifyAllowedNarration(result.text, allowed);
+      if (!verification.ok) {
+        emitDiagnostic(sink, {
+          kind: "llm",
+          category: "schema_rejection",
+          outcome: "deterministic_fallback",
+          provider: result.provider,
+          durationMs,
+          turn: worldTime,
+          worldTime,
+          attempt,
+          priority,
+          timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+          retryOutcome: "none",
+          worldId: opts?.worldId,
+          recordedAt: new Date().toISOString(),
+          correlationId: opts?.correlationId,
+          model: result.model,
+          configuredModel: result.configuredModel,
+        });
+        return answerFallback(`allowed_violation:${verification.reason}`);
+      }
+      emitDiagnostic(sink, {
+        kind: "llm",
+        category: "success",
+        outcome: "success",
+        provider: result.provider,
+        durationMs,
+        turn: worldTime,
+        worldTime,
+        attempt,
+        priority,
+        timeout: opts?.timeoutMs ?? router.timeoutSeconds * 1000,
+        retryOutcome: attempt > 1 ? "succeeded_on_retry" : "none",
+        worldId: opts?.worldId,
+        recordedAt: new Date().toISOString(),
+        correlationId: opts?.correlationId,
+        model: result.model,
+        configuredModel: result.configuredModel,
+      });
+      return { text: verification.narration, model: result.model, usedFallback: false, fallbackReason: null, latencyMs: result.latencyMs };
     } catch (err) {
       const durationMs = Math.round(performance.now() - start);
       const category = classifyNarrationError(err, null);

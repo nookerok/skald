@@ -27,6 +27,8 @@ import {
   buildSpatialWorldProjection,
   narrateTurnLLM,
   narrateAnswerLLM,
+  narrateAllowedAnswerLLM,
+  buildAllowedNarrativeFacts,
   buildBackgroundNarrativeContext,
   buildNarrativeAdapterContext,
   localizedPlayerText,
@@ -39,6 +41,7 @@ import {
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { AnswerNarrationKind, TurnNarration } from "@skald/world";
+import type { AllowedNarrativeFacts } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
 import { classifyPlayerInput, conflictingActions, isContinuingJourneyTo, isJourneyContinuation, parseIntent, unknownObservedTarget, validateActionProposal } from "@skald/intent-parser";
@@ -686,6 +689,7 @@ function scheduleAnswerNarration(
   answerText: string,
   kind: AnswerNarrationKind,
   correlationId: string,
+  allowed?: AllowedNarrativeFacts,
 ): boolean {
   const router = runtime.router;
   if (!router || input.trim().length === 0 || answerText.trim().length === 0) return false;
@@ -696,13 +700,21 @@ function scheduleAnswerNarration(
     worldTime,
     correlationId,
     run: async () => {
-      const narration = await narrateAnswerLLM(input, answerText, kind, worldTime, router, {
-        diagnostics: runtime.diagnostics,
-        priority: "interactive",
-        timeoutMs: router.timeoutSeconds * 1000,
-        worldId,
-        correlationId,
-      });
+      const narration = allowed
+        ? await narrateAllowedAnswerLLM(allowed, worldTime, router, {
+          diagnostics: runtime.diagnostics,
+          priority: "interactive",
+          timeoutMs: router.timeoutSeconds * 1000,
+          worldId,
+          correlationId,
+        })
+        : await narrateAnswerLLM(input, answerText, kind, worldTime, router, {
+          diagnostics: runtime.diagnostics,
+          priority: "interactive",
+          timeoutMs: router.timeoutSeconds * 1000,
+          worldId,
+          correlationId,
+        });
       if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
       try {
         runtime.store.saveTurnNarration(worldId, worldTime, narration, correlationId);
@@ -715,6 +727,48 @@ function scheduleAnswerNarration(
     onDrop: () => runtime.narration.markUnavailable(worldTime, correlationId),
   });
   return true;
+}
+
+/**
+ * Builds the closed `AllowedNarrativeFacts` for a read-side inquiry answer
+ * (ADR-0037). The master then composes over this set only; the raw
+ * NarrativeAdapterContext never reaches the prompt. Returns undefined when the
+ * adapter context cannot be built, so the caller falls back to the exact-answer
+ * narration.
+ */
+function buildInquiryAllowedFacts(params: {
+  readonly input: string;
+  readonly events: readonly DomainEvent[];
+  readonly world: ReadonlyWorld;
+  readonly record: ReturnType<WorldRuntime["store"]["getWorldRecord"]> | null;
+  readonly profile: { readonly background_id?: string | null } | null;
+  readonly scene: ReturnType<typeof buildMasterTurnSceneContext>["context"];
+  readonly answer: string;
+}): AllowedNarrativeFacts | undefined {
+  try {
+    const adapter = buildNarrativeAdapterContext(params.events, params.world, {
+      profile: params.profile,
+      characterName: params.record?.characterName ?? null,
+      entrypoint: params.record?.entrypointId ? getRegionEntrypoint(params.record.entrypointId) : null,
+      presentation: null,
+      openingWindow: false,
+    });
+    const portraitFacts = params.scene.knownPeople.flatMap((person) =>
+      person.portrait
+        ? [
+          ...person.portrait.visibleAppearance.map((text) => ({ content: text, provenance: "observation" as const, assertion: "observed" as const })),
+          ...person.portrait.distinguishingFeatures.map((text) => ({ content: text, provenance: "observation" as const, assertion: "observed" as const })),
+          ...(person.portrait.publicRole ? [{ content: person.portrait.publicRole, provenance: "observation" as const, assertion: "observed" as const }] : []),
+        ]
+        : []);
+    return buildAllowedNarrativeFacts({
+      question: params.input,
+      context: adapter,
+      extraFacts: [{ content: params.answer, provenance: "observation", assertion: "observed" }, ...portraitFacts],
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -1022,7 +1076,8 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
           : undefined;
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer,
           inquiryMetadata);
-        const scheduled = scheduleAnswerNarration(runtime, input, inquiry.answer, "inquiry_answer", conversationTurn.correlationId);
+        const scheduled = scheduleAnswerNarration(runtime, input, inquiry.answer, "inquiry_answer", conversationTurn.correlationId,
+          buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: inquiry.answer }));
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
       });

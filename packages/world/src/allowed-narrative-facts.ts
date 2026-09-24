@@ -91,10 +91,20 @@ function toAllowed(fact: NarrativeFact, ref: string): AllowedNarrativeFact {
   });
 }
 
+/** One additional allowed fact the caller already cleared for the player. */
+export interface AllowedNarrativeExtraFact {
+  readonly content: string;
+  readonly provenance: AllowedFactProvenance;
+  readonly assertion: AllowedFactAssertion;
+  readonly temporal?: AllowedFactTemporal | undefined;
+}
+
 /** Input for the closed allowed set: an existing read-side context and the turn's mandatory results. */
 export interface AllowedNarrativeFactsInput {
   readonly question?: string | null | undefined;
   readonly context?: NarrativeAdapterContext | null | undefined;
+  /** Extra facts from the scene/conversation the caller already cleared. */
+  readonly extraFacts?: readonly AllowedNarrativeExtraFact[] | undefined;
   /** Mandatory results of this turn (e.g. "путь заблокирован"). */
   readonly mandatory?: readonly string[] | undefined;
   /** Allowed continuations (existing affordances, routes, contacts). */
@@ -146,6 +156,13 @@ export function buildAllowedNarrativeFacts(input: AllowedNarrativeFactsInput = {
       facts.push(toAllowed(fact, `f${index}`));
     }
     if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) break;
+  }
+  for (const extra of input.extraFacts ?? []) {
+    if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) break;
+    const content = truncate(extra.content, ALLOWED_NARRATIVE_FACT_MAX_CHARS);
+    if (content.length === 0) continue;
+    index += 1;
+    facts.push(freeze({ ref: `f${index}`, content, provenance: extra.provenance, assertion: extra.assertion, temporal: extra.temporal ?? "now", available: true }));
   }
 
   const clean = (lines: readonly string[] | undefined): readonly string[] =>
