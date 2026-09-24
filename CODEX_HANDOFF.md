@@ -1,3 +1,17 @@
+# Current work (2026-09-21 — T5 scratch browser QA on d17c2be: DOM PASS, visual BLOCKED)
+
+- Scratch browser QA ran on the deployed `d17c2be` via the Traycer in-app
+  browser (the fixed NTFS Codex runner is still not addressable). New scratch
+  world `world-f3f0ece3`, desktop + mobile.
+- DOM PASS: one ferryman; portrait at first presence; name for the known
+  ferryman; «кто рядом?» / «как выглядит?» / «как обратиться?» answered; an
+  honest reaction answer; one input → one master reply; reload preserved; no
+  Event and no time change; no internal ids; 0 console errors; mobile no
+  overflow.
+- Visual: BLOCKED (`page.screenshot()` timed out). Human acceptance: PENDING.
+- T5 verdicts: repository PASS, api PASS, browser DOM PASS, visual BLOCKED,
+  human PENDING. Awaiting the close decision.
+
 # Current work (2026-09-21 — contact identity T5 deployed as d17c2be; browser QA BLOCKED)
 
 - T5 changes committed, pushed and deployed (`d17c2be`): a deterministic
