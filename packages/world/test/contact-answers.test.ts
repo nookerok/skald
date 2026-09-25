@@ -43,6 +43,19 @@ describe("person answers", () => {
     if (group.kind === "inquiry") expect(group.inquiry.queryId).toBe("who_is_nearby");
   });
 
+  it("routes the three natural scenario questions to inquiries", () => {
+    const expectations: [string, string][] = [
+      ["Как я здесь оказался?", "character_identity"],
+      ["Опиши человека передо мной", "who_is_nearby"],
+      ["Почему ты упомянул этот знак?", "recent_events"],
+    ];
+    for (const [input, queryId] of expectations) {
+      const classified = classifyPlayerInput(input, parseIntent);
+      expect(classified.kind).toBe("inquiry");
+      if (classified.kind === "inquiry") expect(classified.inquiry.queryId).toBe(queryId);
+    }
+  });
+
   it("describes a named present person from the portrait", () => {
     const result = ask("visible_scene", "как выглядит перевозчик?", "перевозчик");
     expect(result.answer).toContain("Перевозчик у переправы");

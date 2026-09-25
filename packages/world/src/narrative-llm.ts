@@ -1220,6 +1220,8 @@ function allowedAnswerSystemPrompt(): string {
     "Все mandatory результаты обязаны быть отражены. Не упоминай внутренние идентификаторы, Event Log, Canon и provenance. " +
     "Ответь ТОЛЬКО одним JSON-объектом без пояснений: " +
     "{\"narration\": \"связный ответ\", \"claims\": [{\"text\": \"одно предложение\", \"ref\": \"f1\", \"assertion\": \"observed\"}], \"coveredMandatory\": [\"<mandatory entry>\"]}. " +
+    "Поле ref обязательно и равно ref одного из allowed.facts (f1, f2, …). Не используй sourceFactId/epistemicClass. " +
+    "Если mandatory пуст, coveredMandatory может быть []. " +
     "Каждое содержательное предложение привяжи к ref использованного сведения; assertion не может быть сильнее assertion этого сведения.";
 }
 
@@ -1277,6 +1279,17 @@ export async function narrateAllowedAnswerLLM(
       const durationMs = Math.round(performance.now() - start);
       const verification = verifyAllowedNarration(result.text, allowed);
       if (!verification.ok) {
+        // One repair attempt with the exact schema: the model often echoes an
+        // older shape (sourceFactId/epistemicClass) on the first call.
+        if (attempt < maxAttempts) {
+          messages.push({ role: "assistant", content: result.text });
+          messages.push({
+            role: "user",
+            content: `Ответ отклонён (${verification.reason}). Верни ТОЛЬКО JSON вида {"narration":"...","claims":[{"text":"...","ref":"f1","assertion":"observed"}],"coveredMandatory":[]}. ` +
+              "Поле ref обязательно и совпадает с ref одного из allowed.facts; assertion не сильнее assertion этого сведения; каждое mandatory должно быть в coveredMandatory.",
+          });
+          continue;
+        }
         emitDiagnostic(sink, {
           kind: "llm",
           category: "schema_rejection",

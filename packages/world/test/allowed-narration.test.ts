@@ -82,6 +82,21 @@ describe("narrateAllowedAnswerLLM", () => {
     const result = await narrateAllowedAnswerLLM(allowed(), 1, router);
     expect(result.usedFallback).toBe(true);
   });
+  it("repairs an old-format first answer into the new contract", async () => {
+    const { ModelRouter } = await import("../src/llm/router.js");
+    const router = new ModelRouter({ apiKey: "test-key" });
+    let call = 0;
+    vi.spyOn(router, "chat").mockImplementation(async () => {
+      call += 1;
+      const text = call === 1
+        ? JSON.stringify({ narration: "x", claims: [{ text: "x", sourceFactId: "answer", epistemicClass: "observed_fact" }] })
+        : response();
+      return { text, model: "m", configuredModel: "m", responseModel: "m", usedFallback: false, latencyMs: 1, usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }, provider: "opencode_zen" };
+    });
+    const result = await narrateAllowedAnswerLLM(allowed(), 1, router);
+    expect(result.usedFallback).toBe(false);
+    expect(call).toBe(2);
+  });
   it("sends only the closed allowed set to the model", async () => {
     const { router, spy } = await mockRouter(response());
     await narrateAllowedAnswerLLM(allowed(), 1, router);
