@@ -63,6 +63,11 @@ describe("verifyAllowedNarration", () => {
     expect(verifyAllowedNarration(response({ narration: "Контакт contact:keeper здесь." }), allowed()).reason).toBe("internal_reference");
     expect(verifyAllowedNarration("not json", allowed()).reason).toBe("invalid_json");
   });
+  it("accepts an answer wrapped in a markdown fence or surrounding prose", () => {
+    expect(verifyAllowedNarration("```json\n" + response() + "\n```", allowed()).ok).toBe(true);
+    expect(verifyAllowedNarration("Конечно. " + response() + " Надеюсь, помог.", allowed()).ok).toBe(true);
+    expect(verifyAllowedNarration("Вот объект: {так нет}", allowed()).reason).toBe("invalid_json");
+  });
 });
 
 describe("narrateAllowedAnswerLLM", () => {

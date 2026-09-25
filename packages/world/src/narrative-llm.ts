@@ -1183,8 +1183,13 @@ function isAllowedAssertion(value: unknown): value is AllowedFactAssertion {
 export function verifyAllowedNarration(response: string, allowed: AllowedNarrativeFacts): AllowedNarrationVerification {
   const fail = (reason: string): AllowedNarrationVerification => ({ ok: false, narration: "", usedRefs: [], reason });
   let parsed: { narration?: unknown; claims?: unknown; coveredMandatory?: unknown };
+  // The model often wraps the object in a markdown fence or prose. Extract the
+  // balanced JSON object first — the same contract the legacy narration path
+  // already uses — so a wrapping does not become a schema rejection.
+  const json = extractJsonObject(response);
+  if (!json) return fail("invalid_json");
   try {
-    parsed = JSON.parse(response) as typeof parsed;
+    parsed = JSON.parse(json) as typeof parsed;
   } catch {
     return fail("invalid_json");
   }
@@ -1218,7 +1223,7 @@ function allowedAnswerSystemPrompt(): string {
     "Выбери подмножество facts и порядок, чтобы ответить на реплику: можно выбирать, группировать и упорядочивать элементы набора. " +
     "Нельзя добавлять сведения, менять их доступность, происхождение или epistemic-класс и превращать предположение в установленный факт. " +
     "Все mandatory результаты обязаны быть отражены. Не упоминай внутренние идентификаторы, Event Log, Canon и provenance. " +
-    "Ответь ТОЛЬКО одним JSON-объектом без пояснений: " +
+    "Ответь ТОЛЬКО одним JSON-объектом без пояснений и без markdown-заборов: " +
     "{\"narration\": \"связный ответ\", \"claims\": [{\"text\": \"одно предложение\", \"ref\": \"f1\", \"assertion\": \"observed\"}], \"coveredMandatory\": [\"<mandatory entry>\"]}. " +
     "Поле ref обязательно и равно ref одного из allowed.facts (f1, f2, …). Не используй sourceFactId/epistemicClass. " +
     "Если mandatory пуст, coveredMandatory может быть []. " +
