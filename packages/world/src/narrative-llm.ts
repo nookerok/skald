@@ -1173,6 +1173,22 @@ function isAllowedAssertion(value: unknown): value is AllowedFactAssertion {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(ALLOWED_ASSERTION_STRENGTH, value);
 }
 
+/** Minimum share a declared claim / narration sentence must share with its counterpart. */
+const CONSISTENCY_MIN_OVERLAP = 0.6;
+
+/** Lowercased content words (length >= 3) used by the consistency checks. */
+function contentWords(text: string): string[] {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").split(/\s+/u).filter((word) => word.length >= 3);
+}
+
+/** Share of `words` present in `haystack`. */
+function wordOverlap(words: readonly string[], haystack: ReadonlySet<string>): number {
+  if (words.length === 0) return 1;
+  let hit = 0;
+  for (const word of words) if (haystack.has(word)) hit += 1;
+  return hit / words.length;
+}
+
 /**
  * Structural validation of one composed answer against `AllowedNarrativeFacts`:
  * every cited ref must exist; a claim may not exceed its fact's assertion;
@@ -1201,6 +1217,7 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
   const claims = Array.isArray(parsed.claims) ? parsed.claims : [];
   if (claims.length === 0) return fail("missing_claims");
   const usedRefs: string[] = [];
+  const claimTexts: string[] = [];
   for (const raw of claims) {
     if (typeof raw !== "object" || raw === null) return fail("invalid_claim");
     const claim = raw as { text?: unknown; ref?: unknown; assertion?: unknown };
@@ -1210,6 +1227,21 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
     const fact = byRef.get(claim.ref)!;
     if (ALLOWED_ASSERTION_STRENGTH[claim.assertion] > ALLOWED_ASSERTION_STRENGTH[fact.assertion]) return fail("class_upgrade");
     usedRefs.push(claim.ref);
+    claimTexts.push(claim.text);
+  }
+  // The final text must agree with the declared parts: every claim is present
+  // in the narration, and every substantive narration sentence is declared by a
+  // claim. This is structural — semantic truth stays with the live corpus.
+  const narrationWords = new Set(contentWords(narration));
+  const claimWordLists = claimTexts.map((text) => contentWords(text));
+  const declaredWords = new Set(claimWordLists.flat());
+  for (const words of claimWordLists) {
+    if (wordOverlap(words, narrationWords) < CONSISTENCY_MIN_OVERLAP) return fail("claim_not_in_narration");
+  }
+  for (const sentence of narration.split(/(?<=[.!?…])\s+/u)) {
+    const words = contentWords(sentence);
+    if (words.length < 4) continue;
+    if (wordOverlap(words, declaredWords) < CONSISTENCY_MIN_OVERLAP) return fail("undeclared_content");
   }
   const covered = new Set(Array.isArray(parsed.coveredMandatory) ? parsed.coveredMandatory.filter((entry): entry is string => typeof entry === "string") : []);
   if (allowed.mandatory.some((result) => !covered.has(result))) return fail("missing_mandatory");
@@ -1291,7 +1323,8 @@ export async function narrateAllowedAnswerLLM(
           messages.push({
             role: "user",
             content: `Ответ отклонён (${verification.reason}). Верни ТОЛЬКО JSON вида {"narration":"...","claims":[{"text":"...","ref":"f1","assertion":"observed"}],"coveredMandatory":[]}. ` +
-              "Поле ref обязательно и совпадает с ref одного из allowed.facts; assertion не сильнее assertion этого сведения; каждое mandatory должно быть в coveredMandatory.",
+              "Поле ref обязательно и совпадает с ref одного из allowed.facts; assertion не сильнее assertion этого сведения; каждое mandatory должно быть в coveredMandatory. " +
+              "Каждое предложение claims входит в narration, и каждое содержательное предложение narration заявлено в claims — без деталей, которых нет в allowed.facts.",
           });
           continue;
         }

@@ -68,6 +68,39 @@ describe("verifyAllowedNarration", () => {
     expect(verifyAllowedNarration("Конечно. " + response() + " Надеюсь, помог.", allowed()).ok).toBe(true);
     expect(verifyAllowedNarration("Вот объект: {так нет}", allowed()).reason).toBe("invalid_json");
   });
+  it("accepts a multi-sentence narration where every sentence is declared", () => {
+    const narration = "Ты пришёл по следу знака. Перевозчик ждёт у самой воды.";
+    const result = verifyAllowedNarration(JSON.stringify({
+      narration,
+      claims: [
+        { text: "Ты пришёл по следу знака.", ref: "f5", assertion: "established" },
+        { text: "Перевозчик ждёт у самой воды.", ref: "f5", assertion: "established" },
+      ],
+      coveredMandatory: ["путь заблокирован"],
+    }), allowed());
+    expect(result.ok).toBe(true);
+  });
+  it("rejects a claim that is absent from the final text", () => {
+    const result = verifyAllowedNarration(
+      response({ narration: "Совсем другой текст без единого слова из заявленного предложенного." }),
+      allowed(),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("claim_not_in_narration");
+  });
+  it("rejects the regression «correct reference — false content»", () => {
+    // The portrait ref is cited correctly, but the narration adds a cloak no
+    // allowed fact mentions and no claim declares.
+    const result = verifyAllowedNarration(
+      response({
+        narration: "Ты пришёл по следу знака. На плечах у тебя золотой плащ с вышитой дорогой.",
+        claims: [{ text: "Ты пришёл по следу знака.", ref: "f5", assertion: "established" }],
+      }),
+      allowed(),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("undeclared_content");
+  });
 });
 
 describe("narrateAllowedAnswerLLM", () => {
