@@ -338,6 +338,11 @@ export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMem
 /** Strip persistence-only requestHash before a player-facing JSON response. */
 export function toConversationTurnDTO(turn: ConversationTurnRecord): ConversationTurn & { readonly narrationHandle: string; readonly turnKey: string } {
   const { requestHash: _requestHash, contextMetadata: _contextMetadata, ...publicTurn } = turn;
+  // Read-side answers are authored, observer-safe prose. The internal-text
+  // filter (which treats any Latin letter as leakage) must not replace them —
+  // a Latin character name is not an internal id. World-changing and
+  // clarification texts keep the scrub.
+  const readSideAnswer = turn.responseKind === "inquiry_answer" || turn.responseKind === "meta_answer";
   const fallback = turn.responseKind === "action_rejection"
     ? "Так действовать сейчас не получится."
     : turn.responseKind === "clarification"
@@ -345,7 +350,7 @@ export function toConversationTurnDTO(turn: ConversationTurnRecord): Conversatio
       : "Подробности пока неясны.";
   return {
     ...publicTurn,
-    responseText: localizedPlayerText(turn.responseText, fallback),
+    responseText: readSideAnswer ? turn.responseText : localizedPlayerText(turn.responseText, fallback),
     narrationHandle: narrationHandle(turn.worldTimeAfter, turn.correlationId),
     turnKey: masterTurnKey(turn.worldId, turn.idempotencyKey),
   };

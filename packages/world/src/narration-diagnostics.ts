@@ -79,6 +79,8 @@ export interface NarrationLLMDiagnosticEvent {
   /** Safe provider HTTP status/code, when available. */
   readonly httpStatus?: number | undefined;
   readonly providerCode?: string | undefined;
+  /** Closed failure sub-code for a rejected narration (e.g. allowed_violation:unknown_ref). */
+  readonly failureCategory?: string | undefined;
   readonly retryOutcome: RetryOutcome;
   /** World this narration belongs to. */
   readonly worldId?: string | undefined;

@@ -1307,6 +1307,7 @@ export async function narrateAllowedAnswerLLM(
           correlationId: opts?.correlationId,
           model: result.model,
           configuredModel: result.configuredModel,
+          failureCategory: `allowed_violation:${verification.reason}`,
         });
         return answerFallback(`allowed_violation:${verification.reason}`);
       }
