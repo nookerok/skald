@@ -1,3 +1,47 @@
+# Current work (2026-09-26 — master-answer-composition T3 CLOSED as eee73b2, deployed)
+
+- T3 (ADR-0037 composition and checks) closed. Commits this block: `8b5f507`
+  (route the three phrases + repair attempt), `d559355` (responseText sync +
+  `failureCategory`), `b5642c4` (`extractJsonObject` + fence-forbidding prompt),
+  `6b55c81` (consistency of final text with declared claims: reasons
+  `claim_not_in_narration` / `undeclared_content`, overlap 0.6,
+  «correct reference — false content» negative test), `eee73b2`
+  (**fix: schedule narration for plan-proposed inquiries**).
+- Defect found live and fixed in `eee73b2`: inputs the deterministic classifier
+  does not short-circuit («опиши место, где я нахожусь») reach
+  `runValidatedMasterTurnResponse`'s `!plan.execution` branch, which persisted
+  `inquiry_answer` turns but never called `scheduleAnswerNarration` — those
+  turns stayed `not_requested` and the UI hint «МАСТЕР дополняет эту запись…»
+  never appeared. The branch now schedules the composed rephrase with
+  `buildInquiryAllowedFacts` and reports `narrationState`. New HTTP test in
+  `read-side-narration-http.test.ts` (discriminated by the `inquiries` array).
+  Meta (`meta_answer`) and offline-command inquiries still have no schedule
+  call site — left unchanged deliberately, not invented.
+- `npm run validate` PASS (219 files / 2678 passed, 1 skipped); pushed
+  `eee73b2` (`main == origin/main`); Orange Pi updated via
+  `$skald-orange-pi-deploy` (updater full cycle PASS, contract probe PASS).
+  Note: the previous session's deploy had left the OLD process running
+  (ActiveEnter Sep 25) — this restart is verified (MainPID 868583,
+  2026-09-26 22:01:28).
+- Live evidence on `eee73b2`: scorecard 4/4 inquiry turns `pending → ready`
+  (3 direct + 1 plan-path; composed text differs from deterministic:
+  230→359 / 167→125 / 51→265 / 320→347), worldTime 0 and eventNumber 58
+  unchanged, `allowed_violation` 0, `schema_rejection` 0. Live corpus on the
+  device: 87/88 (0.9886), genericFallback 0, scenarios 8/8, same known miss
+  «ищу безопасный проход дальше» → inquiry.
+- Browser QA ran via `$skald-traycer-browser-qa` (the fixed NTFS Codex runner
+  is not addressable from this session; stated in the report). mutationCount
+  2 / budget 25, scratch `world-3679eea6`. PASS: atomic pending, hint visible
+  for the first time on a plan-path turn, bubble replaced by the composed
+  text, reload preserved, read-only inquiry keeps worldTime 0/«Ход 0», mobile
+  390×844 no overflow + ≥44px targets, knowledge panel provenance-only, 0
+  console errors. Verdicts: repository/api/browser/provider PASS, **visual
+  BLOCKED** (screenshot 3×15s timeout), **human PENDING** (to T4); report at
+  `.../master-answer-composition/qa/index.md` +
+  `C:\Temp\opencode\skald-qa\t3-qa-20260926-2210.json`.
+- Next: T4 `t4-sequential-acceptance` (status 0) — sequential dialogue
+  acceptance incl. the human evaluation.
+
 # Current work (2026-09-21 — contact-identity T1–T5 closed; production d17c2be)
 
 - The `contact-identity` block is closed: T1 (one canonical ferryman), T2
