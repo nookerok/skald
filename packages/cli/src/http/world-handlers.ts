@@ -2057,9 +2057,14 @@ async function runValidatedMasterTurnResponse(
     const background = buildBackgroundNarrativeContext(events, world, profile);
     const scene = buildMasterTurnSceneContext(events, world).context;
     const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene }));
-    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiries.map((entry) => entry.answer).join(" "), planMemory);
+    const answerText = inquiries.map((entry) => entry.answer).join(" ");
+    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", answerText, planMemory);
+    // Model-proposed inquiries share the deterministic read-side narration
+    // lifecycle, or the plan path would stay `not_requested` forever.
+    const scheduled = scheduleAnswerNarration(runtime, input, answerText, "inquiry_answer", conversationTurn.correlationId,
+      buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText }));
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-    return json({ ok: true, status: "inquiry", inquiries, inquiry: inquiries[0], conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: conversationTurn.responseText }, false) });
+    return json({ ok: true, status: "inquiry", inquiries, inquiry: inquiries[0], conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: conversationTurn.responseText }, scheduled) });
   }
 
   const worldTimeBefore = runtime.projection.getSnapshot().time;

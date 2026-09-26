@@ -111,6 +111,102 @@ describe("read-side answer narration", () => {
   });
 });
 
+/** Model-proposed inquiry: the gateway reaches `runValidatedMasterTurnResponse`
+ * with `execution: null` and `postActionInquiries`, a different path from the
+ * deterministic classifier short-circuit. */
+const MODEL_INQUIRY_PROPOSAL = {
+  schemaVersion: 2,
+  kind: "inquiry",
+  primaryIntent: { kind: "inquiry", queryId: "visible_scene", sourceText: "опиши место, где я нахожусь" },
+  supportingClauses: [],
+  referents: [],
+};
+
+class PlanPathNarrationProvider extends ReadSideNarrationProvider {
+  readonly allowedSeen: boolean[] = [];
+
+  override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
+    if (category === "interpret") {
+      return {
+        model: "plan-path-interpreter",
+        configuredModel: "plan-path-interpreter",
+        responseModel: "plan-path-interpreter",
+        usedFallback: false,
+        text: JSON.stringify(MODEL_INQUIRY_PROPOSAL),
+        latencyMs: 0,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        provider: "opencode_zen",
+      };
+    }
+    if (category === "narrate") {
+      const user = messages.find((message) => message.role === "user")?.content ?? "";
+      let sawAllowed = false;
+      try {
+        const parsed = JSON.parse(user) as { allowed?: AllowedShape };
+        sawAllowed = Boolean(parsed.allowed && Array.isArray(parsed.allowed.facts));
+      } catch {
+        sawAllowed = false;
+      }
+      this.allowedSeen.push(sawAllowed);
+    }
+    return super.chat(category, messages);
+  }
+}
+
+describe("plan-path answer narration (model-proposed inquiry)", () => {
+  it("schedules the rephrase over the allowed set and settles ready", async () => {
+    const provider = new PlanPathNarrationProvider();
+    const planServer = await startServer({
+      host: "127.0.0.1",
+      port: 0,
+      dbPath: join(mkdtempSync(join(tmpdir(), "skald-plan-narration-")), "events.sqlite"),
+      router: provider,
+    });
+    try {
+      const created = await fetch(`${planServer.url}/api/worlds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "plan-path-create" },
+        body: JSON.stringify({ characterName: "Тест", backgroundId: "wanderer", entrypointId: "river_waystation_arrival" }),
+      });
+      expect(created.status).toBe(201);
+      const world = (await created.json() as any).world.worldId as string;
+      const state = async () => (await (await fetch(`${planServer.url}/api/worlds/${world}/state`)).json() as any).state;
+      const before = await state();
+
+      const cmd = await (await fetch(`${planServer.url}/api/worlds/${world}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: "опиши место, где я нахожусь", idempotencyKey: "plan-path-1" }),
+      })).json() as any;
+      expect(cmd.status).toBe("inquiry");
+      // The plan path is the only inquiry branch that returns `inquiries`.
+      expect(Array.isArray(cmd.inquiries)).toBe(true);
+      expect(cmd.conversationTurn.narrationState).toBe("pending");
+      expect(cmd.masterTurn.narration.status).toBe("pending");
+
+      let ready: any = null;
+      const started = Date.now();
+      while (Date.now() - started < 8000) {
+        const journal = await (await fetch(`${planServer.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
+        ready = journal.conversationTurns?.find((candidate: any) => candidate.narrationState === "ready");
+        if (ready) break;
+        await tick();
+      }
+      expect(ready).not.toBeNull();
+      expect(ready.narrationText.length).toBeGreaterThan(0);
+      // The rephrase was composed over the closed allowed set, not the legacy
+      // exact-answer narration.
+      expect(provider.allowedSeen).toContain(true);
+
+      const after = await state();
+      expect(after.worldTime).toBe(before.worldTime);
+      expect(after.eventNumber).toBe(before.eventNumber);
+    } finally {
+      await planServer.close();
+    }
+  }, 20000);
+});
+
 /** Fails the first read-side rephrase with a transient 5xx, then succeeds. */
 class FlakyReadSideProvider extends FixedNarrationProvider {
   private failed = false;
