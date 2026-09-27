@@ -72,4 +72,12 @@ describe("AllowedNarrativeFacts", () => {
     expect(Object.isFrozen(a)).toBe(true);
     expect(Object.isFrozen(a.facts)).toBe(true);
   });
+
+  it("never admits a player claim from the replica into the set", () => {
+    // The replica reaches only `question`; a claim inside it («у меня есть
+    // меч») never becomes an allowed fact.
+    const allowed = buildAllowedNarrativeFacts({ context: context(), question: "у меня есть меч, покажи его" });
+    expect(allowed.question).toBe("у меня есть меч, покажи его");
+    expect(allowed.facts.some((entry) => /меч/iu.test(entry.content))).toBe(false);
+  });
 });

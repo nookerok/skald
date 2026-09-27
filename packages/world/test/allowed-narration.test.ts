@@ -24,7 +24,32 @@ function allowed() {
 }
 
 function response(overrides: Record<string, unknown> = {}) {
-  return JSON.stringify({ narration: "Ты пришёл по следу знака.", claims: [{ text: "Ты пришёл по следу знака.", ref: "f5", assertion: "established" }], coveredMandatory: ["путь заблокирован"], ...overrides });
+  return JSON.stringify({ narration: "Ты пришёл по следу знака. Путь заблокирован.", claims: [{ text: "Ты пришёл по следу знака.", ref: "f5", assertion: "established" }], coveredMandatory: ["путь заблокирован"], ...overrides });
+}
+
+/** A scene set without mandatory results, for negative authority checks. */
+function sceneAllowed(mandatory?: string) {
+  const extraFacts = [{ content: "На портрете человек в потёртом плаще.", provenance: "observation" as const, assertion: "observed" as const }];
+  if (mandatory !== undefined) extraFacts.push({ content: mandatory, provenance: "observation" as const, assertion: "observed" as const });
+  return buildAllowedNarrativeFacts({
+    question: "опиши человека",
+    context: {
+      character: { name: "Зоя", backgroundTitle: "Изгнанник", formerRole: "Бывший дорожный проводник.", rupture: "—", obligation: "—" },
+      arrival: { reason: "Ты пришёл по следу неверного знака.", personalHook: "Тебя ждут объяснения.", startingLocation: "river_waystation" },
+      visibleSituation: { facts: [], sensoryContext: [] },
+      accessibleItems: [],
+      contacts: [],
+      knowledge: { observed: [], testimony: [], hypotheses: [] },
+      unresolvedSituation: [],
+    } as never,
+    extraFacts,
+    ...(mandatory !== undefined ? { mandatory: [mandatory] } : {}),
+  });
+}
+
+/** Verifies one composed narration against `set`. */
+function verifySet(set: ReturnType<typeof sceneAllowed>, narration: string, claims: readonly Record<string, unknown>[]) {
+  return verifyAllowedNarration(JSON.stringify({ narration, claims, coveredMandatory: [] }), set);
 }
 
 async function mockRouter(text: string) {
@@ -59,6 +84,32 @@ describe("verifyAllowedNarration", () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("missing_mandatory");
   });
+  it("rejects a mandatory result that is covered but not selected", () => {
+    // The failure report exists as an allowed fact and is attested in
+    // coveredMandatory, but no claim cites it: the narration would skip the
+    // backend's result (ADR-0037 constraint 2).
+    const set = sceneAllowed("Перед тобой нет свободного прохода.");
+    const arrivalRef = set.facts.find((fact) => fact.content.includes("по следу"))!.ref;
+    const mandatoryRef = set.facts.find((fact) => fact.content === "Перед тобой нет свободного прохода.")!.ref;
+    const base = {
+      narration: "Ты пришёл по следу неверного знака.",
+      claims: [{ text: "Ты пришёл по следу неверного знака.", ref: arrivalRef, assertion: "established" }],
+      coveredMandatory: ["Перед тобой нет свободного прохода."],
+    };
+    const skipped = verifyAllowedNarration(JSON.stringify(base), set);
+    expect(skipped.ok).toBe(false);
+    expect(skipped.reason).toBe("missing_mandatory");
+
+    const selected = verifyAllowedNarration(JSON.stringify({
+      narration: "Ты пришёл по следу неверного знака. Перед тобой нет свободного прохода.",
+      claims: [
+        { text: "Ты пришёл по следу неверного знака.", ref: arrivalRef, assertion: "established" },
+        { text: "Перед тобой нет свободного прохода.", ref: mandatoryRef, assertion: "observed" },
+      ],
+      coveredMandatory: ["Перед тобой нет свободного прохода."],
+    }), set);
+    expect(selected.ok).toBe(true);
+  });
   it("rejects internal references and invalid json", () => {
     expect(verifyAllowedNarration(response({ narration: "Контакт contact:keeper здесь." }), allowed()).reason).toBe("internal_reference");
     expect(verifyAllowedNarration("not json", allowed()).reason).toBe("invalid_json");
@@ -69,12 +120,12 @@ describe("verifyAllowedNarration", () => {
     expect(verifyAllowedNarration("Вот объект: {так нет}", allowed()).reason).toBe("invalid_json");
   });
   it("accepts a multi-sentence narration where every sentence is declared", () => {
-    const narration = "Ты пришёл по следу знака. Перевозчик ждёт у самой воды.";
+    const narration = "Ты пришёл по следу знака. Тебя ждут объяснения. Путь заблокирован.";
     const result = verifyAllowedNarration(JSON.stringify({
       narration,
       claims: [
         { text: "Ты пришёл по следу знака.", ref: "f5", assertion: "established" },
-        { text: "Перевозчик ждёт у самой воды.", ref: "f5", assertion: "established" },
+        { text: "Тебя ждут объяснения.", ref: "f6", assertion: "established" },
       ],
       coveredMandatory: ["путь заблокирован"],
     }), allowed());
@@ -101,6 +152,47 @@ describe("verifyAllowedNarration", () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("undeclared_content");
   });
+  it("rejects a weapon added through a portrait reference", () => {
+    // The portrait ref is cited correctly, but no allowed fact mentions a
+    // weapon: an element cannot be smuggled in «through» a valid ref.
+    const set = sceneAllowed();
+    const portraitRef = set.facts.find((fact) => fact.content.includes("потёртом плаще"))!.ref;
+    const result = verifySet(set,
+      "На портрете человек в потёртом плаще. У него у бедра висит меч.",
+      [
+        { text: "На портрете человек в потёртом плаще.", ref: portraitRef, assertion: "observed" },
+        { text: "У него у бедра висит меч.", ref: portraitRef, assertion: "observed" },
+      ]);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("fact_mismatch");
+  });
+  it("rejects a hidden NPC thought declared against a valid ref", () => {
+    const set = sceneAllowed();
+    const portraitRef = set.facts.find((fact) => fact.content.includes("потёртом плаще"))!.ref;
+    const result = verifySet(set,
+      "На портрете человек в потёртом плаще. Он думает, что ты враг.",
+      [
+        { text: "На портрете человек в потёртом плаще.", ref: portraitRef, assertion: "observed" },
+        { text: "Он думает, что ты враг.", ref: portraitRef, assertion: "observed" },
+      ]);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("fact_mismatch");
+  });
+  it("rejects an adopted player claim citing an allowed ref", () => {
+    // «у меня есть меч» arrives only as the question; no fact carries it, so
+    // the model cannot adopt it even with a valid citation.
+    const set = sceneAllowed();
+    expect(set.facts.some((fact) => /меч/iu.test(fact.content))).toBe(false);
+    const arrivalRef = set.facts.find((fact) => fact.content.includes("по следу"))!.ref;
+    const result = verifySet(set,
+      "Ты пришёл по следу неверного знака. У тебя в руках меч.",
+      [
+        { text: "Ты пришёл по следу неверного знака.", ref: arrivalRef, assertion: "established" },
+        { text: "У тебя в руках меч.", ref: arrivalRef, assertion: "established" },
+      ]);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("fact_mismatch");
+  });
 });
 
 describe("narrateAllowedAnswerLLM", () => {
@@ -113,7 +205,7 @@ describe("narrateAllowedAnswerLLM", () => {
     const { router } = await mockRouter(response());
     const result = await narrateAllowedAnswerLLM(allowed(), 1, router);
     expect(result.usedFallback).toBe(false);
-    expect(result.text).toBe("Ты пришёл по следу знака.");
+    expect(result.text).toBe("Ты пришёл по следу знака. Путь заблокирован.");
   });
   it("falls back when the model cites an unknown ref", async () => {
     const { router } = await mockRouter(response({ claims: [{ text: "x", ref: "f99", assertion: "observed" }] }));

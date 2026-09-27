@@ -1176,6 +1176,15 @@ function isAllowedAssertion(value: unknown): value is AllowedFactAssertion {
 /** Minimum share a declared claim / narration sentence must share with its counterpart. */
 const CONSISTENCY_MIN_OVERLAP = 0.6;
 
+/**
+ * Minimum content-word overlap between a claim and the fact it cites. A
+ * paraphrase shares the fact's key words; a smuggled detail (a weapon added
+ * through a portrait reference, an NPC thought, an adopted player claim) does
+ * not. Kept below {@link CONSISTENCY_MIN_OVERLAP} because the claim may
+ * legitimately reword the fact.
+ */
+const CLAIM_FACT_MIN_OVERLAP = 0.3;
+
 /** Lowercased content words (length >= 3) used by the consistency checks. */
 function contentWords(text: string): string[] {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").split(/\s+/u).filter((word) => word.length >= 3);
@@ -1191,8 +1200,11 @@ function wordOverlap(words: readonly string[], haystack: ReadonlySet<string>): n
 
 /**
  * Structural validation of one composed answer against `AllowedNarrativeFacts`:
- * every cited ref must exist; a claim may not exceed its fact's assertion;
- * mandatory turn results must be covered; internal references are rejected.
+ * every cited ref must exist; a claim may not exceed its fact's assertion; a
+ * claim must be grounded in the content of the fact it cites (no elements may
+ * be added «through» a valid ref); mandatory turn results must be covered and,
+ * when a fact carries the same content, cited — so the backend result is
+ * selected, not skipped; internal references are rejected.
  * Semantic grounding is not provable here — negative tests and the live corpus
  * cover it.
  */
@@ -1226,6 +1238,7 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
     if (!isAllowedAssertion(claim.assertion)) return fail("invalid_assertion");
     const fact = byRef.get(claim.ref)!;
     if (ALLOWED_ASSERTION_STRENGTH[claim.assertion] > ALLOWED_ASSERTION_STRENGTH[fact.assertion]) return fail("class_upgrade");
+    if (wordOverlap(contentWords(claim.text), new Set(contentWords(fact.content))) < CLAIM_FACT_MIN_OVERLAP) return fail("fact_mismatch");
     usedRefs.push(claim.ref);
     claimTexts.push(claim.text);
   }
@@ -1244,7 +1257,14 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
     if (wordOverlap(words, declaredWords) < CONSISTENCY_MIN_OVERLAP) return fail("undeclared_content");
   }
   const covered = new Set(Array.isArray(parsed.coveredMandatory) ? parsed.coveredMandatory.filter((entry): entry is string => typeof entry === "string") : []);
-  if (allowed.mandatory.some((result) => !covered.has(result))) return fail("missing_mandatory");
+  for (const result of allowed.mandatory) {
+    if (!covered.has(result)) return fail("missing_mandatory");
+    // When a fact carries the mandatory result's content, the master must
+    // SELECT it (cite its ref): coveredMandatory alone is self-attestation and
+    // lets a narration skip the backend's refusal or partial result.
+    const mandatoryFact = allowed.facts.find((fact) => fact.content === result);
+    if (mandatoryFact && !usedRefs.includes(mandatoryFact.ref)) return fail("missing_mandatory");
+  }
   return { ok: true, narration, usedRefs, reason: null };
 }
 
@@ -1254,7 +1274,7 @@ function allowedAnswerSystemPrompt(): string {
     "вопрос, список facts (каждый с turn-local ref), mandatory (обязательные результаты хода), continuations и gaps. " +
     "Выбери подмножество facts и порядок, чтобы ответить на реплику: можно выбирать, группировать и упорядочивать элементы набора. " +
     "Нельзя добавлять сведения, менять их доступность, происхождение или epistemic-класс и превращать предположение в установленный факт. " +
-    "Все mandatory результаты обязаны быть отражены. Не упоминай внутренние идентификаторы, Event Log, Canon и provenance. " +
+    "Все mandatory результаты обязаны быть отражены: если среди facts есть факт с содержанием равным mandatory-строке, его ref обязан быть процитирован в claims. Не упоминай внутренние идентификаторы, Event Log, Canon и provenance. " +
     "Ответь ТОЛЬКО одним JSON-объектом без пояснений и без markdown-заборов: " +
     "{\"narration\": \"связный ответ\", \"claims\": [{\"text\": \"одно предложение\", \"ref\": \"f1\", \"assertion\": \"observed\"}], \"coveredMandatory\": [\"<mandatory entry>\"]}. " +
     "Поле ref обязательно и равно ref одного из allowed.facts (f1, f2, …). Не используй sourceFactId/epistemicClass. " +
@@ -1323,7 +1343,8 @@ export async function narrateAllowedAnswerLLM(
           messages.push({
             role: "user",
             content: `Ответ отклонён (${verification.reason}). Верни ТОЛЬКО JSON вида {"narration":"...","claims":[{"text":"...","ref":"f1","assertion":"observed"}],"coveredMandatory":[]}. ` +
-              "Поле ref обязательно и совпадает с ref одного из allowed.facts; assertion не сильнее assertion этого сведения; каждое mandatory должно быть в coveredMandatory. " +
+              "Поле ref обязательно и совпадает с ref одного из allowed.facts (f1, f2, …); assertion не сильнее assertion этого сведения; каждое mandatory должно быть в coveredMandatory. " +
+              "Если среди allowed.facts есть факт с содержанием равным mandatory-строке, его ref ОБЯЗАН быть среди claims — итог хода нельзя опустить. " +
               "Каждое предложение claims входит в narration, и каждое содержательное предложение narration заявлено в claims — без деталей, которых нет в allowed.facts.",
           });
           continue;
