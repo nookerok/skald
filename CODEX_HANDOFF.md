@@ -1,3 +1,24 @@
+# Current work (2026-09-27 — semantic-question-plan T1 contract closed)
+
+- New story `semantic-question-plan` (next step after ADR-0037): answer by
+  semantic question parts instead of one pre-selected `queryId`. Six tickets
+  T1..T6 exist as artifacts; T1 (contract) is status 2.
+- Commits this block: `1be8d57` (TurnProposalV2 gains optional
+  `questionPlan`/`readings`; `packages/intent-parser/src/question-plan.ts`
+  with closed aspect/subject/source/status registries and limits — 4 parts,
+  3 readings, 1 round; placement check; 17 new tests) and `6e048a7`
+  (ADR-0028 amendment 2026-09-27 fast-path completeness; ADR-0037 amendment
+  2026-09-27 mandatory split + selection by question + provenance/time/
+  availability orthogonality). Pushed, main == origin/main.
+- `npm run validate` PASS; intent-parser focused suite 389 tests green.
+- Prior state still holds: master-answer-composition T4 closed after deploy
+  of `20b71c1` (see the block below).
+- Next: T2 read-side (seven bounded adapters, request validation, explicit
+  gaps over existing builders), then T3 gateway (fast-path completeness,
+  QuestionPlan build + one reading round, revalidation). T1 naming note: the
+  plan's `ValidatedActionProposal` does not exist — `QuestionPlan.actionIntent`
+  is `ExecutableIntent`, built with `ValidatedMasterTurnPlan.execution`.
+
 # Current work (2026-09-27 — master-answer-composition T4 closed after deploy)
 
 - Requested runtime commit 3c63e3c was deployed as fast-forward descendant
