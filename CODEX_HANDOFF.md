@@ -1,3 +1,30 @@
+# Current work (2026-09-26 — master-answer-composition T4 in progress: fixes pushed, deploy pending)
+
+- T4 `t4-sequential-acceptance` is status 1 with full evidence in its artifact.
+  Commits this block: `a4eaa03` (verifier: claim must be grounded in its
+  cited fact -> `fact_mismatch`; mandatory result with a matching fact must be
+  CITED, not only attested -> `missing_mandatory`) and `3c63e3c`
+  (`buildInquiryAllowedFacts` passes the deterministic answer as `mandatory`;
+  read-side tests assert the wiring). Pushed, main == origin/main.
+- `npm run validate` PASS: 219 files / 2684 tests / 1 skipped.
+- Live T4 dialogue on scratch `world-852e66ae` (deployed `eee73b2`, 14 turns +
+  1 idempotent replay): checks 1,2,3,5,7,8,9,10 PASS with per-turn evidence;
+  **check 6 FAILED live** — the composed narration for «что только что
+  произошло» skipped the backend refusal «Перед тобой нет свободного
+  прохода»; fixed by `a4eaa03`+`3c63e3c` at unit level, **live re-verification
+  needs a deploy of `3c63e3c`**. Grounding: «Ночной поток…» and «Обломок
+  знака» grounded; «уровень воды сейчас обычный» is a probable invention that
+  the hardened verifier now rejects (offline overlap ~0.25 < 0.3).
+- Verdicts recorded: repository PASS, api PASS, live PASS 9/10 on `eee73b2`,
+  visual BLOCKED (carried from T3), human PENDING. T4 stays OPEN until
+  deploy + a post-deploy repeat of the q7-style turn.
+- Out-of-scope observations recorded in the T4 artifact: deterministic inquiry
+  builder answers some queries off-target (recent-events text for unrelated
+  questions); q4 deterministic text repeats a sentence.
+- Next: deploy `3c63e3c` (after clean-tree validate; authorized separately),
+  re-run the q7-style turn + the live corpus, then close T4 (status 2) with
+  human acceptance still PENDING.
+
 # Current work (2026-09-26 — master-answer-composition T3 CLOSED as eee73b2, deployed)
 
 - T3 (ADR-0037 composition and checks) closed. Commits this block: `8b5f507`
