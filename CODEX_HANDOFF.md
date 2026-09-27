@@ -1,3 +1,22 @@
+# Current work (2026-09-27 — master-answer-composition T4 closed after deploy)
+
+- Requested runtime commit 3c63e3c was deployed as fast-forward descendant
+  20b71c1; the only descendant delta is this handoff documentation.
+- Post-deploy check 6 PASS on scratch world
+  world-09c6e0b5-2208-4e32-b82e-9ffd1f3cc214: the attempted approach produced
+  the expected action rejection, and the follow-up recent_events inquiry kept
+  the mandatory refusal in both deterministic answer and ready composed
+  narration. The inquiry preserved worldTime 1 to 1 and created no event.
+- Live interpretation corpus rerun PASS: 87/88 (0.988636), threshold 0.95,
+  genericFallback 0, scenarios 8/8, provider ollama_cloud /
+  gemma4:31b-cloud, 62 calls, p50 767 ms, p95 3407 ms, max 7385 ms.
+- T4 artifact is status 2 (closed). Repository validation remains PASS:
+  219 test files, 2684 passed, 1 skipped; service, timers, health and live
+  intent/narration probe are PASS.
+- Visual QA remains BLOCKED by screenshot timeout; human acceptance remains
+  PENDING and is not claimed by this closure.
+- One known corpus classification miss remains: ищу безопасный проход дальше
+  was classified as inquiry while the corpus permits action|clarification.
 # Current work (2026-09-26 — master-answer-composition T4 in progress: fixes pushed, deploy pending)
 
 - T4 `t4-sequential-acceptance` is status 1 with full evidence in its artifact.
