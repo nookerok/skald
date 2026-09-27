@@ -1,3 +1,24 @@
+# Current work (2026-09-27 — semantic-question-plan T2 read-side closed)
+
+- T2 (read-side) closed: `executeQuestionReading` plus seven bounded adapters
+  landed in `packages/world/src/read-side/` as a pure read-side engine over
+  existing observer-safe builders (scene snapshot, portrait, arrival
+  narrative, knowledge, relations, items, transcript). Context carries
+  plan/bindings/scene/narrative/transcript only — no world/events.
+- Commits this block: `b0aad7d` (types + engine + seven adapters + export
+  from `@skald/world`) and `0a9fdff` (14 tests: aspect coverage, forbidden
+  field absence, gap statuses failed / ambiguous_subject / no_data incl.
+  hidden-data uniformity, epistemic pass-through, transcript past facts).
+  Pushed, main == origin/main.
+- `npm run validate` PASS (full gate). T2 artifact status 2.
+- Design notes: engine filters facts to the part aspect (an aspect no source
+  serves becomes an explicit no_data gap); known_events temporal stays
+  `unspecified` (TODO); listRef vocabulary and a per-request fact cap are
+  deliberately deferred (T5 / T4 limit).
+- Next: T3 gateway — fast-path completeness rule in
+  `master-turn-gateway.ts`, QuestionPlan build + one reading round,
+  prompt/validator wiring, then revalidation; then T4 answer assembly.
+
 # Current work (2026-09-27 — semantic-question-plan T1 contract closed)
 
 - New story `semantic-question-plan` (next step after ADR-0037): answer by
