@@ -62,3 +62,36 @@ model.
 - Amendments: ADR-0028 (intent vs composition), ADR-0004 and ADR-0013 (the LLM
   may select and order among allowed facts), plus `AGENTS.md`,
   `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` and `docs/PROJECT_MAP.md`.
+
+## Amendment 2026-09-27 — mandatory split and selection by question
+
+The runtime experience (story `master-answer-composition` T4) showed that
+passing the whole deterministic answer as one mandatory fact makes a badly
+chosen inquiry paragraph an untouchable part of the new prose, and that
+group-then-append fact collection can drop a needed description when the
+fact limit fills. The decision above is refined as follows:
+
+1. **Mandatory split.** Mandatory content has three distinct sources:
+   world results (refusal, partial success, consequence) — always
+   mandatory; question parts — mandatory per the semantic question plan
+   (`QuestionPart`, ADR-0028 amendment 2026-09-27); deterministic text —
+   a full fallback formulation built FROM the same allowed facts, not an
+   extra mandatory fact. A paragraph an old inquiry happened to select is
+   never mandatory by itself.
+2. **Selection by question.** Allowed facts are assembled per question
+   part: mandatory results and facts covering every part first, then
+   useful context. Space inside the total fact limit is reserved for
+   coverage; overflow produces an explicit incomplete-coverage signal
+   instead of silently dropping a part.
+3. **Provenance, time and availability are independent.** Availability
+   (`usableNow`: speakable as a memory now) never rewrites temporal
+   membership (when the described event happened), and an inquiry text is
+   not an `observation` unless its provenance actually is one — it may
+   carry told/inferred/doubt from its source.
+4. **Semantic checks beyond word overlap.** `fact_mismatch` word overlap
+   stays an additional filter only: lexical near-matches («проход открыт»
+   vs «проход не открыт») do not prove meaning. Mandatory results are
+   checked by citation with stricter negative tests; coverage of every
+   understandable question part, preservation of negation, uncertainty
+   and temporal meaning, and absence of new subjects, reactions or action
+   results are composition requirements.

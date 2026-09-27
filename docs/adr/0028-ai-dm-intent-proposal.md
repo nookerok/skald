@@ -146,3 +146,40 @@ separate step: after a read-only inquiry or an executed action, the backend
 freezes the allowed fact set (`AllowedNarrativeFacts`) and the mandatory turn
 results, and the master selects and orders a subset to answer. See
 ADR-0037.
+
+## Amendment 2026-09-27 — fast-path completeness and the semantic question plan
+
+A recognized inquiry may return from the fast path ONLY when it covers the
+WHOLE replica, including compound questions and references to the previous
+conversation. «Где я?» stays fast; «Где я и почему сюда пришёл?» is not
+covered by an early single-query result and goes to the semantic
+interpretation path. Incomplete recognition is never silently answered by
+one registered `queryId`.
+
+The read-side part of the interpretation contract is extended inside
+`TurnProposalV2` (both fields optional and backward compatible):
+
+- `questionPlan`: declared subjects (entity/group/ordinal/topic/place/self;
+  groups keep their member links, ordinals keep the identity of the shown
+  list plus a 1-based position) and up to four `QuestionPart`s over a
+  closed aspect set with an explicit time scope and purpose;
+- `readings`: up to three requests per ONE reading round from a closed
+  seven-source catalog (`scene`, `person`, `background_arrival`,
+  `known_events`, `relations`, `items`, `conversation_topics`).
+
+Limits, closed registries and cross-reference checks are static contract
+(normal `TurnProposalV2` validation); contextual subject resolution against
+scene, focus stack and conversation memory happens server-side in the
+gateway, which builds the validated `QuestionPlan` together with the
+validated primary action. A registered inquiry remains a fast read tool; a
+free question no longer has to match one `queryId` wholesale.
+
+Unchanged: no new Domain Event, no hidden `observe`/`inspect`/`wait` for a
+question, at most one validated primary action per replica (mixed turns
+keep the existing limit), and a question after an action is read from the
+post-execution snapshot with the existing revalidation. Offline behavior
+stays honest: confident registered inquiries and deterministic assembly,
+otherwise a clarification — free understanding is never promised without
+the model.
+
+Story: `semantic-question-plan` (T1 contract).
