@@ -12,6 +12,12 @@
 
 import { INTENT_CAPABILITIES } from "./intent-proposal.js";
 import { INQUIRY_QUERY_IDS, isInquiryQueryId } from "./inquiry.js";
+import {
+  parseProposedQuestionPlan,
+  parseReadingRequests,
+  type ProposedQuestionPlan,
+  type ReadingRequest,
+} from "./question-plan.js";
 
 /** Turn kinds the model may classify a replica into. */
 export type TurnProposalKind = "action" | "inquiry" | "speech" | "mixed" | "meta";
@@ -210,6 +216,18 @@ export interface TurnProposalV2 {
   readonly goal?: string;
   readonly manner?: string;
   readonly question?: ProposedQuestion;
+  /**
+   * Read-side semantic plan (semantic-question-plan T1): declared subjects
+   * and bounded question parts with a closed aspect set. Optional and
+   * backward compatible — absent for legacy fixtures and for replicas with
+   * no question. Built into a validated `QuestionPlan` by the gateway.
+   */
+  readonly questionPlan?: ProposedQuestionPlan;
+  /**
+   * Model-proposed readings for `questionPlan` from the closed catalog
+   * (one bounded round). Present only with `questionPlan`.
+   */
+  readonly readings?: readonly ReadingRequest[];
   readonly referents: readonly ProposedReferent[];
   readonly ambiguity?: ProposedAmbiguity;
   readonly conversationRelation?: TurnConversationRelation;
@@ -457,7 +475,7 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
   const candidate = raw as Record<string, unknown>;
   if (candidate.schemaVersion !== 2) return null;
   if (candidate.kind !== "action" && candidate.kind !== "inquiry" && candidate.kind !== "speech" && candidate.kind !== "mixed" && candidate.kind !== "meta") return null;
-  if (!hasOnlyKeys(candidate, ["schemaVersion", "kind", "primaryIntent", "supportingClauses", "addressedEntity", "target", "goal", "manner", "question", "referents", "ambiguity", "conversationRelation"])) return null;
+  if (!hasOnlyKeys(candidate, ["schemaVersion", "kind", "primaryIntent", "supportingClauses", "addressedEntity", "target", "goal", "manner", "question", "questionPlan", "readings", "referents", "ambiguity", "conversationRelation"])) return null;
   if (!("primaryIntent" in candidate) || !("supportingClauses" in candidate) || !("referents" in candidate)) return null;
   const primaryIntent = parsePrimary(candidate.primaryIntent);
   if (primaryIntent === undefined) return null;
@@ -485,6 +503,18 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
   if (candidate.ambiguity !== undefined) {
     if (!parseAmbiguity(candidate.ambiguity)) return null;
   }
+  let questionPlan: ProposedQuestionPlan | null = null;
+  if (candidate.questionPlan !== undefined) {
+    questionPlan = parseProposedQuestionPlan(candidate.questionPlan);
+    if (!questionPlan) return null;
+  }
+  let readings: readonly ReadingRequest[] | null = null;
+  if (candidate.readings !== undefined) {
+    // A reading always answers a declared part: no plan, no readings.
+    if (!questionPlan) return null;
+    readings = parseReadingRequests(candidate.readings, questionPlan);
+    if (!readings) return null;
+  }
   return Object.freeze({
     schemaVersion: 2 as const,
     kind: candidate.kind as TurnProposalKind,
@@ -495,6 +525,8 @@ export function parseTurnProposal(raw: unknown): TurnProposalV2 | null {
     ...(candidate.goal !== undefined ? { goal: candidate.goal as string } : {}),
     ...(candidate.manner !== undefined ? { manner: candidate.manner as string } : {}),
     ...(candidate.question !== undefined ? { question: parseQuestion(candidate.question)! } : {}),
+    ...(questionPlan !== null ? { questionPlan } : {}),
+    ...(readings !== null ? { readings } : {}),
     referents,
     ...(candidate.ambiguity !== undefined ? { ambiguity: parseAmbiguity(candidate.ambiguity)! } : {}),
     ...(candidate.conversationRelation !== undefined ? { conversationRelation: candidate.conversationRelation as TurnConversationRelation } : {}),
@@ -527,7 +559,8 @@ export interface ProposalShapeDiagnosis {
 
 const TURN_TOP_LEVEL_KEYS: readonly string[] = [
   "schemaVersion", "kind", "primaryIntent", "supportingClauses", "addressedEntity",
-  "target", "goal", "manner", "question", "referents", "ambiguity", "conversationRelation",
+  "target", "goal", "manner", "question", "questionPlan", "readings", "referents",
+  "ambiguity", "conversationRelation",
 ];
 
 /**
@@ -563,5 +596,10 @@ export function diagnoseTurnProposalShape(raw: unknown): ProposalShapeDiagnosis 
   if (candidate.conversationRelation !== undefined && !isConversationRelation(candidate.conversationRelation)) return { code: "nested_invalid", key: "conversationRelation" };
   if (candidate.question !== undefined && !parseQuestion(candidate.question)) return { code: "nested_invalid", key: "question" };
   if (candidate.ambiguity !== undefined && !parseAmbiguity(candidate.ambiguity)) return { code: "nested_invalid", key: "ambiguity" };
+  if (candidate.questionPlan !== undefined && !parseProposedQuestionPlan(candidate.questionPlan)) return { code: "nested_invalid", key: "questionPlan" };
+  if (candidate.readings !== undefined) {
+    const plan = parseProposedQuestionPlan(candidate.questionPlan);
+    if (!plan || !parseReadingRequests(candidate.readings, plan)) return { code: "nested_invalid", key: "readings" };
+  }
   return { code: "nested_invalid" };
 }

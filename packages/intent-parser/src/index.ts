@@ -121,6 +121,35 @@ export type {
 } from "./turn-proposal.js";
 export { findAuthorityField, inferAmbiguitySlot, validateTurnProposal } from "./turn-proposal-validator.js";
 export type { AmbiguitySlot, FramedProposalCandidate, TurnProposalValidation } from "./turn-proposal-validator.js";
+export {
+  QUESTION_ASPECTS,
+  QUESTION_PLAN_MAX_PARTS,
+  QUESTION_PURPOSES,
+  QUESTION_REF_ID_PATTERN,
+  QUESTION_SUBJECT_KINDS,
+  QUESTION_TIME_SCOPES,
+  READING_MAX_REQUESTS,
+  READING_RESULT_STATUSES,
+  READING_ROUND_LIMIT,
+  READING_SOURCES,
+  parseProposedQuestionPlan,
+  parseReadingRequests,
+} from "./question-plan.js";
+export type {
+  ProposedQuestionPlan,
+  QuestionAspect,
+  QuestionPart,
+  QuestionPlan,
+  QuestionPurpose,
+  QuestionSubject,
+  QuestionSubjectKind,
+  QuestionTimeScope,
+  ReadingRequest,
+  ReadingResultStatus,
+  ReadingSource,
+  SubjectBinding,
+  SubjectResolution,
+} from "./question-plan.js";
 
 // ── Legacy parser (kept for backward compatibility) ──────────────────
 

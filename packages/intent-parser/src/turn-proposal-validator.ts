@@ -189,8 +189,11 @@ function checkKindConsistency(proposal: TurnProposalV2): TurnProposalValidation 
   }
 }
 
-/** A turn-level question is allowed only for mixed/inquiry turns. */
+/** A turn-level question (and its semantic question plan) is allowed only for mixed/inquiry turns. */
 function checkQuestionPlacement(proposal: TurnProposalV2): TurnProposalValidation | null {
+  if (proposal.questionPlan && proposal.kind !== "mixed" && proposal.kind !== "inquiry") {
+    return { status: "invalid", code: "question_placement", reason: "question plan is allowed only for mixed or inquiry turns" };
+  }
   if (!proposal.question) return null;
   if (proposal.kind === "mixed" || proposal.kind === "inquiry") return null;
   return { status: "invalid", code: "question_placement", reason: "question is allowed only for mixed or inquiry turns" };
