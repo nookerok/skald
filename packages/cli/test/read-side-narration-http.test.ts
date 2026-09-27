@@ -32,17 +32,40 @@ type AllowedShape = { facts?: readonly { ref?: unknown; content?: unknown; asser
 
 /** Composes over the closed allowed set; turn narration still goes to super. */
 class ReadSideNarrationProvider extends FixedNarrationProvider {
-  override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
-    if (category !== "narrate") return super.chat(category, messages);
+  readonly mandatorySeen: string[] = [];
+
+  /** The fact carrying the mandatory result when one exists, else the first fact. */
+  protected pickFact(allowed: AllowedShape | null): { ref?: unknown; content?: unknown; assertion?: unknown } | undefined {
+    const mandatory = Array.isArray(allowed?.mandatory)
+      ? (allowed!.mandatory as unknown[]).filter((entry): entry is string => typeof entry === "string")
+      : [];
+    const facts = allowed?.facts ?? [];
+    const chosen = (mandatory.length > 0 ? facts.find((entry) => mandatory.includes(String(entry.content))) : undefined)
+      ?? facts.find((entry) => typeof entry.content === "string" && entry.content.trim().length > 0);
+    return chosen;
+  }
+
+  protected parseAllowed(messages: readonly ChatMessage[]): AllowedShape | null {
     const user = messages.find((message) => message.role === "user")?.content ?? "";
-    let allowed: AllowedShape | null = null;
     try {
       const parsed = JSON.parse(user) as { allowed?: AllowedShape };
-      if (parsed.allowed && Array.isArray(parsed.allowed.facts)) allowed = parsed.allowed;
+      if (parsed.allowed && Array.isArray(parsed.allowed.facts)) {
+        const mandatory = Array.isArray(parsed.allowed.mandatory)
+          ? (parsed.allowed.mandatory as unknown[]).filter((entry): entry is string => typeof entry === "string")
+          : [];
+        this.mandatorySeen.push(...mandatory);
+        return parsed.allowed;
+      }
     } catch {
-      allowed = null;
+      return null;
     }
-    const fact = allowed?.facts?.find((entry) => typeof entry.content === "string" && entry.content.trim().length > 0);
+    return null;
+  }
+
+  override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
+    if (category !== "narrate") return super.chat(category, messages);
+    const allowed = this.parseAllowed(messages);
+    const fact = this.pickFact(allowed);
     if (!fact) return super.chat(category, messages);
     const claim = String(fact.content).trim().split(/(?<=[.!?])\s/u, 1)[0] || String(fact.content).trim();
     return {
@@ -70,9 +93,11 @@ async function waitForInquiryNarration(expected: string, maxMs = 3000): Promise<
   throw new Error(`Timed out waiting for read-side narrationState=${expected}`);
 }
 
+const readSideProvider = new ReadSideNarrationProvider();
+
 describe("read-side answer narration", () => {
   beforeAll(async () => {
-    server = await startServer({ host: "127.0.0.1", port: 0, dbPath, router: new ReadSideNarrationProvider() });
+    server = await startServer({ host: "127.0.0.1", port: 0, dbPath, router: readSideProvider });
     const created = await api("/api/worlds", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": "read-side-create" },
@@ -104,6 +129,10 @@ describe("read-side answer narration", () => {
     const ready = await waitForInquiryNarration("ready");
     expect(typeof ready.narrationText).toBe("string");
     expect(ready.narrationText.length).toBeGreaterThan(0);
+    // The deterministic answer travels as the mandatory result and the
+    // composition selects it (ADR-0037 constraint 2).
+    expect(readSideProvider.mandatorySeen.length).toBeGreaterThan(0);
+    expect(ready.responseText).toContain(readSideProvider.mandatorySeen[0]);
 
     // A read-only inquiry never advances world time.
     const after = await api(`/api/worlds/${worldId}/state`);
@@ -197,6 +226,10 @@ describe("plan-path answer narration (model-proposed inquiry)", () => {
       // The rephrase was composed over the closed allowed set, not the legacy
       // exact-answer narration.
       expect(provider.allowedSeen).toContain(true);
+      // The backend answer is the mandatory result of this replica and the
+      // provider's first claim selects its fact.
+      expect(provider.mandatorySeen.length).toBeGreaterThan(0);
+      expect(ready.responseText).toContain(provider.mandatorySeen[0]);
 
       const after = await state();
       expect(after.worldTime).toBe(before.worldTime);
@@ -208,20 +241,13 @@ describe("plan-path answer narration (model-proposed inquiry)", () => {
 });
 
 /** Fails the first read-side rephrase with a transient 5xx, then succeeds. */
-class FlakyReadSideProvider extends FixedNarrationProvider {
+class FlakyReadSideProvider extends ReadSideNarrationProvider {
   private failed = false;
   readonly rephraseCalls: string[] = [];
   override async chat(category: "narrate" | "analyze" | "interpret", messages: readonly ChatMessage[]): Promise<ChatResult> {
     if (category !== "narrate") return super.chat(category, messages);
-    const user = messages.find((message) => message.role === "user")?.content ?? "";
-    let allowed: AllowedShape | null = null;
-    try {
-      const parsed = JSON.parse(user) as { allowed?: AllowedShape };
-      if (parsed.allowed && Array.isArray(parsed.allowed.facts)) allowed = parsed.allowed;
-    } catch {
-      allowed = null;
-    }
-    const fact = allowed?.facts?.find((entry) => typeof entry.content === "string" && entry.content.trim().length > 0);
+    const allowed = this.parseAllowed(messages);
+    const fact = this.pickFact(allowed);
     if (!fact) return super.chat(category, messages);
     // Flaky path records the call before failing once.
     this.rephraseCalls.push(String(fact.content));

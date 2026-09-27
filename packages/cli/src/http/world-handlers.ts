@@ -764,6 +764,10 @@ function buildInquiryAllowedFacts(params: {
     return buildAllowedNarrativeFacts({
       question: params.input,
       context: adapter,
+      // The deterministic answer is the backend-formed result of this replica
+      // (ADR-0037 constraint 2): the master may add allowed facts around it but
+      // may not skip a refusal, a partial result or the answer's core.
+      mandatory: [params.answer],
       extraFacts: [{ content: params.answer, provenance: "observation", assertion: "observed" }, ...portraitFacts],
     });
   } catch {
