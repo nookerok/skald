@@ -329,3 +329,7 @@ export type {
 // rhythm, director context, continuation momentum and narration quality
 // guard. Pure derivations only — no Domain Events, Rules or persistence.
 export * from "./game-director/index.js";
+
+// Semantic question readings (semantic-question-plan T2): closed seven-source
+// reading catalog over existing observer-safe builders. Pure read-side.
+export * from "./read-side/question-readings.js";
