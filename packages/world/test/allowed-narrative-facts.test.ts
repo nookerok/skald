@@ -4,7 +4,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ALLOWED_NARRATIVE_FACTS_MAX, buildAllowedNarrativeFacts } from "@skald/world";
+import {
+  ALLOWED_NARRATIVE_FACTS_MAX,
+  ANSWER_GAP_STATEMENT,
+  buildAllowedNarrativeFacts,
+  buildAnswerPlanAllowedFacts,
+} from "@skald/world";
+import type { AnswerPlan } from "@skald/world";
 
 function fact(id: string, text: string, epistemicClass: string, source: string, usableNow = true) {
   return { id, text, epistemicClass, source, usableNow, sourceEventIds: ["evt-secret"] };
@@ -79,5 +85,129 @@ describe("AllowedNarrativeFacts", () => {
     const allowed = buildAllowedNarrativeFacts({ context: context(), question: "у меня есть меч, покажи его" });
     expect(allowed.question).toBe("у меня есть меч, покажи его");
     expect(allowed.facts.some((entry) => /меч/iu.test(entry.content))).toBe(false);
+  });
+});
+
+function planFact(content: string, overrides?: Partial<AnswerPlan["parts"][number]["facts"][number]>): AnswerPlan["parts"][number]["facts"][number] {
+  return { content, provenance: "observation", assertion: "observed", temporal: "now", available: true, ...overrides };
+}
+
+function answerPlan(parts: AnswerPlan["parts"]): AnswerPlan {
+  return Object.freeze({
+    parts: Object.freeze(parts),
+    worldResults: Object.freeze(["Перед тобой нет свободного прохода."]),
+    statements: Object.freeze([]),
+    allCovered: true,
+    narrowClarification: null,
+  });
+}
+
+describe("AllowedNarrativeFacts answer-plan selection (T4)", () => {
+  it("selects question-part facts before useful context (coverage first)", () => {
+    const plan = answerPlan([{
+      partId: "p-act",
+      aspect: "current_activity",
+      coverage: "covered",
+      facts: Object.freeze([planFact("Вода прибывает.")]),
+      gapStatement: null,
+      gapStatus: null,
+    }]);
+    const allowed = buildAllowedNarrativeFacts({ context: context(), answerPlan: plan });
+
+    expect(allowed.facts[0]!.content).toBe("Вода прибывает.");
+    const partIndex = allowed.facts.findIndex((entry) => entry.content === "Вода прибывает.");
+    const backgroundIndex = allowed.facts.findIndex((entry) => entry.content === "Изгнанник с северной дороги");
+    expect(partIndex).toBeGreaterThanOrEqual(0);
+    expect(backgroundIndex).toBeGreaterThan(partIndex);
+    expect(allowed.coverageComplete).toBe(true);
+  });
+
+  it("gives an explicit incomplete-coverage signal when a part fact overflows", () => {
+    const many = Array.from({ length: ALLOWED_NARRATIVE_FACTS_MAX + 6 }, (_, i) => planFact(`Наблюдение ${i}.`));
+    const plan = answerPlan([{
+      partId: "p-act",
+      aspect: "current_activity",
+      coverage: "covered",
+      facts: Object.freeze(many),
+      gapStatement: null,
+      gapStatus: null,
+    }]);
+    const allowed = buildAllowedNarrativeFacts({ context: context(), answerPlan: plan });
+
+    expect(allowed.coverageComplete).toBe(false);
+    // Reserved first: the set starts with part facts, context overflowed silently.
+    expect(allowed.facts[0]!.content).toBe("Наблюдение 0.");
+    expect(allowed.facts.length).toBe(ALLOWED_NARRATIVE_FACTS_MAX);
+  });
+
+  it("keeps coverage complete when only useful context overflows", () => {
+    const plan = answerPlan([{
+      partId: "p-act",
+      aspect: "current_activity",
+      coverage: "covered",
+      facts: Object.freeze([planFact("Вода прибывает.")]),
+      gapStatement: null,
+      gapStatus: null,
+    }]);
+    const many = Array.from({ length: 40 }, (_, i) => fact(`background:${i}`, `Факт ${i}.`, "established_fact", "background"));
+    const allowed = buildAllowedNarrativeFacts({
+      context: context({ knowledge: { observed: many, testimony: [], hypotheses: [] } }),
+      answerPlan: plan,
+    });
+
+    expect(allowed.coverageComplete).toBe(true);
+    expect(allowed.facts.length).toBe(ALLOWED_NARRATIVE_FACTS_MAX);
+  });
+
+  it("joins the plan's gap statements into the allowed gaps", () => {
+    const plan = answerPlan([{
+      partId: "p-look",
+      aspect: "appearance",
+      coverage: "gap",
+      facts: Object.freeze([]),
+      gapStatement: ANSWER_GAP_STATEMENT,
+      gapStatus: "no_data",
+    }]);
+    const allowed = buildAllowedNarrativeFacts({ answerPlan: plan, gaps: ["реакция неизвестна"] });
+
+    expect(allowed.gaps).toContain(ANSWER_GAP_STATEMENT);
+    expect(allowed.gaps).toContain("реакция неизвестна");
+  });
+
+  it("splits mandatory: world results and part facts mandatory, the paragraph only a fallback", () => {
+    const plan = answerPlan([{
+      partId: "p-act",
+      aspect: "current_activity",
+      coverage: "covered",
+      facts: Object.freeze([planFact("Вода прибывает.")]),
+      gapStatement: null,
+      gapStatus: null,
+    }]);
+    const allowed = buildAnswerPlanAllowedFacts({
+      context: context(),
+      answer: "Ты стоишь у подъёма, и берег размыт.",
+      answerPlan: plan,
+    });
+
+    expect(allowed.mandatory).toEqual([
+      "Перед тобой нет свободного прохода.",
+      "Вода прибывает.",
+    ]);
+    // The mis-chosen answer paragraph is NOT mandatory — but stays available
+    // as the fallback formulation from the same facts.
+    expect(allowed.mandatory).not.toContain("Ты стоишь у подъёма, и берег размыт.");
+    expect(allowed.facts.some((entry) => entry.content === "Ты стоишь у подъёма, и берег размыт.")).toBe(true);
+    // The refusal enters as a citable fact so the composer must select it.
+    expect(allowed.facts.some((entry) => entry.content === "Перед тобой нет свободного прохода.")).toBe(true);
+  });
+
+  it("keeps the legacy contract without a plan: the answer stays mandatory", () => {
+    const allowed = buildAnswerPlanAllowedFacts({
+      context: context(),
+      answer: "Где я? — Переправа у Чёрного леса.",
+    });
+
+    expect(allowed.mandatory).toEqual(["Где я? — Переправа у Чёрного леса."]);
+    expect(allowed.coverageComplete).toBe(true);
   });
 });

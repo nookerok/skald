@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildBootstrapEvents, buildMasterTurnSceneContext } from "@skald/world";
+import { ANSWER_GAP_STATEMENT, buildBootstrapEvents, buildMasterTurnSceneContext } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
@@ -346,6 +346,19 @@ const QUESTION_PLAN_INQUIRY_PROPOSAL = {
   readings: [{ partId: "p-act", source: "scene" }],
 };
 
+/** Two parts, one reading: p-look is never served and must become a gap. */
+const QUESTION_PLAN_GAPPED_PROPOSAL = {
+  ...QUESTION_PLAN_INQUIRY_PROPOSAL,
+  questionPlan: {
+    subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+    parts: [
+      { id: "p-act", subjectRefs: ["here"], aspect: "current_activity", time: "current", purpose: "describe" },
+      { id: "p-look", subjectRefs: ["here"], aspect: "appearance", time: "current", purpose: "describe" },
+    ],
+  },
+  readings: [{ partId: "p-act", source: "scene" }],
+};
+
 const QUESTION_PLAN_MIXED_PROPOSAL = {
   schemaVersion: 2,
   kind: "mixed",
@@ -363,8 +376,7 @@ const QUESTION_PLAN_MIXED_PROPOSAL = {
 };
 
 describe("question reading round over HTTP (T3)", () => {
-  it("answers an inquiry plan with one bounded reading round", async () => {
-    const { store, runtime } = await testRuntime("qround", interpretRouter(QUESTION_PLAN_INQUIRY_PROPOSAL));
+  it("answers an inquiry plan with one bounded reading round", async () => {    const { store, runtime } = await testRuntime("qround", interpretRouter(QUESTION_PLAN_INQUIRY_PROPOSAL));
     try {
       const response = parse(await handleWorldCommand(runtime, body("Где я и что здесь происходит?", "qr-1")));
 
@@ -434,6 +446,25 @@ describe("question reading round over HTTP (T3)", () => {
 
       expect(response.ok).toBe(true);
       expect(response.questionReadings).toBeUndefined();
+    } finally {
+      store.close();
+    }
+  });
+
+  it("states the closed gap for an unserved part and answers the served one (T4)", async () => {
+    const { store, runtime } = await testRuntime("qround-gap", interpretRouter(QUESTION_PLAN_GAPPED_PROPOSAL));
+    try {
+      const response = parse(await handleWorldCommand(runtime, body("Где я и что здесь происходит?", "qg-1")));
+
+      expect(response.ok).toBe(true);
+      expect(response.questionReadings).toBeDefined();
+      expect(response.questionReadings.coveredParts).toEqual(["p-act"]);
+      const text: string = response.masterTurn.deterministicText;
+      expect(text).toContain(ANSWER_GAP_STATEMENT);
+      // The served part still states its own fact — a gap never swallows it.
+      const [served] = response.questionReadings.results[0].facts;
+      expect(served).toBeDefined();
+      expect(text).toContain(served.text);
     } finally {
       store.close();
     }

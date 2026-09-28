@@ -47,6 +47,14 @@ function sceneAllowed(mandatory?: string) {
   });
 }
 
+/** A set carrying exactly one extra fact, for claim↔fact parity checks. */
+function sceneAllowedWithFact(content: string) {
+  return buildAllowedNarrativeFacts({
+    question: "открыт ли проход?",
+    extraFacts: [{ content, provenance: "observation" as const, assertion: "observed" as const }],
+  });
+}
+
 /** Verifies one composed narration against `set`. */
 function verifySet(set: ReturnType<typeof sceneAllowed>, narration: string, claims: readonly Record<string, unknown>[]) {
   return verifyAllowedNarration(JSON.stringify({ narration, claims, coveredMandatory: [] }), set);
@@ -192,6 +200,41 @@ describe("verifyAllowedNarration", () => {
       ]);
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("fact_mismatch");
+  });
+  it("rejects a claim that flips the fact's negation", () => {
+    // The overlap filter alone misses this: without the negation word both
+    // sides reduce to «проход открыт», so the flip needs its own parity check.
+    const set = sceneAllowedWithFact("Проход не открыт.");
+    const ref = set.facts[0]!.ref;
+    const flipped = verifyAllowedNarration(JSON.stringify({
+      narration: "Проход открыт.",
+      claims: [{ text: "Проход открыт.", ref, assertion: "observed" }],
+      coveredMandatory: [],
+    }), set);
+    expect(flipped.ok).toBe(false);
+    expect(flipped.reason).toBe("negation_mismatch");
+  });
+  it("rejects a claim that adds a negation the fact does not carry", () => {
+    const set = sceneAllowedWithFact("Проход открыт.");
+    const ref = set.facts[0]!.ref;
+    const flipped = verifyAllowedNarration(JSON.stringify({
+      narration: "Проход не открыт.",
+      claims: [{ text: "Проход не открыт.", ref, assertion: "observed" }],
+      coveredMandatory: [],
+    }), set);
+    expect(flipped.ok).toBe(false);
+    expect(flipped.reason).toBe("negation_mismatch");
+  });
+  it("accepts a claim whose negation matches the fact", () => {
+    const set = sceneAllowedWithFact("Проход не открыт.");
+    const ref = set.facts[0]!.ref;
+    const result = verifyAllowedNarration(JSON.stringify({
+      narration: "Проход не открыт.",
+      claims: [{ text: "Проход не открыт.", ref, assertion: "observed" }],
+      coveredMandatory: [],
+    }), set);
+    expect(result.ok).toBe(true);
+    expect(result.usedRefs).toEqual([ref]);
   });
 });
 
