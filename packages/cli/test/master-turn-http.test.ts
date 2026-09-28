@@ -330,3 +330,90 @@ describe("master turn production path", () => {
     }
   });
 });
+
+const QUESTION_PLAN_INQUIRY_PROPOSAL = {
+  schemaVersion: 2,
+  kind: "inquiry",
+  primaryIntent: { kind: "inquiry", queryId: "current_location", sourceText: "Где я и что здесь происходит?" },
+  supportingClauses: [],
+  referents: [],
+  questionPlan: {
+    subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+    parts: [
+      { id: "p-act", subjectRefs: ["here"], aspect: "current_activity", time: "current", purpose: "describe" },
+    ],
+  },
+  readings: [{ partId: "p-act", source: "scene" }],
+};
+
+const QUESTION_PLAN_MIXED_PROPOSAL = {
+  schemaVersion: 2,
+  kind: "mixed",
+  primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Осматриваюсь" },
+  supportingClauses: [],
+  question: { queryId: "visible_scene" },
+  referents: [],
+  questionPlan: {
+    subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+    parts: [
+      { id: "p-act", subjectRefs: ["here"], aspect: "current_activity", time: "current", purpose: "describe" },
+    ],
+  },
+  readings: [{ partId: "p-act", source: "scene" }],
+};
+
+describe("question reading round over HTTP (T3)", () => {
+  it("answers an inquiry plan with one bounded reading round", async () => {
+    const { store, runtime } = await testRuntime("qround", interpretRouter(QUESTION_PLAN_INQUIRY_PROPOSAL));
+    try {
+      const response = parse(await handleWorldCommand(runtime, body("Где я и что здесь происходит?", "qr-1")));
+
+      expect(response.ok).toBe(true);
+      expect(response.status).toBe("inquiry");
+      expect(response.questionReadings).toBeDefined();
+      expect(response.questionReadings.coveredParts).toContain("p-act");
+      expect(response.questionReadings.revision).toEqual({
+        worldTime: runtime.projection.getSnapshot().time,
+        eventNumber: runtime.projection.getSnapshot().eventNumber,
+      });
+      const [fact] = response.questionReadings.results[0].facts;
+      expect(fact).toBeDefined();
+      const serialized = JSON.stringify(response.questionReadings);
+      expect(serialized).not.toMatch(/worldId|eventId|entityId/);
+      expect(serialized).not.toMatch(/"questionPlan"|"bindings"|"resolvedRef"/);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("executes the round after the action on the final snapshot (mixed plan)", async () => {
+    const { store, runtime } = await testRuntime("qround-mixed", interpretRouter(QUESTION_PLAN_MIXED_PROPOSAL));
+    try {
+      const timeBefore = runtime.projection.getSnapshot().time;
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, body("Осматриваюсь и что здесь происходит?", "qm-1")));
+
+      expect(response.ok).toBe(true);
+      expect(response.conversationTurn).toMatchObject({ inputClass: "mixed" });
+      expect(runtime.bus.query().length).toBeGreaterThan(eventsBefore);
+      expect(response.questionReadings).toBeDefined();
+      expect(response.questionReadings.coveredParts).toContain("p-act");
+      expect(response.questionReadings.revision.worldTime).toBeGreaterThanOrEqual(timeBefore);
+      expect(response.questionReadings.revision.eventNumber).toBe(runtime.projection.getSnapshot().eventNumber);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("never attaches readings when the plan carries no question plan", async () => {
+    const { store, runtime } = await testRuntime("qround-none", interpretRouter(OBSERVE_PROPOSAL));
+    try {
+      const response = parse(await handleWorldCommand(runtime, body("Осматриваюсь вокруг.", "qn-1")));
+
+      expect(response.ok).toBe(true);
+      expect(response.questionReadings).toBeUndefined();
+    } finally {
+      store.close();
+    }
+  });
+});

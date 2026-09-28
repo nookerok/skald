@@ -980,3 +980,92 @@ describe("unified frame selection (review P1)", () => {
     expect(router.chat).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("whole-replica inquiry completeness (T3)", () => {
+  const COMPOUND_REPLICA = "Где я и почему я тут оказался?";
+
+  function proposalReturning(extra?: Record<string, unknown>) {
+    return {
+      schemaVersion: 2,
+      kind: "inquiry",
+      primaryIntent: { kind: "inquiry", queryId: "current_location", sourceText: "Где я и что здесь происходит?" },
+      supportingClauses: [],
+      referents: [],
+      ...extra,
+    };
+  }
+
+  it("defers an incomplete inquiry replica to the semantic interpreter", async () => {
+    const router = routerReturning(JSON.stringify(proposalReturning()));
+    const result = await interpretMasterTurn(COMPOUND_REPLICA, snapshot(), router);
+
+    expect(router.chat).toHaveBeenCalledTimes(1);
+    expect(result.status).not.toBe("inquiry");
+    expect(result.status).toBe("plan");
+  });
+
+  it("keeps the honest single-query answer when the model is unavailable", async () => {
+    const result = await interpretMasterTurn(COMPOUND_REPLICA, snapshot(), null);
+
+    expect(result.status).toBe("inquiry");
+  });
+
+  it("still short-circuits a whole-replica inquiry with a model available", async () => {
+    const router = routerReturning("{}");
+    const result = await interpretMasterTurn("где я?", snapshot(), router);
+
+    expect(result.status).toBe("inquiry");
+    expect(router.chat).not.toHaveBeenCalled();
+  });
+
+  it("builds one bounded question round from an accepted question plan", async () => {
+    const snap = snapshot();
+    const router = routerReturning(JSON.stringify(proposalReturning({
+      questionPlan: {
+        subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+        parts: [{ id: "p-act", subjectRefs: ["here"], aspect: "current_activity", time: "current", purpose: "describe" }],
+      },
+      readings: [{ partId: "p-act", source: "scene" }],
+    })));
+    const result = await interpretMasterTurn("Где я и что здесь происходит?", snap, router);
+
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.questionRound).toBeDefined();
+    expect(result.questionRound!.readings).toEqual([{ partId: "p-act", source: "scene" }]);
+    expect(result.questionRound!.questionPlan.subjects[0]).toMatchObject({ resolution: "resolved", resolvedRef: null });
+    expect(result.questionRound!.questionPlan.actionIntent).toBeNull();
+    expect(result.questionRound!.interpretationRevision).toEqual({
+      worldTime: snap.world.time,
+      eventNumber: snap.world.eventNumber,
+    });
+  });
+
+  it("turns an ambiguous subject binding into a clarification instead of a round", async () => {
+    const snap = snapshot();
+    const scene = {
+      ...snap.scene,
+      context: {
+        ...snap.scene.context,
+        knownPeople: [
+          { observerRef: "person_1", kind: "person" as const, label: "Сторож", knownAs: [] },
+          { observerRef: "person_3", kind: "person" as const, label: "Старый сторож", knownAs: [] },
+        ],
+      },
+    };
+    const router = routerReturning(JSON.stringify(proposalReturning({
+      questionPlan: {
+        subjects: [{ id: "guard", surface: "сторож", kind: "entity" }],
+        parts: [{ id: "p-act", subjectRefs: ["guard"], aspect: "current_activity", time: "current", purpose: "describe" }],
+      },
+      readings: [{ partId: "p-act", source: "scene" }],
+    })));
+    const result = await interpretMasterTurn("Где я и что здесь происходит?", { ...snap, scene }, router);
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question.toLowerCase()).toContain("сторож");
+    expect(result.options.length).toBeGreaterThanOrEqual(2);
+    expect((result as { questionRound?: unknown }).questionRound).toBeUndefined();
+  });
+});

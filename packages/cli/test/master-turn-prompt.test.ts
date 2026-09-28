@@ -4,6 +4,13 @@ import {
   MASTER_TURN_SYSTEM_PROMPT,
   buildMasterTurnPrompt,
 } from "../src/runtime/master-turn-prompt.js";
+import {
+  QUESTION_ASPECTS,
+  QUESTION_PURPOSES,
+  QUESTION_SUBJECT_KINDS,
+  QUESTION_TIME_SCOPES,
+  READING_SOURCES,
+} from "@skald/intent-parser";
 import type { MasterTurnSceneContext } from "@skald/world";
 import { EMPTY_MASTER_CONVERSATION } from "../src/conversation/context-builder.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
@@ -149,6 +156,23 @@ describe("master turn prompt contract", () => {
     expect(MASTER_TURN_PROMPT_CAPABILITIES.metaOperations).toContain("explain_available_actions");
     expect(MASTER_TURN_PROMPT_CAPABILITIES.observerRefPrefixes).toEqual(["person", "object", "route", "topic"]);
     expect(Object.isFrozen(MASTER_TURN_PROMPT_CAPABILITIES)).toBe(true);
+  });
+
+  it("advertises the semantic question plan contract (T3)", () => {
+    const { system } = buildMasterTurnPrompt({ playerText: "Где я?", scene: SCENE, conversation: CONVERSATION });
+
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("conversationRelation, questionPlan, readings.");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("OMIT an optional key when unused — never send null.");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("readings without questionPlan are rejected");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("at most 4 parts and 3 readings, 1 round");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("Semantic question plan");
+    expect(system.length).toBeGreaterThan(0);
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.questionAspects).toEqual([...QUESTION_ASPECTS]);
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.questionSubjectKinds).toEqual([...QUESTION_SUBJECT_KINDS]);
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.questionPurposes).toEqual([...QUESTION_PURPOSES]);
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.questionTimes).toEqual([...QUESTION_TIME_SCOPES]);
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.readingSources).toEqual([...READING_SOURCES]);
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.questionPlanLimits).toEqual({ maxParts: 4, maxReadings: 3, rounds: 1 });
   });
 
   it("is deterministic and input-preserving", () => {
