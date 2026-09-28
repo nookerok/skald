@@ -38,8 +38,10 @@ import {
   getRegionEntrypoint,
   resolveInteractionTarget,
   narrateLLM,
+  executeQuestionReadingRound,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
+import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
 import type { AnswerNarrationKind, TurnNarration } from "@skald/world";
 import type { AllowedNarrativeFacts } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -995,6 +997,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
   let resolvedIntent: ExecutableIntent | undefined;
   let masterPlan: ValidatedMasterTurnPlan | undefined;
   let masterScene: MasterTurnSceneSnapshot | undefined;
+  let masterQuestionRound: QuestionRoundSpec | null = null;
   let pendingClarificationSeq: number | null = null;
   let pendingLink: PendingClarificationLink | null = null;
   let journeyContinue = false;
@@ -1111,6 +1114,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
     } else {
       masterPlan = interpretation.plan;
       masterScene = interpretation.scene;
+      masterQuestionRound = interpretation.questionRound ?? null;
       pendingLink = interpretation.pendingLink ?? null;
     }
     }
@@ -1149,7 +1153,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       if (masterPlan && masterScene) {
         return await runValidatedMasterTurnResponse(runtime, input, idempotencyKey, masterPlan, masterScene, (turn) => {
           narrationTurn = turn;
-        }, { pendingClarificationSeq, ...(pendingLink ? { pendingLink } : {}) });
+        }, { pendingClarificationSeq, ...(pendingLink ? { pendingLink } : {}) }, masterQuestionRound);
       }
 
       const r = await runCommandCycleForRuntime(runtime, input, idempotencyKey, resolvedIntent,
@@ -2013,6 +2017,47 @@ export async function runCommandCycleForRuntime(
  * World-changing turns commit Events + ConversationTurn atomically via the
  * executor commit hook; read-only turns persist a single transcript row.
  */
+/**
+ * Executes the one bounded reading round for a question plan against the
+ * snapshot actually being answered from (semantic-question-plan T3): scene,
+ * narrative and transcript are all built from the SAME events/world pair,
+ * so a portrait can never mix with presence from another scene. Returns
+ * null when the read-side context cannot be built — the turn itself must
+ * not fail because a reading did.
+ */
+function executePlanQuestionRound(
+  runtime: WorldRuntime,
+  spec: QuestionRoundSpec,
+  params: {
+    readonly events: ReturnType<WorldRuntime["bus"]["query"]>;
+    readonly world: ReadonlyWorld;
+    readonly record: ReturnType<WorldRuntime["store"]["getWorldRecord"]> | null;
+    readonly profile: ReturnType<WorldRuntime["store"]["getCharacterProfile"]> | null;
+  },
+): QuestionReadingRound | null {
+  try {
+    const scene = buildMasterTurnSceneContext(params.events, params.world);
+    const narrative = buildNarrativeAdapterContext(params.events, params.world, {
+      profile: params.profile,
+      characterName: params.record?.characterName ?? null,
+      entrypoint: params.record?.entrypointId ? getRegionEntrypoint(params.record.entrypointId) : null,
+      presentation: null,
+      openingWindow: false,
+    });
+    const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 30 });
+    const conversation = buildMasterConversationContext(turns, runtime.worldId);
+    const transcript = conversation.lastTurns.map((entry) => ({ role: entry.speaker, text: entry.text }));
+    return executeQuestionReadingRound(spec, {
+      scene,
+      revision: { worldTime: params.world.time, eventNumber: params.world.eventNumber },
+      narrative,
+      transcript,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function runValidatedMasterTurnResponse(
   runtime: WorldRuntime,
   input: string,
@@ -2024,6 +2069,7 @@ async function runValidatedMasterTurnResponse(
     readonly pendingClarificationSeq?: number | null | undefined;
     readonly pendingLink?: PendingClarificationLink | null | undefined;
   },
+  questionRound?: QuestionRoundSpec | null,
 ): Promise<JsonResponse> {
   if (runtime.processedKeys.has(idempotencyKey)) {
     return error("idempotency_conflict", "duplicate idempotencyKey", 409);
@@ -2062,13 +2108,34 @@ async function runValidatedMasterTurnResponse(
     const scene = buildMasterTurnSceneContext(events, world).context;
     const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene }));
     const answerText = inquiries.map((entry) => entry.answer).join(" ");
+    // One bounded reading round on THIS snapshot (semantic-question-plan T3):
+    // a read-only plan executes nothing, so interpretation and answer read
+    // the same consistent state.
+    const questionReadings = questionRound
+      ? executePlanQuestionRound(runtime, questionRound, { events, world, record, profile })
+      : null;
     const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", answerText, planMemory);
     // Model-proposed inquiries share the deterministic read-side narration
     // lifecycle, or the plan path would stay `not_requested` forever.
     const scheduled = scheduleAnswerNarration(runtime, input, answerText, "inquiry_answer", conversationTurn.correlationId,
       buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText }));
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
-    return json({ ok: true, status: "inquiry", inquiries, inquiry: inquiries[0], conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: conversationTurn.responseText }, scheduled) });
+    return json({
+      ok: true,
+      status: "inquiry",
+      inquiries,
+      inquiry: inquiries[0],
+      ...(questionReadings ? {
+        questionReadings: {
+          revision: questionReadings.revision,
+          coveredParts: questionReadings.coveredParts,
+          results: questionReadings.results,
+        },
+      } : {}),
+      conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" },
+      knowledge,
+      masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: conversationTurn.responseText }, scheduled),
+    });
   }
 
   const worldTimeBefore = runtime.projection.getSnapshot().time;
@@ -2160,6 +2227,14 @@ async function runValidatedMasterTurnResponse(
   const guidance = buildGuidance(runtime);
   const shellDelta = buildShellDelta(runtime.bus.query(), worldAfter, buildGuidanceContext(runtime));
   const { journal: observerThreads, delta: observerThreadDelta } = buildObserverThreadsForRuntime(runtime);
+  // One bounded reading round AFTER execution on the final snapshot
+  // (semantic-question-plan T3 §8): a question about a result reads the
+  // world that result produced; a rejected action leaves the scene
+  // unchanged, so descriptive parts still read one consistent state. The
+  // stale-revalidation branch above already returned before this point.
+  const questionReadings = questionRound
+    ? executePlanQuestionRound(runtime, questionRound, { events: runtime.bus.query(), world: worldAfter, record, profile })
+    : null;
   const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   const correlationId = result.commandEvents[0]?.correlationId ?? result.tickEvents[0]?.correlationId;
   const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), worldAfter, isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
@@ -2177,6 +2252,13 @@ async function runValidatedMasterTurnResponse(
   };
   const baseWithTurn = {
     ...base,
+    ...(questionReadings ? {
+      questionReadings: {
+        revision: questionReadings.revision,
+        coveredParts: questionReadings.coveredParts,
+        results: questionReadings.results,
+      },
+    } : {}),
     masterTurn: masterTurnFromTurn(runtime, idempotencyKey,
       conversationTurn ? toConversationTurnDTO(conversationTurn) : null,
       {

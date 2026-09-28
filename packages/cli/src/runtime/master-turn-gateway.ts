@@ -34,16 +34,18 @@ import {
   type ExecutableIntent,
   type InquiryRequest,
   type PlayerInputClassification,
+  type QuestionPlan,
   type TurnConversationRelation,
   type TurnMetaOperation,
   type TurnProposalV2,
 } from "@skald/intent-parser";
-import type { AIDiagnosticSink, ChatMessage, MasterSceneReference, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld } from "@skald/world";
+import type { AIDiagnosticSink, ChatMessage, MasterSceneReference, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld, QuestionRoundSpec } from "@skald/world";
 import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
 import type { FramedClarification } from "../conversation/types.js";
 import { bindTurnPronouns, type PronounBinding } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
 import { validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
+import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
 import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
 import {
   clarificationFromDeterministic,
@@ -92,7 +94,19 @@ export interface PendingClarificationLink {
 export type MasterTurnGatewayOutcome =
   | { readonly status: "deterministic"; readonly intent: ExecutableIntent; readonly pendingLink?: PendingClarificationLink | undefined }
   | { readonly status: "inquiry"; readonly inquiry: InquiryRequest; readonly pendingLink?: PendingClarificationLink | undefined }
-  | { readonly status: "plan"; readonly plan: ValidatedMasterTurnPlan; readonly scene: MasterTurnSceneSnapshot; readonly pendingLink?: PendingClarificationLink | undefined }
+  | {
+    readonly status: "plan";
+    readonly plan: ValidatedMasterTurnPlan;
+    readonly scene: MasterTurnSceneSnapshot;
+    /**
+     * Present only for a proposal carrying a `questionPlan`
+     * (semantic-question-plan T3): resolved subject bindings plus the
+     * bounded reading requests, to be executed once on the answer-time
+     * snapshot — after execution for mixed plans, never in a loop.
+     */
+    readonly questionRound?: QuestionRoundSpec | undefined;
+    readonly pendingLink?: PendingClarificationLink | undefined;
+  }
   | {
     readonly status: "clarification";
     readonly question: string;
@@ -644,6 +658,13 @@ function resolvePronounsDeterministic(
     const hasThing = binding.classes.includes("thing");
     const hasTopic = binding.classes.includes("topic");
     const hasPlace = binding.classes.includes("place");
+    // A deictic place word inside a question («Где я и почему я тут
+    // оказался?») is not a missing journey destination: the inquiry owns its
+    // own place resolution (semantic question plan, T3), so never ask
+    // «куда именно» for a question turn.
+    if (hasPlace && (classification.kind === "inquiry" || classification.kind === "inquiry_candidate")) {
+      return { kind: "same" };
+    }
     // Person/thing pronouns inside a larger compound (e.g. "Подойду к ней
     // и осмотрюсь") stay on the LLM path so a valid ambient primary is not
     // lost; a sole pronoun target or a question still asks specifically.
@@ -938,6 +959,19 @@ async function interpretFramedInput(
  * emits no events; the resulting plan is revalidated inside the queue like
  * any other. Returns null when the replica is not a compound with questions.
  */
+/**
+ * True when the recognized deterministic inquiry covers the WHOLE replica
+ * (ADR-0028 amendment 2026-09-27). One clause is the whole replica; two or
+ * more clauses («Где я и почему я тут оказался?») mean the pattern matched
+ * only a part of the player's text, so the early answer would silently drop
+ * the companion clause. Called only after the deterministic compound resolver
+ * declined the replica.
+ */
+function inquiryCoversWholeReplica(input: string): boolean {
+  const clauses = classifyReplicaClauses(input, parseIntent);
+  return clauses.actions.length + clauses.inquiries.length + clauses.unknown.length < 2;
+}
+
 function resolveDeterministicCompound(
   input: string,
   snapshot: MasterTurnSnapshot,
@@ -1056,6 +1090,49 @@ function preferCompoundOverClarification(
   return compound && compound.status === "plan" ? compound : clarification;
 }
 
+type QuestionRoundBuild =
+  | { readonly status: "ok"; readonly spec: QuestionRoundSpec | null }
+  | { readonly status: "clarification"; readonly question: string; readonly options: readonly ClarificationOption[] };
+
+/**
+ * Builds the bounded reading-round spec from an accepted proposal
+ * (semantic-question-plan T3): server-side subject bindings resolved against
+ * the scene, focus stack and conversation context; the mirrored
+ * `actionIntent` taken from the already-validated execution so plan and
+ * action can never disagree. Ambiguity asks the player BEFORE any reading
+ * or action runs; a proposal without a `questionPlan` yields no spec.
+ */
+function buildQuestionRound(
+  proposal: TurnProposalV2,
+  plan: ValidatedMasterTurnPlan,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): QuestionRoundBuild {
+  if (!proposal.questionPlan) return { status: "ok", spec: null };
+  const bound = resolveQuestionPlanBindings(proposal.questionPlan, snapshot.scene.context, snapshot.conversation);
+  if (bound.status === "clarification") {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "question_plan_ambiguous",
+      outcome: "clarification",
+      phase: "routing",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    return bound;
+  }
+  const questionPlan: QuestionPlan = Object.freeze({
+    subjects: bound.bindings,
+    parts: proposal.questionPlan.parts,
+    actionIntent: plan.execution?.intent ?? null,
+  });
+  const spec: QuestionRoundSpec = Object.freeze({
+    questionPlan,
+    readings: Object.freeze([...(proposal.readings ?? [])]),
+    interpretationRevision: Object.freeze({ ...plan.contextRevision }),
+  });
+  return { status: "ok", spec };
+}
+
 /**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
@@ -1087,7 +1164,23 @@ export async function interpretMasterTurn(
     if (compound) return compound;
   }
   if (classification.kind === "inquiry") {
-    return { status: "inquiry", inquiry: classification.inquiry };
+    // Whole-replica completeness (ADR-0028 amendment 2026-09-27): a
+    // recognized inquiry may return early ONLY when it covers the whole
+    // replica. Two or more clauses mean the deterministic layer recognized
+    // only a part of it (an unknown companion clause is never dropped), so a
+    // live model owns the full turn as an inquiry candidate. Offline keeps
+    // the honest single-query answer — there is no interpreter to defer to.
+    if (modelUnavailable || inquiryCoversWholeReplica(input)) {
+      return { status: "inquiry", inquiry: classification.inquiry };
+    }
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "inquiry_fast_path",
+      outcome: "incomplete_replica",
+      phase: "fast_path",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    classification = { kind: "inquiry_candidate", rawText: input };
   }
   let deterministic = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
 
@@ -1279,7 +1372,20 @@ export async function interpretMasterTurn(
     diagnostics: options?.diagnostics,
   });
   if (contextual.status === "accepted") {
-    return { status: "plan", plan: contextual.plan, scene: snapshot.scene };
+    const bound = buildQuestionRound(staticCheck.proposal, contextual.plan, snapshot, options);
+    if (bound.status === "clarification") {
+      return preferCompoundOverClarification(input, snapshot, options, {
+        status: "clarification",
+        question: bound.question,
+        options: bound.options,
+      });
+    }
+    return {
+      status: "plan",
+      plan: contextual.plan,
+      scene: snapshot.scene,
+      ...(bound.spec ? { questionRound: bound.spec } : {}),
+    };
   }
   if (contextual.status === "clarification") {
     return preferCompoundOverClarification(input, snapshot, options, {

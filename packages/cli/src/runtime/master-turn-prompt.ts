@@ -13,6 +13,14 @@
 import {
   INQUIRY_CAPABILITIES,
   INTENT_CAPABILITIES,
+  QUESTION_ASPECTS,
+  QUESTION_PLAN_MAX_PARTS,
+  QUESTION_PURPOSES,
+  QUESTION_SUBJECT_KINDS,
+  QUESTION_TIME_SCOPES,
+  READING_MAX_REQUESTS,
+  READING_ROUND_LIMIT,
+  READING_SOURCES,
   TURN_INQUIRY_RELATIONS,
   TURN_LEGACY_OPERATIONS,
   TURN_META_OPERATIONS,
@@ -40,7 +48,8 @@ export const MASTER_TURN_SYSTEM_PROMPT: string = [
   "primaryIntent, supportingClauses (array, possibly empty), referents",
   "(array, possibly empty).",
   "Optional keys: addressedEntity, target, goal, manner, question, ambiguity,",
-  "conversationRelation. OMIT an optional key when unused — never send null.",
+  "conversationRelation, questionPlan, readings.",
+  "OMIT an optional key when unused — never send null.",
   "The only allowed null is primaryIntent, and only when ambiguity is present.",
   "Never wrap the proposal in \"proposal\", \"interpretation\", \"response\" or",
   "any other envelope.",
@@ -48,6 +57,27 @@ export const MASTER_TURN_SYSTEM_PROMPT: string = [
   "Question discipline: a turn-level question is allowed only on mixed and",
   "inquiry turns; on any other kind a noticed question goes into a",
   "supportingClauses entry of kind question.",
+  "",
+  "Semantic question plan: when a free question needs read-side facts that",
+  "registered inquiry queries do not cover (several parts, a person's",
+  "appearance/reaction, arrival backstory, relations, items, discussed",
+  "topics), declare questionPlan plus readings — ONE bounded round, no",
+  "second proposal. A registered queryId primaryIntent stays the first",
+  "choice whenever it covers the WHOLE question.",
+  "questionPlan = {\"subjects\":[...],\"parts\":[...]}, where a subject is",
+  "{\"id\":\"<refId>\",\"surface\":\"...\",\"kind\":\"<questionSubjectKind>\"}",
+  "plus observerRef only for entity/topic/place copied from the supplied",
+  "observer table, plus members [\"person_N\", ...] for a group, plus",
+  "listRef/position for an ordinal; a part is",
+  "{\"id\":\"<refId>\",\"subjectRefs\":[\"<subjectId>\"],\"aspect\":\"<questionAspect>\",",
+  "\"time\":\"<questionTime>\",\"purpose\":\"<questionPurpose>\"}.",
+  "readings = [{\"partId\":\"<partId>\",\"source\":\"<readingSource>\"}] tied to",
+  "declared parts only; readings without questionPlan are rejected.",
+  `Limits: at most ${QUESTION_PLAN_MAX_PARTS} parts and ${READING_MAX_REQUESTS} readings, ${READING_ROUND_LIMIT} round.`,
+  "questionPlan is allowed only on inquiry and mixed turns and mirrors the",
+  "placement rule of a question.",
+  "Declare each surface exactly as the replica wrote it — the server",
+  "resolves subjects against the scene and conversation; never invent ids.",
   "Role discipline: a target uses role target; a journey destination uses",
   "role destination; an addressee uses role addressee.",
   "",
@@ -125,6 +155,16 @@ export interface MasterTurnPromptCapabilities {
   readonly inquiryRelations: readonly string[];
   readonly metaOperations: readonly string[];
   readonly observerRefPrefixes: readonly string[];
+  readonly questionAspects: readonly string[];
+  readonly questionSubjectKinds: readonly string[];
+  readonly questionPurposes: readonly string[];
+  readonly questionTimes: readonly string[];
+  readonly readingSources: readonly string[];
+  readonly questionPlanLimits: {
+    readonly maxParts: number;
+    readonly maxReadings: number;
+    readonly rounds: number;
+  };
 }
 
 /** Closed capabilities for the prompt, composed from registries (no copies). */
@@ -136,6 +176,16 @@ export const MASTER_TURN_PROMPT_CAPABILITIES: MasterTurnPromptCapabilities = Obj
   inquiryRelations: TURN_INQUIRY_RELATIONS,
   metaOperations: TURN_META_OPERATIONS,
   observerRefPrefixes: ["person", "object", "route", "topic"],
+  questionAspects: QUESTION_ASPECTS,
+  questionSubjectKinds: QUESTION_SUBJECT_KINDS,
+  questionPurposes: QUESTION_PURPOSES,
+  questionTimes: QUESTION_TIME_SCOPES,
+  readingSources: READING_SOURCES,
+  questionPlanLimits: Object.freeze({
+    maxParts: QUESTION_PLAN_MAX_PARTS,
+    maxReadings: READING_MAX_REQUESTS,
+    rounds: READING_ROUND_LIMIT,
+  }),
 });
 
 /** Input for prompt assembly: untrusted text plus observer-safe contexts. */

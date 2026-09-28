@@ -333,3 +333,7 @@ export * from "./game-director/index.js";
 // Semantic question readings (semantic-question-plan T2): closed seven-source
 // reading catalog over existing observer-safe builders. Pure read-side.
 export * from "./read-side/question-readings.js";
+
+// One bounded reading round (semantic-question-plan T3): execute every
+// proposed request exactly once against ONE consistent snapshot. Pure.
+export * from "./read-side/question-round.js";
