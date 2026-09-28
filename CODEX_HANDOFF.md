@@ -1,3 +1,32 @@
+# Current work (2026-09-28 — semantic-question-plan T3 gateway closed)
+
+- T3 (gateway) closed: fast-path completeness, semantic plan binding and one
+  bounded reading round. A recognized inquiry now returns early only when
+  `inquiryCoversWholeReplica` sees a single clause; a compound replica with a
+  live model falls through as an inquiry candidate (diagnostic
+  `inquiry_fast_path/incomplete_replica`), offline keeps the honest single
+  query, and a deictic place word inside a question never triggers the
+  journey `missing_referent` clarification.
+- `buildQuestionRound` runs once after contextual acceptance:
+  `question-plan-resolver.ts` resolves subjects over scene/focus/conversation
+  (declared observerRef checked against the scene, ambiguity becomes a
+  clarification with candidate options, ordinals and cross-location places
+  stay honestly absent) and freezes `QuestionPlan` + `QuestionRoundSpec`.
+  `question-round.ts` executes every reading exactly once on ONE shared
+  context; `world-handlers.ts` runs it for inquiry plans on the same
+  events/world as the answer and for mixed/action plans AFTER execution on
+  `worldAfter` (rejected primaries included; stale revalidation returns
+  before the round) and exposes `questionReadings { revision, coveredParts,
+  results }` only when a round ran.
+- Commits this block: `727617c` (feat), `8bfb9e1` (test: gateway/HTTP/prompt
+  suites + 11 resolver and 5 round units), `65aa3bc` (test: rejected primary
+  keeps the descriptive round). Pushed, main == origin/main.
+- `npm run validate` PASS (full gate). T3 artifact status 2.
+- Next: T4 answer assembly (compose the answer from covered parts, explicit
+  gap statements for uncovered parts, per-request fact cap); then T5 memory
+  (listRef vocabulary, conversation references) and T6 acceptance. Human
+  acceptance PENDING; visual QA BLOCKED by screenshot timeout — not claimed.
+
 # Current work (2026-09-27 — semantic-question-plan T2 read-side closed)
 
 - T2 (read-side) closed: `executeQuestionReading` plus seven bounded adapters
