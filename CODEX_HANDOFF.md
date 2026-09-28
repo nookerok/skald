@@ -1,3 +1,37 @@
+# Current work (2026-09-28 — semantic-question-plan T4 answer assembly closed)
+
+- T4 (answer assembly) closed: `buildAnswerPlan` (new
+  `packages/world/src/read-side/answer-plan.ts`) turns the executed reading
+  round plus turn world results into the frozen `AnswerPlan` — per-part
+  coverage over facts re-filtered to subjectRefs+aspect, the closed gap
+  template for every uncovered part (gap-without-inversion: a missing part
+  states «по доступным наблюдениям пока нельзя понять», never the subject's
+  real fact text), one narrow clarification (player's own surface) when
+  exactly ONE part is ambiguous, epistemic/temporal/availability mapping and
+  `allCovered`.
+- `allowed-narrative-facts.ts` selects coverage-first: reserved order is
+  mandatory∩reserved → plan part facts → context groups → remaining extras;
+  reserved overflow sets the new explicit `coverageComplete: false` signal
+  instead of silently dropping a needed description. New
+  `buildAnswerPlanAllowedFacts` performs the mandatory split — world results
+  and covered-part facts mandatory and citable, the deterministic paragraph
+  only a fallback (legacy no-plan path still mandatory = answer) — and joins
+  plan gap statements into `gaps`.
+- `verifyAllowedNarration` gained claim↔fact negation parity
+  (`negation_mismatch`) on top of the `fact_mismatch` word-overlap filter;
+  temporal/uncertainty parity stay explicit TODOs. Branch A of
+  `world-handlers.ts` now assembles `answerText` = inquiry answers + plan
+  statements + narrow clarification; branch B (mixed/action) carries a TODO —
+  responseText is built during execution before the round exists, so that
+  deterministic assembly is deferred rather than invented.
+- Commits this block: `f9baccf` (feat), `c1a7dd3` (test: 6 answer-plan
+  units, +6 coverage/mandatory-split units, +3 negation units, +1 HTTP gap
+  statement). Pushed, main == origin/main.
+- `npm run validate` PASS (full gate). T4 artifact status 2.
+- Next: T5 memory (listRef vocabulary, conversation references) and T6
+  acceptance. Human acceptance PENDING; visual QA BLOCKED by screenshot
+  timeout — not claimed.
+
 # Current work (2026-09-28 — semantic-question-plan T3 gateway closed)
 
 - T3 (gateway) closed: fast-path completeness, semantic plan binding and one
