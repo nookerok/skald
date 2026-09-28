@@ -405,6 +405,28 @@ describe("question reading round over HTTP (T3)", () => {
     }
   });
 
+  it("keeps the descriptive round when the primary action is rejected", async () => {
+    const rejectedProposal = {
+      ...QUESTION_PLAN_MIXED_PROPOSAL,
+      primaryIntent: { kind: "journey", destination: { role: "destination", surface: "Неведомые земли" }, sourceText: "иду" },
+    };
+    const { store, runtime } = await testRuntime("qround-reject", interpretRouter(rejectedProposal));
+    try {
+      const locationsBefore = runtime.bus.query().filter((event) => event.type === "PlayerLocationChanged").length;
+      const response = parse(await handleWorldCommand(runtime, body("Иду в неведомые земли и что здесь происходит?", "qr-2")));
+
+      expect(response.ok).toBe(true);
+      const events = runtime.bus.query();
+      expect(events.some((event) => event.type === "JourneyBlocked")).toBe(true);
+      expect(events.filter((event) => event.type === "PlayerLocationChanged")).toHaveLength(locationsBefore);
+      expect(response.questionReadings).toBeDefined();
+      expect(response.questionReadings.coveredParts).toContain("p-act");
+      expect(response.questionReadings.revision.eventNumber).toBe(runtime.projection.getSnapshot().eventNumber);
+    } finally {
+      store.close();
+    }
+  });
+
   it("never attaches readings when the plan carries no question plan", async () => {
     const { store, runtime } = await testRuntime("qround-none", interpretRouter(OBSERVE_PROPOSAL));
     try {
