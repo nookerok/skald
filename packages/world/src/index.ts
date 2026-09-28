@@ -99,7 +99,7 @@ export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { localizedPlayerText } from "./game-shell/player-facing.js";
 export { narrateLLM, narrateTurnLLM, narrateAnswerLLM, narrateAllowedAnswerLLM, verifyEpistemicNarration, verifyAllowedNarration } from "./narrative-llm.js";
-export { buildAllowedNarrativeFacts, ALLOWED_NARRATIVE_FACTS_MAX, ALLOWED_NARRATIVE_FACT_MAX_CHARS } from "./allowed-narrative-facts.js";
+export { buildAllowedNarrativeFacts, buildAnswerPlanAllowedFacts, ALLOWED_NARRATIVE_FACTS_MAX, ALLOWED_NARRATIVE_FACT_MAX_CHARS } from "./allowed-narrative-facts.js";
 export type {
   AllowedNarrativeFact,
   AllowedNarrativeFacts,
@@ -108,6 +108,7 @@ export type {
   AllowedFactTemporal,
   AllowedNarrativeFactsInput,
   AllowedNarrativeExtraFact,
+  AnswerPlanAllowedFactsInput,
 } from "./allowed-narrative-facts.js";
 export type {
   TurnNarration,
@@ -337,3 +338,7 @@ export * from "./read-side/question-readings.js";
 // One bounded reading round (semantic-question-plan T3): execute every
 // proposed request exactly once against ONE consistent snapshot. Pure.
 export * from "./read-side/question-round.js";
+
+// Answer plan (semantic-question-plan T4): question part → facts → coverage
+// with allowed gap statements and the narrow-clarification rule. Pure.
+export * from "./read-side/answer-plan.js";

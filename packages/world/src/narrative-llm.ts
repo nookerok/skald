@@ -1199,6 +1199,25 @@ function wordOverlap(words: readonly string[], haystack: ReadonlySet<string>): n
 }
 
 /**
+ * Closed negation vocabulary for the claim ↔ fact parity check (plan §7).
+ * `не` and `ни` are length 2 and therefore invisible to the content-word
+ * overlap, so «проход открыт» and «проход не открыт» would otherwise pass
+ * `fact_mismatch` by overlap alone.
+ */
+const NEGATION_WORDS: ReadonlySet<string> = new Set([
+  "не", "ни", "нет", "без", "нельзя", "никогда", "никто", "ничего",
+  "ничто", "негде", "некого", "нечего", "незачем",
+]);
+
+/** True when the text carries at least one closed negation marker. */
+function hasNegation(text: string): boolean {
+  return text.toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .split(/\s+/u)
+    .some((word) => NEGATION_WORDS.has(word));
+}
+
+/**
  * Structural validation of one composed answer against `AllowedNarrativeFacts`:
  * every cited ref must exist; a claim may not exceed its fact's assertion; a
  * claim must be grounded in the content of the fact it cites (no elements may
@@ -1239,6 +1258,12 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
     const fact = byRef.get(claim.ref)!;
     if (ALLOWED_ASSERTION_STRENGTH[claim.assertion] > ALLOWED_ASSERTION_STRENGTH[fact.assertion]) return fail("class_upgrade");
     if (wordOverlap(contentWords(claim.text), new Set(contentWords(fact.content))) < CLAIM_FACT_MIN_OVERLAP) return fail("fact_mismatch");
+    // Parity on top of the overlap filter: a claim may not flip the fact's
+    // negation («проход открыт» citing «проход не открыт»).
+    // TODO(semantic-question-plan): temporal-meaning parity (past vs current)
+    // and explicit uncertainty-marker parity need their own checks; assertion
+    // strength covers only the epistemic class half.
+    if (hasNegation(fact.content) !== hasNegation(claim.text)) return fail("negation_mismatch");
     usedRefs.push(claim.ref);
     claimTexts.push(claim.text);
   }

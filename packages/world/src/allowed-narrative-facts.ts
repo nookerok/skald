@@ -11,6 +11,7 @@
  */
 
 import type { NarrativeAdapterContext, NarrativeFact, NarrativeFactEpistemicClass, NarrativeFactSource } from "./setup/background-context.js";
+import type { AnswerPlan } from "./read-side/answer-plan.js";
 
 /** Where an allowed fact came from. */
 export type AllowedFactProvenance = "observation" | "testimony" | "background" | "hypothesis";
@@ -38,6 +39,13 @@ export interface AllowedNarrativeFacts {
   readonly mandatory: readonly string[];
   readonly continuations: readonly string[];
   readonly gaps: readonly string[];
+  /**
+   * False when a RESERVED description — a mandatory world result or a
+   * question-part fact — did not fit {@link ALLOWED_NARRATIVE_FACTS_MAX}.
+   * This is the explicit incomplete-coverage signal (plan §6): overflow of
+   * useful context is silent, overflow of a needed description never is.
+   */
+  readonly coverageComplete: boolean;
 }
 
 /** Hard bound on the allowed set so the prompt stays bounded. */
@@ -111,15 +119,30 @@ export interface AllowedNarrativeFactsInput {
   readonly continuations?: readonly string[] | undefined;
   /** Explicit gaps in the available data. */
   readonly gaps?: readonly string[] | undefined;
+  /** Question part → facts → coverage plan (semantic-question-plan T4). */
+  readonly answerPlan?: AnswerPlan | null | undefined;
 }
 
 /**
- * Builds the bounded allowed set from the existing read-side context. Facts are
- * ordered by group; each gets a turn-local `fN` reference. Internal ids and
- * source event ids are dropped. Pure and total.
+ * Builds the bounded allowed set from the existing read-side context (plan
+ * §6, coverage-first selection):
+ *
+ * 1. facts whose content equals a mandatory result (world results, or the
+ *    legacy mandatory answer) — a needed line must never overflow away;
+ * 2. every question-part fact of the {@link AnswerPlan} — the description
+ *    the replica asked for, reserved before useful context;
+ * 3. context groups in their existing order;
+ * 4. the remaining extra facts (deterministic fallback formulation,
+ *    portraits).
+ *
+ * Overflow of a RESERVED description sets `coverageComplete` false instead
+ * of silently dropping it; overflow of context stays silent. Each fact gets
+ * a turn-local `fN` reference; internal ids and source event ids are dropped.
+ * Pure and total.
  */
 export function buildAllowedNarrativeFacts(input: AllowedNarrativeFactsInput = {}): AllowedNarrativeFacts {
   const context = input.context ?? null;
+  const answerPlan = input.answerPlan ?? null;
   // Background facts are derived from character + arrival, mirroring
   // `contextFacts` so the set reuses the existing read-side source.
   const backgroundFacts: readonly NarrativeFact[] = context
@@ -146,34 +169,169 @@ export function buildAllowedNarrativeFacts(input: AllowedNarrativeFactsInput = {
     ]
     : [];
 
+  const clean = (lines: readonly string[] | undefined): readonly string[] =>
+    freeze((lines ?? []).map((line) => truncate(line, ALLOWED_NARRATIVE_FACT_MAX_CHARS)).filter((line) => line.length > 0));
+  const mandatory = clean(input.mandatory);
+  const mandatorySet = new Set(mandatory);
+
   const facts: AllowedNarrativeFact[] = [];
   let index = 0;
+  let reservedDropped = false;
+  const reserve = (build: () => AllowedNarrativeFact): void => {
+    if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) {
+      reservedDropped = true;
+      return;
+    }
+    index += 1;
+    facts.push(build());
+  };
+  const tryAppend = (build: () => AllowedNarrativeFact): void => {
+    if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) return;
+    index += 1;
+    facts.push(build());
+  };
+
+  // 1. Mandatory results first: a fact carrying a mandatory line is selected,
+  //    never overflowed away (the answer paragraph of the legacy path lives
+  //    here too when it is still mandatory).
+  const priorityExtras: AllowedNarrativeExtraFact[] = [];
+  const deferredExtras: AllowedNarrativeExtraFact[] = [];
+  for (const extra of input.extraFacts ?? []) {
+    const content = truncate(extra.content, ALLOWED_NARRATIVE_FACT_MAX_CHARS);
+    if (content.length === 0) continue;
+    const entry: AllowedNarrativeExtraFact = { ...extra, content };
+    if (mandatorySet.has(content)) priorityExtras.push(entry);
+    else deferredExtras.push(entry);
+  }
+  for (const extra of priorityExtras) {
+    reserve(() => freeze({
+      ref: `f${index}`,
+      content: extra.content,
+      provenance: extra.provenance,
+      assertion: extra.assertion,
+      temporal: extra.temporal ?? "now",
+      available: true,
+    }));
+  }
+
+  // 2. Every question-part fact, in plan order — the needed description.
+  if (answerPlan) {
+    for (const part of answerPlan.parts) {
+      for (const fact of part.facts) {
+        const content = truncate(fact.content, ALLOWED_NARRATIVE_FACT_MAX_CHARS);
+        if (content.length === 0) continue;
+        reserve(() => freeze({
+          ref: `f${index}`,
+          content,
+          provenance: fact.provenance,
+          assertion: fact.assertion,
+          temporal: fact.temporal,
+          available: fact.available,
+        }));
+      }
+    }
+  }
+
+  // 3. Useful context in the existing group order (silent overflow).
   for (const group of groups) {
     for (const fact of group) {
       if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) break;
       if (typeof fact?.text !== "string" || fact.text.trim().length === 0) continue;
-      index += 1;
-      facts.push(toAllowed(fact, `f${index}`));
+      tryAppend(() => toAllowed(fact, `f${index}`));
     }
     if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) break;
   }
-  for (const extra of input.extraFacts ?? []) {
-    if (facts.length >= ALLOWED_NARRATIVE_FACTS_MAX) break;
-    const content = truncate(extra.content, ALLOWED_NARRATIVE_FACT_MAX_CHARS);
-    if (content.length === 0) continue;
-    index += 1;
-    facts.push(freeze({ ref: `f${index}`, content, provenance: extra.provenance, assertion: extra.assertion, temporal: extra.temporal ?? "now", available: true }));
+
+  // 4. Remaining extras: the deterministic fallback formulation, portraits.
+  for (const extra of deferredExtras) {
+    tryAppend(() => freeze({
+      ref: `f${index}`,
+      content: extra.content,
+      provenance: extra.provenance,
+      assertion: extra.assertion,
+      temporal: extra.temporal ?? "now",
+      available: true,
+    }));
   }
 
-  const clean = (lines: readonly string[] | undefined): readonly string[] =>
-    freeze((lines ?? []).map((line) => truncate(line, ALLOWED_NARRATIVE_FACT_MAX_CHARS)).filter((line) => line.length > 0));
+  const planGaps = answerPlan
+    ? answerPlan.parts.map((part) => part.gapStatement).filter((entry): entry is string => entry !== null)
+    : [];
+  const gaps = Array.from(new Set([...clean(input.gaps), ...clean(planGaps)]));
   const question = typeof input.question === "string" && input.question.trim().length > 0 ? truncate(input.question, ALLOWED_NARRATIVE_FACT_MAX_CHARS) : null;
 
   return freeze({
     question,
     facts: freeze(facts),
-    mandatory: clean(input.mandatory),
+    mandatory,
     continuations: clean(input.continuations),
-    gaps: clean(input.gaps),
+    gaps: freeze(gaps),
+    coverageComplete: !reservedDropped,
+  });
+}
+
+/** Input for {@link buildAnswerPlanAllowedFacts}: the read-side context plus the turn's answer split. */
+export interface AnswerPlanAllowedFactsInput {
+  readonly question?: string | null | undefined;
+  readonly context?: NarrativeAdapterContext | null | undefined;
+  /**
+   * Deterministic answer for this replica. With an {@link AnswerPlan} it is a
+   * full fallback formulation from the SAME facts and is NOT mandatory; the
+   * legacy no-plan path keeps it mandatory (ADR-0037).
+   */
+  readonly answer: string;
+  /** World results of this turn (refusal, partial success, consequence). */
+  readonly worldResults?: readonly string[] | undefined;
+  readonly answerPlan?: AnswerPlan | null | undefined;
+  /** Portrait facts already cleared for the player. */
+  readonly portraitFacts?: readonly AllowedNarrativeExtraFact[] | undefined;
+  readonly continuations?: readonly string[] | undefined;
+  readonly gaps?: readonly string[] | undefined;
+}
+
+/**
+ * Builds the allowed set for a read-side inquiry answer with the T4
+ * mandatory split:
+ *
+ * - world results of the turn stay mandatory (and enter as facts so the
+ *   composer can cite them);
+ * - with an {@link AnswerPlan}, every covered part's facts become mandatory
+ *   and are reserved in the set;
+ * - the deterministic answer paragraph is only the fallback formulation —
+ *   a paragraph chosen by an old inquiry is no longer a mandatory fact;
+ * - without a plan the legacy contract stands: answer mandatory.
+ *
+ * Gap statements of the plan join `gaps`, so the composer may state missing
+ * data exactly as the plan does. Pure.
+ */
+export function buildAnswerPlanAllowedFacts(input: AnswerPlanAllowedFactsInput): AllowedNarrativeFacts {
+  const plan = input.answerPlan ?? null;
+  const cleanLine = (line: string): string => truncate(line.trim().replace(/\s+/gu, " "), ALLOWED_NARRATIVE_FACT_MAX_CHARS);
+  const answer = input.answer.trim().length > 0 ? cleanLine(input.answer) : "";
+  // Explicit turn results win; otherwise the plan carries the world results
+  // it was assembled from (one source of truth, not two).
+  const worldResults = (input.worldResults ?? plan?.worldResults ?? []).map(cleanLine).filter((line) => line.length > 0);
+
+  const mandatory = plan
+    ? [...worldResults, ...plan.parts.flatMap((part) => part.facts.map((fact) => cleanLine(fact.content)))]
+    : [...worldResults, ...(answer.length > 0 ? [answer] : [])];
+
+  const worldResultFacts: readonly AllowedNarrativeExtraFact[] = worldResults.map((content) => ({
+    content,
+    provenance: "observation" as const,
+    assertion: "observed" as const,
+  }));
+  const answerExtra: readonly AllowedNarrativeExtraFact[] = answer.length > 0
+    ? [{ content: answer, provenance: "observation", assertion: "observed" }]
+    : [];
+
+  return buildAllowedNarrativeFacts({
+    question: input.question,
+    context: input.context,
+    mandatory,
+    extraFacts: [...worldResultFacts, ...answerExtra, ...(input.portraitFacts ?? [])],
+    ...(plan ? { answerPlan: plan } : {}),
+    continuations: input.continuations,
+    gaps: input.gaps,
   });
 }

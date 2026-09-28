@@ -28,7 +28,8 @@ import {
   narrateTurnLLM,
   narrateAnswerLLM,
   narrateAllowedAnswerLLM,
-  buildAllowedNarrativeFacts,
+  buildAnswerPlanAllowedFacts,
+  buildAnswerPlan,
   buildBackgroundNarrativeContext,
   buildNarrativeAdapterContext,
   localizedPlayerText,
@@ -42,6 +43,7 @@ import {
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
+import type { AnswerPlan } from "@skald/world";
 import type { AnswerNarrationKind, TurnNarration } from "@skald/world";
 import type { AllowedNarrativeFacts } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -746,6 +748,7 @@ function buildInquiryAllowedFacts(params: {
   readonly profile: { readonly background_id?: string | null } | null;
   readonly scene: ReturnType<typeof buildMasterTurnSceneContext>["context"];
   readonly answer: string;
+  readonly answerPlan?: AnswerPlan | null;
 }): AllowedNarrativeFacts | undefined {
   try {
     const adapter = buildNarrativeAdapterContext(params.events, params.world, {
@@ -763,14 +766,17 @@ function buildInquiryAllowedFacts(params: {
           ...(person.portrait.publicRole ? [{ content: person.portrait.publicRole, provenance: "observation" as const, assertion: "observed" as const }] : []),
         ]
         : []);
-    return buildAllowedNarrativeFacts({
+    // T4 mandatory split: with an answer plan the mandatory lines are the
+    // world results plus every covered part's facts, and the deterministic
+    // answer stays only as the fallback formulation (a paragraph chosen by
+    // an old inquiry is no longer a mandatory fact). Without a plan the
+    // legacy contract stands: the answer itself is mandatory.
+    return buildAnswerPlanAllowedFacts({
       question: params.input,
       context: adapter,
-      // The deterministic answer is the backend-formed result of this replica
-      // (ADR-0037 constraint 2): the master may add allowed facts around it but
-      // may not skip a refusal, a partial result or the answer's core.
-      mandatory: [params.answer],
-      extraFacts: [{ content: params.answer, provenance: "observation", assertion: "observed" }, ...portraitFacts],
+      answer: params.answer,
+      ...(params.answerPlan ? { answerPlan: params.answerPlan } : {}),
+      portraitFacts,
     });
   } catch {
     return undefined;
@@ -2107,18 +2113,27 @@ async function runValidatedMasterTurnResponse(
     const background = buildBackgroundNarrativeContext(events, world, profile);
     const scene = buildMasterTurnSceneContext(events, world).context;
     const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene }));
-    const answerText = inquiries.map((entry) => entry.answer).join(" ");
     // One bounded reading round on THIS snapshot (semantic-question-plan T3):
     // a read-only plan executes nothing, so interpretation and answer read
     // the same consistent state.
     const questionReadings = questionRound
       ? executePlanQuestionRound(runtime, questionRound, { events, world, record, profile })
       : null;
+    // T4 answer assembly: the deterministic answer must already cover every
+    // question part — covered parts state their facts, gaps state the closed
+    // gap template, and exactly one ambiguous part asks one narrow question
+    // instead of guessing. Composer prose replaces this bubble afterwards.
+    const answerPlan = questionReadings ? buildAnswerPlan({ readings: questionReadings }) : null;
+    const answerText = [
+      inquiries.map((entry) => entry.answer).join(" "),
+      answerPlan?.statements.join(" ") ?? "",
+      answerPlan?.narrowClarification ?? "",
+    ].filter((piece) => piece.length > 0).join(" ");
     const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", answerText, planMemory);
     // Model-proposed inquiries share the deterministic read-side narration
     // lifecycle, or the plan path would stay `not_requested` forever.
     const scheduled = scheduleAnswerNarration(runtime, input, answerText, "inquiry_answer", conversationTurn.correlationId,
-      buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText }));
+      buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText, answerPlan }));
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
     return json({
       ok: true,
