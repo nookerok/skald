@@ -15,14 +15,13 @@
   so memory always matches the shown text; narration lifecycle tests moved
   to a non-list inquiry.
 - Independent review verdict REVISE (5 findings, all addressed in the
-  commits + regression tests). Two re-review attempts: first ended with no
-  reply; second returned an APPROVE claim by message only — the review
-  artifact on disk is unchanged (still the original REVISE text) and the
-  agent transcript shows no tool reads or validation, so the claim is
-  unverifiable and NOT counted as an independent review. T5 closes on
-  self-verification (all findings fixed hunk-by-hunk, each pinned by a test)
-  plus the green gate. Reopen T5 if a genuine independent re-review is
-  still wanted. Evidence in the T5 artifact.
+  commits + regression tests). Fresh reviewer (agent 602d9b71, supervised
+  read-only) first returned a file-less APPROVE claim; on challenge it
+  proved tool execution, fixed a Windows/WSL path split and delivered the
+  full report: genuine independent APPROVE at
+  t5-independent-review-2/index.md (113 lines, per-finding code-anchored
+  evidence, full gate PASS in its session, no repo mutations). T5 closed
+  with independent backing. Evidence in the T5 artifact.
 - Post-fix self-check caught and fixed 1 real regression the review missed:
   a live-but-ineligible legacy focus claimed the pronoun (fence vs «него»)
   and starved the lone-carrier ranking; fall-through restored + unit test.
