@@ -1,4 +1,4 @@
-import type { ExecutableIntent, TurnProposalV2 } from "@skald/intent-parser";
+import { QUESTION_LIST_REFS, type ExecutableIntent, type QuestionListRef, type TurnProposalV2 } from "@skald/intent-parser";
 
 export type ConversationInputClass =
   | "action"
@@ -78,6 +78,51 @@ export interface ConversationMemoryMention {
   readonly kind: ConversationMemoryMentionKind;
   readonly role: ConversationMemoryMentionRole;
   readonly label: string;
+  /**
+   * Provenance of this mention (semantic-question-plan T5). `focus`: the
+   * validated intent's target/addressee/topic. `answer`: a confirmed
+   * subject of the SHOWN master answer — captured from the selected and
+   * verified read-side facts, never from a re-parse of arbitrary prose.
+   * Absent on legacy rows and equivalent to `focus`.
+   */
+  readonly source?: ConversationMemoryMentionSource | undefined;
+  /** Server-only identity of the confirmed referent. */
+  readonly identity?: ConversationMemoryIdentity;
+}
+
+export type ConversationMemoryMentionSource = "focus" | "answer";
+
+/**
+ * One list the master showed in an earlier answer, recorded by structured
+ * identity (`listRef`), ordered labels and server-only member identities — never
+ * transient scene handles, never a re-parse of prose. An ordinal subject
+ * resolves against THIS stored list, so its meaning survives reload and
+ * scene re-ordering (semantic-question-plan T5).
+ */
+/** Server-only durable identity; never send to a model or player DTO. */
+export interface ConversationMemoryIdentity {
+  readonly kind: "person" | "object" | "route" | "topic";
+  readonly internalId: string;
+}
+
+export interface ConversationMemoryShownList {
+  readonly listRef: QuestionListRef;
+  /** Ordered labels exactly as the shown list presented them (≤5). */
+  readonly members: readonly string[];
+  /** Aligned with members; absent for legacy label-only metadata. */
+  readonly memberIdentities?: readonly (ConversationMemoryIdentity | null)[];
+}
+
+/**
+ * One group the master showed earlier: the group's own label plus its
+ * member links with server-only identities — never just a «люди» string. Availability of each
+ * member is re-checked against the scene at every use (T5).
+ */
+export interface ConversationMemoryShownGroup {
+  readonly label: string;
+  readonly members: readonly string[];
+  /** Aligned with members; absent for legacy label-only metadata. */
+  readonly memberIdentities?: readonly (ConversationMemoryIdentity | null)[];
 }
 
 export interface ConversationMemoryClarificationOption {
@@ -132,6 +177,10 @@ export interface ConversationMemoryMetadataV1 {
     readonly source: ConversationDramaticThreadSource;
     readonly title: string;
   } | undefined;
+  /** Lists the shown answer presented, newest turn first (T5). */
+  readonly shownLists?: readonly ConversationMemoryShownList[] | undefined;
+  /** Groups the shown answer presented, newest turn first (T5). */
+  readonly shownGroups?: readonly ConversationMemoryShownGroup[] | undefined;
 }
 
 /** Build-side budgets for persisted metadata (plan_7 §3). */
@@ -146,13 +195,21 @@ export const CONVERSATION_MEMORY_MAX_OPTION_REFS = 4;
 export const CONVERSATION_MEMORY_MAX_OPTION_REF = 40;
 export const CONVERSATION_MEMORY_MAX_ACTION_TEXT = 120;
 export const CONVERSATION_MEMORY_MAX_THREAD_TITLE = 140;
+/** T5 shown-answer structures: bounded like the who-is-nearby list (≤5 lines). */
+export const CONVERSATION_MEMORY_MAX_LISTS = 3;
+export const CONVERSATION_MEMORY_MAX_LIST_MEMBERS = 5;
+export const CONVERSATION_MEMORY_MAX_GROUPS = 3;
+export const CONVERSATION_MEMORY_MAX_GROUP_MEMBERS = 5;
 
 const MEMORY_MENTION_KINDS: ReadonlySet<string> = new Set(["person", "object", "route", "topic"]);
 const MEMORY_MENTION_ROLES: ReadonlySet<string> = new Set(["target", "addressee", "destination", "topic", "instrument"]);
+const MEMORY_MENTION_SOURCES: ReadonlySet<string> = new Set(["focus", "answer"]);
+const MEMORY_LIST_REFS: ReadonlySet<string> = new Set<string>(QUESTION_LIST_REFS);
 const MEMORY_CONTINUATION_RELATIONS: ReadonlySet<string> = new Set(["resolves", "continues", "new_topic", "cancels"]);
 const MEMORY_THREAD_SOURCES: ReadonlySet<string> = new Set(["player_goal", "observed_situation", "personal_hook"]);
 const MEMORY_TOP_KEYS: ReadonlySet<string> = new Set([
   "schemaVersion", "mentions", "goal", "clarification", "continuation", "dramaticThread",
+  "shownLists", "shownGroups",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -170,10 +227,68 @@ function cappedText(value: string, max: number): string {
 function parseMention(raw: unknown): ConversationMemoryMention | null {
   if (!isRecord(raw)) return null;
   const keys = Object.keys(raw);
-  if (keys.length !== 3 || !keys.includes("kind") || !keys.includes("role") || !keys.includes("label")) return null;
+  const allowed = ["kind", "role", "label", "source", "identity"];
+  if (keys.length < 3 || keys.length > 5 || !keys.every((key) => allowed.includes(key))) return null;
+  if (!keys.includes("kind") || !keys.includes("role") || !keys.includes("label")) return null;
   if (!MEMORY_MENTION_KINDS.has(raw.kind as string) || !MEMORY_MENTION_ROLES.has(raw.role as string)) return null;
+  if (raw.source !== undefined && !MEMORY_MENTION_SOURCES.has(raw.source as string)) return null;
   if (!isCleanText(raw.label, CONVERSATION_MEMORY_MAX_LABEL)) return null;
-  return { kind: raw.kind as ConversationMemoryMentionKind, role: raw.role as ConversationMemoryMentionRole, label: raw.label as string };
+  const identities = raw.identity === undefined ? undefined : parseMemberIdentities([raw.identity], 1);
+  if (identities === null || (identities && (!identities[0] || identities[0].kind !== raw.kind))) return null;
+  return {
+    kind: raw.kind as ConversationMemoryMentionKind,
+    role: raw.role as ConversationMemoryMentionRole,
+    label: raw.label as string,
+    ...(raw.source !== undefined ? { source: raw.source as ConversationMemoryMentionSource } : {}),
+    ...(identities?.[0] ? { identity: identities[0] } : {}),
+  };
+}
+
+function parseLabelList(raw: unknown, max: number): readonly string[] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > max) return null;
+  const labels: string[] = [];
+  for (const entry of raw) {
+    if (!isCleanText(entry, CONVERSATION_MEMORY_MAX_LABEL)) return null;
+    labels.push(entry as string);
+  }
+  return labels;
+}
+
+function parseMemberIdentities(raw: unknown, count: number): readonly (ConversationMemoryIdentity | null)[] | null {
+  if (!Array.isArray(raw) || raw.length !== count) return null;
+  const result: (ConversationMemoryIdentity | null)[] = [];
+  for (const entry of raw) {
+    if (entry === null) { result.push(null); continue; }
+    if (!isRecord(entry) || Object.keys(entry).length !== 2
+      || !MEMORY_MENTION_KINDS.has(entry.kind as string)
+      || !isCleanText(entry.internalId, 240)) return null;
+    result.push({ kind: entry.kind as ConversationMemoryIdentity["kind"], internalId: entry.internalId as string });
+  }
+  return result;
+}
+
+function parseShownList(raw: unknown): ConversationMemoryShownList | null {
+  if (!isRecord(raw)) return null;
+  const keys = Object.keys(raw);
+  if (!keys.includes("listRef") || !keys.includes("members") || keys.some((key) => !["listRef", "members", "memberIdentities"].includes(key))) return null;
+  if (!MEMORY_LIST_REFS.has(raw.listRef as string)) return null;
+  const members = parseLabelList(raw.members, CONVERSATION_MEMORY_MAX_LIST_MEMBERS);
+  if (!members) return null;
+  const identities = raw.memberIdentities === undefined ? undefined : parseMemberIdentities(raw.memberIdentities, members.length);
+  if (identities === null) return null;
+  return { listRef: raw.listRef as QuestionListRef, members, ...(identities ? { memberIdentities: identities } : {}) };
+}
+
+function parseShownGroup(raw: unknown): ConversationMemoryShownGroup | null {
+  if (!isRecord(raw)) return null;
+  const keys = Object.keys(raw);
+  if (!keys.includes("label") || !keys.includes("members") || keys.some((key) => !["label", "members", "memberIdentities"].includes(key))) return null;
+  if (!isCleanText(raw.label, CONVERSATION_MEMORY_MAX_LABEL)) return null;
+  const members = parseLabelList(raw.members, CONVERSATION_MEMORY_MAX_GROUP_MEMBERS);
+  if (!members) return null;
+  const identities = raw.memberIdentities === undefined ? undefined : parseMemberIdentities(raw.memberIdentities, members.length);
+  if (identities === null) return null;
+  return { label: raw.label as string, members, ...(identities ? { memberIdentities: identities } : {}) };
 }
 
 function parseClarificationOption(raw: unknown): ConversationMemoryClarificationOption | null {
@@ -264,6 +379,8 @@ export function parseConversationMemoryMetadata(raw: unknown): ConversationMemor
     clarification?: { question: string; options: ConversationMemoryClarificationOption[]; framed?: FramedClarification };
     continuation?: { relation: ConversationContinuationRelation; clarificationTurnSeq?: number };
     dramaticThread?: { source: ConversationDramaticThreadSource; title: string };
+    shownLists?: ConversationMemoryShownList[];
+    shownGroups?: ConversationMemoryShownGroup[];
   } = { schemaVersion: 1 };
   if (parsed.mentions !== undefined) {
     if (!Array.isArray(parsed.mentions) || parsed.mentions.length > CONVERSATION_MEMORY_MAX_MENTIONS) return null;
@@ -329,6 +446,26 @@ export function parseConversationMemoryMetadata(raw: unknown): ConversationMemor
       title: parsed.dramaticThread.title as string,
     };
   }
+  if (parsed.shownLists !== undefined) {
+    if (!Array.isArray(parsed.shownLists) || parsed.shownLists.length > CONVERSATION_MEMORY_MAX_LISTS) return null;
+    const lists: ConversationMemoryShownList[] = [];
+    for (const entry of parsed.shownLists) {
+      const list = parseShownList(entry);
+      if (!list) return null;
+      lists.push(list);
+    }
+    result.shownLists = lists;
+  }
+  if (parsed.shownGroups !== undefined) {
+    if (!Array.isArray(parsed.shownGroups) || parsed.shownGroups.length > CONVERSATION_MEMORY_MAX_GROUPS) return null;
+    const groups: ConversationMemoryShownGroup[] = [];
+    for (const entry of parsed.shownGroups) {
+      const group = parseShownGroup(entry);
+      if (!group) return null;
+      groups.push(group);
+    }
+    result.shownGroups = groups;
+  }
   return result;
 }
 
@@ -346,8 +483,33 @@ export function serializeConversationMemoryMetadata(metadata: ConversationMemory
         kind: mention.kind,
         role: mention.role,
         label: cappedText(String(mention.label), CONVERSATION_MEMORY_MAX_LABEL),
+        ...(mention.source !== undefined ? { source: mention.source } : {}),
+        ...(mention.identity ? { identity: mention.identity } : {}),
       }));
       out.mentions = mentions;
+    }
+    if (metadata.shownLists !== undefined) {
+      out.shownLists = metadata.shownLists
+        .slice(0, CONVERSATION_MEMORY_MAX_LISTS)
+        .filter((list) => MEMORY_LIST_REFS.has(list.listRef))
+        .map((list) => ({
+          listRef: list.listRef,
+          ...(list.memberIdentities ? { memberIdentities: list.memberIdentities.slice(0, CONVERSATION_MEMORY_MAX_LIST_MEMBERS) } : {}),
+          members: list.members.slice(0, CONVERSATION_MEMORY_MAX_LIST_MEMBERS)
+            .map((label) => cappedText(String(label), CONVERSATION_MEMORY_MAX_LABEL)),
+        }));
+      if ((out.shownLists as unknown[]).length === 0) delete out.shownLists;
+    }
+    if (metadata.shownGroups !== undefined) {
+      out.shownGroups = metadata.shownGroups
+        .slice(0, CONVERSATION_MEMORY_MAX_GROUPS)
+        .map((group) => ({
+          label: cappedText(String(group.label), CONVERSATION_MEMORY_MAX_LABEL),
+          ...(group.memberIdentities ? { memberIdentities: group.memberIdentities.slice(0, CONVERSATION_MEMORY_MAX_GROUP_MEMBERS) } : {}),
+          members: group.members.slice(0, CONVERSATION_MEMORY_MAX_GROUP_MEMBERS)
+            .map((label) => cappedText(String(label), CONVERSATION_MEMORY_MAX_LABEL)),
+        }));
+      if ((out.shownGroups as unknown[]).length === 0) delete out.shownGroups;
     }
     if (metadata.goal !== undefined) {
       out.goal = { summary: cappedText(String(metadata.goal.summary), CONVERSATION_MEMORY_MAX_GOAL) };

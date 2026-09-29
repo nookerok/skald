@@ -28,7 +28,8 @@ import {
   type ProposedQuestionPlan,
   type SubjectBinding,
 } from "@skald/intent-parser";
-import type { MasterTurnSceneContext } from "@skald/world";
+import type { MasterSceneReference, MasterTurnSceneContext } from "@skald/world";
+import type { ConversationMemoryShownGroup } from "../conversation/types.js";
 import { bindTurnPronouns } from "../conversation/focus-stack.js";
 import type { MasterConversationContext } from "../conversation/context-builder.js";
 
@@ -44,6 +45,16 @@ export type QuestionPlanBindingOutcome =
 /** Deictic place surfaces answered from the current location alone. */
 const DEICTIC_PLACE_SURFACES: ReadonlySet<string> = new Set([
   "здесь", "тут", "тута", "это место", "текущее место", "место",
+]);
+
+/**
+ * Plural demonstratives that name the previously shown group (T5): when the
+ * model-declared members no longer resolve, the remembered group the master
+ * showed supplies the member links. A closed small set — anything else goes
+ * through the ordinary scene or pronoun paths.
+ */
+const PLURAL_DEICTIC_SURFACES: ReadonlySet<string> = new Set([
+  "они", "эти люди", "эти",
 ]);
 
 interface SceneCandidate {
@@ -119,9 +130,53 @@ function ambiguityFor(labels: readonly string[], candidates: readonly SceneCandi
 }
 
 interface BindState {
+  readonly references: ReadonlyMap<string, MasterSceneReference>;
   readonly candidates: readonly SceneCandidate[];
   readonly scene: MasterTurnSceneContext;
   readonly conversation: MasterConversationContext;
+}
+
+/**
+ * Labels the conversation remembers from earlier SHOWN answers (T5): the
+ * structured mention labels plus every list/group label and member link.
+ * These are player-facing labels only — never transient scene handles.
+ */
+function rememberedLabels(state: BindState): readonly string[] {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  const push = (label: string): void => {
+    const key = fold(label);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    labels.push(label);
+  };
+  for (const mention of state.conversation.recentlyMentionedEntities) push(mention.label);
+  for (const list of state.conversation.rememberedLists) {
+    for (const member of list.members) push(member);
+  }
+  for (const group of state.conversation.rememberedGroups) {
+    push(group.label);
+    for (const member of group.members) push(member);
+  }
+  return labels;
+}
+
+/** Unique scene match for a remembered label, else null. */
+function sceneRefForLabel(candidates: readonly SceneCandidate[], label: string): string | null {
+  const matched = candidates.filter((candidate) => surfaceMatches(label, candidate.labels));
+  return matched.length === 1 ? matched[0]!.ref : null;
+}
+
+/**
+ * The remembered group a plural demonstrative names (T5): either an exact
+ * label match or one of the closed plural forms — the newest group wins.
+ */
+function findRememberedGroup(state: BindState, surface: string): ConversationMemoryShownGroup | null {
+  const deictic = PLURAL_DEICTIC_SURFACES.has(fold(surface));
+  for (const group of state.conversation.rememberedGroups) {
+    if (deictic || surfaceMatches(surface, [group.label])) return group;
+  }
+  return null;
 }
 
 /** One subject: resolved binding, clarification or an honest `absent`. */
@@ -147,21 +202,65 @@ function bindSubject(
   }
 
   if (subject.kind === "ordinal") {
-    // TODO(semantic-question-plan T5): listRef vocabulary is not closed yet,
-    // so no list can be re-identified server-side — honest absence.
-    return { binding: { subject, resolution: "absent", resolvedRef: null } };
+    // Position in THE list the master showed (T5): the stored list is the
+    // identity — never a freshly derived scene order — so the meaning
+    // survives reload and scene re-ordering. Labels only; availability is
+    // re-checked against the current scene on every use.
+    const list = state.conversation.rememberedLists.find((entry) => entry.listRef === subject.listRef);
+    const position = subject.position ?? 0;
+    if (!list || position < 1 || position > list.members.length) {
+      return { binding: { subject, resolution: "absent", resolvedRef: null } };
+    }
+    const identity = list.memberIdentities?.[position - 1];
+    if (identity) {
+      const ref = [...state.references].find(([ref, entry]) => entry.kind === identity.kind
+        && entry.internalId === identity.internalId && hasRef(candidates, ref))?.[0] ?? null;
+      return { binding: { subject, resolution: "resolved", resolvedRef: ref } };
+    }
+    const member = list.members[position - 1]!;
+    const matched = state.candidates.filter((candidate) => surfaceMatches(member, candidate.labels));
+    if (matched.length === 1) {
+      return { binding: { subject, resolution: "resolved", resolvedRef: matched[0]!.ref } };
+    }
+    if (matched.length > 1) {
+      // Legacy labels cannot distinguish duplicate people; never infer identity from scene order.
+      return { clarification: ambiguityFor(matched.map((entry) => entry.labels[0] ?? entry.ref), state.candidates, matched.map((entry) => entry.ref)) };
+    }
+    // The shown member is gone from the scene: speakable as a memory,
+    // never a clarification and never a guess.
+    return { binding: { subject, resolution: "resolved", resolvedRef: null } };
   }
 
   // Declared refs are checked, never trusted.
-  if (subject.observerRef && hasRef(candidates, subject.observerRef)) {
+  if (subject.observerRef && !isUnresolvedFocusSurface(subject.surface) && hasRef(candidates, subject.observerRef)) {
     return { binding: { subject, resolution: "resolved", resolvedRef: subject.observerRef } };
   }
 
   if (subject.kind === "group" && subject.members && subject.members.length > 0) {
-    const complete = subject.members.every((member) => hasRef(candidates, member));
-    return {
-      binding: { subject, resolution: complete ? "resolved" : "absent", resolvedRef: null },
-    };
+    const remembered = findRememberedGroup(state, subject.surface);
+    if (remembered?.memberIdentities) {
+      const refs = remembered.memberIdentities.map((identity) => identity
+        ? [...state.references].find(([ref, entry]) => entry.kind === identity.kind
+          && entry.internalId === identity.internalId && hasRef(candidates, ref))?.[0] ?? null
+        : null);
+      return { binding: { subject, resolution: "resolved", resolvedRef: null, resolvedMembers: refs } };
+    }
+    if (subject.members.every((member) => hasRef(candidates, member))) {
+      return { binding: { subject, resolution: "resolved", resolvedRef: null, resolvedMembers: [...subject.members] } };
+    }
+    // The model-declared handles went stale after a scene change: fall back
+    // to the member LINKS of the group the master showed earlier (T5), each
+    // label re-checked against the current scene — a gone member is null,
+    // never guessed, and the group stays speakable while any member remains.
+    if (remembered) {
+      for (const label of remembered.members) {
+        const matched = candidates.filter((candidate) => surfaceMatches(label, candidate.labels));
+        if (matched.length > 1) return { clarification: ambiguityFor(matched.map((entry) => entry.labels[0]!), candidates, matched.map((entry) => entry.ref)) };
+      }
+      const rechecked = remembered.members.map((label) => sceneRefForLabel(candidates, label));
+      return { binding: { subject, resolution: "resolved", resolvedRef: null, resolvedMembers: rechecked } };
+    }
+    return { binding: { subject, resolution: "absent", resolvedRef: null } };
   }
 
   // Concrete surface: unique scene label wins.
@@ -177,7 +276,7 @@ function bindSubject(
 
   // Pronouns and demonstratives: the focus stack ranks scene candidates the
   // same way the deterministic pronoun path does.
-  const pronouns = bindTurnPronouns(subject.surface, conversation, scene);
+  const pronouns = bindTurnPronouns(subject.surface, conversation, scene, state.references);
   const pronoun = pronouns[0];
   if (pronoun) {
     if (pronoun.resolution === "single") {
@@ -193,9 +292,19 @@ function bindSubject(
         ),
       };
     }
-    return { binding: { subject, resolution: "absent", resolvedRef: null } };
+    return { binding: { subject, resolution: pronoun.mention ? "resolved" : "absent", resolvedRef: null } };
   }
 
+  // T5 memory fallback: a named subject the master showed earlier but that
+  // is gone from this scene stays speakable as a memory — resolved WITHOUT
+  // a scene handle (scene readings gap honestly, memory sources can still
+  // answer) instead of vanishing. Pronoun surfaces never match labels, so
+  // the pronoun path above is untouched; a genuinely unknown subject is
+  // still honestly absent, and nothing here ever clarifies.
+  const remembered = rememberedLabels(state).find((label) => surfaceMatches(subject.surface, [label]));
+  if (remembered) {
+    return { binding: { subject, resolution: "resolved", resolvedRef: null } };
+  }
   return { binding: { subject, resolution: "absent", resolvedRef: null } };
 }
 
@@ -210,8 +319,9 @@ export function resolveQuestionPlanBindings(
   plan: ProposedQuestionPlan,
   scene: MasterTurnSceneContext,
   conversation: MasterConversationContext,
+  references: ReadonlyMap<string, MasterSceneReference> = new Map(),
 ): QuestionPlanBindingOutcome {
-  const state: BindState = { candidates: sceneCandidates(scene), scene, conversation };
+  const state: BindState = { candidates: sceneCandidates(scene), scene, conversation, references };
   const bindings: SubjectBinding[] = [];
   for (const subject of plan.subjects) {
     const outcome = bindSubject(subject, state);

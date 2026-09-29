@@ -123,6 +123,7 @@ export { findAuthorityField, inferAmbiguitySlot, validateTurnProposal } from "./
 export type { AmbiguitySlot, FramedProposalCandidate, TurnProposalValidation } from "./turn-proposal-validator.js";
 export {
   QUESTION_ASPECTS,
+  QUESTION_LIST_REFS,
   QUESTION_PLAN_MAX_PARTS,
   QUESTION_PURPOSES,
   QUESTION_REF_ID_PATTERN,
@@ -138,6 +139,7 @@ export {
 export type {
   ProposedQuestionPlan,
   QuestionAspect,
+  QuestionListRef,
   QuestionPart,
   QuestionPlan,
   QuestionPurpose,

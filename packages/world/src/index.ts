@@ -95,7 +95,7 @@ export { buildGameShellSnapshot, buildShellDelta } from "./game-shell/index.js";
 export type * from "./game-shell/types.js";
 export { buildPlayerKnowledgePresentation } from "./game-shell/knowledge-view.js";
 export { buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } from "./inquiry/index.js";
-export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./inquiry/index.js";
+export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler, InquiryShownList } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { localizedPlayerText } from "./game-shell/player-facing.js";
 export { narrateLLM, narrateTurnLLM, narrateAnswerLLM, narrateAllowedAnswerLLM, verifyEpistemicNarration, verifyAllowedNarration } from "./narrative-llm.js";

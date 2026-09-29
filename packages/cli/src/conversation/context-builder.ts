@@ -33,6 +33,9 @@ import {
 import type {
   ConversationMemoryClarificationOption,
   ConversationMemoryMentionKind,
+  ConversationMemoryIdentity,
+  ConversationMemoryShownGroup,
+  ConversationMemoryShownList,
   ConversationTurn,
   ConversationTurnRecord,
   FramedClarification,
@@ -47,6 +50,9 @@ export interface MasterConversationTurn {
 
 /** A surface-level referent hint from an accepted action turn. */
 export interface ConversationReferent {
+  /** Server-only identity, stripped from model and player data. */
+  readonly identity?: ConversationMemoryIdentity;
+  readonly referentKind?: ConversationMemoryMentionKind;
   readonly kind: "target" | "destination" | "topic" | "addressee";
   readonly surface: string;
   readonly turnSeq: number;
@@ -121,6 +127,18 @@ export interface MasterConversationContext {
   readonly knownFacts: readonly ConversationKnowledge[];
   readonly knownUncertainties: readonly ConversationKnowledge[];
   readonly truncated: boolean;
+  /**
+   * Lists the master showed in remembered answers, newest show first, one
+   * entry per `listRef` (T5): an ordinal resolves against this stored list
+   * by identity — never against a re-derived scene order.
+   */
+  readonly rememberedLists: readonly ConversationMemoryShownList[];
+  /**
+   * Groups the master showed in remembered answers, newest first (T5):
+   * member labels and server-only identities; availability is re-checked against the scene
+   * at every use.
+   */
+  readonly rememberedGroups: readonly ConversationMemoryShownGroup[];
 }
 
 /** Optional read-side inputs for the plan_7 contract (all default to absent). */
@@ -210,6 +228,8 @@ export const EMPTY_MASTER_CONVERSATION: MasterConversationContext = freeze({
   knownFacts: freeze([]),
   knownUncertainties: freeze([]),
   truncated: false,
+  rememberedLists: freeze([]),
+  rememberedGroups: freeze([]),
 });
 
 /** Secret-free counts for the conversation_context diagnostic (§9). */
@@ -278,6 +298,7 @@ export function buildMasterConversationContext(
   const goal = collectGoal(scan, lastTurns.messages);
   const thread = selectDramaticThread(pendingClarification, goal, scene, input.personalHook ?? null);
   const knowledge = collectKnowledge(scene);
+  const shown = collectShown(scan);
 
   return freeze({
     recentTurns: freeze(recentTurns),
@@ -292,6 +313,8 @@ export function buildMasterConversationContext(
     knownFacts: knowledge.facts,
     knownUncertainties: knowledge.uncertainties,
     truncated,
+    rememberedLists: shown.lists,
+    rememberedGroups: shown.groups,
   });
 }
 
@@ -406,6 +429,7 @@ function collectFocus(window: readonly ConversationTurn[]): readonly Conversatio
         push(freeze({
           kind: entry.role === "instrument" ? ("target" as const) : entry.role as ConversationReferent["kind"],
           surface: truncate(entry.label, MASTER_CONVERSATION_MAX_SURFACE),
+          ...(entry.identity ? { identity: freeze({ ...entry.identity }), referentKind: entry.kind } : {}),
           turnSeq: turn.turnSeq,
         }));
       }
@@ -564,7 +588,7 @@ function collectMentions(
     const stored = recordMetadata(turn)?.mentions;
     if (stored) {
       for (const entry of stored) {
-        const matched = matchSceneMention(entry.label, scene);
+        const matched = entry.identity ? null : matchSceneMention(entry.label, scene);
         push(freeze({
           kind: entry.kind,
           role: entry.role,
@@ -589,6 +613,42 @@ function collectMentions(
     }));
   }
   return freeze(mentions);
+}
+
+/** How many shown lists / groups one context remembers (T5, bounded). */
+const CONVERSATION_MAX_REMEMBERED_LISTS = 3;
+const CONVERSATION_MAX_REMEMBERED_GROUPS = 3;
+
+/**
+ * Shown lists and groups from stored metadata, newest show first (T5):
+ * one remembered entry per `listRef` — the latest show wins, because it is
+ * exactly «the list the master showed» for a later ordinal — and the newest
+ * distinct groups by label. Durable identities stay server-only; handles are re-checked at use.
+ */
+function collectShown(scan: readonly ConversationTurn[]): {
+  readonly lists: readonly ConversationMemoryShownList[];
+  readonly groups: readonly ConversationMemoryShownGroup[];
+} {
+  const lists: ConversationMemoryShownList[] = [];
+  const listRefs = new Set<string>();
+  const groups: ConversationMemoryShownGroup[] = [];
+  const groupLabels = new Set<string>();
+  for (let index = scan.length - 1; index >= 0 && (lists.length < CONVERSATION_MAX_REMEMBERED_LISTS || groups.length < CONVERSATION_MAX_REMEMBERED_GROUPS); index -= 1) {
+    const stored = recordMetadata(scan[index]!);
+    for (const list of stored?.shownLists ?? []) {
+      if (lists.length >= CONVERSATION_MAX_REMEMBERED_LISTS || listRefs.has(list.listRef)) continue;
+      listRefs.add(list.listRef);
+      lists.push(freeze({ listRef: list.listRef, members: freeze([...list.members]), ...(list.memberIdentities ? { memberIdentities: freeze(list.memberIdentities.map((identity) => identity ? freeze({ ...identity }) : null)) } : {}) }));
+    }
+    for (const group of stored?.shownGroups ?? []) {
+      if (groups.length >= CONVERSATION_MAX_REMEMBERED_GROUPS) break;
+      const key = normalizeLabel(group.label);
+      if (groupLabels.has(key)) continue;
+      groupLabels.add(key);
+      groups.push(freeze({ label: group.label, members: freeze([...group.members]), ...(group.memberIdentities ? { memberIdentities: freeze(group.memberIdentities.map((identity) => identity ? freeze({ ...identity }) : null)) } : {}) }));
+    }
+  }
+  return { lists: freeze(lists), groups: freeze(groups) };
 }
 
 /**

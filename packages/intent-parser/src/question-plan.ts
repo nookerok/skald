@@ -80,6 +80,19 @@ export const QUESTION_SUBJECT_KINDS = ["entity", "group", "ordinal", "topic", "p
 /** One of the closed subject kinds. */
 export type QuestionSubjectKind = (typeof QUESTION_SUBJECT_KINDS)[number];
 
+/**
+ * Closed vocabulary of shown-list identities an `ordinal` subject may
+ * reference (semantic-question-plan T5). Each entry names a list the master
+ * actually showed in a previous answer and that conversation memory
+ * recorded; the server resolves the position against THAT stored list by
+ * identity, never against a freshly derived scene order, so the meaning
+ * survives reload and scene re-ordering.
+ */
+export const QUESTION_LIST_REFS = ["scene_people"] as const;
+
+/** One of the closed shown-list identities. */
+export type QuestionListRef = (typeof QUESTION_LIST_REFS)[number];
+
 /** Maximum question parts per replica (plan section 5 limit). */
 export const QUESTION_PLAN_MAX_PARTS = 4;
 
@@ -142,8 +155,8 @@ export interface QuestionSubject {
   readonly observerRef?: string;
   /** `group`: transient handles of the members the group links to (never just a label). */
   readonly members?: readonly string[];
-  /** `ordinal`: identity of the list the master showed. TODO(semantic-question-plan T5): closed vocabulary of shown-list refs. */
-  readonly listRef?: string;
+  /** `ordinal`: identity of the list the master showed, from {@link QUESTION_LIST_REFS}. */
+  readonly listRef?: QuestionListRef;
   /** `ordinal`: 1-based position in that exact list; survives reload by identity, not by scene order. */
   readonly position?: number;
 }
@@ -177,6 +190,13 @@ export interface SubjectBinding {
   readonly resolution: SubjectResolution;
   /** Confirmed transient handle for this scene, or null when not settled. */
   readonly resolvedRef: string | null;
+  /**
+   * `group`: per-member transient handles actually resolvable right now —
+   * the model-declared handles re-checked against the scene, or the
+   * remembered member links of a previously shown group. A gone member is
+   * null, never guessed. Absent for non-group subjects.
+   */
+  readonly resolvedMembers?: readonly (string | null)[] | undefined;
 }
 
 /**
@@ -240,7 +260,7 @@ function parseSubject(raw: unknown): QuestionSubject | null {
   const ordinalField = candidate.listRef !== undefined || candidate.position !== undefined;
   if (ordinalField) {
     if (kind !== "ordinal") return null;
-    if (!isCleanString(candidate.listRef, TURN_MAX_STRING, false)) return null;
+    if (!isClosedSet(candidate.listRef, QUESTION_LIST_REFS)) return null;
     if (!Number.isInteger(candidate.position) || (candidate.position as number) < 1) return null;
   }
   if (kind === "ordinal" && !ordinalField) return null;
@@ -252,7 +272,7 @@ function parseSubject(raw: unknown): QuestionSubject | null {
     kind,
     ...(candidate.observerRef !== undefined ? { observerRef: candidate.observerRef as string } : {}),
     ...(candidate.members !== undefined ? { members: Object.freeze([...(candidate.members as string[])]) } : {}),
-    ...(candidate.listRef !== undefined ? { listRef: candidate.listRef as string } : {}),
+    ...(candidate.listRef !== undefined ? { listRef: candidate.listRef as QuestionListRef } : {}),
     ...(candidate.position !== undefined ? { position: candidate.position as number } : {}),
   });
 }

@@ -575,10 +575,14 @@ function resolvePronounsDeterministic(
   snapshot: MasterTurnSnapshot,
   options?: MasterTurnGatewayOptions,
 ): PronounStep {
-  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context);
+  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
   if (bindings.length !== 1) return { kind: "same" };
   const binding: PronounBinding = bindings[0]!;
   const scene = snapshot.scene.context;
+
+  if (binding.mention && (classification.kind === "inquiry" || classification.kind === "inquiry_candidate")
+    && (binding.resolution === "missing" || binding.classes.includes("topic")
+      || snapshot.conversation.recentFocus.some((focus) => focus.identity && focus.turnSeq === binding.mention!.turnSeq && focus.surface === binding.mention!.surface))) return { kind: "same" };
 
   if (binding.resolution === "ambiguous") {
     // A topic pronoun ("сделаю это") with a mention naming a scene
@@ -1109,7 +1113,7 @@ function buildQuestionRound(
   options?: MasterTurnGatewayOptions,
 ): QuestionRoundBuild {
   if (!proposal.questionPlan) return { status: "ok", spec: null };
-  const bound = resolveQuestionPlanBindings(proposal.questionPlan, snapshot.scene.context, snapshot.conversation);
+  const bound = resolveQuestionPlanBindings(proposal.questionPlan, snapshot.scene.context, snapshot.conversation, snapshot.scene.references);
   if (bound.status === "clarification") {
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "question_plan_ambiguous",
@@ -1527,7 +1531,7 @@ async function proposeTurn(
 ): Promise<unknown> {
   // Pronoun bindings resolve against the same snapshot the model sees;
   // the validator and the queue revalidate every referent afterwards.
-  const pronounBindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context);
+  const pronounBindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
   const prompt = buildMasterTurnPrompt({
     playerText: input,
     scene: snapshot.scene.context,

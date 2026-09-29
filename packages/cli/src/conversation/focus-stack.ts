@@ -34,7 +34,7 @@
  * First/second-person pronouns need no binding and are ignored.
  */
 
-import type { MasterTurnSceneContext } from "@skald/world";
+import type { MasterSceneReference, MasterTurnSceneContext } from "@skald/world";
 import type { MasterConversationContext } from "./context-builder.js";
 
 /** Referent class a pronoun may point at. */
@@ -204,6 +204,7 @@ export function bindTurnPronouns(
   input: string,
   conversation: MasterConversationContext,
   scene: MasterTurnSceneContext,
+  references: ReadonlyMap<string, MasterSceneReference> = new Map(),
 ): readonly PronounBinding[] {
   const words = splitWords(input);
   const speechGoverned = isSpeechGoverned(words);
@@ -226,7 +227,7 @@ export function bindTurnPronouns(
       pronoun,
       classes,
       preposition,
-      ...rankCandidates(pronoun, preposition, classes, conversation, scene),
+      ...rankCandidates(pronoun, preposition, classes, conversation, scene, references),
     }));
   }
   return freeze(bindings);
@@ -238,6 +239,7 @@ function rankCandidates(
   classes: readonly FocusReferenceClass[],
   conversation: MasterConversationContext,
   scene: MasterTurnSceneContext,
+  references: ReadonlyMap<string, MasterSceneReference>,
 ): Pick<PronounBinding, "candidates" | "mention" | "resolution"> {
   const wantsPerson = classes.includes("person");
   const wantsThing = classes.includes("thing");
@@ -252,6 +254,60 @@ function rankCandidates(
     .filter((referent) => agreesInNumber(pronoun, preposition, referent.label));
   const topics = wantsTopic ? scene.knownTopics : [];
   const routes = wantsPlace ? scene.knownRoutes : [];
+
+  const eligible = [
+    ...people.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs] })),
+    ...objects.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs] })),
+    ...topics.map((entry) => ({ ref: entry.observerRef, labels: [entry.text] })),
+    ...routes.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs] })),
+  ];
+  const relevant = conversation.recentFocus.find((focus) => {
+    const kind = focus.identity?.kind ?? focus.referentKind
+      ?? conversation.recentlyMentionedEntities.find((entry) => entry.turnSeq === focus.turnSeq && entry.label === focus.surface)?.kind;
+    if (!kind) return wantsTopic ? focus.kind === "topic" : !wantsPlace && focus.kind !== "destination" && focus.kind !== "topic";
+    return (kind === "person" && wantsPerson) || (kind === "object" && wantsThing)
+      || (kind === "topic" && wantsTopic) || (kind === "route" && wantsPlace);
+  });
+  if (relevant && agreesInNumber(pronoun, preposition, relevant.surface)) {
+    const mention = freeze({ surface: relevant.surface, turnSeq: relevant.turnSeq });
+    const identity = relevant.identity;
+    const focusWords = splitWords(relevant.surface).map(stem).filter((word) => word.length >= 3);
+    const matching = eligible.filter((entry) => {
+      if (identity) {
+        const current = references.get(entry.ref);
+        return current?.kind === identity.kind && current.internalId === identity.internalId;
+      }
+      const words = new Set(entry.labels.flatMap((label) => splitWords(label).map(stem)));
+      return focusWords.length > 0 && focusWords.every((word) => words.has(word));
+    }).map((entry) => entry.ref);
+    // A confirmed identity is exclusive: the stored referent either resolves
+    // or is gone, never a different survivor. Topic focus wins over
+    // unrelated topic candidates (review P1-topic).
+    if (identity || wantsTopic) {
+      return { mention, candidates: freeze(matching), resolution: matching.length === 0 ? "missing" : matching.length === 1 ? "single" : "ambiguous" };
+    }
+    if (matching.length === 0) {
+      // A legacy focus whose subject is gone from the scene claims the
+      // pronoun as a memory (missing), so a departed subject never silently
+      // becomes an unrelated survivor (review P0). A focus that still names
+      // a live subject this pronoun cannot mean (the fence vs «него») is not
+      // the antecedent — fall through to the ordinary ranking below, which
+      // still finds the lone carrier.
+      const sceneEntries = [
+        ...scene.knownPeople.map((entry) => [entry.label, ...entry.knownAs]),
+        ...scene.visibleObjects.map((entry) => [entry.label, ...entry.knownAs]),
+        ...scene.knownTopics.map((entry) => [entry.text]),
+        ...scene.knownRoutes.map((entry) => [entry.label, ...entry.knownAs]),
+      ];
+      const namesLiveSubject = focusWords.length > 0 && sceneEntries.some((labels) => {
+        const words = new Set(labels.flatMap((label) => splitWords(label).map(stem)));
+        return focusWords.every((word) => words.has(word));
+      });
+      if (!namesLiveSubject) {
+        return { mention, candidates: freeze([]), resolution: "missing" };
+      }
+    }
+  }
 
   // Newest conversation mention stem-matched into the scene boosts first.
   // Every content word of the mention must be present in the candidate's

@@ -3,14 +3,24 @@ import { sameRussianStem } from "@skald/intent-parser";
 import type { GameShellSnapshot } from "../game-shell/types.js";
 import type { BackgroundNarrativeContext } from "../setup/background-context.js";
 import type { MasterTurnSceneContext } from "../master-turn/observer-context.js";
-import type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler } from "./types.js";
+import type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler, InquiryShownList } from "./types.js";
 
 function revision(shell: GameShellSnapshot): InquiryAnswerDTO["revision"] {
   return { ...shell.revision };
 }
 
-function answer(queryId: InquiryQueryId, text: string, shell: GameShellSnapshot): InquiryAnswerDTO {
-  return Object.freeze({ queryId, answer: text.trim(), revision: revision(shell) });
+function answer(
+  queryId: InquiryQueryId,
+  text: string,
+  shell: GameShellSnapshot,
+  shownLists?: readonly InquiryShownList[],
+): InquiryAnswerDTO {
+  return Object.freeze({
+    queryId,
+    answer: text.trim(),
+    revision: revision(shell),
+    ...(shownLists !== undefined && shownLists.length > 0 ? { shownLists } : {}),
+  });
 }
 
 function locationName(shell: GameShellSnapshot): string {
@@ -300,7 +310,7 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
     return answer("who_is_nearby", "Рядом с тобой сейчас никого различимого нет. Осмотрись действием — может, кто-то покажется.", shell);
   }
   const seenRefs = new Set<string>();
-  const groups = new Map<string, { person: MasterTurnSceneContext["knownPeople"][number]; count: number }>();
+  const groups = new Map<string, { person: MasterTurnSceneContext["knownPeople"][number]; people: MasterTurnSceneContext["knownPeople"][number][]; count: number }>();
   const order: string[] = [];
   for (const person of people) {
     if (seenRefs.has(person.observerRef)) continue;
@@ -310,25 +320,42 @@ function buildWhoIsNearby(_request: InquiryRequest, context: InquiryReadContext)
     const group = groups.get(key);
     if (group) {
       group.count += 1;
+      group.people.push(person);
     } else {
-      groups.set(key, { person, count: 1 });
+      groups.set(key, { person, people: [person], count: 1 });
       order.push(key);
     }
   }
   const lines: string[] = [];
+  const members: string[] = [];
+  const observerRefs: string[] = [];
   const relationByLabel = new Map(shell.character.relations.map((relation) => [normalizePersonLabel(relation.targetLabel), relation.relationLabel.trim()]));
   for (const key of order) {
     const group = groups.get(key)!;
     if (group.count === 1) {
-      if (lines.length < 5) lines.push(personLine(group.person, relationByLabel));
+      if (lines.length < 5) {
+        lines.push(personLine(group.person, relationByLabel));
+        members.push(group.person.label);
+        observerRefs.push(group.person.observerRef);
+      }
     } else {
       for (let index = 0; index < group.count && lines.length < 5; index += 1) {
-        lines.push(personLine(group.person, relationByLabel, PERSON_ORDINALS[index]));
+        const person = group.people[index]!;
+        lines.push(personLine(person, relationByLabel, PERSON_ORDINALS[index]));
+        members.push(person.label);
+        observerRefs.push(person.observerRef);
       }
     }
     if (lines.length >= 5) break;
   }
-  return answer("who_is_nearby", `Рядом с тобой: ${lines.join("; ")}. Осмотрись или обратись к кому-то действием, чтобы узнать больше.`, shell);
+  // The shown list is recorded as structured data (T5): an ordinal later
+  // points at THIS stored order by identity, never at a re-derived scene order.
+  return answer(
+    "who_is_nearby",
+    `Рядом с тобой: ${lines.join("; ")}. Осмотрись или обратись к кому-то действием, чтобы узнать больше.`,
+    shell,
+    members.length > 0 ? [{ listRef: "scene_people", members, observerRefs }] : undefined,
+  );
 }
 
 /** Default water/river keywords when the question names no focus. */

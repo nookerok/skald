@@ -73,6 +73,11 @@ interface ResolvedSubject {
   readonly subject: QuestionSubject;
   /** Settled transient scene handle (entity/topic/place/ordinal), or null. */
   readonly ref: string | null;
+  /**
+   * Scene handles to read for this subject: the binding's per-member links
+   * for a group (re-checked, gone members null), else the single ref (T5).
+   */
+  readonly refs: readonly (string | null)[];
 }
 
 function words(value: string): readonly string[] {
@@ -209,9 +214,7 @@ function sceneAdapter(subjects: readonly ResolvedSubject[], part: ProposedQuesti
       continue;
     }
     // entity / ordinal / group: presence of the ones actually in scene.
-    const refs = subject.kind === "group" && subject.members
-      ? [...subject.members]
-      : [target.ref];
+    const refs = target.refs;
     let found = 0;
     for (const ref of refs) {
       const person = personByRef(context, ref);
@@ -237,9 +240,7 @@ function personAdapter(subjects: readonly ResolvedSubject[], part: ProposedQuest
       gaps.push(gap(part.id, "no_data", { subjectId: subject.id, surface: subject.surface, aspect: part.aspect }));
       continue;
     }
-    const refs = subject.kind === "group" && subject.members
-      ? [...subject.members]
-      : [target.ref];
+    const refs = target.refs;
     let found = 0;
     for (const ref of refs) {
       const person = personByRef(context, ref);
@@ -384,9 +385,7 @@ function itemsAdapter(subjects: readonly ResolvedSubject[], part: ProposedQuesti
       }
       continue;
     }
-    const refs = subject.kind === "group" && subject.members
-      ? [...subject.members]
-      : [target.ref];
+    const refs = target.refs;
     let matched = 0;
     for (const ref of refs) {
       const item = itemByRef(context, ref);
@@ -493,7 +492,12 @@ export function executeQuestionReading(
       subjectGaps.push(gap(part.id, "no_data", { subjectId: subject.id, surface: subject.surface, aspect: part.aspect }));
       continue;
     }
-    subjects.push({ subject, ref: binding.resolvedRef });
+    subjects.push({
+      subject,
+      ref: binding.resolvedRef,
+      refs: binding.resolvedMembers
+        ?? (subject.kind === "group" && subject.members ? [...subject.members] : [binding.resolvedRef]),
+    });
   }
   if (subjects.length === 0) {
     return result(request, [], subjectGaps.length > 0 ? subjectGaps : [gap(part.id, "no_data", { aspect: part.aspect })]);

@@ -22,7 +22,10 @@ import type {
   ConversationInputClass,
   ConversationMemoryClarificationOption,
   ConversationMemoryMention,
+  ConversationMemoryIdentity,
   ConversationMemoryMetadataV1,
+  ConversationMemoryShownGroup,
+  ConversationMemoryShownList,
   ConversationResponseKind,
   ConversationTurn,
   ConversationTurnDraft,
@@ -245,6 +248,8 @@ export function buildMixedConversationTurn(params: {
  * the turn establishes no memory.
  */
 export interface TurnMemoryFocus {
+  /** Server-only identity of a confirmed scene referent. */
+  readonly identity?: ConversationMemoryIdentity;
   readonly observerRef: string | null;
   readonly surface: string;
   readonly kind: "target" | "addressee" | "topic" | "destination";
@@ -269,6 +274,17 @@ export interface TurnMemoryInput {
     readonly relation: ConversationContinuationRelation;
     readonly clarificationTurnSeq?: number | undefined;
   } | null | undefined;
+  /**
+   * Subjects the SHOWN answer confirmed (semantic-question-plan T5):
+   * scene labels of the covered question-part subjects, captured from the
+   * selected read-side facts — never a re-parse of prose. Recorded with
+   * `source: "answer"`, role topic.
+   */
+  readonly shownSubjects?: readonly TurnMemoryFocus[] | undefined;
+  /** Lists the shown answer presented (structured identity, ordered labels). */
+  readonly shownLists?: readonly ConversationMemoryShownList[] | undefined;
+  /** Groups the shown answer presented (member links as labels). */
+  readonly shownGroups?: readonly ConversationMemoryShownGroup[] | undefined;
 }
 
 const MEMORY_RELATION_MAP: Record<TurnConversationRelation, ConversationContinuationRelation> = {
@@ -298,14 +314,48 @@ export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMem
     if (!label) continue;
     const category = memoryMentionCategory(entry.observerRef, entry.kind);
     if (!category) continue;
-    mentions.push({ kind: category, role: entry.kind, label });
+    mentions.push({ kind: category, role: entry.kind, label, ...(entry.identity ? { identity: entry.identity } : {}) });
   }
+  // T5: confirmed subjects of the SHOWN answer — scene labels from the
+  // selected read-side facts, deduplicated against this turn's focus.
+  const focusLabels = new Set(mentions.map((mention) => mention.label));
+  for (const entry of input.shownSubjects ?? []) {
+    if (mentions.length >= 8) break;
+    const label = entry.surface.trim();
+    if (!label) continue;
+    if (focusLabels.has(label)) {
+      const index = mentions.findIndex((mention) => mention.label === label);
+      if (index >= 0 && entry.identity) mentions[index] = { ...mentions[index]!, source: "answer", identity: entry.identity };
+      continue;
+    }
+    const category = memoryMentionCategory(entry.observerRef, entry.kind);
+    if (!category) continue;
+    mentions.push({ kind: category, role: "topic", label, source: "answer", ...(entry.identity ? { identity: entry.identity } : {}) });
+    focusLabels.add(label);
+  }
+  const shownLists = (input.shownLists ?? [])
+    .map((list) => ({
+      listRef: list.listRef,
+      members: list.members.map((member) => member.trim()).slice(0, 5),
+      ...(list.memberIdentities ? { memberIdentities: list.memberIdentities.slice(0, 5) } : {}),
+    }))
+    .filter((list) => list.members.length > 0 && list.members.every((member) => member.length > 0))
+    .slice(0, 3);
+  const shownGroups = (input.shownGroups ?? [])
+    .map((group) => ({
+      label: group.label.trim(),
+      members: group.members.map((member) => member.trim()).slice(0, 5),
+      ...(group.memberIdentities ? { memberIdentities: group.memberIdentities.slice(0, 5) } : {}),
+    }))
+    .filter((group) => group.label.length > 0 && group.members.length > 0 && group.members.every((member) => member.length > 0))
+    .slice(0, 3);
   const goal = (input.goal ?? "").trim();
   const clarification = input.clarification;
   const relation = input.relation ?? null;
   const link = input.continuationLink ?? null;
   const framed = clarification?.framed ?? null;
-  if (mentions.length === 0 && !goal && !clarification && !relation && !link) return null;
+  if (mentions.length === 0 && shownLists.length === 0 && shownGroups.length === 0
+    && !goal && !clarification && !relation && !link) return null;
   const seq = input.pendingClarificationSeq !== undefined && input.pendingClarificationSeq !== null
     ? { clarificationTurnSeq: input.pendingClarificationSeq }
     : {};
@@ -315,6 +365,8 @@ export function buildTurnMemoryMetadata(input: TurnMemoryInput): ConversationMem
   return {
     schemaVersion: 1,
     ...(mentions.length > 0 ? { mentions } : {}),
+    ...(shownLists.length > 0 ? { shownLists } : {}),
+    ...(shownGroups.length > 0 ? { shownGroups } : {}),
     ...(goal ? { goal: { summary: goal.slice(0, 140) } } : {}),
     ...(clarification ? {
       clarification: {

@@ -44,6 +44,7 @@ import {
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
 import type { AnswerPlan } from "@skald/world";
+import type { InquiryAnswerDTO, MasterTurnSceneContext } from "@skald/world";
 import type { AnswerNarrationKind, TurnNarration } from "@skald/world";
 import type { AllowedNarrativeFacts } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
@@ -66,7 +67,8 @@ import {
   isWorldChangingTurn,
   toConversationTurnDTO,
 } from "../conversation/builder.js";
-import type { ConversationMemoryClarificationOption, ConversationMemoryMetadataV1, ConversationResponseKind, FramedClarification } from "../conversation/types.js";
+import type { TurnMemoryFocus, TurnMemoryInput } from "../conversation/builder.js";
+import type { ConversationMemoryShownList, ConversationMemoryShownGroup, ConversationMemoryClarificationOption, ConversationMemoryMetadataV1, ConversationResponseKind, FramedClarification } from "../conversation/types.js";
 import { buildMasterTurn, masterTurnKindOf } from "../conversation/master-turn.js";
 import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
@@ -440,7 +442,8 @@ function buildGameDirectorFromState(
   input: { narrativeContext?: NarrativeAdapterContext | null | undefined; lastOutcome?: string | null | undefined } = {},
 ): GameDirectorContext | undefined {
   try {
-    const scene = buildMasterTurnSceneContext(events, world).context;
+    const sceneSnapshot = buildMasterTurnSceneContext(events, world);
+    const scene = sceneSnapshot.context;
     const turns = runtime.store.listRecentConversationTurns(runtime.worldId, { limit: 30 });
     const narrations = runtime.store.getTurnNarrations(runtime.worldId);
     const record = runtime.store.getWorldRecord(runtime.worldId);
@@ -694,7 +697,11 @@ function scheduleAnswerNarration(
   kind: AnswerNarrationKind,
   correlationId: string,
   allowed?: AllowedNarrativeFacts,
+  preserveShownAnswer = false,
 ): boolean {
+  // Shown-memory order and subjects are authoritative read-side evidence.
+  // A free paraphrase cannot replace that evidence until structural coverage is verified.
+  if (preserveShownAnswer) return false;
   const router = runtime.router;
   if (!router || input.trim().length === 0 || answerText.trim().length === 0) return false;
   const worldId = runtime.worldId;
@@ -781,6 +788,78 @@ function buildInquiryAllowedFacts(params: {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * T5 capture of the SHOWN answer (semantic-question-plan): confirmed
+ * subjects of the covered question parts, resolved to their SCENE labels,
+ * plus the ordered lists the inquiry builders actually showed and the
+ * groups the answer spoke about whole. Structured sources only — never a
+ * re-parse of prose. An unresolvable label is skipped, never guessed, and
+ * durable identities remain server-only; transient observerRefs are not persisted.
+ * Place and self are skipped: the current location is always re-derived and
+ * the player is never a mention.
+ */
+function collectShownAnswerMemory(params: {
+  readonly questionReadings: QuestionReadingRound | null;
+  readonly inquiries: readonly Pick<InquiryAnswerDTO, "shownLists">[];
+  readonly references: ReturnType<typeof buildMasterTurnSceneContext>["references"];
+  readonly scene: MasterTurnSceneContext;
+}): {
+  readonly shownSubjects: readonly TurnMemoryFocus[];
+  readonly shownLists: readonly ConversationMemoryShownList[];
+  readonly shownGroups: readonly ConversationMemoryShownGroup[];
+} {
+  const { questionReadings, inquiries, scene, references } = params;
+  const identityFor = (ref: string | null) => {
+    const entry = ref ? references.get(ref) : undefined;
+    return entry ? { kind: entry.kind, internalId: entry.internalId } : null;
+  };
+  const labelByRef = (ref: string | null | undefined): string | null => {
+    if (!ref) return null;
+    const object = scene.visibleObjects.find((entry) => entry.observerRef === ref);
+    if (object) return object.label;
+    const route = scene.knownRoutes.find((entry) => entry.observerRef === ref);
+    if (route) return route.label;
+    const topic = scene.knownTopics.find((entry) => entry.observerRef === ref);
+    if (topic) return topic.text;
+    const person = scene.knownPeople.find((entry) => entry.observerRef === ref);
+    return person ? person.label : null;
+  };
+  const shownSubjects: TurnMemoryFocus[] = [];
+  const shownGroups: ConversationMemoryShownGroup[] = [];
+  if (questionReadings) {
+    const covered = new Set(questionReadings.coveredParts);
+    const coveredParts = questionReadings.questionPlan.parts.filter((part) => covered.has(part.id));
+    for (const binding of questionReadings.questionPlan.subjects) {
+      if (!coveredParts.some((part) => part.subjectRefs.includes(binding.subject.id))) continue;
+      if (binding.subject.kind === "group") {
+        const members = (binding.resolvedMembers ?? []).map((ref) => labelByRef(ref));
+        // Only a fully re-checkable group is remembered: partial member links
+        // would claim a group the answer did not actually show whole.
+        if (members.length > 0 && members.every((member) => member !== null)) {
+          shownGroups.push({ label: binding.subject.surface, members: members as readonly string[], memberIdentities: (binding.resolvedMembers ?? []).map(identityFor) });
+        }
+        continue;
+      }
+      if (binding.subject.kind === "self" || binding.subject.kind === "place") continue;
+      const label = labelByRef(binding.resolvedRef)
+        ?? (binding.resolution === "resolved" ? binding.subject.surface : null);
+      if (!label) continue;
+      const identity = identityFor(binding.resolvedRef);
+      shownSubjects.push({ observerRef: binding.resolvedRef, surface: label, kind: "topic", ...(identity ? { identity } : {}) });
+    }
+  }
+  const shownLists = inquiries.flatMap((entry) => entry.shownLists ?? []).map((list) => ({
+    listRef: list.listRef, members: list.members,
+    ...(list.observerRefs ? { memberIdentities: list.observerRefs.map(identityFor) } : {}),
+  }));
+  for (const list of shownLists) {
+    if (list.listRef === "scene_people" && list.members.length > 1) {
+      shownGroups.push({ label: "эти люди", members: list.members, ...(list.memberIdentities ? { memberIdentities: list.memberIdentities } : {}) });
+    }
+  }
+  return { shownSubjects, shownLists, shownGroups };
 }
 
 /**
@@ -1075,22 +1154,26 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
         const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
         const background = buildBackgroundNarrativeContext(events, world, profile);
-        const scene = buildMasterTurnSceneContext(events, world).context;
+        const sceneSnapshot = buildMasterTurnSceneContext(events, world);
+        const scene = sceneSnapshot.context;
         const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
         // A focused question records the referent it names (full-master
         // Stage 4): the deterministic answer leaves the same semantic hook an
         // accepted plan does, so a later pronoun can continue the topic.
         const inquiryFocus = deterministicInquiryFocus(inquiryRequest.focus?.surface, events, world);
-        const inquiryMetadata = (inquiryFocus.length > 0 || interpretation.pendingLink)
+        const inquiryShown = collectShownAnswerMemory({ questionReadings: null, inquiries: [inquiry], scene, references: sceneSnapshot.references });
+        const inquiryLists = inquiryShown.shownLists;
+        const inquiryMetadata = (inquiryFocus.length > 0 || interpretation.pendingLink || inquiryLists.length > 0)
           ? buildTurnMemoryMetadata({
             ...(inquiryFocus.length > 0 ? { focus: inquiryFocus } : {}),
             ...(interpretation.pendingLink ? { continuationLink: interpretation.pendingLink } : {}),
+            ...(inquiryLists.length > 0 ? { shownLists: inquiryLists, shownGroups: inquiryShown.shownGroups } : {}),
           })
           : undefined;
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer,
           inquiryMetadata);
         const scheduled = scheduleAnswerNarration(runtime, input, inquiry.answer, "inquiry_answer", conversationTurn.correlationId,
-          buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: inquiry.answer }));
+          buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: inquiry.answer }), inquiryLists.length > 0);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
       });
@@ -1262,7 +1345,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
         const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
         const background = buildBackgroundNarrativeContext(events, world, profile);
-        const scene = buildMasterTurnSceneContext(events, world).context;
+        const sceneSnapshot = buildMasterTurnSceneContext(events, world);
+        const scene = sceneSnapshot.context;
         const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background, scene });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
         return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
@@ -1855,7 +1939,8 @@ function sceneFocusForSurface(
 ): readonly ValidatedConversationReferent[] {
   const surface = raw?.trim();
   if (!surface) return [];
-  const scene = buildMasterTurnSceneContext(events, world).context;
+  const sceneSnapshot = buildMasterTurnSceneContext(events, world);
+  const scene = sceneSnapshot.context;
   const entries = [
     ...scene.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
@@ -2082,13 +2167,14 @@ async function runValidatedMasterTurnResponse(
   }
   // A gateway-resolved frame overrides the proposal relation: the turn
   // answers the pending question no matter what the model reported.
-  const planMemory = buildTurnMemoryMetadata({
+  const planMemoryInput: TurnMemoryInput = {
     focus: plan.focus,
     goal: plan.goal ?? null,
     relation: plan.conversationRelation ?? null,
     pendingClarificationSeq: memory?.pendingClarificationSeq ?? null,
     ...(memory?.pendingLink ? { continuationLink: memory.pendingLink } : {}),
-  });
+  };
+  const planMemory = buildTurnMemoryMetadata(planMemoryInput);
 
   if (!plan.execution) {
     if (plan.kind === "meta" && plan.metaInquiry) {
@@ -2111,7 +2197,8 @@ async function runValidatedMasterTurnResponse(
     const profile = record?.characterId ? runtime.store.getCharacterProfile(record.characterId) : null;
     const shell = buildGameShellSnapshot(events, world, profile, runtime.worldId, buildGuidanceContext(runtime));
     const background = buildBackgroundNarrativeContext(events, world, profile);
-    const scene = buildMasterTurnSceneContext(events, world).context;
+    const sceneSnapshot = buildMasterTurnSceneContext(events, world);
+    const scene = sceneSnapshot.context;
     const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene }));
     // One bounded reading round on THIS snapshot (semantic-question-plan T3):
     // a read-only plan executes nothing, so interpretation and answer read
@@ -2129,11 +2216,21 @@ async function runValidatedMasterTurnResponse(
       answerPlan?.statements.join(" ") ?? "",
       answerPlan?.narrowClarification ?? "",
     ].filter((piece) => piece.length > 0).join(" ");
-    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", answerText, planMemory);
+    // T5 memory capture: the SHOWN answer's confirmed subjects, group links
+    // and ordered lists ride the same turn metadata as the player-side focus.
+    const shown = collectShownAnswerMemory({ questionReadings, inquiries, scene, references: sceneSnapshot.references });
+    const answerMemory = buildTurnMemoryMetadata({
+      ...planMemoryInput,
+      shownSubjects: shown.shownSubjects,
+      shownLists: shown.shownLists,
+      shownGroups: shown.shownGroups,
+    });
+    const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", answerText, answerMemory);
     // Model-proposed inquiries share the deterministic read-side narration
     // lifecycle, or the plan path would stay `not_requested` forever.
     const scheduled = scheduleAnswerNarration(runtime, input, answerText, "inquiry_answer", conversationTurn.correlationId,
-      buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText, answerPlan }));
+      buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText, answerPlan }),
+      shown.shownSubjects.length > 0 || shown.shownLists.length > 0 || shown.shownGroups.length > 0);
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
     return json({
       ok: true,

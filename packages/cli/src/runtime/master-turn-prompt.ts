@@ -14,6 +14,7 @@ import {
   INQUIRY_CAPABILITIES,
   INTENT_CAPABILITIES,
   QUESTION_ASPECTS,
+  QUESTION_LIST_REFS,
   QUESTION_PLAN_MAX_PARTS,
   QUESTION_PURPOSES,
   QUESTION_SUBJECT_KINDS,
@@ -68,7 +69,8 @@ export const MASTER_TURN_SYSTEM_PROMPT: string = [
   "{\"id\":\"<refId>\",\"surface\":\"...\",\"kind\":\"<questionSubjectKind>\"}",
   "plus observerRef only for entity/topic/place copied from the supplied",
   "observer table, plus members [\"person_N\", ...] for a group, plus",
-  "listRef/position for an ordinal; a part is",
+  "listRef (from questionListRefs, only for a list the master showed in an",
+  "earlier answer) with a 1-based position for an ordinal; a part is",
   "{\"id\":\"<refId>\",\"subjectRefs\":[\"<subjectId>\"],\"aspect\":\"<questionAspect>\",",
   "\"time\":\"<questionTime>\",\"purpose\":\"<questionPurpose>\"}.",
   "readings = [{\"partId\":\"<partId>\",\"source\":\"<readingSource>\"}] tied to",
@@ -160,6 +162,7 @@ export interface MasterTurnPromptCapabilities {
   readonly questionPurposes: readonly string[];
   readonly questionTimes: readonly string[];
   readonly readingSources: readonly string[];
+  readonly questionListRefs: readonly string[];
   readonly questionPlanLimits: {
     readonly maxParts: number;
     readonly maxReadings: number;
@@ -181,6 +184,7 @@ export const MASTER_TURN_PROMPT_CAPABILITIES: MasterTurnPromptCapabilities = Obj
   questionPurposes: QUESTION_PURPOSES,
   questionTimes: QUESTION_TIME_SCOPES,
   readingSources: READING_SOURCES,
+  questionListRefs: QUESTION_LIST_REFS,
   questionPlanLimits: Object.freeze({
     maxParts: QUESTION_PLAN_MAX_PARTS,
     maxReadings: READING_MAX_REQUESTS,
@@ -226,6 +230,8 @@ export function buildMasterTurnPrompt(input: MasterTurnPromptInput): MasterTurnP
         ...(pending.originalInput ? { originalInput: pending.originalInput } : {}),
       } : null,
       recentlyMentionedEntities: conversation.recentlyMentionedEntities,
+      rememberedLists: conversation.rememberedLists.map(({ listRef, members }) => ({ listRef, members })),
+      rememberedGroups: conversation.rememberedGroups.map(({ label, members }) => ({ label, members })),
       activePlayerGoal: conversation.activePlayerGoal,
       currentDramaticThread: conversation.currentDramaticThread,
       knownFacts: conversation.knownFacts,

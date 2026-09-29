@@ -1,4 +1,4 @@
-import type { InquiryQueryId, InquiryRequest } from "@skald/intent-parser";
+import type { InquiryQueryId, InquiryRequest, QuestionListRef } from "@skald/intent-parser";
 import type { BackgroundNarrativeContext } from "../setup/background-context.js";
 import type { GameShellSnapshot } from "../game-shell/types.js";
 import type { MasterTurnSceneContext } from "../master-turn/observer-context.js";
@@ -14,6 +14,20 @@ export interface InquiryReadContext {
   readonly scene?: MasterTurnSceneContext | null | undefined;
 }
 
+/**
+ * One ordered list an inquiry answer actually showed, as structured data
+ * from the builder — never a re-parse of prose. `listRef` is closed by
+ * `QUESTION_LIST_REFS` (`QuestionListRef`); members are ordered player-facing
+ * labels (semantic-question-plan T5), so conversation memory can record the
+ * shown list for later ordinal references.
+ */
+export interface InquiryShownList {
+  readonly listRef: QuestionListRef;
+  readonly members: readonly string[];
+  /** Ephemeral handles aligned with the displayed lines; never durable identity. */
+  readonly observerRefs?: readonly string[];
+}
+
 export interface InquiryAnswerDTO {
   readonly queryId: InquiryQueryId;
   readonly answer: string;
@@ -21,6 +35,8 @@ export interface InquiryAnswerDTO {
     readonly worldTime: number;
     readonly eventNumber: number;
   };
+  /** Lists this answer presented in order, when any (T5). */
+  readonly shownLists?: readonly InquiryShownList[] | undefined;
 }
 
 export type InquiryQueryHandler = (
