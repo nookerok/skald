@@ -4,6 +4,9 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createMultiWorldStore, DuplicateRequestError } from "../src/persistence/sqlite-store.js";
+import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
+import { bindTurnPronouns } from "../src/conversation/focus-stack.js";
+import type { MasterTurnSceneContext } from "@skald/world";
 import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
 import { buildReadSideConversationTurn, buildTurnMemoryMetadata, toConversationTurnDTO } from "../src/conversation/builder.js";
 import {
@@ -24,6 +27,7 @@ function fullMetadata(): ConversationMemoryMetadataV1 {
     mentions: [
       { kind: "person", role: "target", label: "перевозчик" },
       { kind: "route", role: "destination", label: "тропа вдоль реки" },
+      { kind: "person", role: "topic", label: "мельник", source: "answer" },
     ],
     goal: { summary: "Найти старое русло" },
     clarification: {
@@ -35,6 +39,8 @@ function fullMetadata(): ConversationMemoryMetadataV1 {
     },
     continuation: { relation: "continues", clarificationTurnSeq: 3 },
     dramaticThread: { source: "player_goal", title: "Найти старое русло" },
+    shownLists: [{ listRef: "scene_people", members: ["Перевозчик", "Мельник"] }],
+    shownGroups: [{ label: "Эти люди у берега", members: ["Перевозчик", "Мельник"] }],
   };
 }
 
@@ -61,6 +67,15 @@ describe("conversation memory metadata", () => {
     expect(parseConversationMemoryMetadata({ schemaVersion: 1, continuation: { relation: "maybe" } })).toBeNull();
     expect(parseConversationMemoryMetadata({ schemaVersion: 1, continuation: { relation: "cancels", clarificationTurnSeq: -1 } })).toBeNull();
     expect(parseConversationMemoryMetadata({ schemaVersion: 1, dramaticThread: { source: "quest", title: "t" } })).toBeNull();
+    // T5: mention source, listRef and shown shapes are closed vocabularies.
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, mentions: [{ kind: "person", role: "target", label: "x", source: "model" }] })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownLists: [{ listRef: "scene_objects", members: ["Лодка"] }] })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownLists: [{ members: ["Лодка"] }] })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownLists: [{ listRef: "scene_people", members: [] }] })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownGroups: [{ label: "", members: ["Лодка"] }] })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownGroups: [{ label: "Эти люди", members: [] }] })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownLists: Array.from({ length: 4 }, (_, i) => ({ listRef: "scene_people", members: [`m${i}`] })) })).toBeNull();
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownLists: [{ listRef: "scene_people", members: Array.from({ length: 6 }, (_, i) => `m${i}`) }] })).toBeNull();
   });
 
   it("serializes with budget caps and round-trips through the parser", () => {
@@ -262,6 +277,56 @@ describe("conversation memory metadata", () => {
     });
   });
 
+  it("records answer-side subjects and shown lists/groups with budgets (T5)", () => {
+    // Answer subjects carry source "answer" and are deduped against focus.
+    expect(buildTurnMemoryMetadata({
+      focus: [{ observerRef: "person_1", surface: "Перевозчик", kind: "addressee" }],
+      shownSubjects: [
+        { observerRef: "person_1", surface: "Перевозчик", kind: "topic" },
+        { observerRef: "person_2", surface: "Мельник", kind: "topic" },
+        { observerRef: null, surface: "без-ручки", kind: "topic" },
+      ],
+    })).toEqual({
+      schemaVersion: 1,
+      mentions: [
+        { kind: "person", role: "addressee", label: "Перевозчик" },
+        { kind: "person", role: "topic", label: "Мельник", source: "answer" },
+      ],
+    });
+
+    // Structured lists and groups are bounded: 5 members, 3 lists (first
+    // wins per listRef at read), empty labels dropped.
+    expect(buildTurnMemoryMetadata({
+      shownLists: [
+        { listRef: "scene_people", members: ["а", "б", "в", "г", "д", "е"] },
+        { listRef: "scene_people", members: ["повтор"] },
+        { listRef: "scene_people", members: ["ещё"] },
+        { listRef: "scene_people", members: ["четвёртый"] },
+      ],
+      shownGroups: [
+        { label: "Эти люди у берега", members: ["1", "2", "3", "4", "5", "6"] },
+        { label: "   ", members: ["x"] },
+        { label: "Сторожа моста", members: ["a", "b", "c", "d", "e", "f"] },
+        { label: "Лишняя", members: ["g"] },
+      ],
+    })).toEqual({
+      schemaVersion: 1,
+      shownLists: [
+        { listRef: "scene_people", members: ["а", "б", "в", "г", "д"] },
+        { listRef: "scene_people", members: ["повтор"] },
+        { listRef: "scene_people", members: ["ещё"] },
+      ],
+      shownGroups: [
+        { label: "Эти люди у берега", members: ["1", "2", "3", "4", "5"] },
+        { label: "Сторожа моста", members: ["a", "b", "c", "d", "e"] },
+        { label: "Лишняя", members: ["g"] },
+      ],
+    });
+
+    // Nothing shown at all still returns null.
+    expect(buildTurnMemoryMetadata({ shownLists: [{ listRef: "scene_people", members: [" "] }] })).toBeNull();
+  });
+
   describe("framed clarification options (review P1)", () => {
     const framed: FramedClarification = {
       slot: "target",
@@ -359,4 +424,29 @@ describe("conversation memory metadata", () => {
     expect(() => store.recordConversationTurn({ ...turn, playerText: "Другое.", requestHash: "hash:other" })).toThrow(DuplicateRequestError);
     store.close();
   });
+});
+
+
+it("rejects misaligned or malformed durable identities", () => {
+  for (const memberIdentities of [[], [{ kind: "person", internalId: "" }], [{ kind: "hidden", internalId: "x" }], [{ kind: "person", internalId: "x", extra: true }]]) {
+    expect(parseConversationMemoryMetadata({ schemaVersion: 1, shownLists: [{ listRef: "scene_people", members: ["Человек"], memberIdentities }] })).toBeNull();
+  }
+});
+
+
+it("restores an answer identity after SQLite reload and refuses a same-labelled replacement", () => {
+  const path = tmpDb();
+  const store = createMultiWorldStore(path);
+  const metadata = buildTurnMemoryMetadata({ shownSubjects: [{ observerRef: "person_1", surface: "Перевозчик", kind: "topic", identity: { kind: "person", internalId: "selected-person" } }] });
+  store.recordConversationTurn(buildReadSideConversationTurn({ worldId: LEGACY_WORLD_ID, idempotencyKey: "identity-focus", playerText: "Первый перевозчик", inputClass: "inquiry", responseKind: "inquiry_answer", responseText: "Перевозчик в сером плаще.", worldTime: 0, contextMetadata: metadata }));
+  store.close();
+  const reopened = createMultiWorldStore(path);
+  try {
+    const context = buildMasterConversationContext(reopened.listRecentConversationTurns(LEGACY_WORLD_ID, { limit: 30 }), LEGACY_WORLD_ID);
+    const scene: MasterTurnSceneContext = { schemaVersion: 1, revision: { worldTime: 0, eventNumber: 0 }, currentLocation: { name: "Берег", description: "Вода" }, visibleObjects: [], knownPeople: [1, 2].map((n) => ({ observerRef: `person_${n}`, kind: "person", label: "Перевозчик", knownAs: ["Перевозчик"] })), knownRoutes: [], accessibleItems: [], availableActions: [], currentSituation: null, knownTopics: [] };
+    const refs = new Map([["person_2", { kind: "person" as const, internalId: "selected-person", label: "Перевозчик" }]]);
+    expect(bindTurnPronouns("А он меня знает?", context, scene, refs)[0]).toMatchObject({ resolution: "single", candidates: ["person_2"] });
+    expect(bindTurnPronouns("Как он выглядит?", context, scene)[0]).toMatchObject({ resolution: "missing", candidates: [] });
+    expect(JSON.stringify(toConversationTurnDTO(reopened.getConversationTurn(LEGACY_WORLD_ID, "identity-focus")!))).not.toContain("selected-person");
+  } finally { reopened.close(); }
 });

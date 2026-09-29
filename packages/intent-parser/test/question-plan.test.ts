@@ -124,6 +124,15 @@ describe("parseProposedQuestionPlan", () => {
       subjects: [{ id: "o", surface: "первый", kind: "ordinal", listRef: "scene_people", position: 0 }],
       parts: [{ id: "p", subjectRefs: ["o"], aspect: "identity_role", time: "current", purpose: "describe" }],
     })).toBeNull();
+    // T5: listRef is a closed vocabulary — anything else fails closed.
+    expect(parseProposedQuestionPlan({
+      subjects: [{ id: "o", surface: "первый", kind: "ordinal", listRef: "scene_objects", position: 1 }],
+      parts: [{ id: "p", subjectRefs: ["o"], aspect: "identity_role", time: "current", purpose: "describe" }],
+    })).toBeNull();
+    expect(parseProposedQuestionPlan({
+      subjects: [{ id: "o", surface: "первый", kind: "ordinal", position: 1 }],
+      parts: [{ id: "p", subjectRefs: ["o"], aspect: "identity_role", time: "current", purpose: "describe" }],
+    })).toBeNull();
   });
 
   it("rejects unknown keys", () => {

@@ -206,3 +206,38 @@ describe("turn focus stack", () => {
     expect(JSON.parse(first)[0].candidates[0]).toBe("person_1");
   });
 });
+
+
+it("falls through when the live focus is not this pronoun's antecedent", () => {
+  // The fence is still in the scene, but «него» cannot mean it: the ordinary
+  // ranking below still finds the lone carrier instead of reporting missing.
+  const focused = conversation({ recentFocus: [{ kind: "target", surface: "Ограда", turnSeq: 2 }] });
+  const current = scene({
+    visibleObjects: [{ observerRef: "object_1", kind: "object", label: "Ограда", knownAs: ["Ограда"] }],
+    knownPeople: [{ observerRef: "person_1", kind: "person", label: "Перевозчик", knownAs: ["Перевозчик"] }],
+  });
+  expect(bindTurnPronouns("Спрошу у него.", focused, current)[0]).toMatchObject({ resolution: "single", candidates: ["person_1"] });
+});
+
+it("does not replace a departed focused person with the sole remaining person", () => {
+  const remembered = conversation({ recentFocus: [{ kind: "target", surface: "Перевозчик", turnSeq: 1 }] });
+  const current = scene({ visibleObjects: [], knownPeople: [{ observerRef: "person_1", kind: "person", label: "Страж", knownAs: ["Страж"] }] });
+  expect(bindTurnPronouns("Как он выглядит?", remembered, current)[0]).toMatchObject({ resolution: "missing", candidates: [], mention: { surface: "Перевозчик" } });
+});
+
+it("keeps an identity-backed duplicate focus after handle reuse", () => {
+  const remembered = conversation({ recentFocus: [{ kind: "topic", surface: "Перевозчик", turnSeq: 1, identity: { kind: "person", internalId: "selected" } }] });
+  const current = scene({ visibleObjects: [], knownPeople: [1, 2].map((n) => ({ observerRef: `person_${n}`, kind: "person", label: "Перевозчик", knownAs: ["Перевозчик"] })) });
+  const refs = new Map([["person_2", { kind: "person" as const, internalId: "selected", label: "Перевозчик" }]]);
+  expect(bindTurnPronouns("А он меня знает?", remembered, current, refs)[0]).toMatchObject({ resolution: "single", candidates: ["person_2"] });
+  expect(bindTurnPronouns("Как он выглядит?", remembered, current, new Map())[0]).toMatchObject({ resolution: "missing", candidates: [] });
+});
+
+it("uses the focused topic instead of clarifying among unrelated topics", () => {
+  const remembered = conversation({ recentFocus: [{ kind: "topic", surface: "Знак", turnSeq: 1 }] });
+  const current = scene({ knownTopics: [
+    { observerRef: "topic_1", category: "told", text: "Знак", status: "current" },
+    { observerRef: "topic_2", category: "told", text: "Переправа", status: "current" },
+  ] });
+  expect(bindTurnPronouns("Что об этом известно?", remembered, current)[0]).toMatchObject({ resolution: "single", candidates: ["topic_1"] });
+});

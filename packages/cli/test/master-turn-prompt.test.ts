@@ -6,6 +6,7 @@ import {
 } from "../src/runtime/master-turn-prompt.js";
 import {
   QUESTION_ASPECTS,
+  QUESTION_LIST_REFS,
   QUESTION_PURPOSES,
   QUESTION_SUBJECT_KINDS,
   QUESTION_TIME_SCOPES,
@@ -98,6 +99,8 @@ describe("master turn prompt contract", () => {
       "lastTurns",
       "pendingClarification",
       "recentlyMentionedEntities",
+      "rememberedGroups",
+      "rememberedLists",
     ]);
     expect(context.currentScene).toEqual(SCENE);
   });
@@ -175,6 +178,14 @@ describe("master turn prompt contract", () => {
     expect(MASTER_TURN_PROMPT_CAPABILITIES.questionPlanLimits).toEqual({ maxParts: 4, maxReadings: 3, rounds: 1 });
   });
 
+  it("advertises the closed listRef vocabulary for shown lists (T5)", () => {
+    buildMasterTurnPrompt({ playerText: "Где я?", scene: SCENE, conversation: CONVERSATION });
+
+    expect(MASTER_TURN_PROMPT_CAPABILITIES.questionListRefs).toEqual([...QUESTION_LIST_REFS]);
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("listRef");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("questionListRefs");
+  });
+
   it("is deterministic and input-preserving", () => {
     const input = { playerText: "спрошу у него об этом", scene: SCENE, conversation: CONVERSATION };
     const before = JSON.stringify(input);
@@ -184,4 +195,15 @@ describe("master turn prompt contract", () => {
     expect(JSON.stringify(second)).toBe(JSON.stringify(first));
     expect(JSON.stringify(input)).toBe(before);
   });
+});
+
+
+it("supplies shown list vocabulary without server-only identities", () => {
+  const prompt = buildMasterTurnPrompt({ playerText: "Кто первый?", scene: SCENE, conversation: {
+    ...CONVERSATION, rememberedLists: [{ listRef: "scene_people", members: ["Перевозчик"], memberIdentities: [{ kind: "person", internalId: "secret-person-id" }] }],
+  }, pronounBindings: [] });
+  const text = JSON.stringify(prompt);
+  expect(text).toContain("scene_people");
+  expect(text).not.toContain("secret-person-id");
+  expect(text).not.toContain("memberIdentities");
 });

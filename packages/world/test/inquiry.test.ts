@@ -142,6 +142,15 @@ describe("who is nearby", () => {
     expect(result.answer).toContain("Перевозчик у переправы");
     expect(result.answer).toContain("Страж");
     expect(result.answer).not.toContain("person_1");
+    // The shown order is recorded as structured data (T5), never prose.
+    expect(result.shownLists).toEqual([{ listRef: "scene_people", members: ["Перевозчик у переправы", "Страж"], observerRefs: ["person_1", "person_2"] }]);
+  });
+
+  it("records no shown list when nobody is shown (T5)", () => {
+    const { shell, background } = context();
+    const result = buildInquiryAnswer(whoRequest(), { shell, background, scene: sceneWithPeople([]) });
+
+    expect(result.shownLists).toBeUndefined();
   });
 
   it("honestly reports nobody distinguishable without a scene", () => {

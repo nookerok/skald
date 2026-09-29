@@ -20,6 +20,7 @@ import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
+import { resolveQuestionPlanBindings } from "../src/runtime/question-plan-resolver.js";
 import type { ConversationTurn } from "../src/conversation/types.js";
 
 function parse(response: { statusCode: number; body: string }): any {
@@ -189,4 +190,32 @@ describe("conversation memory — focused questions", () => {
       store.close();
     }
   });
+});
+
+
+it("persists shown identities through SQLite reload without events or DTO leakage", async () => {
+  const dbPath = join(mkdtempSync(join(tmpdir(), "skald-shown-identity-")), "events.sqlite");
+  const store = createMultiWorldStore(dbPath);
+  const worldId = "shown-identity";
+  try {
+    store.createWorld({ worldId, idempotencyKey: "create-shown", requestHash: "hash-shown", saveLabel: "Shown", characterName: "Tester", characterPresetId: "wanderer", worldTemplateId: "living_region", characterWound: "none", characterPromise: "observe", characterPrinciple: "care", characterProfileVersion: 1, bootstrapEvents: buildBootstrapEvents("living_region") });
+    const runtime = await new WorldRuntimeManager(store, { apiKey: "", chat: () => { throw new Error("offline"); } } as any).get(worldId);
+    const before = runtime.bus.query();
+    const reply = parse(await handleWorldCommand(runtime, { input: "Кто рядом?", idempotencyKey: "shown-list" }));
+    expect(reply.status).toBe("inquiry");
+    expect(reply.conversationTurn.narrationState).toBe("not_requested");
+    expect(store.getTurnNarrations(worldId).size).toBe(0);
+    expect(runtime.bus.query()).toEqual(before);
+    expect(JSON.stringify(reply)).not.toContain("memberIdentities");
+    const stored = store.getConversationTurn(worldId, "shown-list")?.contextMetadata?.shownLists?.[0];
+    expect(stored?.memberIdentities?.[0]?.internalId).toBeTruthy();
+    const reloaded = createMultiWorldStore(dbPath);
+    try {
+      const snapshot = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+      const context = buildMasterConversationContext(reloaded.listRecentConversationTurns(worldId, { limit: 30 }), worldId, { scene: snapshot.context });
+      expect(context.rememberedLists[0]).toEqual(stored);
+      const bindings = resolveQuestionPlanBindings({ subjects: [{ id: "first", surface: "первый", kind: "ordinal", listRef: "scene_people", position: 1 }], parts: [{ id: "p", subjectRefs: ["first"], aspect: "appearance", time: "current", purpose: "describe" }] }, snapshot.context, context, snapshot.references);
+      expect(bindings).toMatchObject({ status: "resolved", bindings: [{ resolution: "resolved", resolvedRef: snapshot.context.knownPeople[0]!.observerRef }] });
+    } finally { reloaded.close(); }
+  } finally { store.close(); }
 });

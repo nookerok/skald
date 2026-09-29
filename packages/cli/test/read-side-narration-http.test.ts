@@ -112,10 +112,13 @@ describe("read-side answer narration", () => {
   });
 
   it("keeps the exact answer, schedules a rephrase, and settles pending -> ready", async () => {
+    // A non-list inquiry: structured shown lists keep the deterministic
+    // bubble with no rephrase (semantic-question-plan T5), so the narration
+    // lifecycle is exercised here through current_location.
     const before = await api(`/api/worlds/${worldId}/state`);
     const cmd = await api(`/api/worlds/${worldId}/command`, {
       method: "POST",
-      body: JSON.stringify({ input: "кто рядом?", idempotencyKey: "read-side-1" }),
+      body: JSON.stringify({ input: "где я?", idempotencyKey: "read-side-1" }),
     });
     expect(cmd.status).toBe(200);
     expect(cmd.body.status).toBe("inquiry");
@@ -291,7 +294,9 @@ describe("read-side narration retry (transient failure once, then success)", () 
       const cmd = await (await fetch(`${server.url}/api/worlds/${world}/command`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: "кто рядом?", idempotencyKey: "read-side-retry-1" }),
+        // Non-list inquiry: structured shown lists keep the deterministic
+        // bubble with no rephrase (semantic-question-plan T5).
+        body: JSON.stringify({ input: "где я?", idempotencyKey: "read-side-retry-1" }),
       })).json() as any;
       expect(cmd.status).toBe("inquiry");
       expect(cmd.conversationTurn.narrationState).toBe("pending");

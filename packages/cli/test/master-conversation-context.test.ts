@@ -39,6 +39,8 @@ describe("master conversation context", () => {
       currentDramaticThread: null,
       knownFacts: [],
       knownUncertainties: [],
+      rememberedLists: [],
+      rememberedGroups: [],
       truncated: false,
     });
   });
@@ -470,6 +472,33 @@ describe("plan_7 transcript memory", () => {
     expect(context.recentlyMentionedEntities).toEqual([
       { kind: "person", role: "target", label: "перевозчик", observerRef: "person_1", turnSeq: 1 },
       { kind: "route", role: "destination", label: "заброшенная мельница", turnSeq: 1 },
+    ]);
+  });
+
+  it("remembers shown lists newest-first with one entry per listRef (T5)", () => {
+    const context = buildMasterConversationContext([
+      metaRow(1, { schemaVersion: 1, shownLists: [{ listRef: "scene_people", members: ["Перевозчик", "Страж"] }] }),
+      metaRow(2, { schemaVersion: 1, shownLists: [{ listRef: "scene_people", members: ["Мельник"] }] }),
+    ], "w1");
+
+    // The newer showing of the same list wins; no second entry ever shadows it.
+    expect(context.rememberedLists).toEqual([
+      { listRef: "scene_people", members: ["Мельник"] },
+    ]);
+  });
+
+  it("remembers shown groups newest-first, deduped by label (T5)", () => {
+    const context = buildMasterConversationContext([
+      metaRow(1, { schemaVersion: 1, shownGroups: [{ label: "Эти люди у берега", members: ["Перевозчик", "Страж"] }] }),
+      metaRow(2, { schemaVersion: 1, shownGroups: [
+        { label: "эти люди у берега", members: ["Мельник"] },
+        { label: "Сторожа моста", members: ["Дозорный"] },
+      ] }),
+    ], "w1");
+
+    expect(context.rememberedGroups).toEqual([
+      { label: "эти люди у берега", members: ["Мельник"] },
+      { label: "Сторожа моста", members: ["Дозорный"] },
     ]);
   });
 
