@@ -1,3 +1,30 @@
+# Current work (2026-09-29 — semantic-question-plan T5 implementation done, re-review pending)
+
+- T5 implementation committed and pushed: `3f5158f` feat (shown-answer
+  memory, ordinal/group binding, closed listRef, server-only identities,
+  prompt/DTO boundaries) + `cc4a687` test. Gate green: `npm run validate`
+  PASS (2778 passed, 1 skipped), typecheck clean.
+- User approved server-only durable member identities after detecting that
+  duplicate labels + scene occurrence cannot preserve identity after reorder.
+  Shown lists/groups persist kind + internalId, resolve current handles
+  through the scene reference table, and omit identities from model prompts
+  and player DTOs. Legacy ambiguous labels clarify instead of guessing.
+- Inquiry list rendering preserves each duplicate person's own portrait.
+  Nearby lists also establish a remembered group for plural continuation.
+  Structured answers keep the deterministic bubble (no rephrase scheduled),
+  so memory always matches the shown text; narration lifecycle tests moved
+  to a non-list inquiry.
+- Independent review verdict REVISE (5 findings, all addressed in the
+  commits). Re-review requested from agent 00fc9153-31be-4c30-9b7a-8af487594be4
+  but the reviewer hit a usage limit before replying; reply expected after
+  reset. T5 stays open until re-review lands — do not start T6 acceptance
+  on the assumption the review is clean. Evidence in the T5 artifact.
+- Post-fix self-check caught and fixed 1 real regression the review missed:
+  a live-but-ineligible legacy focus claimed the pronoun (fence vs «него»)
+  and starved the lone-carrier ranking; fall-through restored + unit test.
+- T6 remains open: live/provider, browser and human acceptance not established.
+  No deployment performed; deploy needs explicit user authorization.
+
 # Current work (2026-09-28 — semantic-question-plan T4 answer assembly closed)
 
 - T4 (answer assembly) closed: `buildAnswerPlan` (new
