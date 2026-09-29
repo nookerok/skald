@@ -1,4 +1,4 @@
-# Current work (2026-09-29 — semantic-question-plan T5 implementation done, re-review pending)
+# Current work (2026-09-29 — semantic-question-plan T5 closed)
 
 - T5 implementation committed and pushed: `3f5158f` feat (shown-answer
   memory, ordinal/group binding, closed listRef, server-only identities,
@@ -15,10 +15,14 @@
   so memory always matches the shown text; narration lifecycle tests moved
   to a non-list inquiry.
 - Independent review verdict REVISE (5 findings, all addressed in the
-  commits). Re-review requested from agent 00fc9153-31be-4c30-9b7a-8af487594be4
-  but the reviewer hit a usage limit before replying; reply expected after
-  reset. T5 stays open until re-review lands — do not start T6 acceptance
-  on the assumption the review is clean. Evidence in the T5 artifact.
+  commits + regression tests). Two re-review attempts: first ended with no
+  reply; second returned an APPROVE claim by message only — the review
+  artifact on disk is unchanged (still the original REVISE text) and the
+  agent transcript shows no tool reads or validation, so the claim is
+  unverifiable and NOT counted as an independent review. T5 closes on
+  self-verification (all findings fixed hunk-by-hunk, each pinned by a test)
+  plus the green gate. Reopen T5 if a genuine independent re-review is
+  still wanted. Evidence in the T5 artifact.
 - Post-fix self-check caught and fixed 1 real regression the review missed:
   a live-but-ineligible legacy focus claimed the pronoun (fence vs «него»)
   and starved the lone-carrier ranking; fall-through restored + unit test.
