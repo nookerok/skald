@@ -47,13 +47,20 @@ describe("person answers", () => {
     const expectations: [string, string][] = [
       ["Как я здесь оказался?", "character_identity"],
       ["Опиши человека передо мной", "who_is_nearby"],
-      ["Почему ты упомянул этот знак?", "recent_events"],
     ];
     for (const [input, queryId] of expectations) {
       const classified = classifyPlayerInput(input, parseIntent);
       expect(classified.kind).toBe("inquiry");
       if (classified.kind === "inquiry") expect(classified.inquiry.queryId).toBe(queryId);
     }
+  });
+
+  it("leaves speech-about-speech to the semantic plan, not the chronicle", () => {
+    // T6 acceptance, series 6: «почему ты упомянул…» asks about the
+    // interlocutor's speech, which the event chronicle cannot see — it stays
+    // a candidate for the plan path (conversation_topics) instead of
+    // recent_events.
+    expect(classifyPlayerInput("Почему ты упомянул этот знак?", parseIntent).kind).toBe("inquiry_candidate");
   });
 
   it("describes a named present person from the portrait", () => {

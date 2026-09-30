@@ -262,16 +262,20 @@ describe("resolveQuestionPlanBindings", () => {
     expect(empty).toMatchObject({ status: "resolved", bindings: [{ resolution: "resolved", resolvedRef: null, resolvedMembers: [null, null] }] });
   });
 
-  it("resolves topics by declared ref or scene text, else absent", () => {
+  it("resolves topics by declared ref or scene text, else memory", () => {
     const byRef = resolveQuestionPlanBindings(plan([
       { id: "sign", surface: "знак", kind: "topic", observerRef: "topic_1" },
     ]), scene(), conversation());
     expect(byRef).toMatchObject({ status: "resolved", bindings: [{ resolution: "resolved", resolvedRef: "topic_1" }] });
 
-    const absent = resolveQuestionPlanBindings(plan([
+    // T6 acceptance, series 6: an unresolvable topic stays speakable as a
+    // memory (resolved without a handle) instead of vanishing — conversation
+    // topics live in the transcript and testimony, which answer by surface,
+    // while scene sources gap honestly.
+    const memory = resolveQuestionPlanBindings(plan([
       { id: "whale", surface: "кит", kind: "topic" },
     ]), scene(), conversation());
-    expect(absent).toMatchObject({ status: "resolved", bindings: [{ resolution: "absent" }] });
+    expect(memory).toMatchObject({ status: "resolved", bindings: [{ resolution: "resolved", resolvedRef: null }] });
   });
 
   it("returns the FIRST ambiguous subject and keeps plan order otherwise", () => {

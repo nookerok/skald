@@ -201,6 +201,53 @@ describe("AllowedNarrativeFacts answer-plan selection (T4)", () => {
     expect(allowed.facts.some((entry) => entry.content === "Перед тобой нет свободного прохода.")).toBe(true);
   });
 
+  it("keeps the needed portrait and mandatory refusal under saturation (T6)", () => {
+    // >24 potential facts, several NPCs, a long backstory: the covered
+    // portrait fact and the world-result refusal must both survive the cap.
+    const bulk = Array.from({ length: 30 }, (_, i) => fact(`background:${i}`, `Контекст ${i}.`, "established_fact", "background"));
+    const longBackstory = "Дорога началась задолго до переправы: " + "изгнанник шёл через burned villages, пустые разъезды и тихие броды. ".repeat(6);
+    const saturated = context({
+      knowledge: {
+        observed: bulk,
+        testimony: [
+          fact("testimony:north", "Свидетель видел знак на северной дороге.", "testimony", "testimony"),
+          fact("testimony:long", longBackstory, "testimony", "testimony"),
+        ],
+        hypotheses: [fact("hypothesis:course", "Старое русло могло уйти к развалинам.", "inference", "observation")],
+      },
+      contacts: [
+        fact("contact:keeper", "Перевозчик у переправы.", "observed_fact", "observation"),
+        fact("contact:miller", "Мельник у запруды.", "observed_fact", "observation"),
+        fact("contact:trader", "Торговец с лотком.", "observed_fact", "observation"),
+      ],
+    });
+    const plan = answerPlan([{
+      partId: "p-look",
+      aspect: "appearance",
+      coverage: "covered",
+      facts: Object.freeze([planFact("Потёртый плащ")]),
+      gapStatement: null,
+      gapStatus: null,
+    }]);
+    const refusalPlan: AnswerPlan = Object.freeze({
+      ...plan,
+      worldResults: Object.freeze(["Путь к переправе закрыт наводнением."]),
+    });
+    const allowed = buildAnswerPlanAllowedFacts({
+      context: saturated,
+      answer: "fallback paragraph",
+      answerPlan: refusalPlan,
+    });
+
+    expect(allowed.facts.length).toBeLessThanOrEqual(ALLOWED_NARRATIVE_FACTS_MAX);
+    // The needed portrait survives saturation…
+    expect(allowed.facts.some((entry) => entry.content === "Потёртый плащ")).toBe(true);
+    // …and the mandatory refusal survives both as mandatory and as a fact.
+    expect(allowed.mandatory).toContain("Путь к переправе закрыт наводнением.");
+    expect(allowed.facts.some((entry) => entry.content === "Путь к переправе закрыт наводнением.")).toBe(true);
+    expect(allowed.coverageComplete).toBe(true);
+  });
+
   it("keeps the legacy contract without a plan: the answer stays mandatory", () => {
     const allowed = buildAnswerPlanAllowedFacts({
       context: context(),
