@@ -7,6 +7,7 @@ import {
   buildBackgroundNarrativeContext,
   buildGameShellSnapshot,
   buildInquiryAnswer,
+  arrivalReasonForProfile,
   buildMasterTurnSceneContext,
   ensureGameMomentum,
   isGenericActionFallback,
@@ -208,7 +209,7 @@ export function buildMixedConversationTurn(params: {
     // and people).
     const scene = buildMasterTurnSceneContext(postEvents, params.projectedWorld).context;
     for (const inquiry of params.inquiries) {
-      inquiryTexts.push(buildInquiryAnswer(inquiry, { shell, background, scene }).answer);
+      inquiryTexts.push(buildInquiryAnswer(inquiry, { shell, background, scene, arrivalReason: arrivalReasonForProfile(params.profile) }).answer);
     }
   }
   const response = composeMasterTurnResponse({

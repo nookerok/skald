@@ -167,6 +167,33 @@ function personByRef(context: QuestionReadingContext, ref: string | null): (type
   return context.scene.context.knownPeople.find((person) => person.observerRef === ref) ?? null;
 }
 
+/**
+ * Effective match surface for text-shaped sources (T6 acceptance, series 4):
+ * the declared surface when it carries content words, else the scene label
+ * of the server-resolved referent. A pronoun («он») names whoever the
+ * binding settled, so text sources read about THAT person instead of
+ * matching the pronoun literally (a wordless surface never matches). A
+ * memory binding without a scene handle has no label and honestly matches
+ * nothing. Surfaces with content words (names, «они», «это») keep the
+ * exact previous behavior.
+ */
+function matchSurface(context: QuestionReadingContext, target: ResolvedSubject): string {
+  if (words(target.subject.surface).length > 0) return target.subject.surface;
+  const ref = target.ref;
+  if (!ref) return "";
+  const scene = context.scene.context;
+  const person = scene.knownPeople.find((entry) => entry.observerRef === ref);
+  if (person) return [person.label, ...person.knownAs].join(" ");
+  const object = scene.visibleObjects.find((entry) => entry.observerRef === ref)
+    ?? scene.accessibleItems.find((entry) => entry.observerRef === ref);
+  if (object) return [object.label, ...object.knownAs].join(" ");
+  const topic = scene.knownTopics.find((entry) => entry.observerRef === ref);
+  if (topic) return topic.text;
+  const route = scene.knownRoutes.find((entry) => entry.observerRef === ref);
+  if (route) return [route.label, ...route.knownAs].join(" ");
+  return "";
+}
+
 /** Scene item lookup by transient handle (object_N namespace). */
 function itemByRef(context: QuestionReadingContext, ref: string | null): (typeof context.scene.context.accessibleItems)[number] | null {
   if (!ref) return null;
@@ -328,8 +355,9 @@ function knownEventsAdapter(subjects: readonly ResolvedSubject[], part: Proposed
     const { subject } = target;
     const universal = subject.kind === "self" || subject.kind === "place";
     let matched = 0;
+    const match = matchSurface(context, target);
     for (const { entry, local } of entries) {
-      if (!universal && !textMentions(entry.text, subject.surface)) continue;
+      if (!universal && !textMentions(entry.text, match)) continue;
       matched += 1;
       facts.push(narrativeFact("known_events", subject.id, `${subject.id}:${local}`, entry, ["known_event"], "unspecified"));
     }
@@ -352,8 +380,9 @@ function relationsAdapter(subjects: readonly ResolvedSubject[], part: ProposedQu
     const { subject } = target;
     const self = subject.kind === "self";
     let matched = 0;
+    const match = matchSurface(context, target);
     for (const [index, entry] of narrative.contacts.entries()) {
-      if (!self && !textMentions(entry.text, subject.surface)) continue;
+      if (!self && !textMentions(entry.text, match)) continue;
       matched += 1;
       facts.push(narrativeFact("relations", subject.id, `contact:${index}`, entry, ["acquaintance_link"], "current"));
     }
@@ -421,8 +450,9 @@ function conversationTopicsAdapter(subjects: readonly ResolvedSubject[], part: P
     const { subject } = target;
     const universal = subject.kind === "self" || subject.kind === "place";
     let matched = 0;
+    const match = matchSurface(context, target);
     transcript.forEach((entry, index) => {
-      if (!universal && !textMentions(entry.text, subject.surface)) return;
+      if (!universal && !textMentions(entry.text, match)) return;
       matched += 1;
       facts.push(fact("conversation_topics", subject.id, `${subject.id}:${entry.role}:${index}`,
         entry.text, ["conversation_topic"], "established_fact", "past"));

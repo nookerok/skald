@@ -42,7 +42,7 @@ import {
 import type { AIDiagnosticSink, ChatMessage, MasterSceneReference, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld, QuestionRoundSpec } from "@skald/world";
 import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
 import type { FramedClarification } from "../conversation/types.js";
-import { bindTurnPronouns, type PronounBinding } from "../conversation/focus-stack.js";
+import { bindTurnPronouns, pronounNumber, type PronounBinding } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
 import { validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
 import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
@@ -585,6 +585,38 @@ function resolvePronounsDeterministic(
       || snapshot.conversation.recentFocus.some((focus) => focus.identity && focus.turnSeq === binding.mention!.turnSeq && focus.surface === binding.mention!.surface))) return { kind: "same" };
 
   if (binding.resolution === "ambiguous") {
+    // A lone place reference inside a question («Почему я здесь?») never
+    // forces a route choice: the question owns its place resolution (the
+    // semantic plan binds deictic «здесь» to the current location), and two
+    // same-label routes would only produce a useless «X или X» question.
+    // Multi-pronoun replicas never reach this branch (bindings.length !== 1).
+    if ((classification.kind === "inquiry" || classification.kind === "inquiry_candidate")
+      && binding.classes.length === 1
+      && binding.classes[0] === "place") {
+      return { kind: "same" };
+    }
+    // A plural entity pronoun inside a question («Как они выглядят?») never
+    // forces an early choice either: the semantic plan declares the group
+    // explicitly (members re-checked server-side), and a genuinely ambiguous
+    // grouping still clarifies at binding time with the same wording.
+    // Singular pronouns and non-questions keep the early clarification.
+    if ((classification.kind === "inquiry" || classification.kind === "inquiry_candidate")
+      && pronounNumber(binding.pronoun, binding.preposition) === "plural"
+      && binding.classes.every((entry) => entry === "person" || entry === "thing")) {
+      return { kind: "same" };
+    }
+    // A topic pronoun pinned to a content noun («этот знак») is a
+    // determiner, not an anaphor: the noun carries the meaning for the
+    // plan-declared subject, so never force a topic choice here. A bare
+    // topic pronoun («Что об этом известно?») keeps the early
+    // clarification when several topics compete.
+    if ((classification.kind === "inquiry" || classification.kind === "inquiry_candidate")
+      && binding.classes.length === 1
+      && binding.classes[0] === "topic") {
+      const words = input.toLowerCase().split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0);
+      const pinned = words.some((word, index) => word === binding.pronoun && (words[index + 1]?.length ?? 0) >= 3);
+      if (pinned) return { kind: "same" };
+    }
     // A topic pronoun ("сделаю это") with a mention naming a scene
     // person/object means the discussed referent — not one of the knowledge
     // sentences. Ask about it with the same wording as a settled topic.
@@ -667,6 +699,17 @@ function resolvePronounsDeterministic(
     // own place resolution (semantic question plan, T3), so never ask
     // «куда именно» for a question turn.
     if (hasPlace && (classification.kind === "inquiry" || classification.kind === "inquiry_candidate")) {
+      return { kind: "same" };
+    }
+    // A plural entity pronoun inside a question («Как они выглядят?») never
+    // asks here either: the number filter legitimately empties
+    // masculine-singular labels that a group question still means, and the
+    // semantic plan declares the group explicitly (genuinely absent groups
+    // settle as absent/memory at binding time). Singular pronouns keep the
+    // specific question; non-questions are untouched.
+    if ((classification.kind === "inquiry" || classification.kind === "inquiry_candidate")
+      && !hasTopic && !hasPlace
+      && pronounNumber(binding.pronoun, binding.preposition) === "plural") {
       return { kind: "same" };
     }
     // Person/thing pronouns inside a larger compound (e.g. "Подойду к ней

@@ -35,6 +35,7 @@ import {
   localizedPlayerText,
   WorldProjector,
   buildInquiryAnswer,
+  arrivalReasonForProfile,
   getCharacterBackground,
   getRegionEntrypoint,
   resolveInteractionTarget,
@@ -1156,7 +1157,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const sceneSnapshot = buildMasterTurnSceneContext(events, world);
         const scene = sceneSnapshot.context;
-        const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene });
+        const inquiry = buildInquiryAnswer(inquiryRequest, { shell, background, scene, arrivalReason: arrivalReasonForProfile(profile) });
         // A focused question records the referent it names (full-master
         // Stage 4): the deterministic answer leaves the same semantic hook an
         // accepted plan does, so a later pronoun can continue the topic.
@@ -1347,7 +1348,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const background = buildBackgroundNarrativeContext(events, world, profile);
         const sceneSnapshot = buildMasterTurnSceneContext(events, world);
         const scene = sceneSnapshot.context;
-        const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background, scene });
+        const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background, scene, arrivalReason: arrivalReasonForProfile(profile) });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
         return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
       }
@@ -2199,7 +2200,7 @@ async function runValidatedMasterTurnResponse(
     const background = buildBackgroundNarrativeContext(events, world, profile);
     const sceneSnapshot = buildMasterTurnSceneContext(events, world);
     const scene = sceneSnapshot.context;
-    const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene }));
+    const inquiries = inquiryRequests.map((inquiryRequest) => buildInquiryAnswer(inquiryRequest, { shell, background, scene, arrivalReason: arrivalReasonForProfile(profile) }));
     // One bounded reading round on THIS snapshot (semantic-question-plan T3):
     // a read-only plan executes nothing, so interpretation and answer read
     // the same consistent state.

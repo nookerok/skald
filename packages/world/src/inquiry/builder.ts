@@ -3,7 +3,20 @@ import { sameRussianStem } from "@skald/intent-parser";
 import type { GameShellSnapshot } from "../game-shell/types.js";
 import type { BackgroundNarrativeContext } from "../setup/background-context.js";
 import type { MasterTurnSceneContext } from "../master-turn/observer-context.js";
+import { getCharacterBackground } from "../setup/character-presets.js";
 import type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler, InquiryShownList } from "./types.js";
+
+/**
+ * The hero's given arrival reason for a character profile, or null when the
+ * background is unknown (T6 acceptance, series 1). Pure lookup over the
+ * static background catalog — never inferred from the player's phrasing.
+ */
+export function arrivalReasonForProfile(profile: { readonly background_id?: string | null } | null): string | null {
+  const backgroundId = profile?.background_id?.trim() ?? "";
+  if (!backgroundId) return null;
+  const reason = getCharacterBackground(backgroundId)?.reasonInRegion?.trim() ?? "";
+  return reason.length > 0 ? reason : null;
+}
 
 function revision(shell: GameShellSnapshot): InquiryAnswerDTO["revision"] {
   return { ...shell.revision };
@@ -208,6 +221,11 @@ function buildCharacterIdentity(_request: InquiryRequest, context: InquiryReadCo
   if (background?.title) parts.push(`Твоя предыстория: ${background.title}.`);
   if (shell.character.wound) parts.push(`С тобой осталось: ${shell.character.wound}`);
   if (shell.character.promise) parts.push(`Твоё обязательство: ${shell.character.promise}`);
+  // Origin belongs to identity (T6 acceptance, series 1): an arrival-shaped
+  // question is answered with the given reason, uniformly for every identity
+  // phrasing — the reason comes from the background, never from a phrasing regex.
+  const arrival = context.arrivalReason?.trim() ?? "";
+  if (arrival.length > 0) parts.push(`Твой путь сюда: ${arrival}`);
   return answer("character_identity", parts.join(" "), shell);
 }
 

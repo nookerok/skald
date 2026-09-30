@@ -12,6 +12,13 @@ export interface InquiryReadContext {
    * scene they honestly report nobody distinguishable.
    */
   readonly scene?: MasterTurnSceneContext | null | undefined;
+  /**
+   * The hero's given arrival reason (T6 acceptance, series 1): the identity
+   * answer carries origin alongside role so «Как я здесь оказался?» is
+   * answered with the arrival story, not just the name. Resolved by the
+   * caller from the character background — never from the phrasing.
+   */
+  readonly arrivalReason?: string | null | undefined;
 }
 
 /**

@@ -100,7 +100,11 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^что\s+(?:здесь\s+)?произошло/iu,
     /^что\s+случилось/iu,
     /^что\s+сейчас\s+происходит/iu,
-    /^почему\s+ты\s+(?:упомянул|сказал|говорил|назвал)/iu,
+    // NOTE (T6 acceptance, series 6): «почему ты упомянул/сказал…» is a
+    // question about the interlocutor's speech, not the event chronicle —
+    // the deterministic chronicle cannot see the conversation, so these
+    // replicas stay candidates for the semantic plan (conversation_topics).
+    // Offline they clarify honestly instead of serving an unrelated chronicle.
   ]],
   ["inventory", [
     /^что\s+у\s+меня\s+(?:с\s+собой|есть)/iu,

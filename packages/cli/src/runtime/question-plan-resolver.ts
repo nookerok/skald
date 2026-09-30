@@ -305,6 +305,14 @@ function bindSubject(
   if (remembered) {
     return { binding: { subject, resolution: "resolved", resolvedRef: null } };
   }
+  // T6 acceptance, series 6: an unresolvable TOPIC stays speakable as a
+  // memory instead of vanishing — conversation topics live in the
+  // transcript and testimony, not the scene, so text sources answer by
+  // surface while scene sources gap honestly. Entities keep honest absent
+  // (a named-but-unknown entity is not a conversation subject).
+  if (subject.kind === "topic") {
+    return { binding: { subject, resolution: "resolved", resolvedRef: null } };
+  }
   return { binding: { subject, resolution: "absent", resolvedRef: null } };
 }
 

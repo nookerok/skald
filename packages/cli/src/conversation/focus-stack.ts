@@ -131,7 +131,7 @@ function classesFor(pronoun: string): readonly FocusReferenceClass[] | null {
  * case-ambiguous (instrumental singular vs dative plural) and stay neutral;
  * a preposition disambiguates "ним" ("к ним" is plural, "с ним" singular).
  */
-type PronounNumber = "singular" | "plural" | null;
+export type PronounNumber = "singular" | "plural" | null;
 
 const SINGULAR_PRONOUNS: ReadonlySet<string> = new Set([
   "он", "она", "оно",
@@ -148,7 +148,8 @@ const PLURAL_PRONOUNS: ReadonlySet<string> = new Set([
 const PLURAL_NIM_PREPOSITIONS: ReadonlySet<string> = new Set(["к", "ко"]);
 const SINGULAR_NIM_PREPOSITIONS: ReadonlySet<string> = new Set(["с", "со", "под", "над", "перед", "между"]);
 
-function pronounNumber(pronoun: string, preposition: string | null): PronounNumber {
+/** Grammatical number of a pronoun form (T6: plural entity pronouns in questions defer to the plan-declared group). */
+export function pronounNumber(pronoun: string, preposition: string | null): PronounNumber {
   if (SINGULAR_PRONOUNS.has(pronoun)) return "singular";
   if (PLURAL_PRONOUNS.has(pronoun)) return "plural";
   if (pronoun === "ним" && preposition) {
