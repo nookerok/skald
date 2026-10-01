@@ -1389,6 +1389,11 @@ export async function interpretMasterTurn(
     correlationId: options?.correlationId,
     worldTime: options?.worldTime,
     durationMs: Math.round(performance.now() - startedAt),
+    // Closed-token structure of the ACCEPTED plan (T6 R1): which sources the
+    // model actually declared — the last blind spot after a repair round
+    // (round 1 fixed an unrelated key while keeping a scene-source appearance
+    // part, which the live answer then honestly gapped).
+    ...proposalStructureDims(parsed),
   });
 
   const staticCheck = validateTurnProposal(parsed);
@@ -1419,7 +1424,7 @@ export async function interpretMasterTurn(
       outcome: "invalid",
       phase: "schema_validation",
       failureCategory: shapeFailureCategory(staticCheck),
-      ...rejectedProposalDims(parsed),
+      ...proposalStructureDims(parsed),
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
@@ -1528,14 +1533,15 @@ function shapeFailureCategory(check: { readonly code: string; readonly shapeCode
 }
 
 /**
- * Sanitized structural dimensions of a rejected proposal (T6 R1/R2): the
+ * Sanitized structural dimensions of one proposal (T6 R1/R2): the
  * closed-token questionPlan summary plus the boolean/count ambiguity
- * summary. Nothing here carries a surface, an id or any other free text —
- * the privacy invariant (no player text, prompts or provider responses in
- * diagnostics) is untouched, while the log still answers "model error vs
- * over-strict contract" for both the plan and the ambiguity field.
+ * summary — for REJECTED replies and for the accepted reply after a repair
+ * round alike. Nothing here carries a surface, an id or any other free
+ * text — the privacy invariant (no player text, prompts or provider
+ * responses in diagnostics) is untouched, while the log answers "model
+ * error vs over-strict contract" for both the plan and the ambiguity field.
  */
-function rejectedProposalDims(parsed: unknown): Pick<MasterTurnDiagnosticDimensions,
+function proposalStructureDims(parsed: unknown): Pick<MasterTurnDiagnosticDimensions,
   "planSubjectKinds" | "planAspects" | "planSources" | "planSubjectCount" | "planPartCount"
   | "planReadingCount" | "planGroupWithoutMembers" | "planOrdinalWithoutList"
   | "planReadingsDangling" | "planOverLimits"
@@ -1610,7 +1616,7 @@ function repairDecisionFor(raw: unknown): RepairDecision | null {
         outcome: "invalid",
         phase: "first_reply_validation",
         failureCategory: shapeFailureCategory(check),
-        ...rejectedProposalDims(parsed),
+        ...proposalStructureDims(parsed),
       },
     };
   }
