@@ -93,6 +93,15 @@ export interface MasterTurnDiagnosticDimensions {
   readonly planOrdinalWithoutList?: number | undefined;
   readonly planReadingsDangling?: number | undefined;
   readonly planOverLimits?: string | undefined;
+  /**
+   * Sanitized rejected-ambiguity structure (T6 R1/R2): counts and booleans
+   * from summarizeRejectedAmbiguity — never the question or candidates.
+   */
+  readonly ambKeyCount?: number | undefined;
+  readonly ambKindValid?: boolean | undefined;
+  readonly ambQuestionIsString?: boolean | undefined;
+  readonly ambCandidateCount?: number | undefined;
+  readonly ambCandidatesAllStrings?: boolean | undefined;
   readonly hasPendingClarification?: boolean | undefined;
   readonly hasGoal?: boolean | undefined;
   readonly hasDramaticThread?: boolean | undefined;
@@ -156,6 +165,11 @@ export function emitMasterTurnDiagnostic(
       ...(asCount(dimensions.planOrdinalWithoutList) !== undefined ? { planOrdinalWithoutList: asCount(dimensions.planOrdinalWithoutList)! } : {}),
       ...(asCount(dimensions.planReadingsDangling) !== undefined ? { planReadingsDangling: asCount(dimensions.planReadingsDangling)! } : {}),
       ...(asText(dimensions.planOverLimits, 32) ? { planOverLimits: asText(dimensions.planOverLimits, 32)! } : {}),
+      ...(asCount(dimensions.ambKeyCount) !== undefined ? { ambKeyCount: asCount(dimensions.ambKeyCount)! } : {}),
+      ...(typeof dimensions.ambKindValid === "boolean" ? { ambKindValid: dimensions.ambKindValid } : {}),
+      ...(typeof dimensions.ambQuestionIsString === "boolean" ? { ambQuestionIsString: dimensions.ambQuestionIsString } : {}),
+      ...(asCount(dimensions.ambCandidateCount) !== undefined ? { ambCandidateCount: asCount(dimensions.ambCandidateCount)! } : {}),
+      ...(typeof dimensions.ambCandidatesAllStrings === "boolean" ? { ambCandidatesAllStrings: dimensions.ambCandidatesAllStrings } : {}),
       ...(typeof dimensions.hasPendingClarification === "boolean" ? { hasPendingClarification: dimensions.hasPendingClarification } : {}),
       ...(typeof dimensions.hasGoal === "boolean" ? { hasGoal: dimensions.hasGoal } : {}),
       ...(typeof dimensions.hasDramaticThread === "boolean" ? { hasDramaticThread: dimensions.hasDramaticThread } : {}),

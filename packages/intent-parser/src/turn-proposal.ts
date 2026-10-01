@@ -603,3 +603,38 @@ export function diagnoseTurnProposalShape(raw: unknown): ProposalShapeDiagnosis 
   }
   return { code: "nested_invalid" };
 }
+
+/**
+ * Sanitized structural summary of a rejected `ambiguity` field (T6 R1/R2
+ * diagnostics): counts and booleans ONLY — the question, candidate strings
+ * and every other free text never leave this function, so the summary is
+ * safe for the operational diagnostic log. It pinpoints which strict rule
+ * failed: key count (exactly kind/question/candidates), the closed kind
+ * enum, a non-string question, the 1-{@link TURN_MAX_CANDIDATES} candidate
+ * range, or non-string candidate entries. Absent/odd ambiguity reports
+ * `hasAmbiguity: false`.
+ */
+export interface RejectedAmbiguitySummary {
+  readonly hasAmbiguity: boolean;
+  readonly keyCount: number;
+  readonly kindValid: boolean;
+  readonly questionIsString: boolean;
+  readonly candidateCount: number;
+  readonly candidatesAllStrings: boolean;
+}
+
+export function summarizeRejectedAmbiguity(raw: unknown): RejectedAmbiguitySummary {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return Object.freeze({ hasAmbiguity: false, keyCount: 0, kindValid: false, questionIsString: false, candidateCount: 0, candidatesAllStrings: false });
+  }
+  const candidate = raw as Record<string, unknown>;
+  const candidates = Array.isArray(candidate.candidates) ? candidate.candidates : [];
+  return Object.freeze({
+    hasAmbiguity: true,
+    keyCount: Object.keys(candidate).length,
+    kindValid: isAmbiguityKind(candidate.kind),
+    questionIsString: typeof candidate.question === "string",
+    candidateCount: candidates.length,
+    candidatesAllStrings: candidates.every((entry) => typeof entry === "string"),
+  });
+}

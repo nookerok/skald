@@ -24,6 +24,7 @@ import {
   parseIntent,
   sameRussianStem,
   stemRussianToken,
+  summarizeRejectedAmbiguity,
   summarizeRejectedPlan,
   unclearPrimaryAction,
   unknownObservedTarget,
@@ -47,7 +48,7 @@ import { bindTurnPronouns, pronounNumber, type PronounBinding } from "../convers
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
 import { validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
 import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
-import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
+import { emitMasterTurnDiagnostic, type MasterTurnDiagnosticDimensions } from "./master-turn-diagnostics.js";
 import {
   clarificationFromDeterministic,
   fallbackForDeterministic,
@@ -1401,35 +1402,16 @@ export async function interpretMasterTurn(
     });
   }
   if (staticCheck.status === "invalid") {
-    // Sanitized rejected-plan structure (T6 R1/R2): counts and closed
-    // tokens only — never surfaces, ids or free text — so the log answers
-    // "model error vs over-strict contract" without touching the privacy
-    // invariant (no player text, prompts or responses in diagnostics).
-    const rejected = summarizeRejectedPlan(
-      (parsed as Record<string, unknown>).questionPlan,
-      (parsed as Record<string, unknown>).readings,
-    );
-    const overLimits = ["subjects", "parts", "readings"].filter((key) =>
-      (key === "subjects" && rejected.subjectsOverLimit)
-      || (key === "parts" && rejected.partsOverLimit)
-      || (key === "readings" && rejected.readingsOverLimit));
+    // Sanitized rejected structure (T6 R1/R2): closed-token plan summary
+    // plus boolean/count ambiguity summary — never surfaces, ids or free
+    // text — so the log answers "model error vs over-strict contract"
+    // without touching the privacy invariant.
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "proposal_schema_rejected",
       outcome: "invalid",
       phase: "schema_validation",
       failureCategory: shapeFailureCategory(staticCheck),
-      ...(rejected.hasPlan ? {
-        planSubjectKinds: rejected.subjectKinds.join(","),
-        planAspects: rejected.aspects.join(","),
-        planSources: rejected.sources.join(","),
-        planSubjectCount: rejected.subjectCount,
-        planPartCount: rejected.partCount,
-        planReadingCount: rejected.readingCount,
-        planGroupWithoutMembers: rejected.groupWithoutMembers,
-        planOrdinalWithoutList: rejected.ordinalWithoutList,
-        planReadingsDangling: rejected.readingsDangling,
-        ...(overLimits.length > 0 ? { planOverLimits: overLimits.join(",") } : {}),
-      } : {}),
+      ...rejectedProposalDims(parsed),
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
@@ -1538,24 +1520,91 @@ function shapeFailureCategory(check: { readonly code: string; readonly shapeCode
 }
 
 /**
+ * Sanitized structural dimensions of a rejected proposal (T6 R1/R2): the
+ * closed-token questionPlan summary plus the boolean/count ambiguity
+ * summary. Nothing here carries a surface, an id or any other free text —
+ * the privacy invariant (no player text, prompts or provider responses in
+ * diagnostics) is untouched, while the log still answers "model error vs
+ * over-strict contract" for both the plan and the ambiguity field.
+ */
+function rejectedProposalDims(parsed: unknown): Pick<MasterTurnDiagnosticDimensions,
+  "planSubjectKinds" | "planAspects" | "planSources" | "planSubjectCount" | "planPartCount"
+  | "planReadingCount" | "planGroupWithoutMembers" | "planOrdinalWithoutList"
+  | "planReadingsDangling" | "planOverLimits"
+  | "ambKeyCount" | "ambKindValid" | "ambQuestionIsString" | "ambCandidateCount" | "ambCandidatesAllStrings"> {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  const candidate = parsed as Record<string, unknown>;
+  const plan = summarizeRejectedPlan(candidate.questionPlan, candidate.readings);
+  const amb = candidate.ambiguity !== undefined ? summarizeRejectedAmbiguity(candidate.ambiguity) : null;
+  const overLimits = ["subjects", "parts", "readings"].filter((key) =>
+    (key === "subjects" && plan.subjectsOverLimit)
+    || (key === "parts" && plan.partsOverLimit)
+    || (key === "readings" && plan.readingsOverLimit));
+  return {
+    ...(plan.hasPlan ? {
+      planSubjectKinds: plan.subjectKinds.join(","),
+      planAspects: plan.aspects.join(","),
+      planSources: plan.sources.join(","),
+      planSubjectCount: plan.subjectCount,
+      planPartCount: plan.partCount,
+      planReadingCount: plan.readingCount,
+      planGroupWithoutMembers: plan.groupWithoutMembers,
+      planOrdinalWithoutList: plan.ordinalWithoutList,
+      planReadingsDangling: plan.readingsDangling,
+      ...(overLimits.length > 0 ? { planOverLimits: overLimits.join(",") } : {}),
+    } : {}),
+    ...(amb?.hasAmbiguity ? {
+      ambKeyCount: amb.keyCount,
+      ambKindValid: amb.kindValid,
+      ambQuestionIsString: amb.questionIsString,
+      ambCandidateCount: amb.candidateCount,
+      ambCandidatesAllStrings: amb.candidatesAllStrings,
+    } : {}),
+  };
+}
+
+/** One repair decision: the note to the model plus its own diagnostic. */
+interface RepairDecision {
+  readonly note: string;
+  readonly dims: MasterTurnDiagnosticDimensions;
+}
+
+/**
  * Derives a repair note for one raw proposal, or null when the reply is
  * usable as-is. Accepted and clarification outcomes never repair; only a
  * statically invalid reply gets exactly one correction round carrying the
  * sanitized rejection reason (closed server vocabulary, never player text).
+ * The decision carries the diagnostic for THAT first reply — previously the
+ * round-1 rejection was invisible in the log (T6 R1/R2 observability).
  */
-function repairNoteFor(raw: unknown): string | null {
+function repairDecisionFor(raw: unknown): RepairDecision | null {
   let parsed: unknown;
   try {
     parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   } catch {
-    return "Your previous reply was not JSON. Return ONLY corrected TurnProposalV2 JSON.";
+    return {
+      note: "Your previous reply was not JSON. Return ONLY corrected TurnProposalV2 JSON.",
+      dims: { category: "proposal_schema_rejected", outcome: "invalid", phase: "response_decode", failureCategory: "shape:not_json" },
+    };
   }
   if (!parsed || typeof parsed !== "object") {
-    return "Your previous reply was not a JSON object. Return ONLY corrected TurnProposalV2 JSON.";
+    return {
+      note: "Your previous reply was not a JSON object. Return ONLY corrected TurnProposalV2 JSON.",
+      dims: { category: "proposal_schema_rejected", outcome: "invalid", phase: "response_decode", failureCategory: "shape:not_object" },
+    };
   }
   const check = validateTurnProposal(parsed);
   if (check.status === "invalid") {
-    return `Your previous reply was rejected (${check.code}: ${check.reason}). Return ONLY corrected TurnProposalV2 JSON with the exact top-level keys.`;
+    return {
+      note: `Your previous reply was rejected (${check.code}: ${check.reason}). Return ONLY corrected TurnProposalV2 JSON with the exact top-level keys.`,
+      dims: {
+        category: "proposal_schema_rejected",
+        outcome: "invalid",
+        phase: "first_reply_validation",
+        failureCategory: shapeFailureCategory(check),
+        ...rejectedProposalDims(parsed),
+      },
+    };
   }
   return null;
 }
@@ -1576,13 +1625,21 @@ async function requestProposal(
   onRepair: () => void,
 ): Promise<unknown> {
   const first = await proposeTurn(router, input, snapshot, options);
-  const note = repairNoteFor(first);
-  if (!note) return first;
+  const decision = repairDecisionFor(first);
+  if (!decision) return first;
+  // The round-1 rejection is logged with its sanitized structural dims
+  // before the correction round — the repair itself was previously a black
+  // box (T6 R1/R2: what exactly did the model get wrong first?).
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    ...decision.dims,
+    ...(options?.correlationId ? { correlationId: options.correlationId } : {}),
+    ...(Number.isFinite(options?.worldTime) ? { worldTime: options!.worldTime } : {}),
+  });
   onRepair();
   const remaining = Math.max(1, Math.floor(budgetMs - (performance.now() - startedAt)));
   return proposeTurn(router, input, snapshot, {
     ...options,
-    repairNote: note,
+    repairNote: decision.note,
     assistantPrefill: typeof first === "string" ? first.slice(0, 2000) : null,
     timeoutMs: remaining,
   });

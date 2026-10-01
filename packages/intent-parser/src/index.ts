@@ -96,6 +96,7 @@ export {
   diagnoseTurnProposalShape,
   isTurnQueryId,
   parseTurnProposal,
+  summarizeRejectedAmbiguity,
 } from "./turn-proposal.js";
 export type {
   ProposalShapeCode,
@@ -105,6 +106,7 @@ export type {
   ProposedInquiry,
   ProposedMeta,
   ProposedQuestion,
+  RejectedAmbiguitySummary,
   ProposedReferent,
   ProposedSpeech,
   SupportingClause,
