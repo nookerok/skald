@@ -317,3 +317,27 @@ describe("targetFromObject — adapter over the physical model", () => {
     expect(target.worldObject).toBe(object);
   });
 });
+
+describe("resolveInteractionTarget — region contacts across the canon coordinate gap (live playtest)", () => {
+  // Live playtest finding: the player spawns at (0,0) while canon contacts
+  // stand at region coordinates (9500,5000). The coordinate-only proximity
+  // check made every region NPC untargetable — the master answered «рядом
+  // стоит староста» (presence by contact location) while «я подхожу к
+  // старосте» died as «не удаётся связать с тем, что видно». Contact presence
+  // now follows the SAME rule as the observer context.
+  const southernWorld = (): ReadonlyWorld =>
+    rebuildProjection(buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" })).getSnapshot();
+
+  it("resolves a same-location contact far outside the player grid", () => {
+    const world = southernWorld();
+    expect(world.player).toEqual({ x: 0, y: 0 });
+    expect(resolveInteractionTarget(world, "approach", "Староста южного посада").kind).toBe("resolved");
+    // The declined short form from the replica binds too.
+    expect(resolveInteractionTarget(world, "approach", "старосте").kind).toBe("resolved");
+  });
+
+  it("still refuses a contact of another location", () => {
+    const world = southernWorld();
+    expect(resolveInteractionTarget(world, "approach", "Перевозчик у переправы").kind).toBe("missing");
+  });
+});

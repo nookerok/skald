@@ -546,3 +546,70 @@ describe("T6 question-replica execution guard (T6 challenge)", () => {
     }
   });
 });
+
+describe("T6 region contact playtest — «я подхожу к старосте» starts", () => {
+  // Live playtest: spawning at southern_borough left the player at (0,0)
+  // while the Староста stands at canon coordinates (9500,5000); the
+  // advisory target resolver's coordinate-only proximity check rejected the
+  // approach with «не удаётся связать с тем, что видно» even though the
+  // master answered «рядом стоит староста». Contact presence now follows the
+  // observer context (contact location), so this exact replica proceeds.
+  it("[deferred] approaches a same-location NPC across the canon coordinate gap", async () => {
+    const store = createMultiWorldStore(join(mkdtempSync(join(tmpdir(), "skald-t6-south-")), "events.sqlite"));
+    const worldId = "t6-south";
+    store.createWorld({
+      worldId,
+      idempotencyKey: `create-${worldId}`,
+      requestHash: `hash-${worldId}`,
+      saveLabel: "T6 south playtest",
+      characterName: "Tester",
+      characterPresetId: "wanderer",
+      worldTemplateId: "living_region",
+      characterWound: "none",
+      characterPromise: "observe",
+      characterPrinciple: "care",
+      characterProfileVersion: 1,
+      bootstrapEvents: buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" }),
+    });
+    // Faithful reproduction of the live sequence: turn 1 («что я знаю о
+    // старосте?») is answered deterministically and records the Староста
+    // focus mention — that mention is what primes «него» in turn 2, exactly
+    // as in the player's session. Turn 2 is the approach reply as observed
+    // live (kind mixed, one target referent, manner + goal clauses).
+    const mixedProposal = {
+      schemaVersion: 2,
+      kind: "mixed",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "я подхожу к старосте" },
+      supportingClauses: [
+        { kind: "manner", value: "дружелюбно" },
+        { kind: "constraint", value: "разузнать о городе" },
+      ],
+      target: { role: "target", observerRef: "person_1", surface: "Староста южного посада" },
+      referents: [{ role: "target", observerRef: "person_1", surface: "Староста южного посада" }],
+    };
+    const runtime: WorldRuntime = await new WorldRuntimeManager(store, scriptedRouter([mixedProposal])).get(worldId);
+    try {
+      // Turn 1: deterministic answer records the focus mention.
+      const primed = parse(await handleWorldCommand(runtime, {
+        input: "что я знаю о старосте?",
+        idempotencyKey: "t6-south-q",
+      }));
+      expect(primed.ok).toBe(true);
+      const mentions = store.getConversationTurn(worldId, "t6-south-q")?.contextMetadata?.mentions ?? [];
+      expect(mentions.some((entry: any) => entry.kind === "person" && entry.label === "Староста южного посада")).toBe(true);
+
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, {
+        input: "я подхожу к старосте, веду себя дружелюбно, пытаюсь разузнать у него о городе",
+        idempotencyKey: "t6-south-1",
+      }));
+
+      expect(response.ok).toBe(true);
+      expect(JSON.stringify(response)).not.toContain("удаётся связать");
+      expect(response.conversationTurn?.inputClass).not.toBe("clarification");
+      expect(runtime.bus.query().length).toBeGreaterThan(eventsBefore);
+    } finally {
+      store.close();
+    }
+  });
+});
