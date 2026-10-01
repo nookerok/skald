@@ -1110,6 +1110,32 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(dump).not.toContain("Какой именно");
   });
 
+  it("emits closed-token structure dims for the accepted plan (T6 R1)", async () => {
+    const snap = snapshot();
+    const router = routerReturning(JSON.stringify(proposalReturning({
+      questionPlan: {
+        subjects: [{ id: "me", surface: "я", kind: "self" }],
+        parts: [{ id: "p", subjectRefs: ["me"], aspect: "background_arrival", time: "past", purpose: "explain" }],
+      },
+      readings: [{ partId: "p", source: "background_arrival" }],
+    })));
+    const seen: any[] = [];
+    await interpretMasterTurn("Где я и что здесь происходит?", snap, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    const received = seen.find((event) => event.category === "turn_proposal_received");
+    expect(received).toMatchObject({
+      planSubjectKinds: "self",
+      planAspects: "background_arrival",
+      planSources: "background_arrival",
+      planSubjectCount: 1,
+      planPartCount: 1,
+      planReadingCount: 1,
+    });
+    expect(JSON.stringify(seen)).not.toContain("Где я и что здесь происходит");
+  });
+
   it("turns an ambiguous subject binding into a clarification instead of a round", async () => {
     const snap = snapshot();
     const scene = {

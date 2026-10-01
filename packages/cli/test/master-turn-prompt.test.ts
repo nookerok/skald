@@ -186,6 +186,10 @@ describe("master turn prompt contract", () => {
     // before (live R1 round-2 died on nested_invalid:ambiguity).
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("ambiguity is EXACTLY");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("any other ambiguity shape rejects the reply");
+    // Live R1: the model served appearance from source scene (honest gaps
+    // both parts) — the aspect→source mapping is now explicit.
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("readings source must match where the data lives");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("appearance → person");
   });
 
   it("advertises the closed listRef vocabulary for shown lists (T5)", () => {
