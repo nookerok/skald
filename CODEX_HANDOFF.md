@@ -18,8 +18,13 @@
   human PENDING. Report: t6-browser-qa artifact + C:/Temp/opencode/skald-qa/.
 - Corpus split + per-series metrics recorded in the T6 artifact (dev vs
   deferred sets, calls, verdicts table).
-- Still needs the user: human acceptance run checklist + live/API verdict
-  (Orange Pi deploy requires explicit authorization — not requested yet).
+- Live/API leg PASS 2026-10-01: deployed `dc083fa` via updater (backup,
+  integrity, tests, restart, health gate), loopback intent/narration
+  contract passed, ten-turn scratch-world smoke green (200s, ticks exact,
+  replay + 409 verified). Evidence in the T6 artifact.
+- Still needs the user: human acceptance run checklist (arrival trio,
+  group follow-up, ordinal→reload→pronoun, mixed refusal, hostile input).
+  T6 closes on the human run.
 
 # Current work (2026-09-29 — semantic-question-plan T5 closed)
 
