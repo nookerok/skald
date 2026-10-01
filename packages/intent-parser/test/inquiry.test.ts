@@ -91,3 +91,26 @@ describe("spatial focus questions", () => {
     expect(result.inquiry.source).toBe("deterministic");
   });
 });
+
+describe("original ordinal phrasings route to the semantic interpreter (T6)", () => {
+  it.each([
+    "Первый перевозчик",
+    "Расскажи про первого перевозчика",
+    "Расскажи о первом",
+    "Расскажи про погоду",
+    "Опиши, как он выглядит",
+  ])("%j is a free question, not an action", (input) => {
+    expect(classifyPlayerInput(input, parseIntent).kind).toBe("inquiry_candidate");
+  });
+
+  it("keeps addressing, greetings and recognised directives executable", () => {
+    expect(classifyPlayerInput("Спрошу перевозчика, что он делает", parseIntent).kind).toBe("speech");
+    expect(classifyPlayerInput("Спроси перевозчика, где дорога?", parseIntent).kind).toBe("speech");
+    expect(classifyPlayerInput("Скажи привет", parseIntent).kind).toBe("action");
+    expect(classifyPlayerInput("Подойди к ограде", parseIntent).kind).toBe("action");
+    // A recognised directive stays an action even behind an ordinal lead.
+    expect(classifyPlayerInput("Второй раз осматриваюсь", parseIntent).kind).toBe("action");
+    // A pattern-matched request still answers deterministically.
+    expect(classifyPlayerInput("Расскажи, где я", parseIntent).kind).toBe("inquiry");
+  });
+});

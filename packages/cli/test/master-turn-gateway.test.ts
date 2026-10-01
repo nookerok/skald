@@ -1110,6 +1110,62 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(dump).not.toContain("Какой именно");
   });
 
+  it("never executes a speech reply for a pure question (T6 negative regression)", async () => {
+    const snap = snapshot();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "привет", sourceText: "Что делает первый перевозчик?" },
+      supportingClauses: [],
+      addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Перевозчик" },
+      referents: [{ role: "addressee", observerRef: "person_1", surface: "Перевозчик" }],
+    }));
+    const seen: any[] = [];
+    const result = await interpretMasterTurn("Что делает первый перевозчик?", snap, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    // Round 1 gets the corrective note; the stubborn round-2 reply hits the
+    // hard guard — either way nothing executes and no plan is produced.
+    expect(result.status).toBe("clarification");
+    if (result.status === "clarification") {
+      expect(result.question.length).toBeGreaterThan(0);
+    }
+    const guard = seen.filter((event) => event.category === "proposal_schema_rejected" && event.failureCategory === "question_replica_action");
+    expect(guard.length).toBeGreaterThanOrEqual(1);
+    expect(router.chat).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps addressing a person executable (T6 positive control)", async () => {
+    const snap = snapshot();
+    const references = new Map(snap.scene.references);
+    references.set("person_1", { kind: "person", internalId: "ferryman", label: "Перевозчик" });
+    const scene = {
+      ...snap.scene,
+      references,
+      context: {
+        ...snap.scene.context,
+        knownPeople: [{ observerRef: "person_1", kind: "person" as const, label: "Перевозчик", knownAs: ["Перевозчик"], known: true }],
+      },
+    };
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "Как дела?", sourceText: "Спрошу перевозчика, что он делает" },
+      supportingClauses: [],
+      addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Перевозчик" },
+      referents: [{ role: "addressee", observerRef: "person_1", surface: "Перевозчик" }],
+    }));
+    const seen: any[] = [];
+    const result = await interpretMasterTurn("Спрошу перевозчика, что он делает", { ...snap, scene }, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution?.intent).toMatchObject({ type: "ActionIntentCommand", operation: "speak" });
+  });
+
   it("emits closed-token structure dims for the accepted plan (T6 R1)", async () => {
     const snap = snapshot();
     const router = routerReturning(JSON.stringify(proposalReturning({

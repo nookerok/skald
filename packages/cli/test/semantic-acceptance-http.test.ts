@@ -78,14 +78,15 @@ function deadRouter() {
   return { apiKey: "", chat: vi.fn(() => { throw new Error("model down"); }) } as any;
 }
 
-/** Scripted interpret: canned TurnProposalV2 per interpret call, inert otherwise. */
+/** Scripted interpret: canned TurnProposalV2 per interpret call; the last one repeats if asked again, inert otherwise. */
 function scriptedRouter(proposals: readonly unknown[]) {
   const queue = [...proposals];
+  const last = proposals[proposals.length - 1];
   return {
     apiKey: "",
     chat: vi.fn(async (category: string) => {
       if (category === "interpret") {
-        const next = queue.shift() ?? queue[queue.length - 1];
+        const next = queue.length > 0 ? queue.shift()! : last;
         return { text: typeof next === "string" ? next : JSON.stringify(next) };
       }
       return { text: "" };
@@ -482,6 +483,66 @@ describe("T6 series 8 — boundary protection over HTTP", () => {
       } finally {
         store.close();
       }
+    }
+  });
+});
+
+describe("T6 question-replica execution guard (T6 challenge)", () => {
+  const speechProposal = (sourceText: string, utterance: string) => ({
+    schemaVersion: 2,
+    kind: "speech",
+    primaryIntent: { kind: "speech", utterance, sourceText },
+    supportingClauses: [],
+    addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Перевозчик" },
+    referents: [{ role: "addressee", observerRef: "person_1", surface: "Перевозчик" }],
+  });
+
+  it("[deferred] a speech reply for a question creates nothing and moves no time", async () => {
+    const { store, runtime } = await freshRuntime("guard-q", "t6-guard-q", scriptedRouter([
+      speechProposal("Что делает первый перевозчик?", "привет"),
+    ]));
+    try {
+      const timeBefore = runtime.projection.getSnapshot().time;
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, {
+        input: "Что делает первый перевозчик?",
+        idempotencyKey: "t6-guard-q-1",
+      }));
+
+      expect(response.ok).toBe(true);
+      expect(response.status).toBe("clarification");
+      expect(response.presentation?.primary ?? null).toBeNull();
+      expect(runtime.projection.getSnapshot().time).toBe(timeBefore);
+      expect(runtime.bus.query().length).toBe(eventsBefore);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("[deferred] addressing a person stays a real speech action", async () => {
+    // Phrased without a pronoun: with two unfocused NPCs the deterministic
+    // pronoun step legitimately clarifies «он» (pre-existing, orthogonal to
+    // this guard — the gateway-level control uses the literal «что он делает»
+    // phrasing with one present person).
+    const { store, runtime } = await freshRuntime("guard-a", "t6-guard-a", scriptedRouter([
+      speechProposal("Спрошу перевозчика, как дела?", "Как дела?"),
+    ]));
+    try {
+      const timeBefore = runtime.projection.getSnapshot().time;
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, {
+        input: "Спрошу перевозчика, как дела?",
+        idempotencyKey: "t6-guard-a-1",
+      }));
+
+      expect(response.ok).toBe(true);
+      expect(response.status).not.toBe("clarification");
+      expect(response.conversationTurn).toBeDefined();
+      const advanced = runtime.projection.getSnapshot().time > timeBefore
+        || runtime.bus.query().length > eventsBefore;
+      expect(advanced).toBe(true);
+    } finally {
+      store.close();
     }
   });
 });

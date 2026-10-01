@@ -245,8 +245,11 @@ it("traces the ordinal answer focus through metadata, reload and the next pronou
   });
   const ordinalPlan = inquiryPlan(
     { subjects: [{ id: "first", surface: "первый перевозчик", kind: "ordinal", listRef: "scene_people", position: 1 }],
-      parts: [{ id: "p-look", subjectRefs: ["first"], aspect: "appearance", time: "current", purpose: "describe" }] },
-    [{ partId: "p-look", source: "person" }],
+      // Fixture mirrors the replica («Что делает…» = activity question): the
+      // test certifies the MEMORY chain, but the aspect matches the text so
+      // a served fact is semantically right (T6 review §2).
+      parts: [{ id: "p-look", subjectRefs: ["first"], aspect: "current_activity", time: "current", purpose: "describe" }] },
+    [{ partId: "p-look", source: "scene" }],
   );
   const acqPlan = inquiryPlan(
     { subjects: [{ id: "he", surface: "он", kind: "entity" }],
