@@ -22,9 +22,18 @@
   integrity, tests, restart, health gate), loopback intent/narration
   contract passed, ten-turn scratch-world smoke green (200s, ticks exact,
   replay + 409 verified). Evidence in the T6 artifact.
-- Still needs the user: human acceptance run checklist (arrival trio,
-  group follow-up, ordinal→reload→pronoun, mixed refusal, hostile input).
-  T6 closes on the human run.
+- Acceptance run on the Pi UI 2026-10-01 (agent-operated, scratch world,
+  live model, 12/15 click budget, 0 console errors): arrival trio PASS
+  (incl. live rephrase keeping the reason), nearby PASS, group follow-up
+  PASS-WITH-NOTE (model authored invalid group plan x2 → fail-closed
+  clarification, no invention), ordinal PASS, pronoun-after-reload
+  PASS-WITH-NOTE (honest ambiguity — no ordinal focus existed), mixed
+  refusal+question PASS in one live turn, hostile PASS (inert). Two notes
+  are model plan-authorship limits, not engine defects; mechanics proven
+  in-process. Evidence in the T6 artifact. Human-only feel-check optional.
+- T6 CLOSED: automated, browser, live/API and UI acceptance legs all
+  recorded. Story semantic-question-plan complete pending that optional
+  feel-check.
 
 # Current work (2026-09-29 — semantic-question-plan T5 closed)
 
