@@ -1,3 +1,26 @@
+# Current work (2026-09-30 — semantic-question-plan T6 automated + browser legs done)
+
+- T6 automated leg green: new 10-case HTTP suite
+  `packages/cli/test/semantic-acceptance-http.test.ts` (series 1–4, 6–8
+  final answers, read-only legs move no time/events) + saturation case in
+  `allowed-narrative-facts.test.ts`; `npm run validate` PASS (225 files,
+  2790 passed, 1 skipped). Commits `6f0c298` feat + `f06c06c` test, pushed.
+- Acceptance forced 4 read-side refinements (no Events/Rules): arrival
+  reason in character_identity; place/plural/determiner-topic pronoun
+  deferral in questions; topic memory; pronoun-by-label text matching;
+  speech-about-speech rerouted to the plan path. Series 2 met via PLACE
+  planning (adapter serves arrival whenever asked — T2 contract kept).
+- Browser leg (Traycer in-app fallback; fixed Codex runner not addressable):
+  local T6 server, scratch world, 5/10 click budget, all read-only sends.
+  Browser PASS (menu/return/feed/panels/reload, arrival+nearby bubbles,
+  hostile input inert, knowledge panel clean, 0 console errors);
+  visual BLOCKED (screenshots hung), provider BLOCKED (model-down server),
+  human PENDING. Report: t6-browser-qa artifact + C:/Temp/opencode/skald-qa/.
+- Corpus split + per-series metrics recorded in the T6 artifact (dev vs
+  deferred sets, calls, verdicts table).
+- Still needs the user: human acceptance run checklist + live/API verdict
+  (Orange Pi deploy requires explicit authorization — not requested yet).
+
 # Current work (2026-09-29 — semantic-question-plan T5 closed)
 
 - T5 implementation committed and pushed: `3f5158f` feat (shown-answer
