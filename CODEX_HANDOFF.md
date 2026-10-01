@@ -1,3 +1,27 @@
+# Current work (2026-10-01 — semantic-question-plan T6 closed after challenge round 2)
+
+- Challenge round 2 accepted and fully discharged (commits `cab6e52` +
+  `af8dba4`, deployed `af8dba4`): the ORIGINAL ordinal phrasings
+  («Первый перевозчик», «Расскажи про первого перевозчика», «Расскажи о
+  первом») now classify as free questions (`isQuestionLikeInput` topic
+  requests; bare ordinal with unknown operation → inquiry_candidate) while
+  addressing speech and recognised directives stay executable.
+- Server-side guarantee replaces prompt-only hope: a PURE question replica
+  can no longer execute speech/action/mixed — round-1 correction note
+  (`question_replica_action`), hard guard before contextual validation, and
+  `fallbackAfterModelFailure` short-circuits pure questions (previously the
+  speak fallback bound an addressee and executed a tick — observed and
+  fixed). Negative + positive regressions in gateway and HTTP suites.
+- Live rerun with the stock model on the Pi, 1-NPC and 2-NPC worlds, exact
+  replicas: all 10 turns `inquiry_answer`, `inputClass: inquiry`,
+  `worldTime 0→0`, zero events; both chains end «А он меня знает?» →
+  link-only answer naming the ordinal's subject (ferryman / Архивист, never
+  the second live person). Full ledger in the T6 artifact «Closing pass».
+- `npm run validate` PASS (2808 passed, 1 skipped). Evidence claims in the
+  artifact softened per challenge §4 (observed-sample scope for the
+  contract/repair statements; plan-internal sub-rule recorded as unknown).
+  Prose quality remains a human judgment by design.
+
 # Current work (2026-10-01 — semantic-question-plan T6 closed after challenge rerun)
 
 - Reviewer challenge accepted: R1 (group follow-up answered live) and R2
