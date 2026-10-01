@@ -182,6 +182,10 @@ describe("master turn prompt contract", () => {
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("NEVER covered");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("A group MUST list members");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("an ordinal MUST carry listRef and position");
+    // The ambiguity object needs an exact shape the model was never given
+    // before (live R1 round-2 died on nested_invalid:ambiguity).
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("ambiguity is EXACTLY");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("any other ambiguity shape rejects the reply");
   });
 
   it("advertises the closed listRef vocabulary for shown lists (T5)", () => {

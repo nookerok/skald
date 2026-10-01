@@ -4,6 +4,7 @@ import {
   findAuthorityField,
   inferAmbiguitySlot,
   parseTurnProposal,
+  summarizeRejectedAmbiguity,
   validateTurnProposal,
 } from "@skald/intent-parser";
 
@@ -450,5 +451,43 @@ describe("static rejection codes (full-master Stage 1c)", () => {
 
   it("carries the shape sub-code and key through validation", () => {
     expect(validateTurnProposal({ ...base, nope: true })).toMatchObject({ status: "invalid", code: "shape", shapeCode: "unknown_key", shapeKey: "nope" });
+  });
+});
+
+describe("summarizeRejectedAmbiguity", () => {
+  it("describes a malformed ambiguity with counts and booleans only", () => {
+    // Extra key: the exact shape rule that failed, no text leaked.
+    const extra = summarizeRejectedAmbiguity({
+      kind: "referent", question: "Какой именно?", candidates: ["а", "б"], relation: "behind",
+    });
+    expect(extra).toMatchObject({
+      hasAmbiguity: true,
+      keyCount: 4,
+      kindValid: true,
+      questionIsString: true,
+      candidateCount: 2,
+      candidatesAllStrings: true,
+    });
+
+    // Closed kind enum violation + object candidates (the live R1 pattern).
+    const badKind = summarizeRejectedAmbiguity({
+      kind: "topic", question: "Какой?", candidates: [{ surface: "x" }],
+    });
+    expect(badKind).toMatchObject({
+      hasAmbiguity: true,
+      kindValid: false,
+      candidateCount: 1,
+      candidatesAllStrings: false,
+    });
+
+    // Empty candidate range and non-string question.
+    const empty = summarizeRejectedAmbiguity({ kind: "referent", question: 7, candidates: [] });
+    expect(empty).toMatchObject({ questionIsString: false, candidateCount: 0 });
+    // An empty array claims allStrings (no bad entries), count signals the range.
+    expect(empty.candidatesAllStrings).toBe(true);
+
+    expect(summarizeRejectedAmbiguity(undefined)).toMatchObject({ hasAmbiguity: false, keyCount: 0 });
+    expect(summarizeRejectedAmbiguity("nope")).toMatchObject({ hasAmbiguity: false });
+    expect(JSON.stringify(summarizeRejectedAmbiguity({ kind: "referent", question: "Секретный вопрос", candidates: ["Кандидат"] }))).not.toMatch(/Секретный|Кандидат/);
   });
 });

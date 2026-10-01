@@ -21,6 +21,7 @@ import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
 import { resolveQuestionPlanBindings } from "../src/runtime/question-plan-resolver.js";
+import { bindTurnPronouns } from "../src/conversation/focus-stack.js";
 import type { ConversationTurn } from "../src/conversation/types.js";
 
 function parse(response: { statusCode: number; body: string }): any {
@@ -216,6 +217,112 @@ it("persists shown identities through SQLite reload without events or DTO leakag
       expect(context.rememberedLists[0]).toEqual(stored);
       const bindings = resolveQuestionPlanBindings({ subjects: [{ id: "first", surface: "первый", kind: "ordinal", listRef: "scene_people", position: 1 }], parts: [{ id: "p", subjectRefs: ["first"], aspect: "appearance", time: "current", purpose: "describe" }] }, snapshot.context, context, snapshot.references);
       expect(bindings).toMatchObject({ status: "resolved", bindings: [{ resolution: "resolved", resolvedRef: snapshot.context.knownPeople[0]!.observerRef }] });
+    } finally { reloaded.close(); }
+  } finally { store.close(); }
+});
+
+
+/**
+ * T6 R2 focus trace: the reviewer-required end-to-end chain for an ordinal
+ * continuation — the ordinal ANSWER's server identity → persisted metadata
+ * → SQLite reload → rebuilt conversation focus → the next pronoun's
+ * resolution. Every hop is asserted (the live run broke at hop 0: the
+ * replica never reached a plan turn, so no identity was ever written —
+ * classification, not the chain below).
+ */
+it("traces the ordinal answer focus through metadata, reload and the next pronoun (T6 R2)", async () => {
+  const dbPath = join(mkdtempSync(join(tmpdir(), "skald-focus-trace-")), "events.sqlite");
+  const store = createMultiWorldStore(dbPath);
+  const worldId = "focus-trace";
+  const inquiryPlan = (questionPlan: unknown, readings: unknown) => ({
+    schemaVersion: 2,
+    kind: "inquiry",
+    primaryIntent: { kind: "inquiry", queryId: "current_location", sourceText: "trace" },
+    supportingClauses: [],
+    referents: [],
+    questionPlan,
+    readings,
+  });
+  const ordinalPlan = inquiryPlan(
+    { subjects: [{ id: "first", surface: "первый перевозчик", kind: "ordinal", listRef: "scene_people", position: 1 }],
+      parts: [{ id: "p-look", subjectRefs: ["first"], aspect: "appearance", time: "current", purpose: "describe" }] },
+    [{ partId: "p-look", source: "person" }],
+  );
+  const acqPlan = inquiryPlan(
+    { subjects: [{ id: "he", surface: "он", kind: "entity" }],
+      parts: [{ id: "p-know", subjectRefs: ["he"], aspect: "acquaintance_link", time: "current", purpose: "describe" }] },
+    [{ partId: "p-know", source: "relations" }],
+  );
+  const scripted = (plans: unknown[]) => {
+    const queue = [...plans];
+    return { chat: async (category: string) => {
+      if (category !== "interpret") return { text: "" };
+      return { text: JSON.stringify(queue.shift() ?? queue[0]) };
+    } } as any;
+  };
+  try {
+    store.createWorld({ worldId, idempotencyKey: "create-trace", requestHash: "hash-trace", saveLabel: "Focus trace", characterName: "Tester", characterPresetId: "wanderer", worldTemplateId: "living_region", characterWound: "none", characterPromise: "observe", characterPrinciple: "care", characterProfileVersion: 1, bootstrapEvents: buildBootstrapEvents("living_region") });
+    const runtime = await new WorldRuntimeManager(store, scripted([ordinalPlan])).get(worldId);
+    const ask = async (input: string, key: string): Promise<any> =>
+      parse(await handleWorldCommand(runtime, { input, idempotencyKey: key }));
+
+    // The shown list: the position the ordinal will point at.
+    const nearby = await ask("Кто рядом?", "ft-1");
+    expect(nearby.status).toBe("inquiry");
+    const firstMember = nearby.inquiry.shownLists[0].members[0];
+
+    // The ordinal answer through the real gateway + scripted plan.
+    const first = await ask("Что делает первый перевозчик?", "ft-2");
+    expect(first.status).toBe("inquiry");
+    expect(first.questionReadings.coveredParts).toContain("p-look");
+
+    // HOP 1 — persisted metadata carries the answer-source server identity.
+    const meta = store.getConversationTurn(worldId, "ft-2")?.contextMetadata;
+    const answerMentions = (meta?.mentions ?? []).filter((entry) => entry.source === "answer" && entry.identity);
+    expect(answerMentions.length).toBeGreaterThan(0);
+    expect(answerMentions[0]!.identity!.kind).toBe("person");
+    const storedId = answerMentions[0]!.identity!.internalId;
+    expect(storedId.length).toBeGreaterThan(0);
+    // The list the ordinal pointed into was shown by ft-1; its member
+    // identities carry the same server id as the ordinal's answer mention.
+    const listMeta = store.getConversationTurn(worldId, "ft-1")?.contextMetadata;
+    expect(listMeta?.shownLists?.[0]?.memberIdentities?.[0]?.internalId).toBe(storedId);
+
+    // HOP 2 — after SQLite reload the rebuilt focus still carries it.
+    const reloaded = createMultiWorldStore(dbPath);
+    try {
+      const rt2 = await new WorldRuntimeManager(reloaded, scripted([acqPlan])).get(worldId);
+      const scene = buildMasterTurnSceneContext(rt2.bus.query(), rt2.projection.getSnapshot());
+      const context = buildMasterConversationContext(reloaded.listRecentConversationTurns(worldId, { limit: 30 }), worldId, { scene: scene.context });
+      const focus = context.recentFocus.find((entry) => entry.identity !== undefined);
+      expect(focus?.identity?.internalId).toBe(storedId);
+
+      // HOP 3 — the next singular pronoun pins exactly that person.
+      const pronouns = bindTurnPronouns("А он меня знает?", context, scene.context, scene.references);
+      const him = pronouns.find((binding) => binding.pronoun === "он");
+      expect(him).toMatchObject({ resolution: "single" });
+      const ferrymanRef = him!.candidates[0]!;
+      const person = scene.context.knownPeople.find((entry) => entry.observerRef === ferrymanRef)!;
+      expect(scene.references.get(ferrymanRef)?.internalId).toBe(storedId);
+      // The pronoun continues the ordinal's first shown member, label for label.
+      expect(person.label).toBe(firstMember);
+
+      // HOP 4 — the plan-level binding settles the same handle.
+      const bindings = resolveQuestionPlanBindings(
+        { subjects: [{ id: "he", surface: "он", kind: "entity" }],
+          parts: [{ id: "p-know", subjectRefs: ["he"], aspect: "acquaintance_link", time: "current", purpose: "describe" }] },
+        scene.context, context, scene.references,
+      );
+      expect(bindings).toMatchObject({ status: "resolved", bindings: [{ resolution: "resolved", resolvedRef: ferrymanRef }] });
+
+      // HOP 5 — the gateway turn answers with only the available link.
+      const second = parse(await handleWorldCommand(rt2, { input: "А он меня знает?", idempotencyKey: "ft-3" }));
+      expect(second.status).toBe("inquiry");
+      expect(second.questionReadings.coveredParts).toContain("p-know");
+      expect(second.masterTurn.deterministicText).toMatch(/знаком/i);
+      expect(second.masterTurn.deterministicText).toContain(person.label);
+
+      console.log(`T6R2-TRACE metadata=identity(${answerMentions[0]!.identity!.kind}) focus=${focus?.identity?.internalId === storedId ? "restored" : "LOST"} pronoun=${him!.resolution}->${person.label} answer=${second.masterTurn.deterministicText.slice(0, 80)}`);
     } finally { reloaded.close(); }
   } finally { store.close(); }
 });

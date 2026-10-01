@@ -1068,6 +1068,48 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(JSON.stringify(seen)).not.toContain("они");
   });
 
+  it("logs the round-1 rejection with sanitized dims before the repair (T6 R1 observability)", async () => {
+    const snap = snapshot();
+    let call = 0;
+    const router = {
+      chat: vi.fn(async () => {
+        call += 1;
+        // Round 1: malformed ambiguity (extra key, empty candidates) — the
+        // exact live failure class. Round 2: a valid reply.
+        if (call === 1) {
+          return {
+            text: JSON.stringify(proposalReturning({
+              ambiguity: { kind: "referent", question: "Какой именно?", candidates: [], relation: "behind" },
+            })),
+          };
+        }
+        return { text: JSON.stringify(proposalReturning()) };
+      }),
+    } as any;
+    const seen: any[] = [];
+    const result = await interpretMasterTurn("Где я и что здесь происходит?", snap, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    expect(router.chat).toHaveBeenCalledTimes(2);
+    expect(seen.map((event) => event.category)).toContain("proposal_repair_requested");
+    const rejected = seen.filter((event) => event.category === "proposal_schema_rejected");
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatchObject({
+      phase: "first_reply_validation",
+      failureCategory: "shape:nested_invalid:ambiguity",
+      ambKeyCount: 4,
+      ambKindValid: true,
+      ambQuestionIsString: true,
+      ambCandidateCount: 0,
+    });
+    expect(["plan", "inquiry", "clarification"]).toContain(result.status);
+    // No player text or model text ever reaches the diagnostics.
+    const dump = JSON.stringify(seen);
+    expect(dump).not.toContain("Где я и что здесь происходит");
+    expect(dump).not.toContain("Какой именно");
+  });
+
   it("turns an ambiguous subject binding into a clarification instead of a round", async () => {
     const snap = snapshot();
     const scene = {
