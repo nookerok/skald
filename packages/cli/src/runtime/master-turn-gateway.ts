@@ -57,7 +57,15 @@ import {
   type IntentGatewayMode,
 } from "./intent-gateway.js";
 
-const DEFAULT_TIMEOUT_MS = 5_000;
+/**
+ * Interpret budget for one proposal round, including its single repair
+ * squeeze. Live evidence (T6 acceptance, gemma4:31b-cloud): completions
+ * normally finish in 1-4s, but the grown semantic-plan contract pushes the
+ * occasional response past 5s — and a legal question then fell into the
+ * honest fallback clarification instead of being answered. 12s covers the
+ * slow tail; validation, repair rules and fallback honesty are unchanged.
+ */
+const DEFAULT_TIMEOUT_MS = 12_000;
 
 /** Consistent snapshot captured inside a short queue entry. */
 export interface MasterTurnSnapshot {
