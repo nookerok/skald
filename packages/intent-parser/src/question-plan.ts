@@ -335,6 +335,92 @@ export function parseProposedQuestionPlan(raw: unknown): ProposedQuestionPlan | 
 }
 
 /**
+ * Sanitized structural summary of a model-declared question plan and its
+ * readings (T6 R1/R2 diagnostics): counts and closed-vocabulary tokens
+ * ONLY. Surfaces, ids, observer refs, member handles and any other free
+ * text never leave this function, so the summary is safe for the
+ * operational diagnostic log. It answers "model error vs over-strict
+ * contract" per rule: a group without members, an ordinal without
+ * listRef/position, an unknown aspect/source, limit overflow and dangling
+ * part refs each point at the exact violated rule.
+ */
+export interface RejectedPlanSummary {
+  readonly hasPlan: boolean;
+  readonly subjectCount: number;
+  readonly partCount: number;
+  readonly readingCount: number;
+  readonly subjectKinds: readonly string[];
+  readonly aspects: readonly string[];
+  readonly sources: readonly string[];
+  readonly groupWithoutMembers: number;
+  readonly ordinalWithoutList: number;
+  readonly readingsDangling: number;
+  readonly subjectsOverLimit: boolean;
+  readonly partsOverLimit: boolean;
+  readonly readingsOverLimit: boolean;
+}
+
+function closedToken(value: unknown, allowed: readonly string[]): string {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? value : "other";
+}
+
+export function summarizeRejectedPlan(planRaw: unknown, readingsRaw: unknown): RejectedPlanSummary {
+  const empty: RejectedPlanSummary = {
+    hasPlan: false, subjectCount: 0, partCount: 0, readingCount: 0,
+    subjectKinds: Object.freeze([]), aspects: Object.freeze([]), sources: Object.freeze([]),
+    groupWithoutMembers: 0, ordinalWithoutList: 0, readingsDangling: 0,
+    subjectsOverLimit: false, partsOverLimit: false, readingsOverLimit: false,
+  };
+  if (!planRaw || typeof planRaw !== "object" || Array.isArray(planRaw)) return empty;
+  const candidate = planRaw as Record<string, unknown>;
+  const subjects = Array.isArray(candidate.subjects) ? candidate.subjects : [];
+  const parts = Array.isArray(candidate.parts) ? candidate.parts : [];
+  const readings = Array.isArray(readingsRaw) ? (readingsRaw as readonly unknown[]) : [];
+  const kinds = new Set<string>();
+  let groupWithoutMembers = 0;
+  let ordinalWithoutList = 0;
+  for (const entry of subjects) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) { kinds.add("other"); continue; }
+    const subject = entry as Record<string, unknown>;
+    const kind = closedToken(subject.kind, QUESTION_SUBJECT_KINDS);
+    kinds.add(kind);
+    if (kind === "group" && !Array.isArray(subject.members)) groupWithoutMembers += 1;
+    if (kind === "ordinal" && (subject.listRef === undefined || subject.position === undefined)) ordinalWithoutList += 1;
+  }
+  const partIds = new Set<string>();
+  const aspects = new Set<string>();
+  for (const entry of parts) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) { aspects.add("other"); continue; }
+    const part = entry as Record<string, unknown>;
+    if (typeof part.id === "string") partIds.add(part.id);
+    aspects.add(closedToken(part.aspect, QUESTION_ASPECTS));
+  }
+  const sources = new Set<string>();
+  let readingsDangling = 0;
+  for (const entry of readings) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) { sources.add("other"); continue; }
+    const request = entry as Record<string, unknown>;
+    sources.add(closedToken(request.source, READING_SOURCES));
+    if (typeof request.partId !== "string" || !partIds.has(request.partId)) readingsDangling += 1;
+  }
+  return Object.freeze({
+    hasPlan: true,
+    subjectCount: subjects.length,
+    partCount: parts.length,
+    readingCount: readings.length,
+    subjectKinds: Object.freeze([...kinds].sort()),
+    aspects: Object.freeze([...aspects].sort()),
+    sources: Object.freeze([...sources].sort()),
+    groupWithoutMembers,
+    ordinalWithoutList,
+    readingsDangling,
+    subjectsOverLimit: subjects.length > TURN_MAX_REFERENTS,
+    partsOverLimit: parts.length > QUESTION_PLAN_MAX_PARTS,
+    readingsOverLimit: readings.length > READING_MAX_REQUESTS,
+  });
+}
+
+/**
  * Parses untrusted JSON into frozen reading requests for ONE plan:
  * closed sources, closed ids, part references that exist in the plan and
  * the READING_MAX_REQUESTS limit. Readings without a declared plan or with

@@ -24,6 +24,7 @@ import {
   parseIntent,
   sameRussianStem,
   stemRussianToken,
+  summarizeRejectedPlan,
   unclearPrimaryAction,
   unknownObservedTarget,
   validateActionProposal,
@@ -1400,11 +1401,35 @@ export async function interpretMasterTurn(
     });
   }
   if (staticCheck.status === "invalid") {
+    // Sanitized rejected-plan structure (T6 R1/R2): counts and closed
+    // tokens only — never surfaces, ids or free text — so the log answers
+    // "model error vs over-strict contract" without touching the privacy
+    // invariant (no player text, prompts or responses in diagnostics).
+    const rejected = summarizeRejectedPlan(
+      (parsed as Record<string, unknown>).questionPlan,
+      (parsed as Record<string, unknown>).readings,
+    );
+    const overLimits = ["subjects", "parts", "readings"].filter((key) =>
+      (key === "subjects" && rejected.subjectsOverLimit)
+      || (key === "parts" && rejected.partsOverLimit)
+      || (key === "readings" && rejected.readingsOverLimit));
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "proposal_schema_rejected",
       outcome: "invalid",
       phase: "schema_validation",
       failureCategory: shapeFailureCategory(staticCheck),
+      ...(rejected.hasPlan ? {
+        planSubjectKinds: rejected.subjectKinds.join(","),
+        planAspects: rejected.aspects.join(","),
+        planSources: rejected.sources.join(","),
+        planSubjectCount: rejected.subjectCount,
+        planPartCount: rejected.partCount,
+        planReadingCount: rejected.readingCount,
+        planGroupWithoutMembers: rejected.groupWithoutMembers,
+        planOrdinalWithoutList: rejected.ordinalWithoutList,
+        planReadingsDangling: rejected.readingsDangling,
+        ...(overLimits.length > 0 ? { planOverLimits: overLimits.join(",") } : {}),
+      } : {}),
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });

@@ -79,6 +79,20 @@ export interface MasterTurnDiagnosticDimensions {
   readonly referentSurfaceMatch?: boolean | undefined;
   readonly messageCount?: number | undefined;
   readonly mentionCount?: number | undefined;
+  /**
+   * Sanitized rejected-plan structure (T6 R1/R2): counts and closed-vocabulary
+   * tokens from summarizeRejectedPlan — never surfaces, ids or free text.
+   */
+  readonly planSubjectKinds?: string | undefined;
+  readonly planAspects?: string | undefined;
+  readonly planSources?: string | undefined;
+  readonly planSubjectCount?: number | undefined;
+  readonly planPartCount?: number | undefined;
+  readonly planReadingCount?: number | undefined;
+  readonly planGroupWithoutMembers?: number | undefined;
+  readonly planOrdinalWithoutList?: number | undefined;
+  readonly planReadingsDangling?: number | undefined;
+  readonly planOverLimits?: string | undefined;
   readonly hasPendingClarification?: boolean | undefined;
   readonly hasGoal?: boolean | undefined;
   readonly hasDramaticThread?: boolean | undefined;
@@ -132,6 +146,16 @@ export function emitMasterTurnDiagnostic(
       ...(typeof dimensions.referentSurfaceMatch === "boolean" ? { referentSurfaceMatch: dimensions.referentSurfaceMatch } : {}),
       ...(asCount(dimensions.messageCount) !== undefined ? { messageCount: asCount(dimensions.messageCount)! } : {}),
       ...(asCount(dimensions.mentionCount) !== undefined ? { mentionCount: asCount(dimensions.mentionCount)! } : {}),
+      ...(asText(dimensions.planSubjectKinds, 120) ? { planSubjectKinds: asText(dimensions.planSubjectKinds, 120)! } : {}),
+      ...(asText(dimensions.planAspects, 120) ? { planAspects: asText(dimensions.planAspects, 120)! } : {}),
+      ...(asText(dimensions.planSources, 120) ? { planSources: asText(dimensions.planSources, 120)! } : {}),
+      ...(asCount(dimensions.planSubjectCount) !== undefined ? { planSubjectCount: asCount(dimensions.planSubjectCount)! } : {}),
+      ...(asCount(dimensions.planPartCount) !== undefined ? { planPartCount: asCount(dimensions.planPartCount)! } : {}),
+      ...(asCount(dimensions.planReadingCount) !== undefined ? { planReadingCount: asCount(dimensions.planReadingCount)! } : {}),
+      ...(asCount(dimensions.planGroupWithoutMembers) !== undefined ? { planGroupWithoutMembers: asCount(dimensions.planGroupWithoutMembers)! } : {}),
+      ...(asCount(dimensions.planOrdinalWithoutList) !== undefined ? { planOrdinalWithoutList: asCount(dimensions.planOrdinalWithoutList)! } : {}),
+      ...(asCount(dimensions.planReadingsDangling) !== undefined ? { planReadingsDangling: asCount(dimensions.planReadingsDangling)! } : {}),
+      ...(asText(dimensions.planOverLimits, 32) ? { planOverLimits: asText(dimensions.planOverLimits, 32)! } : {}),
       ...(typeof dimensions.hasPendingClarification === "boolean" ? { hasPendingClarification: dimensions.hasPendingClarification } : {}),
       ...(typeof dimensions.hasGoal === "boolean" ? { hasGoal: dimensions.hasGoal } : {}),
       ...(typeof dimensions.hasDramaticThread === "boolean" ? { hasDramaticThread: dimensions.hasDramaticThread } : {}),

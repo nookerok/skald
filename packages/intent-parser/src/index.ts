@@ -135,10 +135,12 @@ export {
   READING_SOURCES,
   parseProposedQuestionPlan,
   parseReadingRequests,
+  summarizeRejectedPlan,
 } from "./question-plan.js";
 export type {
   ProposedQuestionPlan,
   QuestionAspect,
+  RejectedPlanSummary,
   QuestionListRef,
   QuestionPart,
   QuestionPlan,
