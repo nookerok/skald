@@ -1431,6 +1431,23 @@ export async function interpretMasterTurn(
     return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
   }
 
+  // Hard stop for a question replica that STILL wants to act after the
+  // repair round (T6): no action is created, no time moves — the honest
+  // fallback clarifies instead. The addressing form («Спрошу перевозчика,
+  // что он делает») classifies as speech and never reaches this guard.
+  if (executesActionForQuestionReply(parsed) && isPureQuestionReplica(promptInput)) {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "proposal_schema_rejected",
+      outcome: "invalid",
+      phase: "question_replica_validation",
+      failureCategory: "question_replica_action",
+      ...proposalStructureDims(parsed),
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
+  }
+
   const contextual = validateMasterTurnPlan({
     proposal: staticCheck.proposal,
     scene: snapshot.scene,
@@ -1483,6 +1500,16 @@ function fallbackAfterModelFailure(
   pronounRewritten = false,
 ): MasterTurnGatewayOutcome {
   if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
+  // A PURE question replica never falls back into an action (T6): after a
+  // failed or rejected reply it may still answer deterministically from an
+  // inquiry compound, and otherwise clarifies honestly — it must never
+  // reach the speak/legacy execution branches («Что делает первый
+  // перевозчик?» must not become an addressed speech turn with a tick).
+  if (isPureQuestionReplica(input)) {
+    const questionCompound = resolveDeterministicCompound(input, snapshot, options);
+    if (questionCompound) return questionCompound;
+    return genericFallback(options);
+  }
   if (
     deterministic.type === "ActionIntentCommand"
     || deterministic.type === "InteractionCommand"
@@ -1584,6 +1611,29 @@ interface RepairDecision {
 }
 
 /**
+ * A PURE question replica: the deterministic classifier says inquiry and no
+ * clause parses as an executable action («Что делает первый перевозчик?» —
+ * yes; «Подойди и что здесь?» has an action clause — no; «Спрошу
+ * перевозчика, что он делает» classifies as speech — no). For such a replica
+ * a model proposal of kind speech/action/mixed would CREATE an action and
+ * advance time for a question (T6 negative regression) — it is rejected in
+ * BOTH rounds: first as a repairable note, then as a hard fallback. The
+ * addressing form stays executable because its classification is speech.
+ */
+function isPureQuestionReplica(input: string): boolean {
+  const classification = classifyPlayerInput(input, parseIntent);
+  if (classification.kind !== "inquiry" && classification.kind !== "inquiry_candidate") return false;
+  return classifyReplicaClauses(input, parseIntent).actions.length === 0;
+}
+
+/** The reply would execute something a question replica never asked for. */
+function executesActionForQuestionReply(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+  const kind = (parsed as Record<string, unknown>).kind;
+  return kind === "speech" || kind === "action" || kind === "mixed";
+}
+
+/**
  * Derives a repair note for one raw proposal, or null when the reply is
  * usable as-is. Accepted and clarification outcomes never repair; only a
  * statically invalid reply gets exactly one correction round carrying the
@@ -1591,7 +1641,7 @@ interface RepairDecision {
  * The decision carries the diagnostic for THAT first reply — previously the
  * round-1 rejection was invisible in the log (T6 R1/R2 observability).
  */
-function repairDecisionFor(raw: unknown): RepairDecision | null {
+function repairDecisionFor(raw: unknown, input: string): RepairDecision | null {
   let parsed: unknown;
   try {
     parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -1620,6 +1670,18 @@ function repairDecisionFor(raw: unknown): RepairDecision | null {
       },
     };
   }
+  if (check.status === "accepted" && executesActionForQuestionReply(parsed) && isPureQuestionReplica(input)) {
+    return {
+      note: "Your previous reply tried to act on a question. This replica is a question: return kind inquiry with questionPlan plus readings (or a registered queryId) — never speech, action or mixed.",
+      dims: {
+        category: "proposal_schema_rejected",
+        outcome: "invalid",
+        phase: "question_replica_validation",
+        failureCategory: "question_replica_action",
+        ...proposalStructureDims(parsed),
+      },
+    };
+  }
   return null;
 }
 
@@ -1639,7 +1701,7 @@ async function requestProposal(
   onRepair: () => void,
 ): Promise<unknown> {
   const first = await proposeTurn(router, input, snapshot, options);
-  const decision = repairDecisionFor(first);
+  const decision = repairDecisionFor(first, input);
   if (!decision) return first;
   // The round-1 rejection is logged with its sanitized structural dims
   // before the correction round — the repair itself was previously a black

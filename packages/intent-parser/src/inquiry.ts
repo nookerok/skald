@@ -159,6 +159,28 @@ function isExplicitSpeech(text: string): boolean {
 }
 
 /**
+ * Imperative request verbs that ASK for information and never carry a world
+ * effect (semantic-question-plan T6): «Расскажи про первого перевозчика»,
+ * «Расскажи о первом», «Опиши, как он выглядит» are free questions about the
+ * conversation — they must reach the semantic interpreter as
+ * inquiry candidates instead of being routed as actions. A person-addressed
+ * form is excluded earlier by isExplicitSpeech («Спрошу перевозчика…» stays
+ * speech); a bare utterance («Скажи привет») has no topic/interrogative
+ * lead and stays out.
+ */
+const REQUEST_VERBS = /^(?:расскажи|скажи|подскажи|напомни|объясни|покажи|уточни|опиши)[,;:\s]+/iu;
+
+/** The remainder that turns a request verb into a topic question. */
+const REQUEST_TOPIC_LEAD = /^(?:(?:про|обо|об|о|насчет)\s+|(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)(?:\s|$))/iu;
+
+/** Leading ordinal numeral: the head word of a bare ordinal fragment. */
+const ORDINAL_HEAD = /^(?:перв|втор|трет|четверт|пят|шест|седьм|восьм|девят|десят|последн|следующ|предыдущ)/iu;
+
+function leadsWithOrdinal(normalized: string): boolean {
+  return ORDINAL_HEAD.test(normalized.split(" ")[0] ?? "");
+}
+
+/**
  * Surfaces only the contextual interpreter may resolve. The deterministic
  * layer never claims a pronoun as focus: such questions stay LLM candidates
  * so the focus stack can bind them to an observerRef first.
@@ -273,8 +295,13 @@ function knowledgeFocusInquiry(input: string): InquiryRequest | null {
 export function isQuestionLikeInput(input: string): boolean {
   const normalized = normalizeQuestion(input);
   if (isExplicitSpeech(normalized)) return false;
-  return /[?]$/u.test(input.trim())
-    || /^(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)/iu.test(normalized);
+  if (/[?]$/u.test(input.trim())) return true;
+  if (/^(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)/iu.test(normalized)) return true;
+  // A topic request («Расскажи про первого перевозчика», «Расскажи о первом»)
+  // is a free question: it asks for information and executes nothing (T6 —
+  // the original ordinal phrasings must reach the plan path).
+  const remainder = normalized.replace(REQUEST_VERBS, "");
+  return remainder !== normalized && REQUEST_TOPIC_LEAD.test(remainder);
 }
 
 /** Classifies a player message without reading or changing the world. */
@@ -286,6 +313,14 @@ export function classifyPlayerInput(input: string, parseAction: (value: string) 
   if ((intent.type === "ActionIntentCommand" && (intent.operation === "speak" || intent.operation === "call"))
     || (intent.type === "InteractionCommand" && intent.verb === "give")) {
     return { kind: "speech", intent };
+  }
+  // A bare ordinal fragment the deterministic parser does not recognise
+  // («Первый перевозчик») continues the shown list — it is never an
+  // executable action, so it reaches the semantic interpreter, which
+  // authorises the ordinal questionPlan. A recognised directive
+  // («Второй раз осматриваюсь» → observe) keeps its action classification.
+  if (intent.type === "ActionIntentCommand" && intent.operation === "unknown" && leadsWithOrdinal(normalizeQuestion(input))) {
+    return { kind: "inquiry_candidate", rawText: input };
   }
   return { kind: "action", intent };
 }
