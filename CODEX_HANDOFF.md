@@ -1,3 +1,33 @@
+# Current work (2026-10-01 — semantic-question-plan T6 closed after challenge rerun)
+
+- Reviewer challenge accepted: R1 (group follow-up answered live) and R2
+  (ordinal→reload→pronoun link live) reopened as unmet, then closed after
+  live reruns on tip `3dd48ef` with the stock model in BOTH one- and
+  two-person conditions (two-person world = `keeper` + `riverwatch_city_arrival`).
+  Both scenarios PASS: appearance + honest reaction gap with both members'
+  portraits; the ordinal pinned the position-1 person through a real
+  browser reload while a second live person was present — link-only answer,
+  no ambiguity. Full per-round rejection analysis in the T6 artifact.
+- The rerun forced six commits (`5eedebd` ambiguity shape + round-1
+  rejection logging with sanitized dims, `3bb28b3` focus-chain trace test,
+  `8489c18` interpret budget 5s→12s after a live transport-timeout
+  fallback, `c181bb3` aspect→source prompt mapping + accepted-plan dims,
+  `de2eec2` tests, `3dd48ef` question-about-person ≠ speech after the
+  model executed a question as a speech turn). Every rejected round is
+  now pinned by closed-token dims on the device journal; verdict: all
+  rejections were documented-shape model errors or transport — never an
+  over-strict contract.
+- Residuals recorded honestly: plan-internal `nested_invalid:questionPlan`
+  sub-rule not pinpointed (leading hypothesis observerRef on a non-entity
+  subject; repair recovered 100%); imperative ordinal phrasings
+  («Расскажи про первого…») classify as action — pre-existing, question
+  phrasings reach the plan path; the review's quoted arrival-failure
+  narrative is not reproducible in our runs (arrival trio PASS on record).
+- `npm run validate` PASS (2798 passed, 1 skipped). Deployed `3dd48ef`
+  with green updater gates. Human phrasing-quality judgment stays open by
+  design (review step 5); browser visual pixels remain BLOCKED (screenshot
+  tool), browser DOM/flow PASS via the Traycer fallback.
+
 # Current work (2026-09-30 — semantic-question-plan T6 automated + browser legs done)
 
 - T6 automated leg green: new 10-case HTTP suite
