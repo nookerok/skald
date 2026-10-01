@@ -1041,6 +1041,33 @@ describe("whole-replica inquiry completeness (T3)", () => {
     });
   });
 
+  it("emits a sanitized rejected-plan summary when the model omits group members (T6 R1)", async () => {
+    const snap = snapshot();
+    // Group without members: the contract rejects, the diagnostic names the
+    // violated rule with counts and closed tokens only — never surfaces.
+    const router = routerReturning(JSON.stringify(proposalReturning({
+      questionPlan: {
+        subjects: [{ id: "crew", surface: "они", kind: "group" }],
+        parts: [{ id: "p-look", subjectRefs: ["crew"], aspect: "appearance", time: "current", purpose: "describe" }],
+      },
+      readings: [{ partId: "p-look", source: "person" }],
+    })));
+    const seen: any[] = [];
+    const result = await interpretMasterTurn("Как они выглядят?", snap, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    expect(result.status).toBe("clarification");
+    const rejected = seen.find((event) => event.category === "proposal_schema_rejected");
+    expect(rejected).toMatchObject({
+      outcome: "invalid",
+      planSubjectKinds: "group",
+      planSubjectCount: 1,
+      planGroupWithoutMembers: 1,
+    });
+    expect(JSON.stringify(seen)).not.toContain("они");
+  });
+
   it("turns an ambiguous subject binding into a clarification instead of a round", async () => {
     const snap = snapshot();
     const scene = {

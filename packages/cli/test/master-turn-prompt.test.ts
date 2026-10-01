@@ -178,6 +178,12 @@ describe("master turn prompt contract", () => {
     expect(MASTER_TURN_PROMPT_CAPABILITIES.questionPlanLimits).toEqual({ maxParts: 4, maxReadings: 3, rounds: 1 });
   });
 
+  it("requires a plan for ordinals, groups and pronoun continuations (T6 R1/R2)", () => {
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("NEVER covered");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("A group MUST list members");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("an ordinal MUST carry listRef and position");
+  });
+
   it("advertises the closed listRef vocabulary for shown lists (T5)", () => {
     buildMasterTurnPrompt({ playerText: "Где я?", scene: SCENE, conversation: CONVERSATION });
 

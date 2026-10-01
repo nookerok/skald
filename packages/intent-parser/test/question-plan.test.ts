@@ -6,6 +6,7 @@ import {
   parseProposedQuestionPlan,
   parseReadingRequests,
   parseTurnProposal,
+  summarizeRejectedPlan,
   validateTurnProposal,
 } from "@skald/intent-parser";
 
@@ -234,5 +235,51 @@ describe("TurnProposalV2 questionPlan integration", () => {
     expect(Object.isFrozen(proposal!.questionPlan)).toBe(true);
     expect(Object.isFrozen(proposal!.questionPlan!.parts[0])).toBe(true);
     expect(Object.isFrozen(proposal!.readings)).toBe(true);
+  });
+});
+
+describe("summarizeRejectedPlan", () => {
+  it("summarizes a valid plan with closed tokens only", () => {
+    const summary = summarizeRejectedPlan(groupQuestionPlan(), [{ partId: "look", source: "person" }]);
+    expect(summary).toMatchObject({
+      hasPlan: true,
+      subjectCount: 1,
+      partCount: 2,
+      readingCount: 1,
+      groupWithoutMembers: 0,
+      ordinalWithoutList: 0,
+      readingsDangling: 0,
+    });
+    expect(summary.subjectKinds).toEqual(["group"]);
+    expect(summary.sources).toEqual(["person"]);
+    // Surfaces, ids and handles never leave the summarizer.
+    expect(JSON.stringify(summary)).not.toMatch(/они|look|people|person_1/);
+  });
+
+  it("points at the exact violated rule", () => {
+    const noMembers = summarizeRejectedPlan(
+      { subjects: [{ id: "g", surface: "x", kind: "group" }], parts: [] },
+      [],
+    );
+    expect(noMembers.groupWithoutMembers).toBe(1);
+
+    const noList = summarizeRejectedPlan(
+      { subjects: [{ id: "o", surface: "y", kind: "ordinal", position: 2 }], parts: [] },
+      [],
+    );
+    expect(noList.ordinalWithoutList).toBe(1);
+
+    const dangling = summarizeRejectedPlan(groupQuestionPlan(), [{ partId: "ghost", source: "scene" }]);
+    expect(dangling.readingsDangling).toBe(1);
+
+    const overflow = summarizeRejectedPlan(
+      { subjects: [{ id: "s", surface: "z", kind: "self" }], parts: [1, 2, 3, 4, 5].map((n) => ({ id: `p${n}`, subjectRefs: ["s"], aspect: "appearance", time: "current", purpose: "describe" })) },
+      [1, 2, 3, 4].map(() => ({ partId: "p1", source: "scene" })),
+    );
+    expect(overflow.partsOverLimit).toBe(true);
+    expect(overflow.readingsOverLimit).toBe(true);
+
+    expect(summarizeRejectedPlan(null, null)).toMatchObject({ hasPlan: false });
+    expect(summarizeRejectedPlan("nonsense", 42)).toMatchObject({ hasPlan: false });
   });
 });
