@@ -190,6 +190,10 @@ describe("master turn prompt contract", () => {
     // both parts) — the aspect→source mapping is now explicit.
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("readings source must match where the data lives");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("appearance → person");
+    // Live R2: the model turned «Что делает первый перевозчик?» into speech
+    // (addressing) and executed it — a question about someone is inquiry.
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("A question ABOUT someone");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("must not execute anything");
   });
 
   it("advertises the closed listRef vocabulary for shown lists (T5)", () => {
