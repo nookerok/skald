@@ -80,7 +80,21 @@ function collectCandidates(world: ReadonlyWorld, query: string, verb: string): I
   }
 
   for (const entity of world.entities.values()) {
-    if (world.objects.has(entity.id) || !isNearby(entity, world)) continue;
+    if (world.objects.has(entity.id)) continue;
+    // Presence must agree with what the observer context shows: a contact is
+    // present where `buildVisibleContacts` shows it — by contact location,
+    // not by coordinates. Canon-placed contacts (e.g. «Староста южного
+    // посада» at 9500,5000) never share the player's spawn grid (0,0), so a
+    // coordinate-only check silently made every region NPC untargetable:
+    // the master answered «рядом стоит староста» while «я подхожу к
+    // старосте» died in the advisory resolver as «не удаётся связать с тем,
+    // что видно» (live playtest). Grid NPCs without a contact component
+    // keep the coordinate rule.
+    const contact = entity.components.contact;
+    const present = contact
+      ? contact.locationId === world.currentLocationId
+      : isNearby(entity, world);
+    if (!present) continue;
     if (matchLevel([entity.name, ...entity.aliases], query) !== null) byId.set(entity.id, targetFromEntity(entity));
   }
 
