@@ -2,6 +2,9 @@
 
 Status: accepted
 
+Catalog amendment: ADR-0038 supersedes the eight-verb list in §2 with the
+eleven-verb executable catalog and its temporary `apply_force` exception.
+
 ## Context
 
 The player must be able to formulate an action in free Russian text and have
@@ -214,3 +217,58 @@ is never silently rebased.
   risk, the UI never proposes actions, the Event Log remains the sole truth,
   replay/restart are identical, full `npm run validate` passes and real
   browser QA is recorded.
+
+
+## Amendment 2026-10-01 — Contact approach (npc-close-approach phase 1)
+
+Local approach to a present NPC is now a first-class canonical outcome.
+The change follows the architectural contract (this ADR), not an event
+type count: a new producer and result value for an existing event were
+audited before adoption.
+
+- **Routing by resolved target type.** `mode: relocate, operation:
+  approach` is split by one shared predicate
+  (`resolveApproachTarget` in the unified target resolver): a contact
+  PRESENT in the current location → the contact-approach rule; a location
+  connection, a non-contact target, or a name that matches no contact →
+  the existing movement rule (its wording unchanged); a contact that
+  exists elsewhere, or a mid-flight ambiguity → absence, asked BEFORE
+  execution by the command preflight and contextual validation, so
+  ambiguity never picks the first loop candidate.
+- **Contact availability in a location world comes from the location, not
+  from cell coordinates.** The observer context and the resolver share the
+  same presence rule (`contact.locationId === currentLocationId`); cell
+  proximity (`isNearby`) stays for legacy grid entities only. Canon
+  anchors remain data, not a distance system.
+- **A local approach creates no persistent proximity state.** It confirms
+  only the approach: no relation change, no conversation start, no NPC
+  reaction, no knowledge; no `PlayerLocationChanged`/`MovementSucceeded`
+  when the location did not change; time follows the ordinary command
+  policy (one tick, no second tick inside the rule).
+- **One outcome owner.** The contact-approach rule and the movement rule
+  decide through the SAME predicate — one action yields exactly one
+  outcome, and a location transition never also emits «approach». The
+  target is re-checked against the fresh `ReadonlyWorld` snapshot at
+  execution; the rule stays deterministic (Event + ReadonlyWorld →
+  events, no LLM).
+- **Three entries, one execution.** The deterministic parser
+  (`relocate+approach`), a model-authored legacy `approach` (normalized to
+  `relocate` after validation, only for the `approach` operation with a
+  confirmed target category) and the post-model fallback produce the same
+  result. `enter`, `travel` and journey paths keep their existing routes.
+- **ActionResolved contract.** A successful approach emits the existing
+  `ActionResolved { actionEventId, result, description }` with the new
+  `result: "approach"` and an outcome description. Audit (2026-10-01):
+  no consumer branches on `result` — the presentation template and the
+  game shell render `description`; selector/journal/narration/eval are
+  type-driven; `checks.outcome` keeps its own single-owner domain via
+  `CriticalCheckResolved`. A failed re-check emits `ActionBlocked` with
+  `reason: "contact_unavailable"` and its own presentation line («сейчас
+  не здесь») — the passage wording is used only where a passage was
+  actually checked.
+- **Conversation wiring.** The confirmed target reaches the existing
+  focus metadata, so a later pronoun continues exactly that person across
+  reload; narration adds no reaction or conversation.
+- **Out of scope (new ADR required if ever built):** persistent proximity
+  state, metric intra-location movement, a new conversation access
+  condition.
