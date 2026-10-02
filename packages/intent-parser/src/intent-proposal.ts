@@ -3,30 +3,20 @@ import type {
   InteractionCommand,
   JourneyIntent,
 } from "./types.js";
+import { INTERACTION_VERBS } from "./types.js";
 import type { InquiryQueryId } from "./inquiry.js";
 
 /** A finite capability list supplied to the non-authoritative interpreter. */
 export interface IntentCapabilitiesManifest {
   readonly schemaVersion: 1;
-  readonly interactionVerbs: readonly [
-    "observe",
-    "inspect",
-    "listen",
-    "touch",
-    "take",
-    "open",
-    "apply_force",
-    "give",
-    "place",
-    "use",
-  ];
+  readonly interactionVerbs: typeof INTERACTION_VERBS;
   readonly journeySupported: true;
   readonly onePrimaryIntentOnly: true;
 }
 
 export const INTENT_CAPABILITIES: IntentCapabilitiesManifest = Object.freeze({
   schemaVersion: 1,
-  interactionVerbs: ["observe", "inspect", "listen", "touch", "take", "open", "apply_force", "give", "place", "use"] as const,
+  interactionVerbs: INTERACTION_VERBS,
   journeySupported: true,
   onePrimaryIntentOnly: true,
 });

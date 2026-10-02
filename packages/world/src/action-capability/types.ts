@@ -1,21 +1,24 @@
 /** Event-derived action capability and epistemic read contracts. */
 
-export type Affordance =
-  | "anchor"
-  | "secure"
-  | "tie"
-  | "descend"
-  | "assist_climbing"
-  | "strike"
-  | "drive_nail"
-  | "break"
-  | "shape"
-  | "repair"
-  | "illuminate"
-  | "ignite"
-  | "signal"
-  | "contain"
-  | "experiment";
+export const AFFORDANCES = Object.freeze([
+  "anchor",
+  "secure",
+  "tie",
+  "descend",
+  "assist_climbing",
+  "strike",
+  "drive_nail",
+  "break",
+  "shape",
+  "repair",
+  "illuminate",
+  "ignite",
+  "signal",
+  "contain",
+  "experiment",
+] as const);
+
+export type Affordance = (typeof AFFORDANCES)[number];
 
 export type ItemPlacement =
   | { readonly kind: "location"; readonly locationId: string }

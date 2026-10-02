@@ -27,6 +27,8 @@ interface VerbEntry {
    * ActionIntentCommand path and migrate per vertical slice.
    */
   readonly canonical?: InteractionVerb | undefined;
+  /** Canonical affordance implied directly by this verb. */
+  readonly canonicalGoal?: "experiment" | undefined;
   /** Whether this verb requires, allows, or forbids a direct object. */
   readonly target: TargetRequirement;
   /** Prepositions that introduce the target (e.g., "на" for "посмотреть на"). */
@@ -224,6 +226,9 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "использовать", mode: "interact", operation: "use", canonical: "use", target: "required" },
   { verb: "применить", mode: "interact", operation: "use", canonical: "use", target: "required" },
   { verb: "воспользоваться", mode: "interact", operation: "use", canonical: "use", target: "required" },
+  // experiment is an affordance expressed through use, never its own InteractionVerb
+  { verb: "поэкспериментировать", mode: "interact", operation: "use", canonical: "use", canonicalGoal: "experiment", target: "required" },
+  { verb: "экспериментировать", mode: "interact", operation: "use", canonical: "use", canonicalGoal: "experiment", target: "required" },
   { verb: "использу", mode: "interact", operation: "use", canonical: "use", target: "required" },
   { verb: "применя", mode: "interact", operation: "use", canonical: "use", target: "required" },
   // create_mark
@@ -694,7 +699,7 @@ function canonicalTarget(afterVerb: string): IntentReference | undefined {
   // reinterpret a concrete command as an ambient observation.
   if (cleaned.length === 0) return original.length > 0 ? { raw: original } : undefined;
   const withoutPrep = cleaned
-    .replace(/^(?:к|в|на|у|из|от|до|по|про|для|между|перед|над|под|за|через)\s+/i, "")
+    .replace(/^(?:к|в|на|у|из|от|до|по|про|для|между|перед|над|под|за|через|с)\s+/i, "")
     .trim();
   if (withoutPrep.length > 0 && withoutPrep !== cleaned) return { raw: withoutPrep };
   return { raw: cleaned };
@@ -926,7 +931,7 @@ function buildCanonical(
     if (!parts.target && remainder.trim().length > 0) parts = { target: { raw: remainder.trim() } };
   } else if (verb === "use") {
     const useGoal = parseUseGoal(context.goal);
-    const tool = remainder.trim().length > 0 ? { raw: remainder.trim() } : undefined;
+    const tool = context.goal === "experiment" ? undefined : remainder.trim().length > 0 ? { raw: remainder.trim() } : undefined;
     instrument = instrument ?? tool;
     if (useGoal.affordance) {
       goal = useGoal.affordance;
@@ -1157,7 +1162,7 @@ export function interpretIntent(
   }
 
   if (verb.canonical) {
-    return buildCanonical(verb.canonical, afterVerb, { instrument, goal, rawText });
+    return buildCanonical(verb.canonical, afterVerb, { instrument, goal: verb.canonicalGoal ?? goal, rawText });
   }
 
   // Compound phrase detection for non-canonical verbs:

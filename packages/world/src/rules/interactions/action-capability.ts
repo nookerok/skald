@@ -4,7 +4,7 @@ import type { ReadonlyWorld } from "../../projection.js";
 import { canContain, assessCapability, isItemAccessible } from "../../action-capability/capability.js";
 import { resolveInteractionTarget } from "../../interactions/index.js";
 import { ruleEventId } from "../../ids.js";
-import type { Affordance } from "../../action-capability/types.js";
+import { AFFORDANCES, type Affordance } from "../../action-capability/types.js";
 import type { WorldObject } from "../../objects/types.js";
 import type { PlayerFacingCandidate } from "../../interactions/types.js";
 import { epistemicEvidenceFromObservation, phenomenonObservation, testimonyFromRumor } from "./epistemic.js";
@@ -289,11 +289,7 @@ export const containerCloseAction: Rule<ReadonlyWorld> = {
   },
 };
 
-const AFFORDANCES = new Set<Affordance>([
-  "anchor", "secure", "tie", "descend", "assist_climbing",
-  "strike", "drive_nail", "break", "shape", "repair",
-  "illuminate", "ignite", "signal", "contain", "experiment",
-]);
+const AFFORDANCE_SET: ReadonlySet<Affordance> = new Set(AFFORDANCES);
 
 /** Applies an accessible item affordance through the canonical interaction chain. */
 export const affordanceUse: Rule<ReadonlyWorld> = {
@@ -318,7 +314,7 @@ export const affordanceUse: Rule<ReadonlyWorld> = {
     const subjectId = actorId(event, payload);
     const target = objectById(world, payload.entityId);
     const affordance = typeof payload.goal === "string" ? payload.goal.toLowerCase() as Affordance : undefined;
-    if (!target || !affordance || !AFFORDANCES.has(affordance)) return [rejected(event, "affordance_not_specified")];
+    if (!target || !affordance || !AFFORDANCE_SET.has(affordance)) return [rejected(event, "affordance_not_specified")];
 
     const instrumentQuery = payload.instrument?.trim() ?? "";
     const instrumentResolution = resolveInteractionTarget(world, "use", instrumentQuery);

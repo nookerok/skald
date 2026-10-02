@@ -57,6 +57,7 @@ export type {
   ProposalValidationReason,
   ProposalValidation,
 } from "./types.js";
+export { INTERACTION_VERBS } from "./types.js";
 export { INQUIRY_QUERY_IDS, classifyPlayerInput, isInquiryQueryId, isQuestionLikeInput, isUnresolvedFocusSurface } from "./inquiry.js";
 export type { InquiryFocus, InquiryQueryId, InquiryRelation, InquiryRequest, PlayerInputClassification, PlayerInputKind } from "./inquiry.js";
 

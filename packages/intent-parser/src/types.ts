@@ -75,18 +75,21 @@ export interface ActionIntentCommand {
  * normalizes synonyms and Russian word forms to exactly one of these values;
  * `examine` is an alias of `inspect`.
  */
-export type InteractionVerb =
-  | "observe"
-  | "inspect"
-  | "listen"
-  | "touch"
-  | "take"
-  | "open"
-  | "close"
-  | "apply_force"
-  | "give"
-  | "place"
-  | "use";
+export const INTERACTION_VERBS = Object.freeze([
+  "observe",
+  "inspect",
+  "listen",
+  "touch",
+  "take",
+  "open",
+  "close",
+  "apply_force",
+  "give",
+  "place",
+  "use",
+] as const);
+
+export type InteractionVerb = (typeof INTERACTION_VERBS)[number];
 
 /**
  * Canonical transient Interaction Model v1 command (ADR-0013 §1).
