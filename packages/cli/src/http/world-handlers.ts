@@ -38,6 +38,7 @@ import {
   arrivalReasonForProfile,
   getCharacterBackground,
   getRegionEntrypoint,
+  locationConnectionDestination,
   resolveInteractionTarget,
   narrateLLM,
   executeQuestionReadingRound,
@@ -1856,6 +1857,11 @@ const PREFLIGHT_TARGET_OPERATIONS = new Set([
   "give",
   "place",
   "use",
+  // Approach joins the preflight so the deterministic entry asks the same
+  // questions the model entry asks (npc-close-approach phase 1 §3): one
+  // present contact proceeds, several matching contacts clarify WITHOUT
+  // execution, unknown/absent targets refuse observer-safely.
+  "approach",
 ]);
 
 /**
@@ -1876,6 +1882,11 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
   const target = intent.target?.raw?.trim() ?? "";
   // Optional ambient perception is resolved by the domain interaction rule.
   if (target.length === 0) return null;
+  // A compass target («move north» parses to relocate+approach with a
+  // normalized rumble) is grid movement, never a named object: physics and
+  // movement rules own it — the target preflight must not refuse it. Same
+  // closed list as needsLLMForNaturalPhrase (intent-gateway).
+  if (verb === "approach" && ["north", "south", "east", "west"].includes(target.toLowerCase())) return null;
 
   // A compound that survived parsing (verb forms the parser list misses)
   // never becomes one blob target: name both parts explicitly so nothing
@@ -1896,6 +1907,9 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
   const snapshot = runtime.projection.getSnapshot();
   const resolution = resolveInteractionTarget(snapshot, verb, target);
   if (resolution.kind === "resolved" || resolution.kind === "environment") return null;
+  // An approach to a location connection is movement, not a target problem
+  // (npc-close-approach phase 1 §3): the movement rule owns it.
+  if (resolution.kind === "missing" && verb === "approach" && locationConnectionDestination(snapshot, target)) return null;
   if (resolution.kind === "ambiguous") {
     // Structured candidate: the parsed intent plus its fillable target
     // slot. An exact answer patches and revalidates with no second

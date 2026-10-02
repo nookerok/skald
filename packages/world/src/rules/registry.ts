@@ -12,6 +12,7 @@ import { interactionRules } from "./interaction.js";
 import { criticalCheckRules, criticalCheckOutcomeRules } from "../checks/index.js";
 import { worldInteractionRules } from "./world-interaction.js";
 import { perceptionRules } from "./interactions/perception.js";
+import { contactApproach } from "./interactions/contact-approach.js";
 import { listeningRules } from "./interactions/listening.js";
 import { journeyStart } from "./journey-start.js";
 import { journeyProgress } from "./journey-progress.js";
@@ -62,6 +63,10 @@ export function createRules(
   for (const rule of worldInteractionRules) registry.register(rule);
   for (const rule of perceptionRules) registry.register(rule);
   for (const rule of listeningRules) registry.register(rule);
+
+  // Contact approach — single owner of relocate+approach to a present
+  // contact (npc-close-approach phase 1, ADR-0013 amendment).
+  registry.register(contactApproach);
 
   // Phase: consequence
   registry.register(repercussion);

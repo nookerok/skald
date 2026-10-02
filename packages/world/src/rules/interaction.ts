@@ -2,6 +2,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../projection.js";
 import { ruleEventId } from "../ids.js";
+import { resolveApproachTarget } from "../interactions/target-resolver.js";
 import { TEMPERATURE_HOT, TEMPERATURE_DANGEROUS } from "../objects/types.js";
 
 function referenceText(value: unknown): string {
@@ -555,9 +556,16 @@ export const interactionMovement: Rule<ReadonlyWorld> = {
       return [];
     }
 
-    // Check connections
+    // Single-outcome split for approach (npc-close-approach phase 1): the
+    // contact-approach rule owns present contacts and unresolvable targets;
+    // the movement rule owns ONLY connections and non-contact targets —
+    // the SAME predicate decides for both, so one action never yields both
+    // an approach outcome and `no_passage`.
     const target = payload["target"];
     const targetRaw = referenceText(target).toLowerCase();
+    if (operation === "approach" && resolveApproachTarget(world, targetRaw).kind !== "other") {
+      return [];
+    }
 
     // Try to find a matching connection
     let destinationId: string | undefined;

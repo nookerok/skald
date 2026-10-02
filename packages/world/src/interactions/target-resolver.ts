@@ -188,3 +188,71 @@ function matchesCurrentLocation(world: ReadonlyWorld, query: string): boolean {
     nameWords.some((nameWord) => queryWord === nameWord || sameRussianStem(queryWord, nameWord)),
   );
 }
+
+/**
+ * The connection destination a raw target names in the current location,
+ * or null — the verbatim connection-name comparison historically inlined in
+ * `interactionMovement`, now shared so the approach routing, the command
+ * preflight and the contextual validator all ask ONE question (npc-close-
+ * approach phase 1, ADR-0013 amendment).
+ */
+export function locationConnectionDestination(world: ReadonlyWorld, rawTarget: string): string | null {
+  const locationId = world.currentLocationId;
+  if (!locationId) return null;
+  const location = world.locations.get(locationId);
+  if (!location) return null;
+  const targetRaw = rawTarget.trim().toLowerCase();
+  if (!targetRaw) return null;
+  for (const [connName, connTarget] of Object.entries(location.connections)) {
+    if (targetRaw.includes(connName) || targetRaw.includes(connTarget)) return connTarget;
+  }
+  return null;
+}
+
+/**
+ * Who owns the outcome of `mode: relocate, operation: approach` for one raw
+ * target (npc-close-approach phase 1): exactly one of the three — the
+ * contact-approach rule, the movement rule, or a pre-execution refusal —
+ * so a player never sees both an approach outcome and `no_passage`.
+ *
+ * - `contact`: the target resolves to a contact PRESENT in the current
+ *   location (the same presence rule as the observer context);
+ * - `other`: a location connection, a non-contact target (object/route),
+ *   or a name that matches no contact anywhere — the existing
+ *   movement/connection path keeps ownership and its historical wording;
+ * - `unavailable`: a contact that exists but is not present here, or a
+ *   mid-flight ambiguity — ambiguity is asked BEFORE execution (command
+ *   preflight / contextual validation); at rule level it reports absence
+ *   rather than picking the first candidate.
+ */
+export type ApproachTarget =
+  | { readonly kind: "contact"; readonly name: string }
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "other" };
+
+export function resolveApproachTarget(world: ReadonlyWorld, rawTarget: string): ApproachTarget {
+  if (locationConnectionDestination(world, rawTarget)) return { kind: "other" };
+  const resolution = resolveInteractionTarget(world, "approach", rawTarget);
+  if (resolution.kind === "resolved") {
+    const entity = world.entities.get(resolution.target.id);
+    const contact = entity?.components.contact;
+    if (contact && contact.locationId === world.currentLocationId) {
+      return { kind: "contact", name: resolution.target.name };
+    }
+    return { kind: "other" };
+  }
+  // Not resolvable here: a target that NAMES a contact known anywhere is a
+  // person not present in this location («подойти к перевозчику» from the
+  // city) — absence, not a passage problem. Anything else (roads, places,
+  // unknown names — living-region connections are empty, so movement keeps
+  // its historical `no_passage` wording for them) stays `other`.
+  if (resolution.kind === "ambiguous") return { kind: "unavailable" };
+  for (const entity of world.entities.values()) {
+    const contact = entity.components.contact;
+    if (!contact) continue;
+    if (matchLevel([entity.name, ...entity.aliases], rawTarget.trim().toLowerCase()) !== null) {
+      return { kind: "unavailable" };
+    }
+  }
+  return { kind: "other" };
+}

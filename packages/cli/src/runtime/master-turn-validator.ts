@@ -18,6 +18,7 @@
 
 import {
   isItemAccessible,
+  locationConnectionDestination,
   resolveInteractionTarget,
   type AIDiagnosticSink,
   type MasterTurnSceneSnapshot,
@@ -650,11 +651,17 @@ function mapPrimaryAction(
   if (advised) return advised;
   const accessible = checkAccessible(world, boundRef ?? target.ref);
   if (accessible) return accessible;
-  return {
-    status: "accepted",
-    intent: freeze({
-      type: "ActionIntentCommand" as const,
-      mode: primary.operation === "wait" ? ("wait" as const) : primary.operation === "speak" || primary.operation === "call" ? ("communicate" as const) : ("interact" as const),
+    return {
+      status: "accepted",
+      intent: freeze({
+        type: "ActionIntentCommand" as const,
+        mode: primary.operation === "wait" ? ("wait" as const)
+          // Unification (npc-close-approach phase 1 §4): a model-authored
+          // legacy approach executes on the SAME relocate path the
+          // deterministic parser produces — the contact/connection split
+          // happens in Rules, identically for all three entries.
+          : primary.operation === "approach" ? ("relocate" as const)
+          : primary.operation === "speak" || primary.operation === "call" ? ("communicate" as const) : ("interact" as const),
       operation: primary.operation,
       ...(surface ? { target: { raw: surface } } : {}),
       ...(goal ? { goal } : {}),
@@ -759,6 +766,15 @@ function adviseTarget(
   proposal: TurnProposalV2,
 ): UnacceptedValidation | null {
   if (!surface) return null;
+  // An approach to a location connection is a movement intent, not a
+  // resolvable target (npc-close-approach phase 1 §3): the movement rule
+  // owns it; a missing name must not become a stale-target refusal.
+  if (verb === "approach" && locationConnectionDestination(world, surface)) return null;
+  // A compass target («move north» → normalized rumble) is grid movement
+  // owned by physics/movement rules — the same closed list as the command
+  // preflight; without this the model entry would refuse what the
+  // deterministic entry executes (three entries must agree).
+  if (verb === "approach" && ["north", "south", "east", "west"].includes(surface.trim().toLowerCase())) return null;
   const resolution = resolveInteractionTarget(world, verb, surface);
   if (resolution.kind === "resolved") return null;
   if (resolution.kind === "ambiguous") {

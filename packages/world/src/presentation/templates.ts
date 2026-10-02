@@ -256,6 +256,10 @@ export const ACTION_BLOCKED: PresentationTemplate = {
     const p = event.payload as { reason?: string; objectName?: string };
     const objectName = p.objectName || "Путь";
     if (p.reason === "locked") return cand("action_blocked_locked", "action", "primary", 115, objectName + " заперт и не поддаётся.", event);
+    // Contact approach re-check at execution (npc-close-approach phase 1):
+    // absence of the named target, NOT a passage problem — never the
+    // «нет свободного прохода» wording (review §7).
+    if (p.reason === "contact_unavailable") return cand("action_blocked_contact_unavailable", "action", "primary", 115, "«" + objectName + "» сейчас не здесь.", event);
     if (p.reason === "wall" || p.reason === "blocked" || p.objectName) return cand("action_blocked_object", "action", "primary", 115, objectName + " преграждает путь.", event);
     return cand("action_blocked", "action", "primary", 115, "Перед тобой нет свободного прохода.", event);
   },
