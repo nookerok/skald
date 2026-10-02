@@ -2,7 +2,7 @@
 
 Продолжение `docs/ARCHITECTURE.md`, не замена. v1 — принятая спецификация
 взаимодействия игрока с миром через свободный текст. Решения зафиксированы
-в `docs/adr/0013-interaction-model-v1.md`; этот документ — рабочий контракт
+в ADR-0013 и уточняющем каталог ADR-0038; этот документ — рабочий контракт
 для реализации (срезы вертикальной разработки).
 
 ## Статус
@@ -68,9 +68,13 @@ interface InteractionCommand {
 }
 ```
 
-`InteractionVerb` — объединение восьми канонических значений:
-`"observe" | "inspect" | "listen" | "touch" | "take" | "open" |
-"apply_force" | "give"`; `examine` — синоним `inspect` на уровне парсера.
+`InteractionVerb` выводится из единого `INTERACTION_VERBS` и содержит
+одиннадцать канонических значений: `"observe" | "inspect" | "listen" |
+"touch" | "take" | "open" | "close" | "apply_force" | "give" | "place" |
+"use"`; `examine` — синоним `inspect` на уровне парсера.
+`apply_force` временно остаётся единственным глаголом вне Interaction
+Registry до среза 6. `experiment` — не глагол: это закрытый affordance,
+который выражается через `use` с `goal: "experiment"` (ADR-0038).
 
 Entity — component-based модель (типизированные доменные аспекты, конечный
 набор, без универсального ECS; новые типы компонентов — только через

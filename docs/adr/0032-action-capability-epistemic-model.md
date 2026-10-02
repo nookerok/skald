@@ -2,6 +2,9 @@
 
 Status: accepted
 
+Catalog clarification: ADR-0038 keeps `experiment` as a closed affordance
+expressed through `use`; it is not a canonical interaction verb.
+
 ## Context
 
 The action/capability model must complete the existing Interaction Model without

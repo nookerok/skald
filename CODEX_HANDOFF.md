@@ -1,3 +1,23 @@
+# Current work (2026-10-02 — interaction catalog alignment)
+
+- Interaction catalog alignment (ADR-0038): `INTERACTION_VERBS` now owns the
+  eleven-verb type and intent manifest; `close` is present by construction.
+  The registry no longer exposes `experiment`; it matches the catalog except
+  for the executable, self-expiring `apply_force` Slice-6 exception.
+  `AFFORDANCES` now owns both the affordance type and runtime membership set.
+  Stale model/transient `experiment` verbs reject cleanly, while
+  «поэкспериментировать с X» parses as `use` with `goal: "experiment"`.
+  ADR-0013/ADR-0032 are amended without changing gateway ambiguity,
+  `ActionRejected(ambiguous_target)`, `touch` semantics, or
+  `MASTER_TURN_AVAILABLE_ACTIONS`. Focused typecheck and 473 slice tests
+  PASS (intent-parser + catalog + command-handler + action-capability +
+  projection/replay). Full `npm run validate` PASS measured at 2829 passed,
+  1 skipped, 228 files — the earlier BLOCKED note (two CLI movement tests
+  with an extra `ActionBlocked`) did not reproduce once the compass-target
+  preflight carve-outs landed; both streams are green together. Changes
+  remain uncommitted in the working tree — no commit, deploy or restart
+  without separate permission.
+
 # Current work (2026-10-01 — semantic-question-plan T6 closed after challenge round 2)
 
 - Challenge round 2 accepted and fully discharged (commits `cab6e52` +

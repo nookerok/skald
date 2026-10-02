@@ -96,6 +96,12 @@ interface InteractionCommand {
 
 ### 2. Canonical verbs v1
 
+> **Amended by [ADR-0038](0038-interaction-catalog-alignment.md)** for the
+> canonical vocabulary: eleven verbs derived from the executable
+> `INTERACTION_VERBS` tuple (adds `close`, `place`, `use`);
+> `experiment` is a closed affordance expressed through `use`, not a verb.
+> The list below is the historical v1 snapshot.
+
 ```text
 observe | inspect | listen | touch | take | open | apply_force | give
 ```
