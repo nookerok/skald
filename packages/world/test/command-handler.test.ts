@@ -56,3 +56,21 @@ describe("handleCommand read-side text boundary", () => {
     expect(JSON.parse(speechPayload).speech).toEqual({ relation: "help", target: "исходная реплика 2b8d" });
   });
 });
+
+describe("handleCommand interaction catalog", () => {
+  it("rejects the removed experiment verb cleanly", () => {
+    const staleCommand = {
+      type: "InteractionCommand",
+      verb: "experiment",
+      target: { raw: "кристалл" },
+      rawText: "experiment with the crystal",
+      interpretation,
+    } as unknown as InteractionCommand;
+
+    expect(() => handleCommand(staleCommand, "stale-experiment", 8)).not.toThrow();
+    expect(handleCommand(staleCommand, "stale-experiment", 8)).toMatchObject({
+      type: "CommandRejected",
+      payload: { reason: "unknown interaction verb: experiment" },
+    });
+  });
+});

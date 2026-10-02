@@ -44,6 +44,14 @@ describe("IntentProposalV1", () => {
       status: "invalid",
       reason: "proposal primary intent is incomplete or unsupported",
     });
+
+    expect(validateIntentProposal({
+      schemaVersion: 1,
+      primary: { kind: "interaction", verb: "experiment", target: "кристалл" },
+    }, "experiment with the crystal")).toEqual({
+      status: "invalid",
+      reason: "proposal primary intent is incomplete or unsupported",
+    });
   });
 
   it("does not allow event ids, control characters, or oversized text", () => {
@@ -77,6 +85,6 @@ describe("IntentProposalV1", () => {
 
   it("keeps a finite capability manifest", () => {
     expect(INTENT_CAPABILITIES.onePrimaryIntentOnly).toBe(true);
-    expect(INTENT_CAPABILITIES.interactionVerbs).toHaveLength(10);
+    expect(INTENT_CAPABILITIES.interactionVerbs).toHaveLength(11);
   });
 });

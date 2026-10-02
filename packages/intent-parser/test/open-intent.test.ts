@@ -827,3 +827,16 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     expect(result.type).toBe("JourneyIntent");
   });
 });
+
+describe("interpretIntent — experiment affordance", () => {
+  it("maps natural experimentation to use with the experiment goal", () => {
+    const result = interpretIntent("поэкспериментировать с кристаллом");
+
+    expect(result).toMatchObject({
+      type: "InteractionCommand",
+      verb: "use",
+      target: { raw: "кристаллом" },
+      goal: "experiment",
+    });
+  });
+});
