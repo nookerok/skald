@@ -263,7 +263,9 @@ describe("master turn contextual validation", () => {
 
     expect(result.status).toBe("accepted");
     if (result.status !== "accepted") return;
-    expect(result.plan.execution?.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach" });
+    // Unification (npc-close-approach phase 1 §4): a model-authored legacy
+    // approach executes on the deterministic parser's relocate path.
+    expect(result.plan.execution?.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach", mode: "relocate" });
     expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
     expect(result.plan.deferredClauses).toEqual([{ text: "осмотреть лагерь", reason: "secondary_action" }]);
   });
