@@ -14,9 +14,12 @@
   projection/replay). Full `npm run validate` PASS measured at 2829 passed,
   1 skipped, 228 files — the earlier BLOCKED note (two CLI movement tests
   with an extra `ActionBlocked`) did not reproduce once the compass-target
-  preflight carve-outs landed; both streams are green together. Changes
-  remain uncommitted in the working tree — no commit, deploy or restart
-  without separate permission.
+  preflight carve-outs landed; both streams are green together. Committed
+  and pushed as three slices of concern: `28c93be` docs/contract, `49e08a0`
+  feat/runtime, `24b519b` test. Working tree clean apart from plan_*
+  scratch. Not deployed — a deploy of `24b519b` also ships the already
+  pushed contact-approach phase 1 (`238b752`..`0b947da`) and still needs
+  separate permission.
 
 # Current work (2026-10-01 — semantic-question-plan T6 closed after challenge round 2)
 
