@@ -1,3 +1,33 @@
+# Current work (2026-10-04 — command time & scene-relative movement; ADR-0039 accepted)
+
+- New story `command-time-and-scene-movement` (artifacts T1..T10 + acceptance).
+  ADR-0039 accepted, `D-039` accepted. Committed this block as `feat` (source),
+  `test`, `docs` (ADR/DECISIONS), `handoff` slices; see `git log`.
+- T3 time policy: one pure `planCommandTime` (`packages/world/src/command-time-policy.ts`)
+  replaces the two inline `suppressTick` copies in `master-turn-executor.ts` and
+  `world-handlers.ts`. `journey-progress.ts` first pulse is `initialJourneyPulseTimestamp`
+  (start command's own T+1, not T+2); later waits use `nextJourneyPulseTimestamp`.
+  Cost-0 commands (interrupt, in-travel rejection) stamp current `world.time`,
+  no generic `TickPassed`, unique ids via `eventNumber` (`cmd-T-N`).
+- T4 movement targets: `resolveMovementTarget` operation-aware (approach →
+  present contact; enter/journey → connection/route; compass → grid only without
+  `currentLocationId`), `ambiguous` on ties. Known-but-absent contact is a cost-0
+  `action_rejection` (`target_not_present`, «X сейчас не рядом») persisted as a
+  read-side turn (`inputClass:"action"`, `responseKind:"action_rejection"`), not
+  a clarification; deterministic, scripted and repaired plans share one preflight.
+- T9 morphology: connection match is morphological (`sameRussianStem`, no
+  `String.includes`), exact-first ranking, only the player-facing connection name
+  (never the internal destination id). T10 observer-safe: preflight intersects
+  current connections with `observedRouteEndpoints`; the movement Rule keeps the
+  full snapshot.
+- T4 browser acceptance PENDING: `app.js` gained an `action_rejection` branch, so
+  it needs a post-deploy scratch browser run (fixed NTFS runner; budget 12; DOM
+  and visual separate). T3/T9/T10 closed (status 2); T4 status 1 until that run.
+- `npm run validate` PASS: 231 files, 2890 passed, 1 skipped. Deploy authorized
+  by the user in this block (commit → push → Orange Pi updater → browser QA).
+- Next: post-deploy browser QA to close T4; then T5 scene engagement
+  (`near`/`engaged`, additive `ActionResolved` fields).
+
 # Current work (2026-10-04 — question-safety guard shipped and live-controlled)
 
 - Follow-up ticket `question-survives-mixed-replicas` implemented and
