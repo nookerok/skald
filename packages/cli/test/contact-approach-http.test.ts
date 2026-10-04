@@ -222,6 +222,57 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
     }
   });
 
+  it("a speech reply that drops the embedded question is corrected before execution (question-safety)", async () => {
+    // Live variance (browser QA replica 4): the model answered this mixed
+    // replica as speech and the appearance question died. Round 1 now gets
+    // the question_dropped correction; round 2 must carry the question.
+    const speechReply = {
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "привет", sourceText: "Подойду к старосте" },
+      supportingClauses: [],
+      addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Староста южного посада" },
+      referents: [{ role: "addressee", observerRef: "person_1", surface: "Староста южного посада" }],
+    };
+    const mixedProposal = {
+      schemaVersion: 2,
+      kind: "mixed",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойду к старосте" },
+      supportingClauses: [],
+      question: { queryId: "visible_scene" },
+      target: { role: "target", observerRef: "person_1", surface: "Староста южного посада" },
+      referents: [{ role: "target", observerRef: "person_1", surface: "Староста южного посада" }],
+    };
+    const router = scriptedRouter([speechReply, mixedProposal]);
+    const { store, runtime } = await freshRuntime("qsafety", "ca-qsafety", router,
+      buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" }));
+    try {
+      // Prime the focus («он» is dual: without the confirmed mention the
+      // pronoun step clarifies before the model ever runs). The turn is
+      // deterministic — the scripted queue stays for the mixed replica.
+      const prime = parse(await handleWorldCommand(runtime, { input: "Я подхожу к старосте", idempotencyKey: "ca-qs-a" }));
+      expect(JSON.stringify(prime)).toContain(WARDEN_TEXT);
+      expect(router.chat).not.toHaveBeenCalled();
+
+      const before = runtime.projection.getSnapshot();
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, { input: "Подойду к старосте, как он выглядит?", idempotencyKey: "ca-qs-1" }));
+
+      expect(router.chat).toHaveBeenCalledTimes(2);
+      const dump = JSON.stringify(response);
+      // The corrected reply executes BOTH parts: approach outcome present,
+      // the speech reply never executed.
+      expect(dump).toContain(WARDEN_TEXT);
+      expect(dump).not.toContain("Ты обращаешься");
+      const after = runtime.projection.getSnapshot();
+      expect(approachOutcomes(runtime, eventsBefore)).toHaveLength(1);
+      expect(runtime.bus.query().slice(eventsBefore).some((event) => event.type === "PlayerLocationChanged")).toBe(false);
+      expect(after.time).toBe(before.time + 1);
+    } finally {
+      store.close();
+    }
+  });
+
   it("«Где староста?» — a question stays read-only", async () => {
     const inquiryProposal = {
       schemaVersion: 2,

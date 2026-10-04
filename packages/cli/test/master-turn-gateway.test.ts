@@ -1136,6 +1136,96 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(router.chat).toHaveBeenCalledTimes(2);
   });
 
+  it("corrects a speech reply that drops a mixed replica's question (question-safety)", async () => {
+    const snap = snapshot();
+    const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    expect(fence).toBeDefined();
+    // «она» is dual (person+thing): without a focus the pronoun step
+    // clarifies before the model — mirror the confirmed mention the
+    // deterministic approach turn records in production. The camp world
+    // really contains the fence, so world-side target resolution agrees
+    // with the scene table.
+    const conversation = {
+      ...snap.conversation,
+      recentFocus: [{ kind: "target" as const, surface: "Ограда", turnSeq: 1 }],
+    };
+    const speechReply = JSON.stringify({
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "привет", sourceText: "Подойду к ограде" },
+      supportingClauses: [],
+      addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Ограда" },
+      referents: [{ role: "addressee", observerRef: "person_1", surface: "Ограда" }],
+    });
+    let call = 0;
+    const router = {
+      chat: vi.fn(async () => {
+        call += 1;
+        // Round 1 drops the embedded question; round 2 carries it.
+        if (call === 1) return { text: speechReply };
+        return {
+          text: JSON.stringify({
+            schemaVersion: 2,
+            kind: "mixed",
+            primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойду к ограде" },
+            supportingClauses: [],
+            question: { queryId: "visible_scene" },
+            target: { role: "target", observerRef: fence!.observerRef, surface: "Ограда" },
+            referents: [{ role: "target", observerRef: fence!.observerRef, surface: "Ограда" }],
+          }),
+        };
+      }),
+    } as any;
+    const seen: any[] = [];
+    const result = await interpretMasterTurn("Подойду к ограде, как она выглядит?", { ...snap, conversation }, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    const dropped = seen.filter((event) => event.category === "proposal_schema_rejected" && event.failureCategory === "question_dropped");
+    expect(dropped).toHaveLength(1);
+    expect(router.chat).toHaveBeenCalledTimes(2);
+    // The corrected reply executes BOTH parts: the approach and the question.
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution?.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach" });
+    expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
+  });
+
+  it("a stubborn question-dropper degrades to the deterministic action, never speech", async () => {
+    const snap = snapshot();
+    // Same focus precondition as above: «она» must continue the confirmed
+    // mention instead of clarifying between person and objects.
+    const conversation = {
+      ...snap.conversation,
+      recentFocus: [{ kind: "target" as const, surface: "Ограда", turnSeq: 1 }],
+    };
+    const speechReply = JSON.stringify({
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "привет", sourceText: "Подойду к ограде" },
+      supportingClauses: [],
+      addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Ограда" },
+      referents: [{ role: "addressee", observerRef: "person_1", surface: "Ограда" }],
+    });
+    const router = routerReturning(speechReply);
+    const seen: any[] = [];
+    const result = await interpretMasterTurn("Подойду к ограде, как она выглядит?", { ...snap, conversation }, router, {
+      diagnostics: (event: any) => seen.push(event),
+    });
+
+    // Round 1 corrected, round 2 hit the hard guard — the degraded path is
+    // honest: the deterministic approach (the replica's action) when the
+    // parse is clean, otherwise the pronoun-aware clarification (the parsed
+    // target carries «она»). The model's speech never produces a plan.
+    expect(router.chat).toHaveBeenCalledTimes(2);
+    expect(seen.filter((event) => event.category === "proposal_schema_rejected" && event.failureCategory === "question_dropped").length).toBeGreaterThanOrEqual(1);
+    expect(["clarification", "deterministic"]).toContain(result.status);
+    if (result.status === "deterministic") {
+      expect(result.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach" });
+    }
+    expect(result.status).not.toBe("plan");
+  });
+
   it("keeps addressing a person executable (T6 positive control)", async () => {
     const snap = snapshot();
     const references = new Map(snap.scene.references);

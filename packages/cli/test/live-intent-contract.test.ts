@@ -23,6 +23,11 @@ function snapshot(): MasterTurnSnapshot {
       id: "fence", name: "Ограда", aliases: ["ограду", "оградой", "ограде"], description: "Почерневшая ограда.",
       material: "wood", locationId: "camp", integrity: 100, temperature: 20, state: {},
     }),
+    // Observed, so the mixed contract reply can reference it as a visible
+    // target (scene table + observerRef) — the approach's own premise.
+    event("ObjectObserved", "boot-fence-noticed", {
+      objectId: "fence", observerId: "player", description: "Почерневшая ограда.",
+    }),
   ];
   for (const entry of log) { projection.apply(entry); bus.append(entry); }
   const events = bus.query();
@@ -30,13 +35,24 @@ function snapshot(): MasterTurnSnapshot {
   return { events, world, scene: buildMasterTurnSceneContext(events, world), conversation: buildMasterConversationContext([], "test-world") };
 }
 
-const ACTION_PROPOSAL = JSON.stringify({
-  schemaVersion: 2,
-  kind: "action",
-  primaryIntent: { kind: "interaction", verb: "observe", sourceText: "осматриваюсь" },
-  supportingClauses: [],
-  referents: [],
-});
+// The contract's third phrase carries a question («…что я вижу?»): a healthy
+// model answer carries it too (kind mixed), so the probe budgets ONE
+// interpret call for it. An action-without-question reply would legitimately
+// trigger the question-safety correction round (two calls) — the fixture
+// models the healthy path.
+const QUESTION_CARRYING_PROPOSAL = (() => {
+  const fence = snapshot().scene.context.visibleObjects.find((object) => object.label === "Ограда");
+  if (!fence) throw new Error("fence missing from fixture");
+  return JSON.stringify({
+    schemaVersion: 2,
+    kind: "mixed",
+    primaryIntent: { kind: "legacy", operation: "approach", sourceText: "подхожу к ограде" },
+    supportingClauses: [],
+    question: { queryId: "visible_scene" },
+    target: { role: "target", observerRef: fence.observerRef, surface: "Ограда" },
+    referents: [{ role: "target", observerRef: fence.observerRef, surface: "Ограда" }],
+  });
+})();
 
 describe("live intent contract probe (plan: real acceptance)", () => {
   it("exposes the plan's three live phrases", () => {
@@ -64,7 +80,7 @@ describe("live intent contract probe (plan: real acceptance)", () => {
       apiKey: "test",
       chat: vi.fn(async (category: string) => category === "narrate"
         ? { text: "Тихая переправа ждёт рассвета." }
-        : { text: ACTION_PROPOSAL }),
+        : { text: QUESTION_CARRYING_PROPOSAL }),
     } as any;
     const report = await probeLiveIntentContract(snapshot(), router, { timeoutMs: 50 });
     expect(report.pass).toBe(true);

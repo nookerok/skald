@@ -194,6 +194,10 @@ describe("master turn prompt contract", () => {
     // (addressing) and executed it — a question about someone is inquiry.
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("A question ABOUT someone");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("must not execute anything");
+    // Question-safety (follow-up): a mixed replica's embedded question must
+    // ride kind mixed — never speech, never action without it.
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("combining an action with a question");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("never speech, never action without the question");
   });
 
   it("advertises the closed listRef vocabulary for shown lists (T5)", () => {
