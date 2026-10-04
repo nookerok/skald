@@ -158,6 +158,12 @@ export interface PlayerKnowledgePresentation {
   readonly entries: readonly PlayerKnowledgeEntry[];
 }
 
+/** Player-facing proximity status (ADR-0039 §3); never an internal ref. */
+export interface SceneEngagementDTO {
+  readonly state: "near" | "engaged";
+  readonly label: string;
+}
+
 export interface GameShellSnapshot {
   schemaVersion: 1;
   /** Player-facing region title; internal worldId is never rendered as a title. */
@@ -174,6 +180,7 @@ export interface GameShellSnapshot {
   knowledge: PlayerKnowledgePresentation;
   guidance: PlayerGuidance;
   resources: readonly import("../resource/observer.js").ObservedResourceDTO[];
+  sceneEngagement: SceneEngagementDTO | null;
 }
 
 export interface ShellDelta {
@@ -186,4 +193,5 @@ export interface ShellDelta {
   knowledge: PlayerKnowledgePresentation;
   guidance: PlayerGuidance;
   resources: readonly import("../resource/observer.js").ObservedResourceDTO[];
+  sceneEngagement: SceneEngagementDTO | null;
 }

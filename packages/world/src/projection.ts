@@ -94,6 +94,19 @@ export function relationKey(from: string, to: string, kind: string): string {
   return `${from}>${to}:${kind}`;
 }
 
+/**
+ * Per-scene proximity state (ADR-0039 §3): the player stands near a target
+ * within the current location. Derived only from `ActionResolved[approach]`
+ * additive fields; cleared by a location change or a journey start. This is
+ * projection state, not metres, and never carries coordinates.
+ */
+export interface SceneEngagement {
+  readonly targetRef: string;
+  readonly locationId: string;
+  readonly state: "near" | "engaged";
+  readonly establishedAt: number;
+}
+
 export interface ReadonlyWorld {
   readonly player: { readonly x: number; readonly y: number };
   readonly walls: ReadonlySet<string>;
@@ -132,6 +145,8 @@ export interface ReadonlyWorld {
   readonly resources: ResourceReadView | null;
   readonly spatialKnowledge: ObserverSpatialKnowledge | null;
   readonly actionCapabilities: ActionCapabilityReadView | null;
+  // Scene proximity (ADR-0039 §3): derived engagement state, not metres.
+  readonly sceneEngagement: SceneEngagement | null;
 }
 
 export interface WorldState {
@@ -171,6 +186,7 @@ export interface WorldState {
   resources: ResourceReadView | null;
   spatialKnowledge: MutableObserverSpatialKnowledge | null;
   actionCapabilities: ActionCapabilityReadView | null;
+  sceneEngagement: SceneEngagement | null;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -363,6 +379,7 @@ function freeze(state: WorldState): ReadonlyWorld {
       : null,
     spatialKnowledge: state.spatialKnowledge ? freezeObserverSpatialKnowledge(state.spatialKnowledge) : null,
     actionCapabilities: state.actionCapabilities,
+    sceneEngagement: state.sceneEngagement ? Object.freeze({ ...state.sceneEngagement }) : null,
   }) as ReadonlyWorld;
 }
 
@@ -412,6 +429,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       resources: null,
       spatialKnowledge: createObserverSpatialKnowledge("player"),
       actionCapabilities: null,
+      sceneEngagement: null,
     };
   }
 
@@ -559,6 +577,8 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       case "ContainerOpened":
       case "ContainerClosed": {
         applyObjectEvent(s as unknown as { objects: Map<string, WorldObject>; locations: Map<string, Location>; currentLocationId: string }, event);
+        // A location change ends any per-scene engagement.
+        if (event.type === "PlayerLocationChanged") s.sceneEngagement = null;
         break;
       }
       // Iteration 15 — Critical check tracking for crash recovery
@@ -603,6 +623,36 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         s.lastActionTick = event.timestamp;
         break;
       }
+      // Scene proximity (ADR-0039 §3): an approach to a present contact
+      // establishes (or refreshes) the per-scene engagement state. Additive
+      // fields only; an older ActionResolved without them changes nothing.
+      // TODO(ADR-0039 §3): a contact LEAVING the current location has no
+      // Domain Event yet (only `ConditionRemoved`, unrelated). When such an
+      // event is introduced, clear sceneEngagement here as well and open a
+      // dedicated ticket — do not invent the event now.
+      case "ActionResolved": {
+        const p = event.payload as {
+          result?: unknown;
+          engagement?: unknown;
+          targetRef?: unknown;
+          locationId?: unknown;
+        };
+        if (p.result === "approach" && p.engagement === "near"
+          && typeof p.targetRef === "string" && p.targetRef.length > 0
+          && p.locationId === s.currentLocationId) {
+          const sameTarget = s.sceneEngagement?.targetRef === p.targetRef
+            && s.sceneEngagement.locationId === s.currentLocationId;
+          s.sceneEngagement = {
+            targetRef: p.targetRef,
+            locationId: s.currentLocationId,
+            state: "near",
+            // A repeated approach refreshes the SAME state; the original
+            // establishment time is kept (ADR-0039 §3).
+            establishedAt: sameTarget ? s.sceneEngagement!.establishedAt : event.timestamp,
+          };
+        }
+        break;
+      }
       // Spatial Movement (ADR-0015)
       case "TickPassed": {
         if (s.activeJourneyId) {
@@ -641,6 +691,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
           blockedReason: null,
         });
         s.activeJourneyId = p.journeyId;
+        s.sceneEngagement = null;
         break;
       }
       case "JourneyCompleted": {
@@ -776,6 +827,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
           }
         : null,
       actionCapabilities: this.state.actionCapabilities,
+      sceneEngagement: this.state.sceneEngagement ? { ...this.state.sceneEngagement } : null,
     };
     copy.seedReadViewProjectors();
     return copy;

@@ -55,6 +55,10 @@ export const contactApproach: Rule<ReadonlyWorld> = {
     };
 
     if (target.kind === "contact") {
+      // Repeated approach to the same present target: keep exactly one
+      // engagement state and answer meaningfully (ADR-0039 §3).
+      const alreadyNear = world.sceneEngagement?.targetRef === target.ref
+        && world.sceneEngagement.locationId === world.currentLocationId;
       return [{
         ...base,
         eventId: ruleEventId(event.eventId, "ActionResolved", 0),
@@ -62,11 +66,18 @@ export const contactApproach: Rule<ReadonlyWorld> = {
         payload: {
           actionEventId: event.eventId,
           result: "approach",
+          // Additive fields (ADR-0039 §3): the projection derives scene
+          // engagement from them; an older runtime ignores them.
+          targetRef: target.ref,
+          locationId: world.currentLocationId,
+          engagement: "near",
           // Nominative citation form: the repo has no case inflection and
           // contact aliases/addressForms are nominative — the outcome
           // confirms the approach and names who stands ahead without
           // inventing morphology (decision 2026-10-01).
-          description: `Ты подходишь ближе. Перед тобой — ${target.name}.`,
+          description: alreadyNear
+            ? `Ты уже стоишь рядом с ${target.name}.`
+            : `Ты подходишь ближе. Перед тобой — ${target.name}.`,
         },
       }];
     }

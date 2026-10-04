@@ -228,8 +228,8 @@ export { createRules } from "./rules/registry.js";
 export type { CriticalCheckState, CheckKind, CheckOutcome, DieType, CriticalModifier } from "./checks/types.js";
 
 // Interaction Model v1 — unified target resolver and adapter (ADR-0013)
-export { resolveInteractionTarget, locationConnectionDestination, locationConnectionMatch, locationConnectionMatches, observerSafeConnectionMatches, resolveApproachTarget, resolveMovementTarget, targetFromEntity, targetFromObject } from "./interactions/index.js";
-export type { ApproachTarget, MovementTarget, MovementIntentView } from "./interactions/index.js";
+export { resolveInteractionTarget, locationConnectionDestination, locationConnectionMatch, locationConnectionMatches, observerSafeConnectionMatches, resolveApproachTarget, resolveMovementTarget, targetFromEntity, targetFromObject, sceneEngagementView } from "./interactions/index.js";
+export type { ApproachTarget, MovementTarget, MovementIntentView, SceneEngagementView } from "./interactions/index.js";
 export type {
   InteractionTarget,
   PlayerFacingCandidate,

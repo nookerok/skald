@@ -15,6 +15,7 @@ import { buildBeliefModel } from "../observation/builder.js";
 import { blockedReasonLabel, localizedPlayerText, operationLabel, sanitizePlayerFacingText } from "./player-facing.js";
 import { buildObservedResources } from "../resource/observer.js";
 import { observedRouteEndpoints } from "../journey/route-resolver.js";
+import { sceneEngagementView } from "../interactions/scene-engagement.js";
 import type { NarrativeAdapterContext } from "../setup/background-context.js";
 
 interface CharacterProfileRecord {
@@ -349,6 +350,7 @@ export function buildGameShellSnapshot(
     knowledge: buildPlayerKnowledgePresentation(events, world, beliefModel, { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 }),
     guidance,
     resources: buildObservedResources(world),
+    sceneEngagement: sceneEngagementView(world),
   });
 }
 
@@ -403,5 +405,6 @@ export function buildShellDelta(
     knowledge: buildPlayerKnowledgePresentation(events, world, beliefModel, { startup: world.time === 0, maxEntries: world.time === 0 ? 3 : 100 }),
     guidance,
     resources: buildObservedResources(world),
+    sceneEngagement: sceneEngagementView(world),
   });
 }

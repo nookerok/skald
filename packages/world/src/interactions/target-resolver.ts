@@ -310,7 +310,7 @@ export function locationConnectionDestination(world: ReadonlyWorld, rawTarget: s
  *   rather than picking the first candidate.
  */
 export type ApproachTarget =
-  | { readonly kind: "contact"; readonly name: string }
+  | { readonly kind: "contact"; readonly name: string; readonly ref: string }
   | { readonly kind: "unavailable"; readonly name?: string }
   | { readonly kind: "other" };
 
@@ -320,7 +320,7 @@ export function resolveApproachTarget(world: ReadonlyWorld, rawTarget: string): 
     const entity = world.entities.get(resolution.target.id);
     const contact = entity?.components.contact;
     if (contact && contact.locationId === world.currentLocationId) {
-      return { kind: "contact", name: resolution.target.name };
+      return { kind: "contact", name: resolution.target.name, ref: resolution.target.id };
     }
     return { kind: "other" };
   }
