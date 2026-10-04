@@ -1552,6 +1552,22 @@ function fallbackAfterModelFailure(
   // than falling to a generic answer (plan_9 §1).
   const compound = resolveDeterministicCompound(input, snapshot, options);
   if (compound) return compound;
+  // Question-safety in the degraded path too (live control, replica 4): the
+  // parser infers SPEAK from the question form («Подойду к старосте, как он
+  // выглядит?» → operation speak, "inferred as speech from question form"),
+  // and after a twice-failed model reply the speak-addressee fallback would
+  // execute an addressed speech turn for a question-bearing replica —
+  // bypassing the question-safety guard upstream. Clarify honestly instead.
+  // (The action branch above narrowed the flow type; the runtime value can
+  // still be an ActionIntentCommand — widen through an explicit assertion.)
+  const deterministicWide = deterministic as ReturnType<typeof parseIntent>;
+  if (
+    replicaAsksQuestion(input)
+    && deterministicWide.type === "ActionIntentCommand"
+    && (deterministicWide.operation === "speak" || deterministicWide.operation === "call")
+  ) {
+    return genericFallback(options);
+  }
   const deterministicClarification = clarificationFromDeterministic(deterministic);
   if (deterministicClarification) return mapLegacyFallback(deterministicClarification) ?? genericFallback(options);
   return speakAddresseeFallback(deterministic, snapshot, options) ?? genericFallback(options);
