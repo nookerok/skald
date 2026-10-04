@@ -1226,6 +1226,34 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(result.status).not.toBe("plan");
   });
 
+  it("the degraded path never executes deterministic speech for a question-bearing replica (live control)", async () => {
+    // Live control (replica 4 on the Pi): the parser infers SPEAK from the
+    // question form, the model failed shape twice, and the speak-addressee
+    // fallback executed «Ты обращаешься к …» — bypassing the question-safety
+    // guard. People must be present in the scene, or the bind fails for the
+    // wrong reason.
+    const snap = snapshot();
+    const references = new Map(snap.scene.references);
+    references.set("person_1", { kind: "person", internalId: "warden", label: "Староста южного посада" });
+    const scene = {
+      ...snap.scene,
+      references,
+      context: {
+        ...snap.scene.context,
+        knownPeople: [{ observerRef: "person_1", kind: "person" as const, label: "Староста южного посада", knownAs: ["Староста"], known: true }],
+      },
+    };
+    const conversation = {
+      ...snap.conversation,
+      recentFocus: [{ kind: "target" as const, surface: "Староста южного посада", turnSeq: 1 }],
+    };
+    const router = routerReturning("не json вовсе");
+    const result = await interpretMasterTurn("Подойду к старосте, как он выглядит?", { ...snap, scene, conversation }, router);
+
+    expect(router.chat).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("clarification");
+  });
+
   it("keeps addressing a person executable (T6 positive control)", async () => {
     const snap = snapshot();
     const references = new Map(snap.scene.references);
