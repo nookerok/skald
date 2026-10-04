@@ -14,12 +14,17 @@
   `b8d2f62`. Attempt 2 on `3b03c1f`: honest «Я не уверен, что правильно
   понял…», no speech, no tick, journal shows referent_membership →
   repair → fallback. Invariant holds.
-- Residual (model quality, recorded): live model fails static
+- Residual (model quality, recorded): live model failed static
   `referent_membership` on inquiry+questionPlan proposals twice in a row
-  (person listed in referents without a declared slot); one repair round
-  is by design; live both-parts happy path stays stochastic (scripted
-  tests cover it deterministically). Possible follow-up: prompt
-  clarification of the referent-slot rule.
+  (person listed in referents without a declared slot). **Follow-up
+  shipped and live-verified 2026-10-04** (`c2ef7a3` prompt slot↔referents
+  mirror rule + `9cd75df` inquiry-slot unit; deployed `9cd75df`): the
+  replica-4 re-run shows `requested → received` with ZERO rejections, no
+  repair, and the raw answer carries both the action and the appearance
+  fact. Gate 2834 passed. Latent quirk recorded: a Latin character name
+  (e.g. scratch «ApproachSixB») inside composed ACTION/mixed texts trips
+  the DTO identifier-boundary fallback («Подробности пока неясны») —
+  test-data artifact, Russian names unaffected.
 - `npm run validate` PASS: 2833 passed, 1 skipped, 228 files.
 
 # Current work (2026-10-02 — interaction catalog alignment)
