@@ -20,13 +20,19 @@
   (never the internal destination id). T10 observer-safe: preflight intersects
   current connections with `observedRouteEndpoints`; the movement Rule keeps the
   full snapshot.
-- T4 browser acceptance PENDING: `app.js` gained an `action_rejection` branch, so
-  it needs a post-deploy scratch browser run (fixed NTFS runner; budget 12; DOM
-  and visual separate). T3/T9/T10 closed (status 2); T4 status 1 until that run.
-- `npm run validate` PASS: 231 files, 2890 passed, 1 skipped. Deploy authorized
-  by the user in this block (commit → push → Orange Pi updater → browser QA).
-- Next: post-deploy browser QA to close T4; then T5 scene engagement
-  (`near`/`engaged`, additive `ActionResolved` fields).
+- T4 browser acceptance PASS (fixed NTFS runner `ctms-t4-browser-20261004-1`,
+  receipt verified): DOM PASS (one bubble, absence text without rephrase,
+  `Ход` unchanged, reload one pair + same turn key, composer ok, console 0,
+  mobile no overflow, no internal ids), visual `PASS_INLINE_ONLY`, human
+  `NOT_RUN`. The two items the browser sandbox could not read (raw
+  `responseKind`, same-key replay) were verified at the API level on `0917c36`
+  (`action_rejection`/`target_not_present`, replay `replayed`, conflict 409).
+- `npm run validate` PASS: 231 files, 2890 passed, 1 skipped. Committed as
+  `9f3aad2` feat, `1a5ddce` test, `522741a` docs, `0917c36` handoff; pushed
+  `5d3d75d..0917c36`. Deployed `0917c36` via the Orange Pi updater (build+tests,
+  manifest, health, AI readiness `degraded but playable`, live contract PASS);
+  scratch smoke PASS (10 turns +1, replay, 409, scoped state).
+- Next: T5 scene engagement (`near`/`engaged`, additive `ActionResolved` fields).
 
 # Current work (2026-10-04 — question-safety guard shipped and live-controlled)
 
