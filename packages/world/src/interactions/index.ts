@@ -1,5 +1,5 @@
-export { resolveInteractionTarget, locationConnectionDestination, resolveApproachTarget } from "./target-resolver.js";
-export type { ApproachTarget } from "./target-resolver.js";
+export { resolveInteractionTarget, locationConnectionDestination, locationConnectionMatch, locationConnectionMatches, observerSafeConnectionMatches, resolveApproachTarget, resolveMovementTarget } from "./target-resolver.js";
+export type { ApproachTarget, MovementTarget, MovementIntentView } from "./target-resolver.js";
 export { targetFromEntity, targetFromObject } from "./target-view.js";
 export type {
   InteractionTarget,

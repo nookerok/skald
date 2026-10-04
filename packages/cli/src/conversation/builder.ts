@@ -145,8 +145,8 @@ export function buildReadSideConversationTurn(params: {
   worldId: string;
   idempotencyKey: string;
   playerText: string;
-  inputClass: Exclude<ConversationInputClass, "action" | "mixed" | "speech">;
-  responseKind: Exclude<ConversationResponseKind, "action_outcome" | "action_rejection" | "mixed_outcome" | "speech_reaction">;
+  inputClass: Exclude<ConversationInputClass, "mixed" | "speech">;
+  responseKind: Exclude<ConversationResponseKind, "action_outcome" | "mixed_outcome" | "speech_reaction">;
   responseText: string;
   worldTime: number;
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;

@@ -10,6 +10,7 @@ import type { Entity } from "../entities/types.js";
 import type { ReadonlyWorld } from "../projection.js";
 import { sameRussianStem } from "@skald/intent-parser";
 import { isItemAccessible } from "../action-capability/capability.js";
+import { observedRouteEndpoints } from "../journey/route-resolver.js";
 import { targetFromEntity, targetFromObject } from "./target-view.js";
 import type { InteractionTarget, PlayerFacingCandidate, TargetResolution } from "./types.js";
 
@@ -189,24 +190,107 @@ function matchesCurrentLocation(world: ReadonlyWorld, query: string): boolean {
   );
 }
 
+/** Player-facing connection-name words. Internal ids are never a search surface. */
+function connectionNameWords(name: string): string[] {
+  return name.toLowerCase().replace(/_/gu, " ").split(/\s+/u).filter((word) => word.length > 0);
+}
+
 /**
- * The connection destination a raw target names in the current location,
- * or null — the verbatim connection-name comparison historically inlined in
- * `interactionMovement`, now shared so the approach routing, the command
- * preflight and the contextual validator all ask ONE question (npc-close-
- * approach phase 1, ADR-0013 amendment).
+ * Rank one query against one connection NAME (never its internal destination
+ * id). Exact-full-label (4) beats all-content-words (3), which beats one exact
+ * word (2), which beats one shared stem (1); 0 is no match. So «ворота»
+ * prefers the exact «Ворота» over «Северные ворота», while a declined
+ * «северным воротам» still prefers «Северные ворота» over «Старые ворота».
+ */
+function connectionRank(queryWords: readonly string[], nameWords: readonly string[]): number {
+  if (nameWords.length === 0) return 0;
+  const exactLabel = queryWords.length === nameWords.length
+    && queryWords.every((word) => nameWords.includes(word));
+  if (exactLabel) return 4;
+  let anyExact = false;
+  let anyStem = false;
+  let allMatch = queryWords.length > 0;
+  for (const queryWord of queryWords) {
+    let wordMatched = false;
+    for (const nameWord of nameWords) {
+      if (queryWord === nameWord) { anyExact = true; wordMatched = true; }
+      else if (sameRussianStem(queryWord, nameWord)) { anyStem = true; wordMatched = true; }
+    }
+    if (!wordMatched) allMatch = false;
+  }
+  if (allMatch) return 3;
+  if (anyExact) return 2;
+  if (anyStem) return 1;
+  return 0;
+}
+
+/**
+ * Every connection the raw target names at the top rank, observer-safe
+ * (ADR-0039/T9): only the player-facing connection NAME is matched, never the
+ * internal destination id, so knowing an internal id cannot address an
+ * unobserved route. Morphological, and returns ALL ties so callers can ask
+ * instead of silently choosing the first.
+ */
+export function locationConnectionMatches(
+  world: ReadonlyWorld,
+  rawTarget: string,
+): ReadonlyArray<{ readonly connectionName: string; readonly destinationId: string }> {
+  const locationId = world.currentLocationId;
+  if (!locationId) return [];
+  const location = world.locations.get(locationId);
+  if (!location) return [];
+  const queryWords = rawTarget.trim().toLowerCase().split(/\s+/u)
+    .filter((word) => word.length > 0 && !TARGET_STOP_WORDS.has(word));
+  if (queryWords.length === 0) return [];
+  const scored: Array<{ connectionName: string; destinationId: string; rank: number }> = [];
+  for (const [connectionName, destinationId] of Object.entries(location.connections)) {
+    const rank = connectionRank(queryWords, connectionNameWords(connectionName));
+    if (rank > 0) scored.push({ connectionName, destinationId, rank });
+  }
+  if (scored.length === 0) return [];
+  const topRank = Math.max(...scored.map((entry) => entry.rank));
+  return scored
+    .filter((entry) => entry.rank === topRank)
+    .map(({ connectionName, destinationId }) => ({ connectionName, destinationId }));
+}
+
+/** The first connection match, for the authoritative movement rule path. */
+export function locationConnectionMatch(
+  world: ReadonlyWorld,
+  rawTarget: string,
+): { readonly connectionName: string; readonly destinationId: string } | null {
+  return locationConnectionMatches(world, rawTarget)[0] ?? null;
+}
+
+/**
+ * Observer-safe connection candidates for the preflight/gateway (ADR-0039,
+ * T10): reuses the existing observer-scoped spatial read model
+ * (`observedRouteEndpoints`) so a connection whose destination the player has
+ * not observed is invisible to preflight. A legacy world without a spatial
+ * model keeps its authored location graph (there is no knowledge model to
+ * filter against). The authoritative movement Rule still reads the full
+ * snapshot through `locationConnectionDestination`.
+ */
+export function observerSafeConnectionMatches(
+  world: ReadonlyWorld,
+  rawTarget: string,
+): ReadonlyArray<{ readonly connectionName: string; readonly destinationId: string }> {
+  const matches = locationConnectionMatches(world, rawTarget);
+  if (matches.length === 0 || !world.spatial) return matches;
+  const known = new Set(
+    observedRouteEndpoints(world.spatial, world.spatialKnowledge, world.currentLocationId).map((endpoint) => endpoint.id),
+  );
+  return matches.filter((match) => known.has(match.destinationId));
+}
+
+/**
+ * The connection destination a raw target names in the current location, or
+ * null — the shared question asked by the approach routing, the command
+ * preflight and the contextual validator (npc-close-approach phase 1,
+ * ADR-0013 amendment; morphological since ADR-0039/T9).
  */
 export function locationConnectionDestination(world: ReadonlyWorld, rawTarget: string): string | null {
-  const locationId = world.currentLocationId;
-  if (!locationId) return null;
-  const location = world.locations.get(locationId);
-  if (!location) return null;
-  const targetRaw = rawTarget.trim().toLowerCase();
-  if (!targetRaw) return null;
-  for (const [connName, connTarget] of Object.entries(location.connections)) {
-    if (targetRaw.includes(connName) || targetRaw.includes(connTarget)) return connTarget;
-  }
-  return null;
+  return locationConnectionMatch(world, rawTarget)?.destinationId ?? null;
 }
 
 /**
@@ -227,11 +311,10 @@ export function locationConnectionDestination(world: ReadonlyWorld, rawTarget: s
  */
 export type ApproachTarget =
   | { readonly kind: "contact"; readonly name: string }
-  | { readonly kind: "unavailable" }
+  | { readonly kind: "unavailable"; readonly name?: string }
   | { readonly kind: "other" };
 
 export function resolveApproachTarget(world: ReadonlyWorld, rawTarget: string): ApproachTarget {
-  if (locationConnectionDestination(world, rawTarget)) return { kind: "other" };
   const resolution = resolveInteractionTarget(world, "approach", rawTarget);
   if (resolution.kind === "resolved") {
     const entity = world.entities.get(resolution.target.id);
@@ -241,18 +324,87 @@ export function resolveApproachTarget(world: ReadonlyWorld, rawTarget: string): 
     }
     return { kind: "other" };
   }
-  // Not resolvable here: a target that NAMES a contact known anywhere is a
-  // person not present in this location («подойти к перевозчику» from the
-  // city) — absence, not a passage problem. Anything else (roads, places,
-  // unknown names — living-region connections are empty, so movement keeps
-  // its historical `no_passage` wording for them) stays `other`.
+  // Ambiguity is asked BEFORE execution (command preflight / contextual
+  // validation); at rule level it reports absence rather than picking one.
   if (resolution.kind === "ambiguous") return { kind: "unavailable" };
+  // Not resolvable as a present target: a connection is movement, and a name
+  // that matches a contact known anywhere is a person not present in this
+  // location («подойти к перевозчику» from the city) — absence, not a passage
+  // problem. Anything else (roads, places, unknown names) stays `other`.
+  if (locationConnectionDestination(world, rawTarget)) return { kind: "other" };
   for (const entity of world.entities.values()) {
     const contact = entity.components.contact;
     if (!contact) continue;
     if (matchLevel([entity.name, ...entity.aliases], rawTarget.trim().toLowerCase()) !== null) {
-      return { kind: "unavailable" };
+      return { kind: "unavailable", name: entity.name };
     }
   }
   return { kind: "other" };
+}
+
+/** Operation-aware classification of one movement intent (ADR-0039 §2). */
+export type MovementTarget =
+  | { readonly kind: "grid_direction"; readonly direction: string }
+  | { readonly kind: "connected_location"; readonly locationId: string; readonly connectionId: string }
+  | { readonly kind: "present_contact"; readonly contactRef: string; readonly locationId: string | null }
+  | { readonly kind: "remote_location"; readonly surface: string }
+  | { readonly kind: "unavailable_contact"; readonly surface: string; readonly name: string }
+  | { readonly kind: "ambiguous"; readonly candidates: readonly string[] }
+  | { readonly kind: "unknown"; readonly surface: string };
+
+/** The intent fields `resolveMovementTarget` reads. */
+export interface MovementIntentView {
+  readonly type?: string | null | undefined;
+  readonly operation?: string | null | undefined;
+  readonly mode?: string | null | undefined;
+  readonly target?: { readonly raw?: string | null | undefined } | null | undefined;
+  readonly destination?: { readonly raw?: string | null | undefined } | null | undefined;
+}
+
+const COMPASS_DIRECTIONS: ReadonlySet<string> = new Set(["north", "south", "east", "west"]);
+
+/**
+ * Classify one movement intent into its single owner (ADR-0039 §2). The order
+ * is operation-aware: an `approach` prefers a PRESENT CONTACT over a location
+ * connection (an NPC whose name collides with a place stays approachable),
+ * while `enter` and `travel`/`journey` prefer the connection/route. A compass
+ * target is grid movement only when no location is active.
+ */
+export function resolveMovementTarget(intent: MovementIntentView, world: ReadonlyWorld): MovementTarget {
+  if (intent.type === "JourneyIntent") {
+    return { kind: "remote_location", surface: intent.destination?.raw?.trim() ?? "" };
+  }
+
+  const operation = intent.operation ?? null;
+  const raw = intent.target?.raw?.trim() ?? "";
+  const lowered = raw.toLowerCase();
+  const matches = observerSafeConnectionMatches(world, raw);
+  // Several equal connection names must ask, never silently pick the first.
+  const connectionTarget = (): MovementTarget =>
+    matches.length > 1
+      ? { kind: "ambiguous", candidates: matches.map((match) => match.connectionName) }
+      : { kind: "connected_location", locationId: matches[0]!.destinationId, connectionId: matches[0]!.connectionName };
+
+  if (operation === "enter") {
+    return matches.length > 0 ? connectionTarget() : { kind: "unknown", surface: raw };
+  }
+
+  if (operation === "approach") {
+    const approach = resolveApproachTarget(world, raw);
+    if (approach.kind === "contact") {
+      return { kind: "present_contact", contactRef: approach.name, locationId: world.currentLocationId ?? null };
+    }
+    if (matches.length > 0) return connectionTarget();
+    if (!world.currentLocationId && COMPASS_DIRECTIONS.has(lowered)) {
+      return { kind: "grid_direction", direction: lowered };
+    }
+    if (approach.kind === "unavailable") {
+      return { kind: "unavailable_contact", surface: raw, name: approach.name ?? raw };
+    }
+    return { kind: "unknown", surface: raw };
+  }
+
+  if (COMPASS_DIRECTIONS.has(lowered)) return { kind: "grid_direction", direction: lowered };
+  if (matches.length > 0) return connectionTarget();
+  return { kind: "unknown", surface: raw };
 }

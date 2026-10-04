@@ -4,6 +4,7 @@ export * from "./command-handler.js";
 export * from "./bootstrap.js";
 export * from "./event-types.js";
 export * from "./ids.js";
+export * from "./command-time-policy.js";
 export { physicsMovement } from "./rules/physics-movement.js";
 export {
   riskTaker,
@@ -227,8 +228,8 @@ export { createRules } from "./rules/registry.js";
 export type { CriticalCheckState, CheckKind, CheckOutcome, DieType, CriticalModifier } from "./checks/types.js";
 
 // Interaction Model v1 — unified target resolver and adapter (ADR-0013)
-export { resolveInteractionTarget, locationConnectionDestination, resolveApproachTarget, targetFromEntity, targetFromObject } from "./interactions/index.js";
-export type { ApproachTarget } from "./interactions/index.js";
+export { resolveInteractionTarget, locationConnectionDestination, locationConnectionMatch, locationConnectionMatches, observerSafeConnectionMatches, resolveApproachTarget, resolveMovementTarget, targetFromEntity, targetFromObject } from "./interactions/index.js";
+export type { ApproachTarget, MovementTarget, MovementIntentView } from "./interactions/index.js";
 export type {
   InteractionTarget,
   PlayerFacingCandidate,
@@ -284,7 +285,7 @@ export type {
 // Spatial Movement (ADR-0015)
 export * from "./journey/index.js";
 export { journeyStart } from "./rules/journey-start.js";
-export { journeyProgress } from "./rules/journey-progress.js";
+export { journeyProgress, initialJourneyPulseTimestamp, nextJourneyPulseTimestamp } from "./rules/journey-progress.js";
 export { journeyInterrupt } from "./rules/journey-interrupt.js";
 export { createJourneyValidationRule } from "./rules/journey-validation.js";
 

@@ -20,6 +20,7 @@ import {
   isItemAccessible,
   locationConnectionDestination,
   resolveInteractionTarget,
+  resolveMovementTarget,
   type AIDiagnosticSink,
   type MasterTurnSceneSnapshot,
   type ReadonlyWorld,
@@ -775,6 +776,13 @@ function adviseTarget(
   // preflight; without this the model entry would refuse what the
   // deterministic entry executes (three entries must agree).
   if (verb === "approach" && ["north", "south", "east", "west"].includes(surface.trim().toLowerCase())) return null;
+  // A known-but-absent contact or a tied route is not a stale target: the
+  // pre-execution preflight owns it (ADR-0039 §2), so the model path and the
+  // deterministic path return the SAME action_rejection / route clarification.
+  if (verb === "approach") {
+    const movement = resolveMovementTarget({ operation: "approach", target: { raw: surface } }, world);
+    if (movement.kind === "unavailable_contact" || movement.kind === "ambiguous") return null;
+  }
   const resolution = resolveInteractionTarget(world, verb, surface);
   if (resolution.kind === "resolved") return null;
   if (resolution.kind === "ambiguous") {

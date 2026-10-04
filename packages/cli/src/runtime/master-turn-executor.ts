@@ -29,6 +29,8 @@ import {
   buildInquiryAnswer,
   buildMasterTurnSceneContext,
   commandEventId,
+  commandCorrelationId,
+  planCommandTime,
   handleCommand as worldHandleCommand,
   type AIDiagnosticSink,
   type InquiryAnswerDTO,
@@ -153,8 +155,14 @@ export function executeMasterTurnPlan(
   }
 
   const intent = plan.execution.intent;
-  const ts = before.time + 1;
-  const correlationId = `cmd-${ts}`;
+  const timeWorld = {
+    time: before.time,
+    eventNumber: before.eventNumber,
+    activeJourneyId: before.activeJourneyId,
+  };
+  const timePlan = planCommandTime(intent, timeWorld);
+  const ts = timePlan.eventTimestamp;
+  const correlationId = commandCorrelationId(timePlan, timeWorld);
   const firstEvent = worldHandleCommand(intent, correlationId, ts);
   const tickEvent: DomainEvent = {
     eventId: commandEventId(`tick-${ts}`, "TickPassed"),
@@ -165,12 +173,9 @@ export function executeMasterTurnPlan(
     correlationId: `tick-${ts}`,
     causationId: null,
   };
-  const interrupt = intent.type === "ActionIntentCommand" && intent.operation === "interrupt";
-  const wait = intent.type === "ActionIntentCommand" && intent.operation === "wait";
-  const suppressTick = intent.type === "JourneyIntent" || interrupt || (!!before.activeJourneyId && !wait);
   const preEvents = context.events;
   const commit = context.commit;
-  const { committed } = context.engine.processSequence(suppressTick ? [firstEvent] : [firstEvent, tickEvent], {
+  const { committed } = context.engine.processSequence(timePlan.emitTickPassed ? [firstEvent, tickEvent] : [firstEvent], {
     deriveEvents: (staged) => staged
       .filter((event) => event.type === "CriticalCheckRequested" && event.correlationId === correlationId)
       .map((event) => rollCriticalCheck(event)),

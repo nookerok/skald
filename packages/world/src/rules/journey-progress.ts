@@ -13,6 +13,25 @@ function base(event: DomainEvent) {
 }
 
 /**
+ * Timestamp of the journey's FIRST internal pulse (ADR-0039). The first step
+ * happens at the start command's own logical time, so a journey start costs a
+ * single world-time unit instead of two. `Math.max` keeps the timestamp
+ * non-decreasing if the projection already advanced to the command time.
+ */
+export function initialJourneyPulseTimestamp(event: DomainEvent, world: ReadonlyWorld): number {
+  return Math.max(world.time, event.timestamp);
+}
+
+/**
+ * Timestamp of every LATER journey pulse (ADR-0039): a subsequent `wait`
+ * advances the clock by one from the current world time. Kept as its own
+ * function so the first-step rule is never mixed into later arithmetic.
+ */
+export function nextJourneyPulseTimestamp(world: ReadonlyWorld): number {
+  return world.time + 1;
+}
+
+/**
  * A closed crossing ahead blocks arrival: the journey becomes blocked
  * projection state (cleared by completion or interruption) and the master
  * names the proven cause, instead of completing through high water. The
@@ -136,7 +155,7 @@ export const journeyProgress: Rule<ReadonlyWorld> = {
         ...base(event),
         eventId: ruleEventId(event.eventId, "TickPassed", 0),
         type: "TickPassed",
-        timestamp: Math.max(world.time, event.timestamp) + 1,
+        timestamp: initialJourneyPulseTimestamp(event, world),
         payload: { delta: 1, journeyId: journey.journeyId },
       }];
     }

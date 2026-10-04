@@ -40,8 +40,11 @@ import {
   getRegionEntrypoint,
   locationConnectionDestination,
   resolveInteractionTarget,
+  resolveMovementTarget,
   narrateLLM,
   executeQuestionReadingRound,
+  planCommandTime,
+  commandCorrelationId,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
@@ -132,8 +135,8 @@ function persistReadSideTurn(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
-  inputClass: "inquiry" | "meta" | "clarification",
-  responseKind: "inquiry_answer" | "meta_answer" | "clarification",
+  inputClass: "inquiry" | "meta" | "clarification" | "action",
+  responseKind: "inquiry_answer" | "meta_answer" | "clarification" | "action_rejection",
   responseText: string,
   contextMetadata?: ConversationMemoryMetadataV1 | null,
 ): ReturnType<typeof toConversationTurnDTO> {
@@ -340,6 +343,31 @@ function withClarificationConversation(
   // the wire carries labels only.
   const wireOptions = options.map((option) => ({ optionId: option.optionId, label: option.label }));
   return json({ ...payload, question, options: wireOptions, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: question }, false) }, response.statusCode);
+}
+
+/**
+ * Persist a pre-execution action rejection (ADR-0039 §2): the player named a
+ * real, understandable target that is simply not available now, so this is an
+ * `action_rejection` turn — not a clarification. No Domain Event, no time
+ * cost; the read-side turn keeps the transcript and memory honest.
+ */
+function withActionRejectionConversation(
+  runtime: WorldRuntime,
+  input: string,
+  idempotencyKey: string,
+  response: JsonResponse,
+): JsonResponse {
+  const payload = JSON.parse(response.body) as Record<string, unknown>;
+  const text = typeof payload.responseText === "string" && payload.responseText.length > 0
+    ? payload.responseText
+    : typeof payload.question === "string" && payload.question.length > 0 ? payload.question : "Сейчас это невозможно.";
+  const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "action", "action_rejection", text);
+  return json({
+    ...payload,
+    responseText: text,
+    conversationTurn,
+    masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "action_rejection", deterministicText: text }, false),
+  }, response.statusCode);
 }
 
 export function serializeWorldStateFromRuntime(r: WorldRuntime) {
@@ -1252,9 +1280,12 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
       if ("response" in r) {
         const { response, framed } = r;
-        return response.statusCode === 200 && JSON.parse(response.body).status === "clarification"
-          ? withClarificationConversation(runtime, input, idempotencyKey, response, framed ? { framed } : undefined)
-          : response;
+        const status = JSON.parse(response.body).status;
+        if (response.statusCode === 200 && status === "clarification")
+          return withClarificationConversation(runtime, input, idempotencyKey, response, framed ? { framed } : undefined);
+        if (response.statusCode === 200 && status === "action_rejection")
+          return withActionRejectionConversation(runtime, input, idempotencyKey, response);
+        return response;
       }
       if ("type" in r && (r as any).type === "ParseError")
         return error("parse_error", (r as any).reason ?? "parse error", 400);
@@ -1376,9 +1407,12 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
       if (!r || typeof r !== "object") return error("internal_error", "unexpected result", 500);
       if ("response" in r) {
         const { response, framed } = r;
-        return response.statusCode === 200 && JSON.parse(response.body).status === "clarification"
-          ? withClarificationConversation(runtime, input, idempotencyKey, response, framed ? { framed } : undefined)
-          : response;
+        const status = JSON.parse(response.body).status;
+        if (response.statusCode === 200 && status === "clarification")
+          return withClarificationConversation(runtime, input, idempotencyKey, response, framed ? { framed } : undefined);
+        if (response.statusCode === 200 && status === "action_rejection")
+          return withActionRejectionConversation(runtime, input, idempotencyKey, response);
+        return response;
       }
       const cmdResult = r as { events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown };
       const allCycleEvents = [...cmdResult.events, ...cmdResult.tickEvents];
@@ -1931,6 +1965,33 @@ function preflightIntentTarget(runtime: WorldRuntime, intent: ExecutableIntent):
       },
     };
   }
+  // A named person who is known but not present here is not an unknown
+  // target: the player named a real referent, so rephrasing is not the
+  // answer. This is a cost-0 action rejection with no Domain Event
+  // (ADR-0039 §2), persisted as an `action_rejection` turn.
+  if (verb === "approach") {
+    const movement = resolveMovementTarget({ operation: "approach", target: { raw: target } }, snapshot);
+    if (movement.kind === "unavailable_contact") {
+      return {
+        response: json({
+          ok: true,
+          status: "action_rejection",
+          reason: "target_not_present",
+          responseText: `«${movement.name}» сейчас не рядом.`,
+        }),
+      };
+    }
+    if (movement.kind === "ambiguous") {
+      return {
+        response: json({
+          ok: true,
+          status: "clarification",
+          question: "Уточни, куда именно ты хочешь пройти.",
+          options: movement.candidates.slice(0, 3).map((label, index) => ({ optionId: "route-" + (index + 1), label })),
+        }),
+      };
+    }
+  }
   return {
     response: json({
       ok: true,
@@ -2048,8 +2109,14 @@ export async function runCommandCycleForRuntime(
 
   const worldTimeBefore = runtime.projection.getSnapshot().time;
   const preEvents = runtime.bus.query();
-  const ts = worldTimeBefore + 1;
-  const correlationId = `cmd-${ts}`;
+  const timeWorld = {
+    time: worldTimeBefore,
+    eventNumber: runtime.projection.getSnapshot().eventNumber,
+    activeJourneyId: runtime.projection.getSnapshot().activeJourneyId,
+  };
+  const timePlan = planCommandTime(commandIntent, timeWorld);
+  const ts = timePlan.eventTimestamp;
+  const correlationId = commandCorrelationId(timePlan, timeWorld);
   const firstEvent = worldHandleCommand(commandIntent, correlationId, ts);
   const tickEvent: DomainEvent = {
     eventId: commandEventId(`tick-${ts}`, "TickPassed"),
@@ -2094,14 +2161,7 @@ export async function runCommandCycleForRuntime(
     },
   };
 
-  const activeJourney = runtime.projection.getSnapshot().activeJourneyId;
-  const interrupt = commandIntent.type === "ActionIntentCommand" && commandIntent.operation === "interrupt";
-  const wait = commandIntent.type === "ActionIntentCommand" && commandIntent.operation === "wait";
-  // A journey starts with one internally scheduled travel step. A stop is
-  // immediate. While traveling, rejected commands do not consume a tick;
-  // explicit wait remains the way to advance the journey.
-  const suppressTick = parsed.type === "JourneyIntent" || interrupt || (!!activeJourney && !wait);
-  const rootEvents = suppressTick ? [firstEvent] : [firstEvent, tickEvent];
+  const rootEvents = timePlan.emitTickPassed ? [firstEvent, tickEvent] : [firstEvent];
   const { committed } = runtime.engine.processSequence(rootEvents, {
     ...options,
     // Dice are derived after CriticalCheckRequested has been processed, but
@@ -2275,6 +2335,21 @@ async function runValidatedMasterTurnResponse(
   const postInquiries = plan.postActionInquiries;
   const deferred = plan.deferredClauses;
   const kind = plan.kind;
+
+  // Parity (ADR-0039 §2): a model-proposed action passes the SAME
+  // pre-execution target preflight as the deterministic path, so an absent
+  // contact or an ambiguous route cannot diverge by entry point.
+  const planIntent = plan.execution?.intent;
+  if (planIntent) {
+    const preflight = preflightIntentTarget(runtime, planIntent);
+    if (preflight) {
+      const preflightStatus = JSON.parse(preflight.response.body).status;
+      if (preflightStatus === "clarification")
+        return withClarificationConversation(runtime, input, idempotencyKey, preflight.response, preflight.framed ? { framed: preflight.framed } : undefined);
+      if (preflightStatus === "action_rejection")
+        return withActionRejectionConversation(runtime, input, idempotencyKey, preflight.response);
+    }
+  }
 
   let result: ReturnType<typeof executeMasterTurnPlan>;
   try {

@@ -218,6 +218,19 @@ async function handle(input, overrideKey) {
       renderShellConnection("ready", "Мастер уточняет действие");
       return;
     }
+    if (result.body?.ok && result.body?.status === "action_rejection") {
+      // A named target that is simply unavailable now (ADR-0039): the action
+      // is refused without a time cost or a Domain Event, and the player is
+      // not asked to rephrase.
+      await keepPendingVisible(pendingStartedAt);
+      dispatch("COMMAND_REJECTED");
+      removeLocalIntent(sessionIntent);
+      upsertConfirmedPair(result.body.conversationTurn, result.body.masterTurn);
+      renderChatFeed(latestJournal);
+      await refreshJournal();
+      renderShellConnection("ready", "Мастер отклонил действие");
+      return;
+    }
     if (result.body?.ok) {
       await keepPendingVisible(pendingStartedAt);
       if (result.body.state?.eventNumber) lastKnownRevision = result.body.state.eventNumber;
