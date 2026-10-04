@@ -140,6 +140,90 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
     }
   });
 
+  it("scripted model-plan path parity: an absent contact is rejected the same way", async () => {
+    const proposal = {
+      schemaVersion: 2,
+      kind: "mixed",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойти к перевозчику" },
+      supportingClauses: [],
+      question: { queryId: "visible_scene" },
+      target: { role: "target", surface: "перевозчику" },
+      referents: [{ role: "target", surface: "перевозчику" }],
+    };
+    const router = scriptedRouter([proposal]);
+    const { store, runtime } = await freshRuntime("absent-model", "ca-absent-model", router,
+      buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" }));
+    try {
+      const before = runtime.projection.getSnapshot();
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, { input: "Подойти к перевозчику, что здесь происходит?", idempotencyKey: "ca-3m" }));
+      console.log(`CA-ABSENT-MODEL: status=${response.status} reason=${response.reason} calls=${router.chat.mock.calls.length} q=${response.question} text=${response.masterTurn?.deterministicText}`);
+      // ADR-0039 §2 parity: the model path runs the SAME preflight, so an
+      // absent contact is an action rejection with no time cost and no Event.
+      expect(router.chat).toHaveBeenCalled();
+      expect(response.status).toBe("action_rejection");
+      expect(response.reason).toBe("target_not_present");
+      expect(runtime.projection.getSnapshot().time).toBe(before.time);
+      expect(runtime.bus.query().length).toBe(eventsBefore);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("repaired model plan reaches the same rejection (one turn, no time)", async () => {
+    const invalid = { kind: "mixed" };
+    const valid = {
+      schemaVersion: 2,
+      kind: "mixed",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойти к перевозчику" },
+      supportingClauses: [],
+      question: { queryId: "visible_scene" },
+      target: { role: "target", surface: "перевозчику" },
+      referents: [{ role: "target", surface: "перевозчику" }],
+    };
+    const router = scriptedRouter([invalid, valid]);
+    const { store, runtime } = await freshRuntime("repaired", "ca-repaired", router,
+      buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" }));
+    try {
+      const before = runtime.projection.getSnapshot();
+      const eventsBefore = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, { input: "Подойти к перевозчику, что здесь происходит?", idempotencyKey: "ca-repaired" }));
+      console.log(`CA-REPAIRED: status=${response.status} reason=${response.reason} calls=${router.chat.mock.calls.length}`);
+      expect(router.chat.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(response.status).toBe("action_rejection");
+      expect(response.reason).toBe("target_not_present");
+      expect(runtime.projection.getSnapshot().time).toBe(before.time);
+      expect(runtime.bus.query().length).toBe(eventsBefore);
+      expect(store.listConversationTurns(runtime.worldId)).toHaveLength(1);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("an action rejection survives reload and idempotent replay", async () => {
+    const { store, runtime } = await freshRuntime("rej-reload", "ca-rej-reload", deadRouter(),
+      buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" }));
+    try {
+      const first = parse(await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "ca-rej" }));
+      expect(first.status).toBe("action_rejection");
+      const turnsAfterFirst = store.listConversationTurns(runtime.worldId);
+      expect(turnsAfterFirst).toHaveLength(1);
+      expect(turnsAfterFirst[0]!.responseKind).toBe("action_rejection");
+      expect(turnsAfterFirst[0]!.inputClass).toBe("action");
+      expect(turnsAfterFirst[0]!.worldTimeBefore).toBe(turnsAfterFirst[0]!.worldTimeAfter);
+
+      const eventsAfterFirst = runtime.bus.query().length;
+      const timeAfterFirst = runtime.projection.getSnapshot().time;
+      const replay = parse(await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "ca-rej" }));
+      expect(replay.replayed).toBe(true);
+      expect(store.listConversationTurns(runtime.worldId)).toHaveLength(1);
+      expect(runtime.bus.query().length).toBe(eventsAfterFirst);
+      expect(runtime.projection.getSnapshot().time).toBe(timeAfterFirst);
+    } finally {
+      store.close();
+    }
+  });
+
   it("«Подойти к перевозчику» from another location refuses before execution", async () => {
     const { store, runtime } = await freshRuntime("absent", "ca-absent", deadRouter(),
       buildBootstrapEvents({ templateId: "living_region", entrypointId: "southern_borough_arrival", backgroundId: "wanderer" }));
@@ -148,7 +232,10 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
       const eventsBefore = runtime.bus.query().length;
       const response = parse(await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "ca-3" }));
 
-      expect(response.status).toBe("clarification");
+      // ADR-0039 §2: a known-but-absent contact is an action rejection, not a
+      // clarification — the player named a real person, nothing to rephrase.
+      expect(response.status).toBe("action_rejection");
+      expect(response.reason).toBe("target_not_present");
       const after = runtime.projection.getSnapshot();
       expect(after.time).toBe(before.time);
       expect(runtime.bus.query().length).toBe(eventsBefore);
