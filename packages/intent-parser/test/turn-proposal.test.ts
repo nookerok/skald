@@ -429,6 +429,23 @@ describe("static rejection codes (full-master Stage 1c)", () => {
     expect(validateTurnProposal({ ...base, primaryIntent: null, ambiguity: { kind: "action", question: "Что именно?", candidates: ["осмотреться", "идти"] } })).toMatchObject({ status: "clarification" });
   });
 
+  it("requires the inquiry focus slot to mirror its referents entry (live double-reject shape)", () => {
+    // The live failure: an inquiry proposal carrying a person in its focus
+    // slot without the matching referents entry — or with a different
+    // surface string — fails static validation as referent_membership.
+    const inquiry = (focus: unknown, referents: readonly unknown[]) => ({
+      schemaVersion: 2,
+      kind: "inquiry",
+      primaryIntent: { kind: "inquiry", queryId: "visible_scene", sourceText: "Как выглядит?", focus },
+      supportingClauses: [],
+      referents,
+    });
+    const focus = { role: "target", observerRef: "person_1", surface: "Староста южного посада" };
+    expect(validateTurnProposal(inquiry(focus, []))).toMatchObject({ status: "invalid", code: "referent_membership" });
+    expect(validateTurnProposal(inquiry(focus, [{ role: "target", observerRef: "person_1", surface: "староста" }]))).toMatchObject({ status: "invalid", code: "referent_membership" });
+    expect(validateTurnProposal(inquiry(focus, [focus]))).toMatchObject({ status: "accepted" });
+  });
+
   it("keeps every code inside the closed set", () => {
     const codes = new Set(["authority_field", "shape", "kind_primary_mismatch", "question_placement", "valency", "referent_membership", "primary_missing"]);
     for (const bad of [{ ...base, nope: true }, { ...base, success: true }, { ...base, kind: "inquiry" }]) {

@@ -198,6 +198,12 @@ describe("master turn prompt contract", () => {
     // ride kind mixed — never speech, never action without it.
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("combining an action with a question");
     expect(MASTER_TURN_SYSTEM_PROMPT).toContain("never speech, never action without the question");
+    // Referent-slot rule (follow-up after the live double-reject): every
+    // slot-used observerRef must be mirrored in referents with the
+    // identical surface; plan subjects need no entry.
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("MUST also be listed in");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("IDENTICAL surface string");
+    expect(MASTER_TURN_SYSTEM_PROMPT).toContain("need no referents entry");
   });
 
   it("advertises the closed listRef vocabulary for shown lists (T5)", () => {
