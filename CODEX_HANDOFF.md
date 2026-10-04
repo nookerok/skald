@@ -1,3 +1,25 @@
+# Current work (2026-10-04 — T5 scene engagement: repository part ready)
+
+- Scene engagement (ADR-0039 §3): `ActionResolved[approach]` gains additive
+  fields `{ targetRef, locationId, engagement:"near" }` (older runtimes ignore
+  them); Projection `SceneEngagement { targetRef, locationId, state,
+  establishedAt }` is set on an approach and cleared on `PlayerLocationChanged`
+  / `JourneyStarted`; `freeze()` exposes it. Observer-safe Game Shell DTO
+  `sceneEngagement: { state, label } | null` (`SceneEngagementDTO`), never the
+  ref — Knowledge is untouched (BeliefModelDTO + ObservationRecord boundary
+  kept). `sceneEngagementView` resolves the label or null.
+- Explicit temporal contract: a repeated approach is a real re-attempt — one
+  `ActionResolved`, one `TickPassed`, cost +1, one state (no duplicate),
+  `establishedAt` kept from first establishment. Covered by tests.
+- Persistence/replay via the real SQLite store (`scene-engagement-persistence`)
+  and legacy logs without the additive fields → `null`.
+- TODO(ADR-0039 §3) recorded in `projection.ts` next to the clearing: a contact
+  LEAVING a location has no Domain Event yet; clear + open a ticket when it
+  appears.
+- `npm run validate` PASS: 233 files, 2903 passed, 1 skipped. Committed as
+  `feat`/`test`/`handoff` slices; pushed; deployed via the Orange Pi updater.
+- Next: post-deploy browser QA (world starting at a PRESENT npc) to close T5.
+
 # Current work (2026-10-04 — command time & scene-relative movement; ADR-0039 accepted)
 
 - New story `command-time-and-scene-movement` (artifacts T1..T10 + acceptance).
