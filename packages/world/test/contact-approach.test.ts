@@ -79,6 +79,38 @@ describe("contact approach — single outcome owner (npc-close-approach phase 1)
     expect(interactionMovement.handle(validated(target), waystation())).toEqual([]);
   });
 
+  it("carries additive engagement fields and a repeated approach stays meaningful", () => {
+    const target = { raw: "перевозчику" };
+    const first = contactApproach.handle(validated(target), waystation());
+    const payload = first[0]!.payload as Record<string, unknown>;
+    // Additive fields (ADR-0039 §3): projection derives engagement from them.
+    expect(payload["result"]).toBe("approach");
+    expect(payload["engagement"]).toBe("near");
+    expect(payload["locationId"]).toBe("river_waystation");
+    expect(typeof payload["targetRef"]).toBe("string");
+    expect((payload["targetRef"] as string).length).toBeGreaterThan(0);
+
+    // A second approach to the same present target refreshes the SAME state
+    // and answers without inventing a new proximity.
+    const ferry = [...waystation().entities.values()].find((e) => e.name === "Перевозчик у переправы")!;
+    const engaged = worldOf([
+      ...buildBootstrapEvents("living_region"),
+      event("ActionResolved", "ar-engaged", {
+        actionEventId: "cmd-1",
+        result: "approach",
+        targetRef: ferry.id,
+        locationId: "river_waystation",
+        engagement: "near",
+        description: "x",
+      }, 2),
+    ]);
+    const again = contactApproach.handle(validated(target), engaged);
+    expect(again[0]).toMatchObject({
+      type: "ActionResolved",
+      payload: { result: "approach", description: "Ты уже стоишь рядом с Перевозчик у переправы." },
+    });
+  });
+
   it("a contact of another location reports absence, never passage", () => {
     const w = southern();
     const out = contactApproach.handle(validated("перевозчику"), w);

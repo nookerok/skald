@@ -21,6 +21,10 @@ import type { WorldRuntime } from "../src/runtime/world-runtime-manager.js";
 
 const APPROACH_TEXT = "Ты подходишь ближе. Перед тобой — Перевозчик у переправы.";
 const WARDEN_TEXT = "Ты подходишь ближе. Перед тобой — Староста южного посада.";
+// A repeated approach to the same present target keeps one engagement state
+// and answers meaningfully (ADR-0039 §3).
+const APPROACH_AGAIN_TEXT = "Ты уже стоишь рядом с Перевозчик у переправы.";
+const WARDEN_AGAIN_TEXT = "Ты уже стоишь рядом с Староста южного посада.";
 
 function parse(response: { statusCode: number; body: string }): any {
   if (response.statusCode !== 200) throw new Error(`expected 200 got ${response.statusCode}: ${response.body}`);
@@ -101,6 +105,10 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
       // No new relations, knowledge or invented reaction.
       expect(delta.some((event) => ["RelationChanged", "KnowledgeAcquired", "TestimonyReceived", "RumorHeard"].includes(event.type))).toBe(false);
       expect(after.relations.size).toBe(before.relations.size);
+
+      // Player-facing DTO carries the proximity status without internal refs.
+      expect(response.shellDelta?.sceneEngagement).toEqual({ state: "near", label: "Перевозчик у переправы" });
+      expect(JSON.stringify(response.shellDelta?.sceneEngagement)).not.toMatch(/person_|object_|locationId|targetRef|establishedAt/);
 
       // The confirmed target reaches focus metadata (conversation wiring).
       const mentions = store.getConversationTurn("ca-ferry", "ca-1")?.contextMetadata?.mentions ?? [];
@@ -260,7 +268,7 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
       const second = parse(await handleWorldCommand(runtime, { input: "Подойду к нему", idempotencyKey: "ca-4b" }));
 
       expect(router.chat).toHaveBeenCalled();
-      expect(JSON.stringify(second)).toContain(APPROACH_TEXT);
+      expect(JSON.stringify(second)).toContain(APPROACH_AGAIN_TEXT);
       const after = runtime.projection.getSnapshot();
       expect(after.time).toBe(before.time + 1);
       expect(approachOutcomes(runtime, eventsBefore)).toHaveLength(1);
@@ -298,7 +306,7 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
 
       expect(router.chat).toHaveBeenCalled();
       const dump = JSON.stringify(response);
-      expect(dump).toContain(WARDEN_TEXT);
+      expect(dump).toContain(WARDEN_AGAIN_TEXT);
       expect(dump).toContain("Староста южного посада");
       const after = runtime.projection.getSnapshot();
       expect(approachOutcomes(runtime, eventsBefore)).toHaveLength(1);
@@ -349,7 +357,7 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
       const dump = JSON.stringify(response);
       // The corrected reply executes BOTH parts: approach outcome present,
       // the speech reply never executed.
-      expect(dump).toContain(WARDEN_TEXT);
+      expect(dump).toContain(WARDEN_AGAIN_TEXT);
       expect(dump).not.toContain("Ты обращаешься");
       const after = runtime.projection.getSnapshot();
       expect(approachOutcomes(runtime, eventsBefore)).toHaveLength(1);
