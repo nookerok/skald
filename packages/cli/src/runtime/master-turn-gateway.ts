@@ -1448,6 +1448,24 @@ export async function interpretMasterTurn(
     return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
   }
 
+  // Question-safety hard stop (follow-up): a question-bearing replica whose
+  // reply STILL drops the embedded question after the correction round must
+  // not execute that reply — the degraded path runs the deterministic part
+  // with a diagnostic instead of silently losing the question (live
+  // variance: mixed replica answered as speech).
+  if (replicaAsksQuestion(promptInput) && dropsEmbeddedQuestion(parsed)) {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "proposal_schema_rejected",
+      outcome: "invalid",
+      phase: "question_replica_validation",
+      failureCategory: "question_dropped",
+      ...proposalStructureDims(parsed),
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    return fallbackAfterModelFailure(input, deterministic, snapshot, options, pronounRewritten);
+  }
+
   const contextual = validateMasterTurnPlan({
     proposal: staticCheck.proposal,
     scene: snapshot.scene,
@@ -1633,13 +1651,44 @@ function executesActionForQuestionReply(parsed: unknown): boolean {
   return kind === "speech" || kind === "action" || kind === "mixed";
 }
 
+/** The replica itself carries a question (question-bearing, not necessarily pure). */
+function replicaAsksQuestion(input: string): boolean {
+  const classification = classifyPlayerInput(input, parseIntent);
+  return classification.kind === "inquiry" || classification.kind === "inquiry_candidate";
+}
+
+/**
+ * The reply silently DROPS the replica's question (question-safety guard,
+ * follow-up to the T6 question-replica work). Kinds speech/action/mixed
+ * without a top-level `question`, without a supporting question clause and
+ * without a questionPlan cannot answer it — for speech it is impossible by
+ * the static placement rule, which is exactly how the live variance
+ * happened: a mixed replica («Подойду к старосте, как он выглядит?») came
+ * back as speech, the action executed and the question died. The guard
+ * fires only for question-bearing replicas; addressing speech
+ * («Спрошу перевозчика, что он делает» classifies as speech) and
+ * action-only replicas never reach it.
+ */
+function dropsEmbeddedQuestion(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+  const proposal = parsed as Record<string, unknown>;
+  const kind = proposal.kind;
+  if (kind !== "speech" && kind !== "action" && kind !== "mixed") return false;
+  if (proposal.question !== undefined) return false;
+  // The semantic plan answers the embedded question (plan path, e.g. S7).
+  if (proposal.questionPlan !== undefined) return false;
+  const clauses = Array.isArray(proposal.supportingClauses) ? proposal.supportingClauses : [];
+  return !clauses.some((entry) => !!entry && typeof entry === "object" && (entry as { kind?: unknown }).kind === "question");
+}
+
 /**
  * Derives a repair note for one raw proposal, or null when the reply is
- * usable as-is. Accepted and clarification outcomes never repair; only a
- * statically invalid reply gets exactly one correction round carrying the
- * sanitized rejection reason (closed server vocabulary, never player text).
- * The decision carries the diagnostic for THAT first reply — previously the
- * round-1 rejection was invisible in the log (T6 R1/R2 observability).
+ * usable as-is. Two reply classes repair: a statically invalid reply, and
+ * an accepted reply that would silently DROP a question-bearing replica's
+ * question (question-safety). Each gets exactly one correction round with
+ * closed vocabulary (never player text). Clarification replies never
+ * repair. The decision carries the diagnostic for THAT reply — the
+ * round-1 outcome must be visible in the log (T6 observability).
  */
 function repairDecisionFor(raw: unknown, input: string): RepairDecision | null {
   let parsed: unknown;
@@ -1678,6 +1727,18 @@ function repairDecisionFor(raw: unknown, input: string): RepairDecision | null {
         outcome: "invalid",
         phase: "question_replica_validation",
         failureCategory: "question_replica_action",
+        ...proposalStructureDims(parsed),
+      },
+    };
+  }
+  if (check.status === "accepted" && replicaAsksQuestion(input) && dropsEmbeddedQuestion(parsed)) {
+    return {
+      note: "This replica contains a question the reply must carry: return kind mixed with the embedded question (or kind inquiry, or a supportingClauses entry of kind question, or a questionPlan) — never speech or action without it.",
+      dims: {
+        category: "proposal_schema_rejected",
+        outcome: "invalid",
+        phase: "question_replica_validation",
+        failureCategory: "question_dropped",
         ...proposalStructureDims(parsed),
       },
     };
