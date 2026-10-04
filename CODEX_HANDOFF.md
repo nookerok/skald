@@ -1,3 +1,27 @@
+# Current work (2026-10-04 — question-safety guard shipped and live-controlled)
+
+- Follow-up ticket `question-survives-mixed-replicas` implemented and
+  closed: a question-bearing replica (inquiry/inquiry_candidate) can no
+  longer lose its embedded question — correction round with
+  `question_dropped` + hard guard (`cf9efbb`), degraded-path speak
+  bypass fixed (`b8d2f62`), prompt mixed-replica rule. Pushed
+  `cf9efbb`/`5e9f75b`/`b8d2f62`/`3b03c1f`; deployed `3b03c1f` (updater
+  gates green, health 200).
+- Live control on the Pi (replica «Подойду к старосте, как он выглядит?»):
+  attempt 1 on `5e9f75b` exposed that the parser infers SPEAK from the
+  question form and the speak-addressee fallback executed «Ты обращаешься»
+  after two static failures — bypassing the upstream guard; fixed in
+  `b8d2f62`. Attempt 2 on `3b03c1f`: honest «Я не уверен, что правильно
+  понял…», no speech, no tick, journal shows referent_membership →
+  repair → fallback. Invariant holds.
+- Residual (model quality, recorded): live model fails static
+  `referent_membership` on inquiry+questionPlan proposals twice in a row
+  (person listed in referents without a declared slot); one repair round
+  is by design; live both-parts happy path stays stochastic (scripted
+  tests cover it deterministically). Possible follow-up: prompt
+  clarification of the referent-slot rule.
+- `npm run validate` PASS: 2833 passed, 1 skipped, 228 files.
+
 # Current work (2026-10-02 — interaction catalog alignment)
 
 - Interaction catalog alignment (ADR-0038): `INTERACTION_VERBS` now owns the
