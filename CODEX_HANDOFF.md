@@ -1,4 +1,4 @@
-# Current work (2026-10-04 — T5 scene engagement: repository part ready)
+# Current work (2026-10-04 — T5 scene engagement CLOSED)
 
 - Scene engagement (ADR-0039 §3): `ActionResolved[approach]` gains additive
   fields `{ targetRef, locationId, engagement:"near" }` (older runtimes ignore
@@ -17,8 +17,18 @@
   LEAVING a location has no Domain Event yet; clear + open a ticket when it
   appears.
 - `npm run validate` PASS: 233 files, 2903 passed, 1 skipped. Committed as
-  `feat`/`test`/`handoff` slices; pushed; deployed via the Orange Pi updater.
-- Next: post-deploy browser QA (world starting at a PRESENT npc) to close T5.
+  `feat`/`test`/`handoff` slices; pushed; deployed via the Orange Pi updater
+  (commit `57c69ea`).
+- Browser QA PASS (fixed NTFS runner `ctms-t5-browser-20261004-4`, receipt
+  verified): approach → near, repeat → already-near, reload preserved, move
+  cleared, stale engagement did not resurrect, no internal ids, console 0,
+  mobile no overflow; visual `PASS_INLINE_ONLY`; human `NOT_RUN`. Acceptance is
+  SEMANTIC (read-side narration may rephrase the deterministic text). T5 CLOSED.
+- Known limits (outside T5): destination contacts are not materialized after
+  travel (bootstrap places only the starting entrypoint's contact) — candidate
+  bootstrap/content ticket; `TODO(ADR-0039 §3)` in `projection.ts` for the
+  still-absent contact-leaving event.
+- Next: T6 diagnostics (temporal/movement observability) per the story plan.
 
 # Current work (2026-10-04 — command time & scene-relative movement; ADR-0039 accepted)
 
