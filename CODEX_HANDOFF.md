@@ -1,3 +1,26 @@
+# Current work (2026-10-04 — T6.1/T7.2/T7.3/T8.1: strict observability + acceptance)
+
+- Replay diagnostics contract fixed: a replay is its own `command_outcome`
+  (`movementOutcome: "replayed"`, `timePolicy: "replay"`, cost 0) — it does not
+  re-assert the original command's dimensions.
+- T7.2 real restart: the integration matrix now closes SQLite, reopens it, and
+  builds a FRESH `WorldRuntimeManager` for the same world, then re-checks
+  idempotency (same key → `replayed`, no new events/time/turn; conflicting body
+  → 409) in addition to replay purity.
+- T7.3 parity: `command-time-model-parity.test.ts` compares deterministic vs
+  scripted-plan vs repaired-plan on the sanitized `command_outcome`, time delta
+  and event count for journey start, absent-contact rejection and blocked journey.
+- T8.1 runner strengthened (`acceptance:command-time:live`): strict per-step
+  predicates (HTTP 200, response kind, numeric worldTime/eventNumber, committed
+  event types via `/api/events`, engagement, journey status, no internal ids,
+  replay/conflict state unchanged). It no longer claims commit/service
+  verification — those are `NOT_PERFORMED_BY_RUNNER` and checked via SSH
+  separately.
+- `npm run validate` PASS: 237 files, 2918 passed, 1 skipped. Committed, pushed,
+  deployed; runner re-run against the new commit.
+- Deferred (own slices): proximity-GATED acts, withdraw/«отойти»,
+  destination-contact materialization, contact-leaving event, scratch cleanup.
+
 # Current work (2026-10-04 — T6.1/T7.1/T8: diagnostics completeness + reproducible acceptance)
 
 - T6.1 diagnostics completeness: one sanitized `command_outcome` per user turn.
