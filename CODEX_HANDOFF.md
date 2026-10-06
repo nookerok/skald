@@ -1,3 +1,20 @@
+# Current work (2026-10-04 — T6 command outcome diagnostics)
+
+- T6 diagnostics (ADR-0039): pure `packages/world/src/command-diagnostics.ts`
+  (`movementOutcome`, `movementTargetKind`, `buildCommandDiagnostics`) produces
+  a sanitized `{ temporal: { worldTimeBefore, worldTimeAfter, cost,
+  tickPassedCount, policy }, movement: { targetKind, outcome } }`. Both the
+  deterministic command cycle and the Master Turn executor build the same
+  descriptor and emit the `command_outcome` diagnostic category (new sanitized
+  dimensions); both results carry `diagnostics` for tests. Never in the player
+  DTO (leak test).
+- Tests: `command-diagnostics.test.ts` unit; characterization parity
+  (deterministic vs master-turn cost/tickPassedCount/targetKind/outcome/policy)
+  and a no-leak player-DTO check; taxonomy widened to 19 categories.
+- `npm run validate` PASS: 234 files, 2908 passed, 1 skipped. Committed
+  `feat`/`test`/`handoff`; pushed.
+- Next: T7 integration/replay acceptance, then T8 deploy + live evidence.
+
 # Current work (2026-10-04 — T5 scene engagement CLOSED)
 
 - Scene engagement (ADR-0039 §3): `ActionResolved[approach]` gains additive
