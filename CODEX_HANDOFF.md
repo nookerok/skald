@@ -1,3 +1,17 @@
+# Current work (2026-10-04 — T7 integration/replay acceptance)
+
+- T7 integration acceptance (`packages/cli/test/command-time-integration.test.ts`):
+  one session through the command path — read-only inquiries cost 0; approach
+  +1 with `sceneEngagement` near; rebuild preserves time/eventNumber/location/
+  engagement; journey start +1 clears engagement; in-travel command 0; interrupt
+  0 and clears the journey; wait +1 to arrival; idempotent retry creates nothing;
+  full replay purity (time/eventNumber/location/activeJourney/engagement).
+- Deferred (not asserted): proximity-GATED acts and a withdraw/«отойти»
+  operation — both need their own slice.
+- `npm run validate` PASS: 235 files, 2909 passed, 1 skipped. Committed `test`/
+  `handoff`; pushed.
+- Next: T8 deploy + live evidence on a scratch world.
+
 # Current work (2026-10-04 — T6 command outcome diagnostics)
 
 - T6 diagnostics (ADR-0039): pure `packages/world/src/command-diagnostics.ts`
