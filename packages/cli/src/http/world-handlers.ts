@@ -170,7 +170,7 @@ function checkCommandReplay(runtime: WorldRuntime, idempotencyKey: string, reque
   const payload = JSON.parse(row.responseBody) as Record<string, unknown>;
   emitCommandOutcome(
     runtime.diagnostics,
-    readOnlyCommandDiagnostics({ worldTime: runtime.projection.getSnapshot().time, outcome: "none" }),
+    readOnlyCommandDiagnostics({ worldTime: runtime.projection.getSnapshot().time, outcome: "replayed" }),
     { phase: "replay", replayed: true },
   );
   return json({ ...payload, replayed: true }, row.statusCode);

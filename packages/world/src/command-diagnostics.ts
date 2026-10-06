@@ -15,7 +15,7 @@ import type { CommandTimePlan } from "./command-time-policy.js";
 import { resolveMovementTarget, type MovementIntentView, type MovementTarget } from "./interactions/target-resolver.js";
 
 /** The movement owner outcome of one command, from the committed events. */
-export type MovementOutcome = "moved" | "approached" | "blocked" | "journey_started" | "rejected" | "clarification" | "none";
+export type MovementOutcome = "moved" | "approached" | "blocked" | "journey_started" | "rejected" | "clarification" | "replayed" | "none";
 
 /** Movement target kind as classified before execution, or "none". */
 export type MovementTargetKind = MovementTarget["kind"] | "none";
@@ -94,22 +94,27 @@ export function buildCommandDiagnostics(input: CommandDiagnosticsInput): Command
 
 /**
  * Sanitized diagnostics for a turn that never executes a command: a preflight
- * rejection, a clarification, or an inquiry/meta read-only answer. Cost 0, no
- * pulses, no movement. The outcome names the turn class so the temporal
- * contract covers every user turn, not only executed commands.
+ * rejection, a clarification, an inquiry/meta read-only answer, or an
+ * idempotent replay. Cost 0, no pulses, no movement. The outcome names the turn
+ * class so the temporal contract covers every user turn, not only executed
+ * commands. A replay is its own outcome (`replayed`, policy `replay`) — it does
+ * not re-assert the original command's movement/time result.
  */
 export function readOnlyCommandDiagnostics(input: {
   readonly worldTime: number;
-  readonly outcome: "rejected" | "clarification" | "none";
+  readonly outcome: "rejected" | "clarification" | "replayed" | "none";
   readonly targetKind?: MovementTargetKind;
 }): CommandDiagnostics {
+  const policy = input.outcome === "rejected" ? "preflight_rejection"
+    : input.outcome === "replayed" ? "replay"
+    : "read_only";
   return Object.freeze({
     temporal: Object.freeze({
       worldTimeBefore: input.worldTime,
       worldTimeAfter: input.worldTime,
       cost: 0 as const,
       tickPassedCount: 0,
-      policy: input.outcome === "rejected" ? "preflight_rejection" : "read_only",
+      policy,
     }),
     movement: Object.freeze({
       targetKind: input.targetKind ?? "none",
