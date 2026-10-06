@@ -129,6 +129,20 @@ describe("command time & movement integration matrix (T7.1)", () => {
         expect(rebuilt.activeJourneyId).toBe(live.activeJourneyId);
         expect(rebuilt.sceneEngagement).toEqual(live.sceneEngagement);
         expect(reopened.listConversationTurns(worldId).length).toBe(turnsBefore);
+
+        // Real application restart: a FRESH runtime over the same store, then
+        // idempotency must still hold (replay + conflict).
+        const restarted: WorldRuntime = await new WorldRuntimeManager(reopened, deadRouter(), (e) => seen.push(e)).get(worldId);
+        const timeAfterRestart = restarted.projection.getSnapshot().time;
+        const eventsAfterRestart = restarted.bus.query().length;
+        const turnsAfterRestart = reopened.listConversationTurns(worldId).length;
+        const replay = parse(await handleWorldCommand(restarted, { input: "Подойти к перевозчику", idempotencyKey: "m2" }));
+        expect(replay.replayed).toBe(true);
+        expect(restarted.projection.getSnapshot().time).toBe(timeAfterRestart);
+        expect(restarted.bus.query().length).toBe(eventsAfterRestart);
+        expect(reopened.listConversationTurns(worldId).length).toBe(turnsAfterRestart);
+        const conflict = await handleWorldCommand(restarted, { input: "ждать", idempotencyKey: "m2" });
+        expect(conflict.statusCode).toBe(409);
       } finally {
         reopened.close();
       }

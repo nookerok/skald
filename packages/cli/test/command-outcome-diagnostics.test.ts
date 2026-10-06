@@ -71,7 +71,7 @@ describe("command_outcome coverage (T6.1)", () => {
       expect(retry.replayed).toBe(true);
       const outcomes = seen.filter((e) => e.category === "command_outcome");
       expect(outcomes).toHaveLength(1);
-      expect(outcomes[0]).toMatchObject({ replayed: true, temporalCost: 0 });
+      expect(outcomes[0]).toMatchObject({ replayed: true, temporalCost: 0, movementOutcome: "replayed", timePolicy: "replay" });
     } finally {
       store.close();
     }
