@@ -1,3 +1,27 @@
+# Current work (2026-10-04 — T6.1/T7.1/T8: diagnostics completeness + reproducible acceptance)
+
+- T6.1 diagnostics completeness: one sanitized `command_outcome` per user turn.
+  `readOnlyCommandDiagnostics` describes cost-0 preflight rejections
+  (`preflight_rejection`, outcome `rejected`), clarifications (`clarification`)
+  and inquiry/meta (`read_only`, `none`); `movementOutcome` adds `rejected`
+  (ActionRejected) and `blocked` (JourneyBlocked). A single `emitCommandOutcome`
+  helper is used by the deterministic cycle, the Master Turn executor, the
+  action-rejection/clarification read-side paths, the inquiry branch and the
+  replay path (with a `replayed` dimension) — so the paths cannot diverge.
+- T7.1 matrix (`command-time-integration.test.ts`): one scratch world covering
+  inquiry, approach, repeat, journey start, in-travel refusal, interrupt,
+  arrival, absent-contact rejection, blocked journey, same-key replay,
+  conflicting key, then SQLite close/reopen + replay purity; per-step ledger.
+- T8 reproducible runner: `packages/cli/src/acceptance/command-time-live.ts`
+  (`npm run acceptance:command-time:live`) creates a scratch world, prints a
+  sanitized ledger (redacted world id), checks health/scoped state/idempotency,
+  and reports commit/service verification separately from API health. PASS
+  against `http://192.168.0.5:3000` (EXPECTED_COMMIT=cb300ff).
+- `npm run validate` PASS: 236 files, 2914 passed, 1 skipped. Committed and
+  pushed; deployed; runner re-run against the new commit.
+- Deferred (own slices): proximity-GATED acts, withdraw/«отойти»,
+  destination-contact materialization, contact-leaving event, scratch cleanup.
+
 # Current work (2026-10-04 — T8 live evidence; command-time story complete)
 
 - Deployed `cb300ff` (T5/T6/T7) via the Orange Pi updater: build+tests,
