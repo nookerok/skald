@@ -47,6 +47,7 @@ import {
   commandCorrelationId,
   buildCommandDiagnostics,
   movementTargetKind,
+  readOnlyCommandDiagnostics,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
@@ -85,7 +86,7 @@ import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js
 import { splitTargetCompound } from "../runtime/master-turn-validator.js";
 import { bindSceneSurface } from "../runtime/master-turn-validator.js";
 import type { ValidatedConversationReferent } from "../runtime/master-turn-validator.js";
-import { emitMasterTurnDiagnostic } from "../runtime/master-turn-diagnostics.js";
+import { emitMasterTurnDiagnostic, emitCommandOutcome } from "../runtime/master-turn-diagnostics.js";
 import { executeMasterTurnPlan } from "../runtime/master-turn-executor.js";
 import type { ValidatedMasterTurnPlan } from "../runtime/master-turn-validator.js";
 import {
@@ -167,6 +168,11 @@ function checkCommandReplay(runtime: WorldRuntime, idempotencyKey: string, reque
   if (!row) return recoverLostEnvelope(runtime, idempotencyKey, requestHash);
   if (row.requestHash !== requestHash) return error("idempotency_conflict", "duplicate idempotencyKey", 409);
   const payload = JSON.parse(row.responseBody) as Record<string, unknown>;
+  emitCommandOutcome(
+    runtime.diagnostics,
+    readOnlyCommandDiagnostics({ worldTime: runtime.projection.getSnapshot().time, outcome: "none" }),
+    { phase: "replay", replayed: true },
+  );
   return json({ ...payload, replayed: true }, row.statusCode);
 }
 
@@ -344,6 +350,11 @@ function withClarificationConversation(
   // Option refs, action patches and framed candidates stay server-side:
   // the wire carries labels only.
   const wireOptions = options.map((option) => ({ optionId: option.optionId, label: option.label }));
+  emitCommandOutcome(
+    runtime.diagnostics,
+    readOnlyCommandDiagnostics({ worldTime: runtime.projection.getSnapshot().time, outcome: "clarification" }),
+    { phase: "preflight" },
+  );
   return json({ ...payload, question, options: wireOptions, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: question }, false) }, response.statusCode);
 }
 
@@ -364,6 +375,11 @@ function withActionRejectionConversation(
     ? payload.responseText
     : typeof payload.question === "string" && payload.question.length > 0 ? payload.question : "Сейчас это невозможно.";
   const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "action", "action_rejection", text);
+  emitCommandOutcome(
+    runtime.diagnostics,
+    readOnlyCommandDiagnostics({ worldTime: runtime.projection.getSnapshot().time, outcome: "rejected" }),
+    { phase: "preflight" },
+  );
   return json({
     ...payload,
     responseText: text,
@@ -1207,6 +1223,11 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
         const scheduled = scheduleAnswerNarration(runtime, input, inquiry.answer, "inquiry_answer", conversationTurn.correlationId,
           buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: inquiry.answer }), inquiryLists.length > 0);
         const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
+        emitCommandOutcome(
+          runtime.diagnostics,
+          readOnlyCommandDiagnostics({ worldTime: world.time, outcome: "none" }),
+          { phase: "read_only" },
+        );
         return json({ ok: true, status: "inquiry", inquiry, conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
       });
     }
@@ -2188,18 +2209,7 @@ export async function runCommandCycleForRuntime(
     targetKind,
     events: committed,
   });
-  emitMasterTurnDiagnostic(runtime.diagnostics, {
-    category: "command_outcome",
-    outcome: diagnostics.movement.outcome,
-    phase: "execution",
-    correlationId,
-    worldTime: diagnostics.temporal.worldTimeAfter,
-    temporalCost: diagnostics.temporal.cost,
-    tickPassedCount: diagnostics.temporal.tickPassedCount,
-    timePolicy: diagnostics.temporal.policy,
-    movementTargetKind: diagnostics.movement.targetKind,
-    movementOutcome: diagnostics.movement.outcome,
-  });
+  emitCommandOutcome(runtime.diagnostics, diagnostics, { correlationId, phase: "execution" });
   return { events: commandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player }, diagnostics };
 }
 

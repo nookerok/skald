@@ -34,7 +34,7 @@
  *   offered option and re-ran the framed original (review P0).
  */
 
-import type { AIDiagnosticSink } from "@skald/world";
+import type { AIDiagnosticSink, CommandDiagnostics } from "@skald/world";
 
 /** Closed Master Turn diagnostic taxonomy, verbatim from the plan. */
 export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freeze([
@@ -114,6 +114,7 @@ export interface MasterTurnDiagnosticDimensions {
   readonly timePolicy?: string | undefined;
   readonly movementTargetKind?: string | undefined;
   readonly movementOutcome?: string | undefined;
+  readonly replayed?: boolean | undefined;
 }
 
 function freeze<T>(value: T): T {
@@ -187,9 +188,42 @@ export function emitMasterTurnDiagnostic(
       ...(asText(dimensions.timePolicy, 40) ? { timePolicy: asText(dimensions.timePolicy, 40)! } : {}),
       ...(asText(dimensions.movementTargetKind, 40) ? { movementTargetKind: asText(dimensions.movementTargetKind, 40)! } : {}),
       ...(asText(dimensions.movementOutcome, 40) ? { movementOutcome: asText(dimensions.movementOutcome, 40)! } : {}),
+      ...(typeof dimensions.replayed === "boolean" ? { replayed: dimensions.replayed } : {}),
       recordedAt: new Date().toISOString(),
     }));
   } catch {
     // Operational telemetry must not affect interpretation or execution.
   }
+}
+
+/**
+ * Emit one sanitized `command_outcome` for any user turn (ADR-0039, T6.1):
+ * executed command, preflight rejection, clarification, read-only inquiry/meta
+ * or an idempotent replay. Single emission point so the deterministic and
+ * model paths cannot diverge in shape.
+ */
+export function emitCommandOutcome(
+  sink: AIDiagnosticSink | undefined,
+  diagnostics: CommandDiagnostics,
+  extra: {
+    readonly correlationId?: string | undefined;
+    readonly phase?: string | undefined;
+    readonly turnKind?: string | undefined;
+    readonly replayed?: boolean | undefined;
+  } = {},
+): void {
+  emitMasterTurnDiagnostic(sink, {
+    category: "command_outcome",
+    outcome: diagnostics.movement.outcome,
+    phase: extra.phase ?? "execution",
+    ...(extra.correlationId ? { correlationId: extra.correlationId } : {}),
+    ...(extra.turnKind ? { turnKind: extra.turnKind } : {}),
+    worldTime: diagnostics.temporal.worldTimeAfter,
+    temporalCost: diagnostics.temporal.cost,
+    tickPassedCount: diagnostics.temporal.tickPassedCount,
+    timePolicy: diagnostics.temporal.policy,
+    movementTargetKind: diagnostics.movement.targetKind,
+    movementOutcome: diagnostics.movement.outcome,
+    ...(typeof extra.replayed === "boolean" ? { replayed: extra.replayed } : {}),
+  });
 }

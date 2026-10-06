@@ -33,6 +33,7 @@ import {
   planCommandTime,
   buildCommandDiagnostics,
   movementTargetKind,
+  readOnlyCommandDiagnostics,
   handleCommand as worldHandleCommand,
   type AIDiagnosticSink,
   type CommandDiagnostics,
@@ -42,7 +43,7 @@ import {
   type WorldProjector,
 } from "@skald/world";
 import { rollCriticalCheck } from "../dice-roller.js";
-import { emitMasterTurnDiagnostic } from "./master-turn-diagnostics.js";
+import { emitMasterTurnDiagnostic, emitCommandOutcome } from "./master-turn-diagnostics.js";
 import { revalidateMasterTurnPlan } from "./master-turn-revalidation.js";
 import type {
   DeferredClause,
@@ -144,6 +145,11 @@ export function executeMasterTurnPlan(
         worldTime: before.time,
       });
     }
+    emitCommandOutcome(
+      context.diagnostics,
+      readOnlyCommandDiagnostics({ worldTime: before.time, outcome: "none" }),
+      { phase: "execution", turnKind: plan.kind },
+    );
     return freeze({
       status: "executed" as const,
       planKind: plan.kind,
@@ -227,17 +233,10 @@ export function executeMasterTurnPlan(
     contextEventNumber: plan.contextRevision.eventNumber,
     worldTime: after.time,
   });
-  emitMasterTurnDiagnostic(context.diagnostics, {
-    category: "command_outcome",
-    outcome: diagnostics.movement.outcome,
-    phase: "execution",
+  emitCommandOutcome(context.diagnostics, diagnostics, {
     correlationId,
-    worldTime: after.time,
-    temporalCost: diagnostics.temporal.cost,
-    tickPassedCount: diagnostics.temporal.tickPassedCount,
-    timePolicy: diagnostics.temporal.policy,
-    movementTargetKind: diagnostics.movement.targetKind,
-    movementOutcome: diagnostics.movement.outcome,
+    phase: "execution",
+    turnKind: plan.kind,
   });
   for (const inquiryAnswer of inquiryAnswers) {
     emitMasterTurnDiagnostic(context.diagnostics, {
