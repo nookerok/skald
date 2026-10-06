@@ -56,6 +56,8 @@ export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freez
   "generic_clarification_fallback",
   "speak_addressee_bound",
   "clarification_resolved",
+  // Command outcome (ADR-0039, T6): sanitized temporal + movement dimensions.
+  "command_outcome",
 ]);
 
 /** Sanitized operational dimensions only. No text, prompts or tables. */
@@ -106,6 +108,12 @@ export interface MasterTurnDiagnosticDimensions {
   readonly hasGoal?: boolean | undefined;
   readonly hasDramaticThread?: boolean | undefined;
   readonly truncated?: boolean | undefined;
+  /** Command outcome (ADR-0039, T6): sanitized temporal/movement dimensions. */
+  readonly temporalCost?: number | undefined;
+  readonly tickPassedCount?: number | undefined;
+  readonly timePolicy?: string | undefined;
+  readonly movementTargetKind?: string | undefined;
+  readonly movementOutcome?: string | undefined;
 }
 
 function freeze<T>(value: T): T {
@@ -174,6 +182,11 @@ export function emitMasterTurnDiagnostic(
       ...(typeof dimensions.hasGoal === "boolean" ? { hasGoal: dimensions.hasGoal } : {}),
       ...(typeof dimensions.hasDramaticThread === "boolean" ? { hasDramaticThread: dimensions.hasDramaticThread } : {}),
       ...(typeof dimensions.truncated === "boolean" ? { truncated: dimensions.truncated } : {}),
+      ...(asCount(dimensions.temporalCost) !== undefined ? { temporalCost: asCount(dimensions.temporalCost)! } : {}),
+      ...(asCount(dimensions.tickPassedCount) !== undefined ? { tickPassedCount: asCount(dimensions.tickPassedCount)! } : {}),
+      ...(asText(dimensions.timePolicy, 40) ? { timePolicy: asText(dimensions.timePolicy, 40)! } : {}),
+      ...(asText(dimensions.movementTargetKind, 40) ? { movementTargetKind: asText(dimensions.movementTargetKind, 40)! } : {}),
+      ...(asText(dimensions.movementOutcome, 40) ? { movementOutcome: asText(dimensions.movementOutcome, 40)! } : {}),
       recordedAt: new Date().toISOString(),
     }));
   } catch {

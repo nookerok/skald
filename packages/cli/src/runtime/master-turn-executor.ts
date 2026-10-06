@@ -31,8 +31,11 @@ import {
   commandEventId,
   commandCorrelationId,
   planCommandTime,
+  buildCommandDiagnostics,
+  movementTargetKind,
   handleCommand as worldHandleCommand,
   type AIDiagnosticSink,
+  type CommandDiagnostics,
   type InquiryAnswerDTO,
   type MasterTurnSceneSnapshot,
   type ReadonlyWorld,
@@ -85,6 +88,8 @@ export interface ExecutedMasterTurn {
   readonly deferred: readonly DeferredClause[];
   readonly revisionBefore: { readonly worldTime: number; readonly eventNumber: number };
   readonly revisionAfter: { readonly worldTime: number; readonly eventNumber: number };
+  /** Sanitized command-outcome diagnostics (ADR-0039, T6); never player-facing. */
+  readonly diagnostics: CommandDiagnostics;
 }
 
 /** Execution outcome. Stale plans execute nothing. */
@@ -151,6 +156,14 @@ export function executeMasterTurnPlan(
       deferred: plan.deferredClauses,
       revisionBefore,
       revisionAfter: revisionBefore,
+      diagnostics: buildCommandDiagnostics({
+        plan: { kind: "read_only", cost: 0, eventTimestamp: before.time, emitTickPassed: false, reason: "read_only" },
+        worldTimeBefore: before.time,
+        worldTimeAfter: before.time,
+        tickPassedCount: 0,
+        targetKind: "none",
+        events: [],
+      }),
     });
   }
 
@@ -161,6 +174,7 @@ export function executeMasterTurnPlan(
     activeJourneyId: before.activeJourneyId,
   };
   const timePlan = planCommandTime(intent, timeWorld);
+  const targetKind = movementTargetKind(intent, before);
   const ts = timePlan.eventTimestamp;
   const correlationId = commandCorrelationId(timePlan, timeWorld);
   const firstEvent = worldHandleCommand(intent, correlationId, ts);
@@ -195,6 +209,14 @@ export function executeMasterTurnPlan(
   const commandEvents = freeze(committed.filter((event) => event.correlationId === correlationId));
   const tickEvents = freeze(committed.filter((event) => event.correlationId === `tick-${ts}`));
   const postEvents = freeze([...context.events, ...committed]);
+  const diagnostics = buildCommandDiagnostics({
+    plan: timePlan,
+    worldTimeBefore: before.time,
+    worldTimeAfter: after.time,
+    tickPassedCount: committed.filter((event) => event.type === "TickPassed").length,
+    targetKind,
+    events: committed,
+  });
   const inquiryAnswers = answerPostActionInquiries(plan, postEvents, after, context.worldId);
   emitMasterTurnDiagnostic(context.diagnostics, {
     category: "primary_executed",
@@ -204,6 +226,18 @@ export function executeMasterTurnPlan(
     contextWorldTime: plan.contextRevision.worldTime,
     contextEventNumber: plan.contextRevision.eventNumber,
     worldTime: after.time,
+  });
+  emitMasterTurnDiagnostic(context.diagnostics, {
+    category: "command_outcome",
+    outcome: diagnostics.movement.outcome,
+    phase: "execution",
+    correlationId,
+    worldTime: after.time,
+    temporalCost: diagnostics.temporal.cost,
+    tickPassedCount: diagnostics.temporal.tickPassedCount,
+    timePolicy: diagnostics.temporal.policy,
+    movementTargetKind: diagnostics.movement.targetKind,
+    movementOutcome: diagnostics.movement.outcome,
   });
   for (const inquiryAnswer of inquiryAnswers) {
     emitMasterTurnDiagnostic(context.diagnostics, {
@@ -229,6 +263,7 @@ export function executeMasterTurnPlan(
     deferred: plan.deferredClauses,
     revisionBefore,
     revisionAfter: freeze({ worldTime: after.time, eventNumber: after.eventNumber }),
+    diagnostics,
   });
 }
 

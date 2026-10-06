@@ -5,6 +5,7 @@ export * from "./bootstrap.js";
 export * from "./event-types.js";
 export * from "./ids.js";
 export * from "./command-time-policy.js";
+export * from "./command-diagnostics.js";
 export { physicsMovement } from "./rules/physics-movement.js";
 export {
   riskTaker,

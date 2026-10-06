@@ -45,6 +45,8 @@ import {
   executeQuestionReadingRound,
   planCommandTime,
   commandCorrelationId,
+  buildCommandDiagnostics,
+  movementTargetKind,
 } from "@skald/world";
 import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterContext, ReadonlyWorld } from "@skald/world";
 import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
@@ -2080,7 +2082,7 @@ export async function runCommandCycleForRuntime(
   memory?: {
     readonly continuationLink?: PendingClarificationLink | null | undefined;
   },
-): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown } | CommandCycleClarification> {
+): Promise<{ events: DomainEvent[]; tickEvents: DomainEvent[]; position: unknown; diagnostics: ReturnType<typeof buildCommandDiagnostics> } | CommandCycleClarification> {
   if (runtime.processedKeys.has(idempotencyKey)) {
     return { response: error("idempotency_conflict", "duplicate idempotencyKey", 409) };
   }
@@ -2115,6 +2117,7 @@ export async function runCommandCycleForRuntime(
     activeJourneyId: runtime.projection.getSnapshot().activeJourneyId,
   };
   const timePlan = planCommandTime(commandIntent, timeWorld);
+  const targetKind = movementTargetKind(commandIntent, runtime.projection.getSnapshot());
   const ts = timePlan.eventTimestamp;
   const correlationId = commandCorrelationId(timePlan, timeWorld);
   const firstEvent = worldHandleCommand(commandIntent, correlationId, ts);
@@ -2174,7 +2177,30 @@ export async function runCommandCycleForRuntime(
 
   const commandEvents = committed.filter((e) => e.correlationId === correlationId);
   const tickEvents = committed.filter((e) => e.correlationId === `tick-${ts}`);
-  return { events: commandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player } };
+  // Trusted command-outcome diagnostics (ADR-0039, T6): the same pure
+  // descriptor the Master Turn executor emits, so both paths agree. Never part
+  // of the player DTO.
+  const diagnostics = buildCommandDiagnostics({
+    plan: timePlan,
+    worldTimeBefore,
+    worldTimeAfter: runtime.projection.getSnapshot().time,
+    tickPassedCount: committed.filter((e) => e.type === "TickPassed").length,
+    targetKind,
+    events: committed,
+  });
+  emitMasterTurnDiagnostic(runtime.diagnostics, {
+    category: "command_outcome",
+    outcome: diagnostics.movement.outcome,
+    phase: "execution",
+    correlationId,
+    worldTime: diagnostics.temporal.worldTimeAfter,
+    temporalCost: diagnostics.temporal.cost,
+    tickPassedCount: diagnostics.temporal.tickPassedCount,
+    timePolicy: diagnostics.temporal.policy,
+    movementTargetKind: diagnostics.movement.targetKind,
+    movementOutcome: diagnostics.movement.outcome,
+  });
+  return { events: commandEvents, tickEvents, position: { ...runtime.projection.getSnapshot().player }, diagnostics };
 }
 
 /**
