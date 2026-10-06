@@ -1,3 +1,20 @@
+# Current work (2026-10-04 — T8 live evidence; command-time story complete)
+
+- Deployed `cb300ff` (T5/T6/T7) via the Orange Pi updater: build+tests,
+  narrative manifest, health, AI readiness `degraded but playable`, live
+  intent/narration contract — PASS. Remote commit `cb300ff`; service + timers
+  active; `/api/health` 200.
+- Live acceptance on a scratch world (`world-ea595f4c…`) PASS: inquiries 0;
+  approach +1 with `shellDelta.sceneEngagement = {state:"near", label}` (ref-free);
+  journey start +1 clears engagement; in-travel command 0; interrupt 0; restart
+  journey + wait +1/+1; idempotent retry `replayed` with no time change; health 200.
+- Browser QA not required: T6/T7 add no player-facing UI (diagnostics are
+  internal; the engagement DTO already passed browser QA in T5).
+- Story `command-time-and-scene-movement` complete: T1..T10 closed, ADR-0039 /
+  D-039 accepted. Deferred (own slices): proximity-GATED acts, a withdraw/
+  «отойти» operation, destination-contact materialization, contact-leaving
+  event (TODO in `projection.ts`).
+
 # Current work (2026-10-04 — T7 integration/replay acceptance)
 
 - T7 integration acceptance (`packages/cli/test/command-time-integration.test.ts`):
