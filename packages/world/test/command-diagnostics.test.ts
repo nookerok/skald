@@ -9,6 +9,7 @@ import {
   buildCommandDiagnostics,
   movementOutcome,
   movementTargetKind,
+  readOnlyCommandDiagnostics,
   type ReadonlyWorld,
 } from "../src/index.js";
 import type { CommandTimePlan } from "../src/command-time-policy.js";
@@ -42,7 +43,7 @@ describe("movementOutcome", () => {
     expect(movementOutcome([evt("MovementBlocked", { reason: "wall" })])).toBe("blocked");
     expect(movementOutcome([evt("JourneyStarted", { journeyId: "j" })])).toBe("journey_started");
     expect(movementOutcome([evt("ActionResolved", { result: "approach" })])).toBe("approached");
-    expect(movementOutcome([evt("ActionRejected", { reason: "traveling" })])).toBe("none");
+    expect(movementOutcome([evt("ActionRejected", { reason: "traveling" })])).toBe("rejected");
     expect(movementOutcome([])).toBe("none");
   });
 });
@@ -73,5 +74,20 @@ describe("buildCommandDiagnostics", () => {
     });
     expect(Object.isFrozen(diag)).toBe(true);
     expect(Object.isFrozen(diag.temporal)).toBe(true);
+  });
+});
+
+describe("readOnlyCommandDiagnostics", () => {
+  it("describes a preflight rejection as cost 0", () => {
+    const diag = readOnlyCommandDiagnostics({ worldTime: 3, outcome: "rejected" });
+    expect(diag).toEqual({
+      temporal: { worldTimeBefore: 3, worldTimeAfter: 3, cost: 0, tickPassedCount: 0, policy: "preflight_rejection" },
+      movement: { targetKind: "none", outcome: "rejected" },
+    });
+  });
+
+  it("describes a clarification and a read-only turn", () => {
+    expect(readOnlyCommandDiagnostics({ worldTime: 0, outcome: "clarification" }).movement.outcome).toBe("clarification");
+    expect(readOnlyCommandDiagnostics({ worldTime: 0, outcome: "none" }).temporal.policy).toBe("read_only");
   });
 });
