@@ -55,7 +55,7 @@ function routerReturning(text: string) {
 }
 
 describe("master turn diagnostic taxonomy", () => {
-  it("fixes the eighteen plan categories", () => {
+  it("fixes the nineteen plan categories", () => {
     expect(MASTER_TURN_DIAGNOSTIC_CATEGORIES).toEqual([
       "deterministic_fast_path",
       "context_required",
@@ -75,6 +75,7 @@ describe("master turn diagnostic taxonomy", () => {
       "generic_clarification_fallback",
       "speak_addressee_bound",
       "clarification_resolved",
+      "command_outcome",
     ]);
     expect(Object.isFrozen(MASTER_TURN_DIAGNOSTIC_CATEGORIES)).toBe(true);
   });

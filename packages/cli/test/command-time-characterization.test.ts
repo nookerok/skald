@@ -17,6 +17,7 @@ import { buildBootstrapEvents, bootstrapWorldEvents, buildMasterTurnSceneContext
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
+import { runCommandCycleForRuntime } from "../src/http/world-handlers.js";
 import { validateMasterTurnPlan } from "../src/runtime/master-turn-validator.js";
 import { executeMasterTurnPlan } from "../src/runtime/master-turn-executor.js";
 import type { TurnProposalV2 } from "@skald/intent-parser";
@@ -465,6 +466,56 @@ describe("command time & movement characterization (T1)", () => {
     } finally {
       store.close();
     }
+  });
+
+  it("command outcome diagnostics parity: deterministic vs master-turn", async () => {
+    const det = await freshRuntime("diag-det", "ct-diag-det");
+    const detResult = await runCommandCycleForRuntime(det.runtime, "Иду к Речному Стражу", "diag-det");
+    const detDiag = (detResult as any).diagnostics;
+    det.store.close();
+
+    const mt = await freshRuntime("diag-mt", "ct-diag-mt");
+    const events = mt.runtime.bus.query();
+    const world = mt.runtime.projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(events, world);
+    const route = scene.context.knownRoutes.find((r) => r.status === "open")!;
+    const validated = validateMasterTurnPlan({
+      proposal: {
+        schemaVersion: 2,
+        kind: "action",
+        primaryIntent: { kind: "journey", destination: { role: "destination", observerRef: route.observerRef, surface: route.label }, sourceText: "Иду к Речному Стражу" },
+        supportingClauses: [],
+        referents: [],
+      } as TurnProposalV2,
+      scene,
+      world,
+      rawText: "Иду к Речному Стражу",
+    });
+    expect(validated.status).toBe("accepted");
+    if (validated.status !== "accepted") return;
+    const executed = executeMasterTurnPlan(validated.plan, scene, {
+      engine: mt.runtime.engine,
+      projection: mt.runtime.projection,
+      events,
+      worldId: mt.runtime.worldId,
+    });
+    mt.store.close();
+    expect(executed.status).toBe("executed");
+    if (executed.status !== "executed") return;
+    expect(executed.diagnostics.movement.targetKind).toBe(detDiag.movement.targetKind);
+    expect(executed.diagnostics.movement.outcome).toBe(detDiag.movement.outcome);
+    expect(executed.diagnostics.temporal.cost).toBe(detDiag.temporal.cost);
+    expect(executed.diagnostics.temporal.tickPassedCount).toBe(detDiag.temporal.tickPassedCount);
+    expect(executed.diagnostics.temporal.policy).toBe(detDiag.temporal.policy);
+  });
+
+  it("the player command response never carries command diagnostics", async () => {
+    const row = await probe("leak", "ct-leak", "осматриваюсь", "ct-leak");
+    const body = JSON.stringify(row.reply);
+    for (const key of ["targetKind", "timePolicy", "tickPassedCount", "movementOutcome", "temporalCost", "movementTargetKind"]) {
+      expect(body).not.toContain(key);
+    }
+    row.store.close();
   });
 
   it("both executors call the shared planCommandTime; no inline suppressTick remains", () => {
