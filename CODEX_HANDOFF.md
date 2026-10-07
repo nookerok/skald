@@ -11,6 +11,26 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — destination scene continuity (P0 gameplay))
+
+- Fixed the post-journey gap: `buildRegionBootstrapEvents` now materializes EVERY
+  entrypoint's contact placement (deduped by entityId), so a contact exists and
+  is present at its own location once the player arrives. Acquaintance
+  (`RelationChanged`) stays scoped to the selected entrypoint, so the player
+  still only KNOWS the starting contact; the destination NPC is present but
+  unknown (name gated, observer-safe description shown). Existing Event Logs are
+  untouched — only NEW bootstraps gain the placements.
+- New test `destination-continuity.test.ts`: after the journey, «кто рядом?»
+  shows the destination NPC and «подойти к смотрителю» resolves as a fresh
+  approach, old engagement cleared, no duplicate contacts. Updated
+  `scene-presence` (presentContacts = known subset; visibleContacts carries the
+  unknown destination contact) and `conversation-memory-focus` (the old mention
+  is not re-bound to the destination person).
+- `npm run validate` PASS: 238 files, 2920 passed, 1 skipped. Committed, pushed,
+  deployed; live continuity check on a scratch world.
+- Next: engagement actions (осмотреть/обратиться/отойти …), then a 15–30 turn
+  human session (Playable/Coherent/Responsive/Memorable).
+
 # Current work (2026-10-04 — T6.1/T7.2/T7.3/T8.1: strict observability + acceptance)
 
 - Replay diagnostics contract fixed: a replay is its own `command_outcome`
