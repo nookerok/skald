@@ -100,7 +100,19 @@ export function buildRegionBootstrapEvents(regionId = DEFAULT_REGION_ID, entrypo
     if (!materialized.bundle.entrypoints?.length) return materialized.events;
     throw new Error("compiled region entrypoint not found: " + entrypointId);
   }
-  return materializeSelectedEvents(entrypoint.bootstrapEvents, materialized.region);
+  // Destination scene continuity: materialize EVERY entrypoint's contact
+  // placement so a contact exists in the world and is present at its own
+  // location once the player travels there. Acquaintance (RelationChanged)
+  // stays scoped to the selected entrypoint, so the player still only KNOWS
+  // the starting contact. Deduped by entityId downstream.
+  const otherContactPlacements = (materialized.bundle.entrypoints ?? [])
+    .filter((candidate) => candidate.id !== entrypoint.id)
+    .flatMap((candidate) => candidate.bootstrapEvents.filter((event) => {
+      if (event.type !== "ObjectPlaced") return false;
+      const entityId = (event.payload as { entityId?: unknown }).entityId;
+      return typeof entityId === "string" && entityId.startsWith("contact:");
+    }));
+  return materializeSelectedEvents([...otherContactPlacements, ...entrypoint.bootstrapEvents], materialized.region);
 }
 
 /** Generic runtime region definition. */
