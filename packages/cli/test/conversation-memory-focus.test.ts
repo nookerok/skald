@@ -78,7 +78,9 @@ describe("conversation memory — focused questions", () => {
       bus.append(entry);
     }
     const scene = buildMasterTurnSceneContext(bus.query(), projection.getSnapshot()).context;
-    expect(scene.knownPeople).toHaveLength(0);
+    // The destination has its own present (unknown) person, but the ferryman
+    // named before the move is not among them.
+    expect(scene.knownPeople.map((person) => person.label)).not.toContain("Перевозчик у переправы");
 
     const stored = {
       worldId: "memory-provenance",

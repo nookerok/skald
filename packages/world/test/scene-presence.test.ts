@@ -35,7 +35,10 @@ describe("scene presence semantics", () => {
     const guidance = buildObserverGuidanceContext(events, world);
 
     expect(guidance.knownContacts.map((contact) => contact.id)).toContain(KEEPER);
-    expect(guidance.presentContacts).toHaveLength(0);
+    // The ferryman does not follow; the city has its OWN present contact
+    // (visible but not yet known).
+    expect(guidance.presentContacts.map((contact) => contact.id)).not.toContain(KEEPER);
+    expect(guidance.visibleContacts.map((contact) => contact.id)).toContain("contact:riverwatch-gatekeeper");
   });
 
   it("excludes an absent contact from the master scene people", () => {
@@ -54,7 +57,10 @@ describe("scene presence semantics", () => {
       { shell, background: null, scene },
     );
     expect(nearby.answer).not.toContain("Перевозчик");
-    expect(nearby.answer).toMatch(/никого|никто/i);
+    // The destination contact is present but UNKNOWN, so the name stays gated
+    // and only the observer-safe description is shown.
+    expect(nearby.answer).toMatch(/Незнакомый человек|ключей от ворот/i);
+    expect(nearby.answer).not.toMatch(/никого|никто/i);
 
     const known = buildInquiryAnswer(
       { type: "InquiryRequest", queryId: "known_contacts", rawText: "с кем я знаком?", confidence: 1, source: "deterministic" },
