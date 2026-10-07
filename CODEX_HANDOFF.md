@@ -11,6 +11,23 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — operational hygiene (temp scratch retention))
+
+- ENOSPC root cause: `/tmp` (tmpfs) filled by stale test scratch dirs
+  (`/tmp/skald-*`, 3295 entries) from repeated vitest/acceptance runs; the first
+  updater run failed, a manual clean fixed it.
+- New `scripts/tmp-hygiene.mjs` (plain Node ESM): `selectStaleManagedDirs`
+  (managed prefix, real dirs only, TTL), `cleanupManagedTempDirs` (never follows
+  symlinks, returns a receipt with removed count/bytes), `tempHeadroom`
+  (free bytes + inodes), and a CLI preflight that cleans stale `skald-*` dirs and
+  fails early when the temp root is still too full.
+- `scripts/validate.sh` runs the hygiene preflight before the test suite, so a
+  full tmpfs fails fast instead of breaking tests with ENOSPC. Test
+  `tmp-hygiene.test.ts` proves foreign dirs and symlinks are never touched.
+- `npm run validate` PASS: 239 files, 2925 passed, 1 skipped. Committed, pushed,
+  deployed.
+- Next: scene engagement actions (near/engaged matrix + «отойти»).
+
 # Current work (2026-10-04 — destination scene continuity + identity-boundary fix)
 
 - Privacy/identity boundary fixed (review): `contactApproach` and
