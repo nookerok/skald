@@ -87,8 +87,15 @@ if (process.argv[1] && process.argv[1].endsWith("tmp-hygiene.mjs")) {
 
   let headroom = tempHeadroom(root);
   let receipt = null;
+  // Routine pass: drop managed dirs older than the TTL (safe with concurrent
+  // runs). If headroom is still too low, aggressively drop ALL managed dirs
+  // (still prefix-scoped, never symlinks/foreign) so a full tmpfs recovers.
+  const routine = cleanupManagedTempDirs(root, { prefix, ttlMs });
+  if (routine.removed > 0) receipt = routine;
+  headroom = tempHeadroom(root);
   if (headroom.freeBytes < minFreeBytes || headroom.freeInodes < minFreeInodes) {
-    receipt = cleanupManagedTempDirs(root, { prefix, ttlMs });
+    const aggressive = cleanupManagedTempDirs(root, { prefix, ttlMs: 0 });
+    receipt = { ...aggressive, removed: aggressive.removed + (receipt?.removed ?? 0) };
     headroom = tempHeadroom(root);
   }
   const ok = headroom.freeBytes >= minFreeBytes && headroom.freeInodes >= minFreeInodes;

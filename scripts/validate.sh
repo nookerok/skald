@@ -24,7 +24,7 @@ npm run typecheck
 # Managed temp hygiene: clean stale skald-* scratch dirs and fail early if the
 # temp root is still too full (a full tmpfs breaks the suite with ENOSPC).
 echo "[validate] temp hygiene"
-node scripts/tmp-hygiene.mjs --root "${TMPDIR:-/tmp}" --prefix skald- --ttl-minutes 120 --min-free-mb 200
+node scripts/tmp-hygiene.mjs --root="${TMPDIR:-/tmp}" --prefix=skald- --ttl-minutes=120 --min-free-mb=200
 echo "[validate] tests"
 npm test -- --run
 echo "[validate] canon"
@@ -37,4 +37,8 @@ echo "[validate] adventure acceptance"
 npm run acceptance:adventure
 echo "[validate] diff check"
 git diff --check
+# Final pass: drop every managed scratch dir created by this run (test, eval,
+# adventure), so nothing accumulates between runs.
+echo "[validate] temp cleanup"
+node scripts/tmp-hygiene.mjs --root="${TMPDIR:-/tmp}" --prefix=skald- --ttl-minutes=0 --min-free-mb=200
 echo "[validate] PASS"
