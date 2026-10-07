@@ -76,4 +76,32 @@ describe("command_outcome coverage (T6.1)", () => {
       store.close();
     }
   });
+
+  it("replay is its own outcome for approach, journey, rejection and blocked", async () => {
+    const cases = [
+      { tag: "rep-approach", entrypoint: "river_waystation_arrival", input: "Подойти к перевозчику" },
+      { tag: "rep-journey", entrypoint: "river_waystation_arrival", input: "Иду к Речному Стражу" },
+      { tag: "rep-reject", entrypoint: "southern_borough_arrival", input: "Подойти к перевозчику" },
+      { tag: "rep-blocked", entrypoint: "river_waystation_arrival", input: "Иду в Неведомые земли" },
+    ];
+    for (const c of cases) {
+      const seen: any[] = [];
+      const { store, runtime } = await fresh(c.tag, c.entrypoint, (e) => seen.push(e));
+      try {
+        parse(await handleWorldCommand(runtime, { input: c.input, idempotencyKey: "k" }));
+        const timeBefore = runtime.projection.getSnapshot().time;
+        const eventsBefore = runtime.bus.query().length;
+        seen.length = 0;
+        const replay = parse(await handleWorldCommand(runtime, { input: c.input, idempotencyKey: "k" }));
+        expect(replay.replayed).toBe(true);
+        expect(runtime.projection.getSnapshot().time).toBe(timeBefore);
+        expect(runtime.bus.query().length).toBe(eventsBefore);
+        const outcomes = seen.filter((e) => e.category === "command_outcome");
+        expect(outcomes).toHaveLength(1);
+        expect(outcomes[0]).toMatchObject({ replayed: true, temporalCost: 0, movementOutcome: "replayed", timePolicy: "replay" });
+      } finally {
+        store.close();
+      }
+    }
+  });
 });

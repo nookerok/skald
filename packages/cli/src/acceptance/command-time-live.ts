@@ -52,9 +52,11 @@ const scoped = async () => {
   const r = await call("GET", `/api/worlds/${worldId}/state`);
   return { worldTime: r.body?.state?.worldTime, eventNumber: r.body?.state?.eventNumber };
 };
-const eventsSince = async (offset: number) => {
+const eventsSince = async (offset: number): Promise<string[]> => {
   const r = await call("GET", `/api/worlds/${worldId}/events?offset=${offset}&limit=100`);
-  return (r.body?.events ?? []).map((e: any) => e.type as string);
+  if (r.status !== 200) { fail(`/events http ${r.status} at offset ${offset}`); return []; }
+  if (typeof r.body?.count !== "number" || !Array.isArray(r.body?.events)) { fail("/events malformed"); return []; }
+  return (r.body.events as any[]).map((e) => e.type as string);
 };
 
 interface Ledger {
@@ -84,7 +86,7 @@ const step = async (input: string, key: string) => {
   if (res.status !== 200) fail(`http ${res.status} for ${input}`);
   if (typeof after.worldTime !== "number" || typeof after.eventNumber !== "number") fail(`non-numeric state after ${input}`);
   const dump = JSON.stringify(res.body ?? {});
-  if (/targetRef|establishedAt|person_|object_|route_/.test(dump)) fail(`internal id leaked for ${input}`);
+  if (/targetRef|establishedAt|contactRef|internalId|locationId|person_|object_|route_/.test(dump)) fail(`internal id leaked for ${input}`);
   return { ...entry, res };
 };
 
@@ -94,9 +96,11 @@ if (q.kind !== "inquiry" || q.eventDelta !== 0 || q.worldTimeAfter !== q.worldTi
 const ap = await step("Подойти к перевозчику", "l2");
 if (ap.kind !== "exec" || ap.worldTimeAfter !== ap.worldTimeBefore + 1) fail("approach time");
 if (!ap.sceneEngagement?.startsWith("near:")) fail("approach not near");
+if (!ap.eventTypes.includes("ActionResolved") || !ap.eventTypes.includes("TickPassed")) fail("approach missing ActionResolved/TickPassed");
 
 const rep = await step("Подойти к перевозчику", "l3");
 if (rep.worldTimeAfter !== rep.worldTimeBefore + 1 || !rep.sceneEngagement?.startsWith("near:")) fail("repeat approach");
+if (!rep.eventTypes.includes("ActionResolved")) fail("repeat approach missing ActionResolved");
 
 const js = await step("Иду к Речному Стражу", "l4");
 if (js.worldTimeAfter !== js.worldTimeBefore + 1) fail("journey start time");
@@ -122,23 +126,29 @@ if (ab.kind !== "action_rejection" || ab.eventDelta !== 0 || ab.worldTimeAfter !
 
 const bl = await step("Иду в Неведомые земли", "l10");
 if (!bl.eventTypes.includes("JourneyBlocked")) fail("blocked journey missing JourneyBlocked");
+if (bl.worldTimeAfter !== bl.worldTimeBefore + 1) fail("blocked journey time");
 
 const beforeReplay = await scoped();
 const replay = await call("POST", `/api/worlds/${worldId}/command`, { input: "Подойти к перевозчику", idempotencyKey: `l2-${RUN}` });
 const afterReplay = await scoped();
+const replayEvents = await eventsSince(beforeReplay.eventNumber ?? 0);
 if (replay.status !== 200 || replay.body?.replayed !== true) fail("replay not replayed");
 if (afterReplay.worldTime !== beforeReplay.worldTime || afterReplay.eventNumber !== beforeReplay.eventNumber) fail("replay changed state");
+if (replayEvents.length !== 0) fail("replay committed events");
 
 const beforeConflict = await scoped();
 const conflict = await call("POST", `/api/worlds/${worldId}/command`, { input: "ждать", idempotencyKey: `l2-${RUN}` });
 const afterConflict = await scoped();
+const conflictEvents = await eventsSince(beforeConflict.eventNumber ?? 0);
 if (conflict.status !== 409) fail("conflict not 409");
 if (afterConflict.worldTime !== beforeConflict.worldTime || afterConflict.eventNumber !== beforeConflict.eventNumber) fail("conflict changed state");
+if (conflictEvents.length !== 0) fail("conflict committed events");
 
 const finalHealth = await call("GET", "/api/health");
 if (finalHealth.status !== 200) fail("final health");
 const finalState = await call("GET", `/api/worlds/${worldId}/state`);
 if (finalState.status !== 200) fail("scoped state");
+if (typeof finalState.body?.state?.worldTime !== "number" || typeof finalState.body?.state?.eventNumber !== "number") fail("final state not numeric");
 
 const report = {
   schema: "COMMAND_TIME_LIVE_V1",

@@ -63,6 +63,7 @@ async function run(tag: string, entrypointId: string, router: any, input: string
       cost: outcome?.temporalCost ?? null,
       ticks: outcome?.tickPassedCount ?? null,
       policy: outcome?.timePolicy ?? null,
+      targetKind: outcome?.movementTargetKind ?? null,
     };
   } finally {
     store.close();
@@ -83,41 +84,45 @@ const absentProposal = {
   referents: [{ role: "target", surface: "перевозчику" }],
 };
 
+const expectParity = (det: any, model: any) => {
+  expect(model.outcome).toBe(det.outcome);
+  expect(model.cost).toBe(det.cost);
+  expect(model.ticks).toBe(det.ticks);
+  expect(model.policy).toBe(det.policy);
+  expect(model.targetKind).toBe(det.targetKind);
+  expect(model.timeDelta).toBe(det.timeDelta);
+  expect(model.eventDelta).toBe(det.eventDelta);
+};
+
 describe("deterministic vs model-plan parity (T7.3)", () => {
   it("agrees on journey start", async () => {
     const det = await run("jrn-det", "river_waystation_arrival", deadRouter(), "Иду к Речному Стражу");
     const model = await run("jrn-model", "river_waystation_arrival", scriptedRouter([journeyProposal("Речной Страж")]), "Иду к Речному Стражу, что я вижу?");
-    expect(model.outcome).toBe(det.outcome);
-    expect(model.cost).toBe(det.cost);
-    expect(model.ticks).toBe(det.ticks);
-    expect(model.timeDelta).toBe(det.timeDelta);
+    expectParity(det, model);
     expect(det.outcome).toBe("journey_started");
+    expect(det.targetKind).toBe("remote_location");
   });
 
   it("agrees on an absent-contact rejection", async () => {
     const det = await run("abs-det", "southern_borough_arrival", deadRouter(), "Подойти к перевозчику");
     const model = await run("abs-model", "southern_borough_arrival", scriptedRouter([absentProposal]), "Подойти к перевозчику, что здесь происходит?");
-    expect(model.outcome).toBe(det.outcome);
-    expect(model.cost).toBe(det.cost);
-    expect(model.timeDelta).toBe(det.timeDelta);
+    expectParity(det, model);
     expect(det.kind).toBe("action_rejection");
     expect(model.kind).toBe("action_rejection");
     expect(det.timeDelta).toBe(0);
   });
 
   it("agrees on a repaired plan (invalid then valid)", async () => {
-    const model = await run("rep-model", "southern_borough_arrival", scriptedRouter([{ kind: "mixed" }, absentProposal]), "Подойти к перевозчику, что здесь происходит?");
     const det = await run("rep-det", "southern_borough_arrival", deadRouter(), "Подойти к перевозчику");
+    const model = await run("rep-model", "southern_borough_arrival", scriptedRouter([{ kind: "mixed" }, absentProposal]), "Подойти к перевозчику, что здесь происходит?");
+    expectParity(det, model);
     expect(model.kind).toBe("action_rejection");
-    expect(model.outcome).toBe(det.outcome);
-    expect(model.timeDelta).toBe(det.timeDelta);
   });
 
   it("agrees on a blocked journey", async () => {
     const det = await run("blk-det", "river_waystation_arrival", deadRouter(), "Иду в Неведомые земли");
     const model = await run("blk-model", "river_waystation_arrival", scriptedRouter([journeyProposal("Неведомые земли")]), "Иду в Неведомые земли, что я вижу?");
+    expectParity(det, model);
     expect(det.outcome).toBe("blocked");
-    expect(model.outcome).toBe("blocked");
-    expect(model.timeDelta).toBe(det.timeDelta);
   });
 });
