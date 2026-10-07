@@ -87,8 +87,14 @@ describe("scene engagement projection", () => {
 });
 
 describe("scene engagement observer-safe view", () => {
-  it("returns the player-facing label, never the ref", () => {
+  it("gates an unknown contact's name", () => {
     const world = rebuildProjection([...base, approachEvent]).getSnapshot();
+    expect(sceneEngagementView(world)).toEqual({ state: "near", label: "Незнакомый человек" });
+  });
+
+  it("shows the canonical name after acquaintance", () => {
+    const known = evt("RelationChanged", "rel-1", { from: "player", to: "npc-1", kind: "knows", delta: 1 });
+    const world = rebuildProjection([...base, known, approachEvent]).getSnapshot();
     expect(sceneEngagementView(world)).toEqual({ state: "near", label: "Перевозчик" });
   });
 
@@ -105,11 +111,11 @@ describe("scene engagement observer-safe view", () => {
 });
 
 describe("scene engagement Game Shell DTO", () => {
-  it("carries a ref-free sceneEngagement", () => {
+  it("carries a ref-free sceneEngagement (name gated while unknown)", () => {
     const events = [...base, approachEvent];
     const world = rebuildProjection(events).getSnapshot();
     const shell = buildGameShellSnapshot(events, world, null, "world-se");
-    expect(shell.sceneEngagement).toEqual({ state: "near", label: "Перевозчик" });
+    expect(shell.sceneEngagement).toEqual({ state: "near", label: "Незнакомый человек" });
     const serialized = JSON.stringify(shell.sceneEngagement);
     expect(serialized).not.toMatch(/npc-1|locationId|targetRef|establishedAt/);
   });

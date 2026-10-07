@@ -147,6 +147,31 @@ describe("Action Capability and Epistemic Model", () => {
     expect(projection.getSnapshot().actionCapabilities?.owners.get("pebble")).toBe("warden");
   });
 
+  it("a remote contact is not a valid give recipient", () => {
+    const remoteContact = event("ObjectPlaced", "far", {
+      entityId: "far",
+      x: 0,
+      y: 0,
+      name: "far warden",
+      aliases: ["far warden"],
+      description: "x",
+      components: { contact: { locationId: "elsewhere", profile: { visibleAppearance: [], distinguishingFeatures: [], publicRole: "x", knownAs: [], addressForms: [] } } },
+    }, 0);
+    const { engine, projection } = runtimeWith([remoteContact]);
+    engine.process(takeCommand("pebble", "give-remote-take", 1));
+    const command: InteractionCommand = {
+      type: "InteractionCommand",
+      verb: "give",
+      target: { raw: "pebble" },
+      secondaryTarget: { raw: "far warden" },
+      rawText: "give pebble far warden",
+      interpretation: { source: "deterministic", confidence: 1, ambiguities: [] },
+    };
+    const result = engine.process(handleCommand(command, "give-remote", 2));
+    expect(result.committed.some((item) => item.type === "ItemPossessionChanged")).toBe(false);
+    expect(projection.getSnapshot().actionCapabilities?.placements.get("pebble")).toEqual({ kind: "carried", holderId: "player" });
+  });
+
   it("S2 stores and S3 retrieves an item through an open container", () => {
     const { engine, projection } = runtime();
     engine.process(takeCommand("pebble", "s2-take", 1));

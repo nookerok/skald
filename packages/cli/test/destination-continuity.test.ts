@@ -68,9 +68,12 @@ describe("destination scene continuity", () => {
       const nearby = parse(await handleWorldCommand(runtime, { input: "Кто рядом?", idempotencyKey: "d4" }));
       expect(String(nearby.inquiry?.answer ?? "")).toContain("ключей от ворот");
 
-      // A fresh approach to the destination contact resolves and sets engagement.
+      // A fresh approach to the destination contact resolves and sets
+      // engagement — but the unknown person's canonical name is NOT revealed.
       const approach = parse(await handleWorldCommand(runtime, { input: "Подойти к смотрителю", idempotencyKey: "d5" }));
-      expect(JSON.stringify(approach)).toContain("Смотритель речных ворот");
+      expect(JSON.stringify(approach)).not.toContain("Смотритель речных ворот");
+      expect(JSON.stringify(approach)).toContain("Незнакомый человек");
+      expect(approach.shellDelta?.sceneEngagement?.label).toBe("Незнакомый человек");
       expect(runtime.projection.getSnapshot().sceneEngagement?.state).toBe("near");
 
       // No duplicate contact entities after all of this.
