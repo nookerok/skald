@@ -59,6 +59,11 @@ export const contactApproach: Rule<ReadonlyWorld> = {
       // engagement state and answer meaningfully (ADR-0039 §3).
       const alreadyNear = world.sceneEngagement?.targetRef === target.ref
         && world.sceneEngagement.locationId === world.currentLocationId;
+      // Identity boundary (contact-identity T3/T5): the canonical name is
+      // player-facing only AFTER acquaintance. An unknown present contact is
+      // cited by an observer-safe label, never by its canonical name.
+      const known = [...world.relations.values()].some((relation) => relation.from === "player" && relation.to === target.ref);
+      const label = known ? target.name : "Незнакомый человек";
       return [{
         ...base,
         eventId: ruleEventId(event.eventId, "ActionResolved", 0),
@@ -71,13 +76,9 @@ export const contactApproach: Rule<ReadonlyWorld> = {
           targetRef: target.ref,
           locationId: world.currentLocationId,
           engagement: "near",
-          // Nominative citation form: the repo has no case inflection and
-          // contact aliases/addressForms are nominative — the outcome
-          // confirms the approach and names who stands ahead without
-          // inventing morphology (decision 2026-10-01).
           description: alreadyNear
-            ? `Ты уже стоишь рядом с ${target.name}.`
-            : `Ты подходишь ближе. Перед тобой — ${target.name}.`,
+            ? `Ты уже стоишь рядом с ${label}.`
+            : `Ты подходишь ближе. Перед тобой — ${label}.`,
         },
       }];
     }

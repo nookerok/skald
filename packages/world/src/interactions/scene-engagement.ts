@@ -18,9 +18,17 @@ export interface SceneEngagementView {
 export function sceneEngagementView(world: ReadonlyWorld): SceneEngagementView | null {
   const engagement = world.sceneEngagement;
   if (!engagement) return null;
-  const label = world.entities.get(engagement.targetRef)?.name
-    ?? world.objects.get(engagement.targetRef)?.name
-    ?? null;
-  if (!label) return null;
-  return { state: engagement.state, label };
+  const entity = world.entities.get(engagement.targetRef);
+  const object = world.objects.get(engagement.targetRef);
+  const name = entity?.name ?? object?.name ?? null;
+  if (!name) return null;
+  // Identity boundary: a CONTACT's canonical name is player-facing only after
+  // acquaintance; an unknown present person is cited observer-safely. Objects
+  // carry no identity boundary.
+  const contact = entity?.components.contact;
+  if (contact) {
+    const known = [...world.relations.values()].some((relation) => relation.from === "player" && relation.to === engagement.targetRef);
+    return { state: engagement.state, label: known ? name : "Незнакомый человек" };
+  }
+  return { state: engagement.state, label: name };
 }

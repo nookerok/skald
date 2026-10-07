@@ -89,12 +89,17 @@ function placementFor(world: ReadonlyWorld, itemId: string) {
 function recipientId(world: ReadonlyWorld, raw: unknown): string | undefined {
   if (typeof raw !== "string" || raw.trim().length === 0) return undefined;
   const query = raw.trim().toLowerCase();
-  const entity = [...world.entities.values()].find((candidate) =>
-    candidate.id !== PLAYER_ID
-    && (candidate.name.toLowerCase().includes(query)
+  const entity = [...world.entities.values()].find((candidate) => {
+    if (candidate.id === PLAYER_ID) return false;
+    // A contact target must be present in the current location: a person who
+    // physically stands elsewhere is never a valid give/place recipient
+    // (destination-continuity materializes every contact in the world).
+    const contact = candidate.components.contact;
+    if (contact && contact.locationId !== world.currentLocationId) return false;
+    return candidate.name.toLowerCase().includes(query)
       || candidate.id.toLowerCase().includes(query)
-      || candidate.aliases.some((alias) => alias.toLowerCase() === query)),
-  );
+      || candidate.aliases.some((alias) => alias.toLowerCase() === query);
+  });
   if (entity) return entity.id;
   const object = [...world.objects.values()].find((candidate) =>
     candidate.id !== PLAYER_ID
