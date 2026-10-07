@@ -21,6 +21,10 @@ echo "[validate] browser smoke harness (not browser QA)"
 npm run browser:smoke -- --help >/dev/null
 echo "[validate] typecheck"
 npm run typecheck
+# Managed temp hygiene: clean stale skald-* scratch dirs and fail early if the
+# temp root is still too full (a full tmpfs breaks the suite with ENOSPC).
+echo "[validate] temp hygiene"
+node scripts/tmp-hygiene.mjs --root "${TMPDIR:-/tmp}" --prefix skald- --ttl-minutes 120 --min-free-mb 200
 echo "[validate] tests"
 npm test -- --run
 echo "[validate] canon"
