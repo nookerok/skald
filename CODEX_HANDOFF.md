@@ -1,3 +1,16 @@
+- T8.1 runner hardened further: `/events` status/shape is asserted (non-200 or
+  malformed → FAIL); approach/repeat must carry `ActionResolved`; blocked journey
+  checks time; replay/conflict must commit no events; final state must be
+  numeric; the forbidden-field set now includes `locationId`/`contactRef`/
+  `internalId`. It still reports commit/service as `NOT_PERFORMED_BY_RUNNER`.
+- T7.3 parity now compares the FULL sanitized `command_outcome` (outcome, cost,
+  ticks, policy, targetKind) plus `timeDelta`/`eventDelta` across deterministic,
+  scripted and repaired plans. Replay diagnostics are covered for approach,
+  journey, rejection and blocked (each replays as `replayed`/`replay`, cost 0, no
+  new events/time).
+- `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
+  deployed; strict runner re-run; SSH/service receipt captured separately.
+
 # Current work (2026-10-04 — T6.1/T7.2/T7.3/T8.1: strict observability + acceptance)
 
 - Replay diagnostics contract fixed: a replay is its own `command_outcome`
