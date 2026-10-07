@@ -11,6 +11,25 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — destination scene continuity + identity-boundary fix)
+
+- Privacy/identity boundary fixed (review): `contactApproach` and
+  `sceneEngagementView` no longer reveal an UNKNOWN contact's canonical name —
+  they cite «Незнакомый человек» until a `knows` relation exists (T3/T5
+  contract). `recipientId` (action-capability) now requires a CONTACT target to
+  be present in the current location, so a materialized but remote NPC can never
+  be a give/place recipient.
+- Fixed the post-journey gap: `buildRegionBootstrapEvents` materializes EVERY
+  entrypoint's contact placement (deduped), acquaintance stays entrypoint-scoped
+  (destination NPC present but unknown). Existing logs untouched.
+- Tests: `destination-continuity`, `scene-engagement` (gated label + known
+  variant), `action-capability` (remote contact not a recipient); updated
+  `scene-presence`/`conversation-memory-focus`.
+- `npm run validate` PASS: 238 files, 2922 passed, 1 skipped. Committed, pushed,
+  deployed; live continuity + privacy check on a scratch world.
+- Next: engagement actions (осмотреть/обратиться/отойти …), then a 15–30 turn
+  human session (Playable/Coherent/Responsive/Memorable).
+
 # Current work (2026-10-04 — destination scene continuity (P0 gameplay))
 
 - Fixed the post-journey gap: `buildRegionBootstrapEvents` now materializes EVERY
