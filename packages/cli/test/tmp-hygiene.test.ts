@@ -6,10 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 // @ts-ignore - plain Node ESM module without type declarations
-import { cleanupManagedTempDirs, selectStaleManagedDirs, tempHeadroom } from "../../../scripts/tmp-hygiene.mjs";
+import { cleanupManagedTempDirs, isSafePrefix, selectStaleManagedDirs, tempHeadroom } from "../../../scripts/tmp-hygiene.mjs";
 
 describe("selectStaleManagedDirs", () => {
   const now = 1_000_000;
@@ -55,4 +56,54 @@ describe("cleanupManagedTempDirs", () => {
     expect(headroom.freeBytes).toBeGreaterThan(0);
     expect(typeof headroom.freeInodes).toBe("number");
   });
+});
+
+describe("isSafePrefix", () => {
+  it("accepts a plain fragment and refuses unsafe values", () => {
+    expect(isSafePrefix("skald-")).toBe(true);
+    expect(isSafePrefix("")).toBe(false);
+    expect(isSafePrefix("..")).toBe(false);
+    expect(isSafePrefix("a/b")).toBe(false);
+    expect(isSafePrefix("a\\b")).toBe(false);
+    expect(isSafePrefix("a b")).toBe(false);
+  });
+});
+
+describe("tmp-hygiene CLI", () => {
+  it("emits a stable receipt and refuses an unsafe prefix", () => {
+    const root = mkdtempSync(join(tmpdir(), "hygiene-cli-"));
+    mkdirSync(join(root, "skald-a"));
+    writeFileSync(join(root, "skald-a", "x"), "x".repeat(100));
+    mkdirSync(join(root, "skald-b"));
+    writeFileSync(join(root, "skald-b", "x"), "x".repeat(200));
+    mkdirSync(join(root, "foreign"));
+
+    const run = (prefix: string) => spawnSync(process.execPath, [
+      "scripts/tmp-hygiene.mjs", `--root=${root}`, `--prefix=${prefix}`,
+      "--ttl-minutes=0", "--min-free-mb=0", "--min-free-inodes=0",
+    ], { cwd: process.cwd(), encoding: "utf8" });
+
+    const ok = run("skald-");
+    const body = JSON.parse(ok.stdout);
+    expect(body.ok).toBe(true);
+    expect(body.receipt.removed).toBe(2);
+    expect(body.receipt.removedBytes).toBeGreaterThanOrEqual(300);
+    expect(existsSync(join(root, "foreign"))).toBe(true);
+
+    const refused = run("");
+    expect(JSON.parse(refused.stdout).ok).toBe(false);
+    expect(refused.status).toBe(1);
+  });
+
+  it("a real vitest run removes managed scratch dirs (process level)", () => {
+    const sentinel = join(tmpdir(), `skald-sentinel-${process.pid}-${Date.now()}`);
+    mkdirSync(sentinel, { recursive: true });
+    const res = spawnSync("npx", ["vitest", "run", "packages/events/test/events.test.ts", "--reporter=dot"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      timeout: 120_000,
+    });
+    expect(res.status).toBe(0);
+    expect(existsSync(sentinel)).toBe(false);
+  }, 150_000);
 });
