@@ -5,6 +5,6 @@ export default defineConfig({
     include: ["packages/*/test/**/*.test.ts"],
     environment: "node",
     globals: false,
-    globalTeardown: "./scripts/vitest-global-teardown.ts",
+    globalSetup: "./scripts/vitest-global-setup.ts",
   },
 });

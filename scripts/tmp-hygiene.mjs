@@ -77,6 +77,21 @@ function arg(name, fallback) {
   return hit ? hit.slice(name.length + 3) : fallback;
 }
 
+/**
+ * A managed prefix is a plain name fragment: never empty, never a path, never a
+ * traversal token. An unsafe prefix is refused so the CLI cannot widen its
+ * deletion scope to every old directory under the root.
+ */
+export function isSafePrefix(prefix) {
+  return typeof prefix === "string"
+    && prefix.length > 0
+    && !prefix.includes("/")
+    && !prefix.includes("\\")
+    && prefix !== "."
+    && prefix !== ".."
+    && /^[A-Za-z0-9._-]+$/.test(prefix);
+}
+
 if (process.argv[1] && process.argv[1].endsWith("tmp-hygiene.mjs")) {
   const root = arg("root", process.env["TMPDIR"] ?? "/tmp");
   const prefix = arg("prefix", "skald-");
@@ -85,17 +100,24 @@ if (process.argv[1] && process.argv[1].endsWith("tmp-hygiene.mjs")) {
   const minFreeInodes = Number(arg("min-free-inodes", "1000"));
   const minFreeBytes = minFreeMb * 1024 * 1024;
 
-  let headroom = tempHeadroom(root);
-  let receipt = null;
-  // Routine pass: drop managed dirs older than the TTL (safe with concurrent
-  // runs). If headroom is still too low, aggressively drop ALL managed dirs
-  // (still prefix-scoped, never symlinks/foreign) so a full tmpfs recovers.
+  if (!root.startsWith("/") || !isSafePrefix(prefix)) {
+    console.log(JSON.stringify({ ok: false, error: "unsafe_root_or_prefix", root, prefix }));
+    process.exit(1);
+  }
+
+  // Routine pass: managed dirs older than the TTL (safe with concurrent runs).
+  // If headroom is still too low, aggressively drop ALL managed dirs (still
+  // prefix-scoped, never symlinks/foreign) so a full tmpfs recovers.
   const routine = cleanupManagedTempDirs(root, { prefix, ttlMs });
-  if (routine.removed > 0) receipt = routine;
-  headroom = tempHeadroom(root);
+  let receipt = routine;
+  let headroom = tempHeadroom(root);
   if (headroom.freeBytes < minFreeBytes || headroom.freeInodes < minFreeInodes) {
     const aggressive = cleanupManagedTempDirs(root, { prefix, ttlMs: 0 });
-    receipt = { ...aggressive, removed: aggressive.removed + (receipt?.removed ?? 0) };
+    receipt = {
+      ...routine,
+      removed: routine.removed + aggressive.removed,
+      removedBytes: routine.removedBytes + aggressive.removedBytes,
+    };
     headroom = tempHeadroom(root);
   }
   const ok = headroom.freeBytes >= minFreeBytes && headroom.freeInodes >= minFreeInodes;

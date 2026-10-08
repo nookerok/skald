@@ -11,6 +11,15 @@ fi
 command -v node >/dev/null
 command -v npm >/dev/null
 
+# Always clean managed scratch dirs on exit — success OR failure — and preserve
+# the original exit code, so a failed step cannot leave the tmpfs filling up.
+tmp_cleanup() {
+  local code=$?
+  node scripts/tmp-hygiene.mjs --root="${TMPDIR:-/tmp}" --prefix=skald- --ttl-minutes=0 --min-free-mb=200 >/dev/null 2>&1 || true
+  exit "$code"
+}
+trap tmp_cleanup EXIT
+
 echo "[validate] node: $(node --version)"
 echo "[validate] npm:  $(npm --version)"
 echo "[validate] shell syntax"
@@ -37,8 +46,4 @@ echo "[validate] adventure acceptance"
 npm run acceptance:adventure
 echo "[validate] diff check"
 git diff --check
-# Final pass: drop every managed scratch dir created by this run (test, eval,
-# adventure), so nothing accumulates between runs.
-echo "[validate] temp cleanup"
-node scripts/tmp-hygiene.mjs --root="${TMPDIR:-/tmp}" --prefix=skald- --ttl-minutes=0 --min-free-mb=200
 echo "[validate] PASS"
