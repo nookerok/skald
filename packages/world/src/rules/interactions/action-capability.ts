@@ -146,6 +146,11 @@ export const itemPossession: Rule<ReadonlyWorld> = {
     } else {
       const recipient = recipientId(world, payload.secondaryTarget);
       if (!recipient) return [rejected(event, "recipient_not_found")];
+      // Proximity gate (ADR-0039 §3): handing an item to a PERSON requires
+      // being near them. A present contact that was not approached is not near.
+      const isContact = world.entities.get(recipient)?.components.contact != null;
+      const near = world.sceneEngagement?.targetRef === recipient && world.sceneEngagement.state === "near";
+      if (isContact && !near) return [rejected(event, "recipient_not_near")];
       if (placement.kind !== "carried" || placement.holderId !== subjectId) return [rejected(event, "item_not_carried")];
       if (recipient === subjectId) return [rejected(event, "recipient_is_sender")];
     }

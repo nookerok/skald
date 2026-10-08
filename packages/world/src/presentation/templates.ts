@@ -14,6 +14,7 @@ const ACTION_REJECTION_TEXT: Readonly<Record<string, string>> = {
   container_closed: "Контейнер закрыт. Сначала нужно найти способ его открыть.",
   not_carrying: "У тебя нет этого предмета с собой.",
   blocked: "Путь или действие преграждено.",
+  recipient_not_near: "Ты не рядом с этим человеком. Подойди ближе.",
 };
 
 function actionRejectionText(payload: { reason?: string; targetName?: string; objectName?: string; playerText?: string }): string {
