@@ -11,6 +11,23 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — scratch-world retention + deploy receipt)
+
+- `planWorldRetention` (`packages/cli/src/admin/world-retention.ts`): pure,
+  conservative — only ACTIVE worlds whose saveLabel matches an explicit scratch
+  pattern, older than a TTL, and not the primary world / a succession target /
+  one of the N most-recently-played worlds are eligible; the canonical player
+  world is never touched. Action is soft ARCHIVE (`setWorldStatus`).
+- `admin:world-retention` CLI (dry-run by default, `--apply` to archive) prints
+  a `WORLD_RETENTION_V1` receipt.
+- `deploy:receipt` (`scripts/deploy-receipt.mjs`) verifies remote HEAD + systemd
+  service/timers + health over SSH and writes an immutable JSON receipt with its
+  SHA-256; exits non-zero on mismatch.
+- Tests `world-retention.test.ts` (primary/successor/fresh/non-scratch/archived
+  protected; old scratch archived). `npm run validate` PASS: 239 files, 2931
+  passed, 1 skipped. Committed, pushed, deployed.
+- Next: scene engagement actions (near/engaged matrix + «отойти»).
+
 # Current work (2026-10-04 — operational hygiene (temp scratch retention))
 
 - ENOSPC root cause: `/tmp` (tmpfs) filled by stale test scratch dirs
