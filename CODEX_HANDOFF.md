@@ -11,6 +11,21 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — proximity gate: give requires being near)
+
+- ADR-0039 §3 proximity gate, first slice: handing an item (`give`) to a PERSON
+  now requires the player to be `near` that present contact. A present contact
+  that was not approached is rejected with `recipient_not_near`
+  («Ты не рядом с этим человеком. Подойди ближе.»), so the item stays with the
+  player. Objects/containers are unaffected, and ordinary observe/speak remain
+  available to any visible person (no broad dialog blocking).
+- Tests `action-capability.test.ts`: not-near → ActionRejected + item retained;
+  engaged (approach first) → transfer succeeds.
+- `npm run validate` PASS: 242 files, 2937 passed, 1 skipped. Committed, pushed,
+  deployed.
+- Next: extend the proximity matrix (near→description/address, engaged→detailed
+  action), formalize near→engaged, then the 15–30 turn human session.
+
 # Current work (2026-10-04 — scene engagement actions: «отойти»)
 
 - `withdraw` operation added end-to-end: parser verbs («отойти/отойду/отхожу/
