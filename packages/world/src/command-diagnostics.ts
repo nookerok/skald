@@ -15,7 +15,7 @@ import type { CommandTimePlan } from "./command-time-policy.js";
 import { resolveMovementTarget, type MovementIntentView, type MovementTarget } from "./interactions/target-resolver.js";
 
 /** The movement owner outcome of one command, from the committed events. */
-export type MovementOutcome = "moved" | "approached" | "blocked" | "journey_started" | "rejected" | "clarification" | "replayed" | "none";
+export type MovementOutcome = "moved" | "approached" | "withdrawn" | "blocked" | "journey_started" | "rejected" | "clarification" | "replayed" | "none";
 
 /** Movement target kind as classified before execution, or "none". */
 export type MovementTargetKind = MovementTarget["kind"] | "none";
@@ -48,6 +48,7 @@ export function movementOutcome(events: readonly DomainEvent[]): MovementOutcome
     else if (event.type === "ActionRejected") outcome = "rejected";
     else if (event.type === "JourneyStarted") outcome = "journey_started";
     else if (event.type === "ActionResolved" && (event.payload as { result?: unknown }).result === "approach") outcome = "approached";
+    else if (event.type === "ActionResolved" && (event.payload as { result?: unknown }).result === "withdraw") outcome = "withdrawn";
   }
   return outcome;
 }

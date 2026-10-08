@@ -294,6 +294,13 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "ждёте", mode: "wait", operation: "wait", target: "forbidden" },
   { verb: "подожд", mode: "wait", operation: "wait", target: "forbidden" },
   { verb: "погод", mode: "wait", operation: "wait", target: "forbidden" },
+  // withdraw (ADR-0039 §3 — step back from a near/engaged target)
+  { verb: "отойти", mode: "relocate", operation: "withdraw", target: "forbidden" },
+  { verb: "отойду", mode: "relocate", operation: "withdraw", target: "forbidden" },
+  { verb: "отхожу", mode: "relocate", operation: "withdraw", target: "forbidden" },
+  { verb: "отступаю", mode: "relocate", operation: "withdraw", target: "forbidden" },
+  { verb: "отступить", mode: "relocate", operation: "withdraw", target: "forbidden" },
+  { verb: "отступлю", mode: "relocate", operation: "withdraw", target: "forbidden" },
   // travel (ADR-0015 — Spatial Movement)
   { verb: "идти", mode: "travel", operation: "travel", target: "required" },
   { verb: "пойти", mode: "travel", operation: "travel", target: "required" },
@@ -587,6 +594,7 @@ const OPERATION_RU: Readonly<Record<string, string>> = Object.freeze({
   move: "двинуться",
   travel: "идти",
   interrupt: "остановиться",
+  withdraw: "отойти",
   push: "толкнуть",
   throw: "бросить",
   strike: "ударить",

@@ -637,6 +637,11 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
           targetRef?: unknown;
           locationId?: unknown;
         };
+        if (p.result === "withdraw") {
+          // Withdraw clears the per-scene engagement (ADR-0039 §3).
+          s.sceneEngagement = null;
+          break;
+        }
         if (p.result === "approach" && p.engagement === "near"
           && typeof p.targetRef === "string" && p.targetRef.length > 0
           && p.locationId === s.currentLocationId) {

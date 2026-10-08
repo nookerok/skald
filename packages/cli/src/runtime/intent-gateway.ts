@@ -337,7 +337,10 @@ export function isSafeDeterministic(result: IntentResult): result is ExecutableI
   if (result.type !== "ActionIntentCommand") return false;
   return result.interpretation.source === "deterministic"
     && result.operation !== "unknown"
-    && result.interpretation.ambiguities.length === 0
+    // `withdraw` is intentionally targetless: the parser's "no clear target"
+    // note is expected and must not divert it to the model.
+    && (result.interpretation.ambiguities.length === 0
+      || (result.operation === "withdraw" && result.interpretation.ambiguities.every((item) => item === "no clear target identified")))
     && !(result.operation === "approach" && isCompoundNaturalInput(result.rawText))
     && result.interpretation.confidence >= 0.7;
 }
