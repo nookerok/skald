@@ -172,6 +172,33 @@ describe("Action Capability and Epistemic Model", () => {
     expect(projection.getSnapshot().actionCapabilities?.placements.get("pebble")).toEqual({ kind: "carried", holderId: "player" });
   });
 
+  it("gates giving to a present contact on being near them", () => {
+    const guard = event("ObjectPlaced", "guard", {
+      entityId: "guard", x: 0, y: 0, name: "guard", aliases: ["guard"], description: "x",
+      components: { contact: { locationId: "camp", profile: { visibleAppearance: [], distinguishingFeatures: [], publicRole: "x", knownAs: [], addressForms: [] } } },
+    }, 0);
+    const giveCommand: InteractionCommand = {
+      type: "InteractionCommand", verb: "give", target: { raw: "pebble" }, secondaryTarget: { raw: "guard" },
+      rawText: "give pebble guard", interpretation: { source: "deterministic", confidence: 1, ambiguities: [] },
+    };
+
+    // Not near: rejected, item stays with the player.
+    const far = runtimeWith([guard]);
+    far.engine.process(takeCommand("pebble", "give-far-take", 1));
+    const rejectedResult = far.engine.process(handleCommand(giveCommand, "give-far", 2));
+    expect(rejectedResult.committed.some((item) => item.type === "ActionRejected" && (item.payload as any).reason === "recipient_not_near")).toBe(true);
+    expect(far.projection.getSnapshot().actionCapabilities?.placements.get("pebble")).toEqual({ kind: "carried", holderId: "player" });
+
+    // Near (engaged with the guard): the transfer succeeds.
+    const engaged = runtimeWith([guard, event("ActionResolved", "ap", {
+      actionEventId: "x", result: "approach", targetRef: "guard", locationId: "camp", engagement: "near", description: "d",
+    }, 0)]);
+    engaged.engine.process(takeCommand("pebble", "give-near-take", 1));
+    const okResult = engaged.engine.process(handleCommand(giveCommand, "give-near", 2));
+    expect(okResult.committed.some((item) => item.type === "ItemPossessionChanged")).toBe(true);
+    expect(engaged.projection.getSnapshot().actionCapabilities?.placements.get("pebble")).toEqual({ kind: "carried", holderId: "guard" });
+  });
+
   it("S2 stores and S3 retrieves an item through an open container", () => {
     const { engine, projection } = runtime();
     engine.process(takeCommand("pebble", "s2-take", 1));
