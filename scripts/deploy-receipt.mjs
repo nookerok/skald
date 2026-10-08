@@ -33,7 +33,9 @@ try { health = JSON.parse(healthRaw); } catch { /* keep null */ }
 const serviceActive = services[0] === "active";
 const timersActive = services[1] === "active" && services[2] === "active";
 const healthOk = health?.status === "ok";
-const commitVerified = EXPECTED === null ? "EXPECTED_NOT_PROVIDED" : (remoteHead === EXPECTED ? "VERIFIED" : "MISMATCH");
+const commitVerified = EXPECTED === null
+  ? "EXPECTED_NOT_PROVIDED"
+  : (remoteHead === EXPECTED || remoteHead.startsWith(EXPECTED) ? "VERIFIED" : "MISMATCH");
 
 const receipt = {
   schema: "DEPLOY_RECEIPT_V1",
