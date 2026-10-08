@@ -11,6 +11,24 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — scene engagement actions: «отойти»)
+
+- `withdraw` operation added end-to-end: parser verbs («отойти/отойду/отхожу/
+  отступаю/отступить/отступлю»), `Operation` + `TURN_LEGACY_OPERATIONS` +
+  proposal-validator allowlists, executor/validator map it to `mode: relocate`,
+  and `isSafeDeterministic` allows its intentional "no clear target" note so the
+  deterministic fast path owns it.
+- New rule `interactions.contact_withdraw` (sole owner of relocate+withdraw):
+  emits `ActionResolved[withdraw]` with an honest answer (stepped back vs.
+  already not near). Projection clears `sceneEngagement` on withdraw;
+  diagnostics add outcome `withdrawn`.
+- Tests: `contact-withdraw.test.ts` (rule), `scene-engagement-actions.test.ts`
+  (parse + command path: approach→near, «отойти» clears +1 tick, reload cleared).
+- `npm run validate` PASS: 242 files, 2936 passed, 1 skipped. Committed, pushed,
+  deployed; live check on a scratch world.
+- Next: engagement-gated acts (near/engaged matrix for inspect/speak/transfer),
+  then the 15–30 turn human session.
+
 # Current work (2026-10-04 — scratch-world retention + deploy receipt)
 
 - `planWorldRetention` (`packages/cli/src/admin/world-retention.ts`): pure,
