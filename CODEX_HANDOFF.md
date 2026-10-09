@@ -11,6 +11,19 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — proximity matrix: close inspection requires near)
+
+- ADR-0039 §3 matrix, next slice: a close inspection (`inspect`) of a PERSON
+  requires being `near`; a far close inspection is blocked with
+  `target_not_near` («Сначала подойди ближе к X, чтобы рассмотреть.»).
+  Ambient `observe` and ordinary address stay ungated. The perception law
+  composes the unified `resolveProximity`.
+- Tests `perception.test.ts`: far inspect → ActionBlocked; near → EntityExamined.
+  `npm run validate` PASS: 242 files, 2941 passed, 1 skipped. Committed, pushed,
+  deployed.
+- Next: engaged-gated acts (whisper, detailed/item conversation), then the human
+  15–30 turn session.
+
 # Current work (2026-10-04 — unified proximity resolver)
 
 - `resolveProximity(world, targetRef)` / `isNear` (`interactions/proximity.ts`):
