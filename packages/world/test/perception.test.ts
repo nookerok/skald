@@ -26,6 +26,25 @@ function livingRegionWorld(): ReadonlyWorld {
   return projector.getSnapshot();
 }
 
+describe("proximity gate — close inspection of a person", () => {
+  const inspect = () => event("InteractionValidated", "iv", { law: "perception", verb: "inspect", entityId: "contact:waystation-keeper" });
+
+  it("blocks a far close inspection with target_not_near", () => {
+    const out = perceptionObserve.handle(inspect(), livingRegionWorld());
+    expect(out[0]).toMatchObject({ type: "ActionBlocked", payload: { reason: "target_not_near" } });
+  });
+
+  it("allows inspection once the player is near", () => {
+    const projector = new WorldProjector();
+    const bootstrap = buildBootstrapEvents("living_region");
+    for (const e of bootstrap) projector.apply(e);
+    const locationId = projector.getSnapshot().currentLocationId;
+    projector.apply(event("ActionResolved", "ap", { actionEventId: "x", result: "approach", targetRef: "contact:waystation-keeper", locationId, engagement: "near", description: "d" }, 0));
+    const out = perceptionObserve.handle(inspect(), projector.getSnapshot());
+    expect(out[0]).toMatchObject({ type: "EntityExamined", payload: { entityId: "contact:waystation-keeper" } });
+  });
+});
+
 describe("Slice 1 — perception law over WorldObject targets", () => {
   it("resolve_target resolves a location-scoped WorldObject by alias", () => {
     const out = interactionResolveTarget.handle(

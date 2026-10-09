@@ -15,6 +15,7 @@ import type { Rule } from "@skald/rule-engine";
 import { ruleEventId } from "../../ids.js";
 import type { ReadonlyWorld } from "../../projection.js";
 import { computeVisibility } from "../../visibility/visibility-engine.js";
+import { resolveProximity } from "../../interactions/proximity.js";
 import type { SpatialWorldProjection } from "../../region/types.js";
 
 function baseFrom(event: DomainEvent) {
@@ -163,6 +164,16 @@ export const perceptionObserve: Rule<ReadonlyWorld> = {
 
     const entity = world.entities.get(payload.entityId);
     if (entity) {
+      // Close inspection of a PERSON requires being near (ADR-0039 §3): a
+      // present contact you have not approached cannot be examined up close.
+      if (payload.verb === "inspect" && entity.components.contact && resolveProximity(world, entity.id) === "far") {
+        return [{
+          ...baseFrom(event),
+          eventId: ruleEventId(event.eventId, "ActionBlocked", 0),
+          type: "ActionBlocked",
+          payload: { reason: "target_not_near", objectName: entity.name },
+        }];
+      }
       return [{
         ...baseFrom(event),
         eventId: ruleEventId(event.eventId, "EntityExamined", 0),
