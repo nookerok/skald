@@ -72,6 +72,12 @@ describe("scene engagement projection", () => {
     expect(Object.isFrozen(first.sceneEngagement)).toBe(true);
   });
 
+  it("deepens near to engaged when an item is handed to the near target", () => {
+    const give = evt("ItemPossessionChanged", "ip-1", { itemId: "x", previousOwnerId: "player", ownerId: "npc-1", subjectId: "player", reason: "given" }, 3);
+    const world = rebuildProjection([...base, approachEvent, give]).getSnapshot();
+    expect(world.sceneEngagement?.state).toBe("engaged");
+  });
+
   it("a repeated approach refreshes the same state and keeps the establishment time", () => {
     const repeat = evt("ActionResolved", "ar-2", {
       actionEventId: "cmd-2",

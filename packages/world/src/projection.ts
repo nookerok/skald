@@ -763,6 +763,15 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
     if (SETTLEMENT_EVENT_TYPES.has(event.type)) s.settlement = this.settlementProjector.getSnapshot();
     if (["ResourceNodeDefined", "ResourceExtracted", "ResourceRegenerated", "ResourceRegenerationBlocked", "ResourceTransferred", "ResourceConsumed", "ResourceProcessDefined", "ResourceProcessStarted", "ResourceProcessCompleted", "ResourceDemandDefined", "ResourceShortageStarted", "ResourceShortageEnded"].includes(event.type)) s.resources = this.resourceProjector.getSnapshot();
     if (['WorldObjectPlaced', 'ItemMoved', 'ItemPossessionChanged', 'ContainerOpened', 'ContainerClosed', 'ConditionApplied', 'ConditionRemoved', 'KnowledgeAcquired', 'ProficiencyEvidenceRecorded', 'TestimonyReceived', 'EpistemicEvidenceRecorded'].includes(event.type)) s.actionCapabilities = this.actionCapabilityProjector.getSnapshot();
+    // Scene proximity (ADR-0039 §3): handing an item to the person the player
+    // stands near deepens the engagement from `near` to `engaged`.
+    if (event.type === "ItemPossessionChanged") {
+      const ownerId = (event.payload as { ownerId?: unknown }).ownerId;
+      if (s.sceneEngagement && s.sceneEngagement.state === "near"
+        && typeof ownerId === "string" && ownerId === s.sceneEngagement.targetRef) {
+        s.sceneEngagement = { ...s.sceneEngagement, state: "engaged" };
+      }
+    }
   }
 
   clone(): ProjectionStore<ReadonlyWorld> {

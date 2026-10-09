@@ -197,6 +197,8 @@ describe("Action Capability and Epistemic Model", () => {
     const okResult = engaged.engine.process(handleCommand(giveCommand, "give-near", 2));
     expect(okResult.committed.some((item) => item.type === "ItemPossessionChanged")).toBe(true);
     expect(engaged.projection.getSnapshot().actionCapabilities?.placements.get("pebble")).toEqual({ kind: "carried", holderId: "guard" });
+    // Handing an item to the person you stand near deepens near → engaged.
+    expect(engaged.projection.getSnapshot().sceneEngagement?.state).toBe("engaged");
   });
 
   it("S2 stores and S3 retrieves an item through an open container", () => {
