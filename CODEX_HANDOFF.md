@@ -11,6 +11,21 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — proximity matrix: whisper requires engaged)
+
+- `whisper` is now a distinct operation (verbs «прошептать/шепнуть/шептать/
+  шепчу/шепотом/…», previously mapped to `speak`) and is engaged-gated: the new
+  `interactions.contact_whisper` rule resolves only when `sceneEngagement` is
+  `engaged`, else `ActionBlocked` `whisper_requires_engagement`
+  («Шёпот услышит только тот, кто рядом…»). Parser `Operation`,
+  `TURN_LEGACY_OPERATIONS`, proposal-validator and the executor's communicate
+  mapping include it.
+- Tests: `contact-whisper.test.ts` (rule), `scene-engagement-actions.test.ts`
+  (parse + blocked without engagement); `open-intent.test.ts` updated.
+  `npm run validate` PASS: 243 files, 2945 passed, 1 skipped. Committed, pushed,
+  deployed.
+- Next: item/detailed conversation gate, then the human 15–30 turn session.
+
 # Current work (2026-10-04 — proximity matrix: close inspection requires near)
 
 - ADR-0039 §3 matrix, next slice: a close inspection (`inspect`) of a PERSON
