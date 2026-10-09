@@ -44,6 +44,7 @@ export type IntentOperation =
   | "travel"
   | "interrupt"
   | "withdraw"
+  | "whisper"
   | "unknown";
 
 export interface IntentReference {

@@ -262,6 +262,7 @@ export const ACTION_BLOCKED: PresentationTemplate = {
     // «нет свободного прохода» wording (review §7).
     if (p.reason === "contact_unavailable") return cand("action_blocked_contact_unavailable", "action", "primary", 115, "«" + objectName + "» сейчас не здесь.", event);
     if (p.reason === "target_not_near") return cand("action_blocked_target_not_near", "action", "primary", 115, "Сначала подойди ближе к " + objectName + ", чтобы рассмотреть.", event);
+    if (p.reason === "whisper_requires_engagement") return cand("action_blocked_whisper", "action", "primary", 115, "Шёпот услышит только тот, кто рядом. Сначала подойди ближе и заговори.", event);
     if (p.reason === "wall" || p.reason === "blocked" || p.objectName) return cand("action_blocked_object", "action", "primary", 115, objectName + " преграждает путь.", event);
     return cand("action_blocked", "action", "primary", 115, "Перед тобой нет свободного прохода.", event);
   },

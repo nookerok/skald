@@ -208,7 +208,7 @@ describe("interpretIntent — speak", () => {
   it.each([
     "сказать привет",
     "спросить кто здесь",
-    "прошептать тихо",
+    "сказать тихо",
   ])("recognizes speak verb: %j", (input) => {
     const result = interpretIntent(input);
     expect(result.type).toBe("ActionIntentCommand");
@@ -421,7 +421,7 @@ describe("interpretIntent — 30+ Russian formulations", () => {
     ["написать на стене", "create_mark"],
     ["сказать привет", "speak"],
     ["спросить кто здесь", "speak"],
-    ["прошептать тихо", "speak"],
+    ["прошептать тихо", "whisper"],
     ["позвать кого-нибудь", "call"],
     ["крикнуть помощь", "call"],
     ["ждать", "wait"],

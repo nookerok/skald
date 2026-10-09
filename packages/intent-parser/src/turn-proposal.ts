@@ -33,6 +33,7 @@ export const TURN_LEGACY_OPERATIONS = [
   "call",
   "wait",
   "withdraw",
+  "whisper",
 ] as const;
 
 /** One of the closed legacy operations a V2 proposal may name. */

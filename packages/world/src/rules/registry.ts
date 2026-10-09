@@ -14,6 +14,7 @@ import { worldInteractionRules } from "./world-interaction.js";
 import { perceptionRules } from "./interactions/perception.js";
 import { contactApproach } from "./interactions/contact-approach.js";
 import { contactWithdraw } from "./interactions/contact-withdraw.js";
+import { contactWhisper } from "./interactions/contact-whisper.js";
 import { listeningRules } from "./interactions/listening.js";
 import { journeyStart } from "./journey-start.js";
 import { journeyProgress } from "./journey-progress.js";
@@ -70,6 +71,8 @@ export function createRules(
   registry.register(contactApproach);
   // Withdraw — single owner of relocate+withdraw (ADR-0039 §3).
   registry.register(contactWithdraw);
+  // Whisper — single owner of communicate+whisper (ADR-0039 §3).
+  registry.register(contactWhisper);
 
   // Phase: consequence
   registry.register(repercussion);

@@ -663,7 +663,7 @@ function mapPrimaryAction(
           // happens in Rules, identically for all three entries.
           : primary.operation === "approach" ? ("relocate" as const)
           : primary.operation === "withdraw" ? ("relocate" as const)
-          : primary.operation === "speak" || primary.operation === "call" ? ("communicate" as const) : ("interact" as const),
+          : primary.operation === "speak" || primary.operation === "call" || primary.operation === "whisper" ? ("communicate" as const) : ("interact" as const),
       operation: primary.operation,
       ...(surface ? { target: { raw: surface } } : {}),
       ...(goal ? { goal } : {}),

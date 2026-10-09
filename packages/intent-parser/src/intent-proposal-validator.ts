@@ -12,7 +12,7 @@ import {
 import { isInquiryQueryId } from "./inquiry.js";
 
 const INTERACTION_VERBS = new Set<string>(INTENT_CAPABILITIES.interactionVerbs);
-const LEGACY_OPERATIONS = new Set(["approach", "enter", "heat", "cool", "create_mark", "speak", "call", "wait", "withdraw"]);
+const LEGACY_OPERATIONS = new Set(["approach", "enter", "heat", "cool", "create_mark", "speak", "call", "wait", "withdraw", "whisper"]);
 
 /** Convert one validated proposal into an existing transient command. */
 export function validateIntentProposal(raw: unknown, rawText: string): IntentProposalValidation {

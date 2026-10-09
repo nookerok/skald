@@ -340,7 +340,7 @@ export function isSafeDeterministic(result: IntentResult): result is ExecutableI
     // `withdraw` is intentionally targetless: the parser's "no clear target"
     // note is expected and must not divert it to the model.
     && (result.interpretation.ambiguities.length === 0
-      || (result.operation === "withdraw" && result.interpretation.ambiguities.every((item) => item === "no clear target identified")))
+      || ((result.operation === "withdraw" || result.operation === "whisper") && result.interpretation.ambiguities.every((item) => item === "no clear target identified")))
     && !(result.operation === "approach" && isCompoundNaturalInput(result.rawText))
     && result.interpretation.confidence >= 0.7;
 }

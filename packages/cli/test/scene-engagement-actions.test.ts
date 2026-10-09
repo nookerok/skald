@@ -37,6 +37,22 @@ describe("scene engagement actions", () => {
       expect(intent.type).toBe("ActionIntentCommand");
       if (intent.type === "ActionIntentCommand") expect(intent.operation).toBe("withdraw");
     }
+    for (const phrase of ["прошептать", "шепнуть", "шепчу"]) {
+      const intent = parseIntent(phrase);
+      expect(intent.type).toBe("ActionIntentCommand");
+      if (intent.type === "ActionIntentCommand") expect(intent.operation).toBe("whisper");
+    }
+  });
+
+  it("blocks a whisper without engagement", async () => {
+    const { store, runtime } = await fresh("whisper");
+    try {
+      const w = parse(await handleWorldCommand(runtime, { input: "прошептать", idempotencyKey: "sh1" }));
+      expect(JSON.stringify(w)).toContain("Шёпот");
+      expect(runtime.projection.getSnapshot().sceneEngagement).toBeNull();
+    } finally {
+      store.close();
+    }
   });
 
   it("«отойти» clears the engagement and answers honestly, deterministically", async () => {
