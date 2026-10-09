@@ -11,6 +11,18 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — near → engaged transition)
+
+- Scene engagement state machine formalized: approach → `near`; handing an item
+  (`ItemPossessionChanged` to the near target) deepens it to `engaged`; withdraw /
+  location change / journey start clear it. Projection upgrades the state; the
+  Game Shell DTO already exposes `{ state, label }`.
+- Tests: `scene-engagement.test.ts` (near→engaged), `action-capability.test.ts`
+  (give near → engaged). `npm run validate` PASS: 242 files, 2938 passed,
+  1 skipped. Committed, pushed, deployed.
+- Next: extend the proximity matrix (near→description/address, engaged→detailed
+  action) and a unified resolver, then the 15–30 turn human session.
+
 # Current work (2026-10-04 — proximity gate: give requires being near)
 
 - ADR-0039 §3 proximity gate, first slice: handing an item (`give`) to a PERSON
