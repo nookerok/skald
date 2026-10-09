@@ -3,6 +3,7 @@ import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../../projection.js";
 import { canContain, assessCapability, isItemAccessible } from "../../action-capability/capability.js";
 import { resolveInteractionTarget } from "../../interactions/index.js";
+import { resolveProximity } from "../../interactions/proximity.js";
 import { ruleEventId } from "../../ids.js";
 import { AFFORDANCES, type Affordance } from "../../action-capability/types.js";
 import type { WorldObject } from "../../objects/types.js";
@@ -149,8 +150,7 @@ export const itemPossession: Rule<ReadonlyWorld> = {
       // Proximity gate (ADR-0039 §3): handing an item to a PERSON requires
       // being near them. A present contact that was not approached is not near.
       const isContact = world.entities.get(recipient)?.components.contact != null;
-      const near = world.sceneEngagement?.targetRef === recipient && world.sceneEngagement.state === "near";
-      if (isContact && !near) return [rejected(event, "recipient_not_near")];
+      if (isContact && resolveProximity(world, recipient) === "far") return [rejected(event, "recipient_not_near")];
       if (placement.kind !== "carried" || placement.holderId !== subjectId) return [rejected(event, "item_not_carried")];
       if (recipient === subjectId) return [rejected(event, "recipient_is_sender")];
     }

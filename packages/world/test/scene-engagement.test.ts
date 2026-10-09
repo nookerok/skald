@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { rebuildProjection } from "../src/projection.js";
 import { sceneEngagementView } from "../src/interactions/scene-engagement.js";
+import { resolveProximity } from "../src/interactions/proximity.js";
 import { buildGameShellSnapshot } from "../src/game-shell/builder.js";
 
 function evt(type: string, eventId: string, payload: unknown, timestamp = 0): any {
@@ -89,6 +90,18 @@ describe("scene engagement projection", () => {
     }, 5);
     const world = rebuildProjection([...base, approachEvent, repeat]).getSnapshot();
     expect(world.sceneEngagement).toEqual({ targetRef: "npc-1", locationId: "hall", state: "near", establishedAt: 2 });
+  });
+});
+
+describe("proximity resolver", () => {
+  it("returns far/near/engaged for the engaged target only", () => {
+    const nearWorld = rebuildProjection([...base, approachEvent]).getSnapshot();
+    expect(resolveProximity(nearWorld, "npc-1")).toBe("near");
+    expect(resolveProximity(nearWorld, "someone-else")).toBe("far");
+
+    const give = evt("ItemPossessionChanged", "ip-x", { itemId: "x", previousOwnerId: "player", ownerId: "npc-1", subjectId: "player", reason: "given" }, 3);
+    const engagedWorld = rebuildProjection([...base, approachEvent, give]).getSnapshot();
+    expect(resolveProximity(engagedWorld, "npc-1")).toBe("engaged");
   });
 });
 

@@ -3,6 +3,8 @@ export type { ApproachTarget, MovementTarget, MovementIntentView } from "./targe
 export { targetFromEntity, targetFromObject } from "./target-view.js";
 export { sceneEngagementView } from "./scene-engagement.js";
 export type { SceneEngagementView } from "./scene-engagement.js";
+export { resolveProximity, isNear } from "./proximity.js";
+export type { ProximityLevel } from "./proximity.js";
 export type {
   InteractionTarget,
   PlayerFacingCandidate,
