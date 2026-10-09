@@ -11,6 +11,17 @@
 - `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
   deployed; strict runner re-run; SSH/service receipt captured separately.
 
+# Current work (2026-10-04 — unified proximity resolver)
+
+- `resolveProximity(world, targetRef)` / `isNear` (`interactions/proximity.ts`):
+  one pure question — `far | near | engaged` — for every proximity-dependent
+  rule, replacing ad-hoc `sceneEngagement` reads. The give gate now composes it.
+- Tests: `scene-engagement.test.ts` (resolver levels) + existing give gate.
+  `npm run validate` PASS: 242 files, 2939 passed, 1 skipped. Committed, pushed,
+  deployed.
+- Next: extend the proximity matrix (near→description/address, engaged→detailed
+  action) and the human 15–30 turn session.
+
 # Current work (2026-10-04 — near → engaged transition)
 
 - Scene engagement state machine formalized: approach → `near`; handing an item
