@@ -29,6 +29,8 @@ export interface GmDirectorTrace {
   readonly providerLatencyMs: number;
   readonly totalLatencyMs: number;
   readonly fallbackReason?: string | undefined;
+  /** Closed summary of the invalid reply's top-level keys (never free text). */
+  readonly replyShape?: string | undefined;
 }
 
 export interface GmDirectorInput {
@@ -77,6 +79,7 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
     providerLatencyMs: number;
     totalLatencyMs: number;
     fallbackReason?: string;
+    replyShape?: string;
   } = {
     turnKey: input.turnKey,
     contractVersion: GM_CONTRACT_VERSION,
@@ -123,6 +126,7 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
   const validated = validateGmTurnDecision(parsed, { allowedHandles: input.handleKeys });
   if (!validated.ok) {
     trace.validationErrors = [...validated.errors];
+    trace.replyShape = Object.keys(parsed as Record<string, unknown>).slice(0, 8).join(",");
     return fallback("schema:invalid");
   }
   trace.schemaValid = true;

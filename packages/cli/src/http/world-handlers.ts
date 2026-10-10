@@ -1214,6 +1214,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             ...(director.trace.addresseeKind ? { addresseeKind: director.trace.addresseeKind } : {}),
             providerLatencyMs: director.trace.providerLatencyMs,
             totalLatencyMs: director.trace.totalLatencyMs,
+            ...(director.trace.replyShape ? { replyShape: director.trace.replyShape } : {}),
             ...(director.trace.schemaValid ? {} : { failureCategory: director.trace.fallbackReason ?? "invalid" }),
           });
         } catch {

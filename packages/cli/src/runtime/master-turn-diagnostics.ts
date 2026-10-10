@@ -122,6 +122,7 @@ export interface MasterTurnDiagnosticDimensions {
   readonly addresseeKind?: string | undefined;
   readonly providerLatencyMs?: number | undefined;
   readonly totalLatencyMs?: number | undefined;
+  readonly replyShape?: string | undefined;
 }
 
 function freeze<T>(value: T): T {
@@ -200,6 +201,7 @@ export function emitMasterTurnDiagnostic(
       ...(asText(dimensions.addresseeKind, 32) ? { addresseeKind: asText(dimensions.addresseeKind, 32)! } : {}),
       ...(asCount(dimensions.providerLatencyMs) !== undefined ? { providerLatencyMs: asCount(dimensions.providerLatencyMs)! } : {}),
       ...(asCount(dimensions.totalLatencyMs) !== undefined ? { totalLatencyMs: asCount(dimensions.totalLatencyMs)! } : {}),
+      ...(asText(dimensions.replyShape, 160) ? { replyShape: asText(dimensions.replyShape, 160)! } : {}),
       recordedAt: new Date().toISOString(),
     }));
   } catch {
