@@ -81,6 +81,8 @@ import { buildMasterTurn, masterTurnKindOf } from "../conversation/master-turn.j
 import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
+import { buildGmContext } from "../conversation/gm-context.js";
+import { interpretGmDecision, gmDirectorShadowEnabled } from "../runtime/conversation-director.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
 import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js";
 import { splitTargetCompound } from "../runtime/master-turn-validator.js";
@@ -1169,6 +1171,37 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       }
       return { events, world, scene, conversation };
     });
+
+    // Shadow mode (Conversation Director S0): the director interprets the same
+    // replica IN PARALLEL and never executes. Fire-and-forget with a short
+    // timeout so the player is never delayed; the legacy path below remains the
+    // only path that may change the world (G1).
+    if (gmDirectorShadowEnabled() && runtime.router) {
+      const shadowSnapshot = snapshot;
+      void (async () => {
+        try {
+          const bundle = buildGmContext({ scene: shadowSnapshot.scene.context, conversation: shadowSnapshot.conversation });
+          const director = await interpretGmDecision({
+            input,
+            context: bundle.context,
+            handleKeys: [...bundle.handleToObserverRef.keys()],
+            router: runtime.router!,
+            turnKey: `intent-${idempotencyKey}`,
+            timeoutMs: 4000,
+          });
+          emitMasterTurnDiagnostic(runtime.diagnostics, {
+            category: "gm_director",
+            outcome: director.status,
+            phase: "shadow",
+            correlationId: `intent-${idempotencyKey}`,
+            worldTime: shadowSnapshot.world.time,
+            ...(director.trace.schemaValid ? {} : { failureCategory: director.trace.fallbackReason ?? "invalid" }),
+          });
+        } catch {
+          // Shadow must never affect the live path.
+        }
+      })();
+    }
     // Single production interpretation entry: deterministic fast path or
     // closed TurnProposalV2. The legacy V1 LLM path is not used here.
     //

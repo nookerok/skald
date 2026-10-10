@@ -58,6 +58,8 @@ export const MASTER_TURN_DIAGNOSTIC_CATEGORIES: readonly string[] = Object.freez
   "clarification_resolved",
   // Command outcome (ADR-0039, T6): sanitized temporal + movement dimensions.
   "command_outcome",
+  // Conversation Director shadow mode (S0): interpretation only, never executes.
+  "gm_director",
 ]);
 
 /** Sanitized operational dimensions only. No text, prompts or tables. */
