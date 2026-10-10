@@ -8,6 +8,8 @@ import type { MasterTurnSceneContext } from "@skald/world";
 import type { ModelRouter } from "@skald/world";
 import { buildGmContext } from "../src/conversation/gm-context.js";
 import { interpretGmDecision, extractJsonObject, normalizeDecisionShape } from "../src/runtime/conversation-director.js";
+import { stableActorHandle } from "../src/conversation/gm-context.js";
+import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
 import { GM_FIXTURES, type GmFixture } from "./gm-fixtures.js";
 
@@ -54,26 +56,48 @@ function routerReturning(decision: unknown): ModelRouter {
 }
 
 describe("buildGmContext", () => {
-  it("assigns opaque handles and keeps internal ids out of the context", () => {
+  it("assigns opaque hash handles and keeps internal ids out of the context", () => {
     const fixture = GM_FIXTURES[1];
     const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
-    expect(context.actors.map((a) => a.handle)).toEqual(["e1", "e2"]);
-    expect(handleToObserverRef.get("e1")).toBe("person_1");
+    expect(context.actors).toHaveLength(2);
+    for (const handle of handleToObserverRef.keys()) expect(handle).toMatch(/^e[0-9a-f]{6}$/);
+    const ferryHandle = [...handleToObserverRef.entries()].find(([, ref]) => ref === "person_1")![0];
+    expect(ferryHandle).toBe(stableActorHandle("person_1"));
     const serialized = JSON.stringify(context);
     for (const bad of ["contact:", "observerRef", "targetRef", "internalId"]) expect(serialized).not.toContain(bad);
     expect(context.supportedOperations.length).toBeGreaterThan(0);
     expect(context.recentTurns.length).toBe(fixture.recentTurns.length);
   });
 
-  it("keeps handles stable when the scene order changes (reorder/reload)", () => {
+  it("keeps a person's handle stable across reorder AND actor insertion", () => {
     const fixture = GM_FIXTURES[1];
     const scene = sceneOf(fixture);
     const first = buildGmContext({ scene, conversation: conversationOf(fixture) });
+    const ferryHandle = [...first.handleToObserverRef.entries()].find(([, ref]) => ref === "person_1")![0];
+
     const reordered = { ...scene, knownPeople: [...scene.knownPeople].reverse() };
     const second = buildGmContext({ scene: reordered, conversation: conversationOf(fixture) });
-    expect(second.handleToObserverRef.get("e1")).toBe(first.handleToObserverRef.get("e1"));
-    expect(second.handleToObserverRef.get("e2")).toBe(first.handleToObserverRef.get("e2"));
-    expect(second.context.actors.map((a) => a.handle)).toEqual(["e1", "e2"]);
+    expect(second.handleToObserverRef.get(ferryHandle)).toBe("person_1");
+
+    // A NEW actor with a smaller observerRef must not shift the old handle.
+    const withNewActor = {
+      ...scene,
+      knownPeople: [{ observerRef: "person_0", kind: "person" as const, label: "Новый", knownAs: [], known: false }, ...scene.knownPeople],
+    };
+    const third = buildGmContext({ scene: withNewActor as typeof scene, conversation: conversationOf(fixture) });
+    expect(third.handleToObserverRef.get(ferryHandle)).toBe("person_1");
+    expect(third.context.actors).toHaveLength(3);
+  });
+
+  it("caps known facts at the builder-owned bound", () => {
+    const fixture = GM_FIXTURES[0];
+    const { context } = buildGmContext({
+      scene: sceneOf(fixture),
+      conversation: conversationOf(fixture),
+      knowledgeTexts: Array.from({ length: 20 }, (_, i) => `Факт ${i + 1}`),
+    });
+    expect(context.knownFacts).toHaveLength(8);
+    expect(context.knownFacts[0]).toMatchObject({ factId: "k1" });
   });
 
   it("carries the real sceneEngagement and bounded known facts", () => {
@@ -94,6 +118,7 @@ describe("interpretGmDecision — prompt carries the scene (scenario-conditioned
   it("the router sees the replica and the history, and its answer decides", async () => {
     for (const fixture of [GM_FIXTURES[0], GM_FIXTURES[1]]) {
       const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      const npcHandle = [...handleToObserverRef.keys()][0];
       const seen = { replica: false, history: fixture.recentTurns.length === 0 };
       const router = {
         apiKey: "",
@@ -103,7 +128,7 @@ describe("interpretGmDecision — prompt carries the scene (scenario-conditioned
           if (fixture.recentTurns.length > 0) seen.history = fixture.recentTurns.every((t) => user.includes(t.text));
           const decision = fixture.id === "ambiguous-recipient"
             ? { schemaVersion: 1, addressee: { kind: "gm" }, kind: "clarification", clarification: { question: "Кто из них?" } }
-            : { schemaVersion: 1, addressee: { kind: "npc", handle: "e1" }, kind: "world_question" };
+            : { schemaVersion: 1, addressee: { kind: "npc", handle: npcHandle }, kind: "world_question" };
           return { text: JSON.stringify(decision) };
         }),
       } as unknown as ModelRouter;
@@ -122,10 +147,11 @@ describe("interpretGmDecision — seven problematic replicas", () => {
   for (const fixture of GM_FIXTURES) {
     it(`${fixture.id} → ${fixture.expected.addresseeKind}/${fixture.expected.kind}`, async () => {
       const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      const npcHandle = fixture.expected.addresseeKind === "npc" ? [...handleToObserverRef.keys()][0] : undefined;
       const decision = {
         schemaVersion: 1,
         addressee: fixture.expected.addresseeKind === "npc"
-          ? { kind: "npc", handle: "e1" }
+          ? { kind: "npc", handle: npcHandle }
           : { kind: fixture.expected.addresseeKind },
         kind: fixture.expected.kind,
       };
@@ -193,5 +219,30 @@ describe("normalizeDecisionShape", () => {
     expect(meta["addressee"]).toEqual({ kind: "meta" });
     const bare = normalizeDecisionShape({ schemaVersion: 1, addressee: "e1", kind: "conversation" }) as Record<string, unknown>;
     expect(bare["addressee"]).toBe("e1");
+  });
+});
+
+describe("scoreGmCorpus", () => {
+  it("scores each dimension separately and reports latency/fallback", () => {
+    const trace = (schemaValid: boolean) => ({
+      turnKey: "t", contractVersion: 1, schemaValid, validationErrors: [],
+      providerLatencyMs: 10, totalLatencyMs: 100,
+    });
+    const entries = [
+      { input: "a", expected: { addresseeKind: "gm" as const, kind: "conversation" }, trace: trace(true), decision: { schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" } as never },
+      { input: "b", expected: { addresseeKind: "npc" as const, kind: "action", allowedHandles: ["e000001"] }, trace: trace(true), decision: { schemaVersion: 1, addressee: { kind: "npc", handle: "e000001" }, kind: "action" } as never },
+      { input: "c", expected: { addresseeKind: "gm" as const, kind: "world_question" }, trace: trace(false) },
+    ];
+    const card = scoreGmCorpus(entries);
+    expect(card.corpusSize).toBe(3);
+    expect(card.schemaValid).toBe(2);
+    expect(card.decision).toBe(2);
+    expect(card.fallback).toBe(1);
+    const dim = (name: string) => card.dimensions.find((d) => d.dimension === name)!;
+    expect(dim("addressee").passed).toBe(2);
+    expect(dim("kind").passed).toBe(2);
+    expect(dim("handles").passed).toBe(2);
+    expect(card.p50LatencyMs).toBe(100);
+    expect(card.p95LatencyMs).toBe(100);
   });
 });

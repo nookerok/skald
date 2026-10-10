@@ -131,6 +131,32 @@ describe("pure conversation turn persistence (P2)", () => {
     }
   });
 
+  it("two truly concurrent commands with the same key produce ONE turn", async () => {
+    const { store } = freshStore();
+    let runtime: WorldRuntime | null = null;
+    try {
+      runtime = await new WorldRuntimeManager(store, { apiKey: "", chat: () => { throw new Error("model down"); } } as never).get(WORLD);
+      const eventsBefore = store.loadEvents(WORLD).length;
+      const timeBefore = rebuildProjection(store.loadEvents(WORLD)).getSnapshot().time;
+      const input = "Кто здесь?";
+      const idempotencyKey = `t7-cc-${Date.now()}`;
+      const [a, b] = await Promise.all([
+        handleWorldCommand(runtime, { input, idempotencyKey }),
+        handleWorldCommand(runtime, { input, idempotencyKey }),
+      ]);
+      const parsed = [a, b].map((r) => ({ status: r.statusCode, body: JSON.parse(r.body) as { replayed?: boolean } }));
+      for (const p of parsed) expect(p.status).toBe(200);
+      // Invariant under concurrency: ONE durable turn, no duplicated events,
+      // no time movement. A concurrent same-key read-only pair may both report
+      // a response; the second's store write is idempotent.
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(store.loadEvents(WORLD)).toHaveLength(eventsBefore);
+      expect(rebuildProjection(store.loadEvents(WORLD)).getSnapshot().time).toBe(timeBefore);
+    } finally {
+      store.close();
+    }
+  });
+
   it("HTTP recovery replay keeps the ORIGINAL MasterTurn kind (not contextual_clarification)", async () => {
     const { store } = freshStore();
     let runtime: WorldRuntime | null = null;
