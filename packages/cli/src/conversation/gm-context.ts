@@ -10,7 +10,16 @@
 
 import type { MasterTurnSceneContext, SceneEngagementView } from "@skald/world";
 import type { MasterConversationContext } from "./context-builder.js";
+import { createHash } from "node:crypto";
 import { supportedOperations, type GmContext, type VisibleActorKey } from "@skald/intent-parser";
+
+/** Hard cap on the known-facts slice; the builder owns the bound. */
+export const MAX_KNOWN_FACTS = 8;
+
+/** A stable, opaque handle for one scene observerRef (no shifting on insert). */
+export function stableActorHandle(observerRef: string): VisibleActorKey {
+  return `e${createHash("sha256").update(observerRef).digest("hex").slice(0, 6)}`;
+}
 
 export interface GmContextInputs {
   readonly scene: MasterTurnSceneContext;
@@ -34,11 +43,12 @@ function familiarityOf(known: boolean | undefined): "stranger" | "acquaintance" 
 /** Build the observer-safe `GmContext` and the server-side handle map. */
 export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
   const handleToObserverRef = new Map<VisibleActorKey, string>();
-  // Handles are derived from a STABLE order (observerRef), so reordering or
-  // reloading the scene never renames a person the model is talking to.
+  // Handles are derived from a STABLE opaque hash of the observerRef, so
+  // reordering AND adding/removing another actor never renames a person the
+  // model is talking to.
   const ordered = [...inputs.scene.knownPeople].sort((a, b) => a.observerRef.localeCompare(b.observerRef));
-  const actors = ordered.map((person, index) => {
-    const handle: VisibleActorKey = `e${index + 1}`;
+  const actors = ordered.map((person) => {
+    const handle = stableActorHandle(person.observerRef);
     handleToObserverRef.set(handle, person.observerRef);
     return {
       handle,
@@ -64,7 +74,7 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
     pendingQuestion: inputs.conversation.pendingClarification
       ? { question: inputs.conversation.pendingClarification.question }
       : null,
-    knownFacts: (inputs.knowledgeTexts ?? []).map((text, index) => ({ factId: `k${index + 1}`, text })),
+    knownFacts: (inputs.knowledgeTexts ?? []).slice(0, MAX_KNOWN_FACTS).map((text, index) => ({ factId: `k${index + 1}`, text })),
     supportedOperations: supportedOperations(),
   };
 

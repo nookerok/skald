@@ -1128,7 +1128,10 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
 }
 
 async function handleWorldCommandInner(runtime: WorldRuntime, input: string, idempotencyKey: string): Promise<JsonResponse> {
-  const replay = duplicateConversationResponse(runtime, input, idempotencyKey);
+  // Re-checked INSIDE the per-world queue so a concurrent request with the
+  // same idempotency key observes the first commit and replays it, instead of
+  // racing past the check (review: concurrent idempotency).
+  const replay = await runtime.queue.enqueue(async () => duplicateConversationResponse(runtime, input, idempotencyKey));
   if (replay) return replay;
 
   let narrationTurn: NarrationTurn | null = null;
@@ -1182,6 +1185,9 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
     // only path that may change the world (G1).
     if (gmDirectorShadowEnabled() && runtime.router) {
       const shadowSnapshot = snapshot;
+      // Opaque correlation: the player's replica and the idempotency key must
+      // never enter the diagnostic stream (revise P1).
+      const shadowCorrelation = `intent-${conversationRequestHash(idempotencyKey)}`;
       void (async () => {
         try {
           const knowledge = buildPlayerKnowledgePresentation(
@@ -1201,14 +1207,14 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             context: bundle.context,
             handleKeys: [...bundle.handleToObserverRef.keys()],
             router: runtime.router!,
-            turnKey: `intent-${idempotencyKey}`,
+            turnKey: shadowCorrelation,
             timeoutMs: 4000,
           });
           emitMasterTurnDiagnostic(runtime.diagnostics, {
             category: "gm_director",
             outcome: director.status,
             phase: "shadow",
-            correlationId: `intent-${idempotencyKey}`,
+            correlationId: shadowCorrelation,
             worldTime: shadowSnapshot.world.time,
             ...(director.trace.decisionKind ? { decisionKind: director.trace.decisionKind } : {}),
             ...(director.trace.addresseeKind ? { addresseeKind: director.trace.addresseeKind } : {}),
