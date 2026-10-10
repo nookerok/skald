@@ -11,6 +11,8 @@ import { interpretGmDecision, extractJsonObject } from "../src/runtime/conversat
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
 import { GM_FIXTURES, type GmFixture } from "./gm-fixtures.js";
 
+const ferrymanLabel = "Перевозчик у переправы";
+
 function sceneOf(fixture: GmFixture): MasterTurnSceneContext {
   return {
     schemaVersion: 1,
@@ -61,6 +63,58 @@ describe("buildGmContext", () => {
     for (const bad of ["contact:", "observerRef", "targetRef", "internalId"]) expect(serialized).not.toContain(bad);
     expect(context.supportedOperations.length).toBeGreaterThan(0);
     expect(context.recentTurns.length).toBe(fixture.recentTurns.length);
+  });
+
+  it("keeps handles stable when the scene order changes (reorder/reload)", () => {
+    const fixture = GM_FIXTURES[1];
+    const scene = sceneOf(fixture);
+    const first = buildGmContext({ scene, conversation: conversationOf(fixture) });
+    const reordered = { ...scene, knownPeople: [...scene.knownPeople].reverse() };
+    const second = buildGmContext({ scene: reordered, conversation: conversationOf(fixture) });
+    expect(second.handleToObserverRef.get("e1")).toBe(first.handleToObserverRef.get("e1"));
+    expect(second.handleToObserverRef.get("e2")).toBe(first.handleToObserverRef.get("e2"));
+    expect(second.context.actors.map((a) => a.handle)).toEqual(["e1", "e2"]);
+  });
+
+  it("carries the real sceneEngagement and bounded known facts", () => {
+    const fixture = GM_FIXTURES[0];
+    const { context } = buildGmContext({
+      scene: sceneOf(fixture),
+      conversation: conversationOf(fixture),
+      sceneEngagement: { state: "near", label: ferrymanLabel },
+      knowledgeTexts: ["Ты знаешь дорогу к городу", "Ты видел ночной след"],
+    });
+    expect(context.scene.sceneEngagement).toEqual({ state: "near", label: ferrymanLabel });
+    expect(context.knownFacts).toHaveLength(2);
+    expect(context.knownFacts[0]).toMatchObject({ factId: "k1" });
+  });
+});
+
+describe("interpretGmDecision — prompt carries the scene (scenario-conditioned router)", () => {
+  it("the router sees the replica and the history, and its answer decides", async () => {
+    for (const fixture of [GM_FIXTURES[0], GM_FIXTURES[1]]) {
+      const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      const seen = { replica: false, history: fixture.recentTurns.length === 0 };
+      const router = {
+        apiKey: "",
+        chat: vi.fn(async (_category: string, messages: readonly { role: string; content: string }[]) => {
+          const user = messages.find((m) => m.role === "user")?.content ?? "";
+          seen.replica = user.includes(fixture.input);
+          if (fixture.recentTurns.length > 0) seen.history = fixture.recentTurns.every((t) => user.includes(t.text));
+          const decision = fixture.id === "ambiguous-recipient"
+            ? { schemaVersion: 1, addressee: { kind: "gm" }, kind: "clarification", clarification: { question: "Кто из них?" } }
+            : { schemaVersion: 1, addressee: { kind: "npc", handle: "e1" }, kind: "world_question" };
+          return { text: JSON.stringify(decision) };
+        }),
+      } as unknown as ModelRouter;
+      const result = await interpretGmDecision({
+        input: fixture.input, context, handleKeys: [...handleToObserverRef.keys()], router, turnKey: `s-${fixture.id}`,
+      });
+      expect(result.status).toBe("decision");
+      expect(seen.replica).toBe(true);
+      expect(seen.history).toBe(true);
+      if (result.status === "decision") expect(result.decision.kind).toBe(fixture.id === "ambiguous-recipient" ? "clarification" : "world_question");
+    }
   });
 });
 

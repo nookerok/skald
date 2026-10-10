@@ -2,7 +2,7 @@
  * Pure-conversation persistence (Conversation Director P2 / S1): a turn with
  * ZERO world events must be saved exactly once, must not move world time, and a
  * retry (including the crash window before the HTTP envelope is written) must
- * not duplicate the turn.
+ * not duplicate the turn NOR change its MasterTurn kind.
  *
  * The store already provides the capability through `recordConversationTurn`
  * (idempotent + transactional); `processSequence` deliberately skips its durable
@@ -15,98 +15,147 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildBootstrapEvents, rebuildProjection } from "@skald/world";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
-import { buildReadSideConversationTurn } from "../src/conversation/builder.js";
 import { DuplicateRequestError } from "../src/persistence/sqlite-store.js";
+import { buildReadSideConversationTurn, buildSpeechConversationTurn } from "../src/conversation/builder.js";
+import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
+import { handleWorldCommand } from "../src/http/world-handlers.js";
+import type { WorldRuntime } from "../src/runtime/world-runtime-manager.js";
+
+const WORLD = "p2-world";
 
 function freshStore() {
   const db = join(mkdtempSync(join(tmpdir(), "skald-p2-")), "events.sqlite");
   const store = createMultiWorldStore(db);
-  const worldId = "p2-world";
   const bootstrap = buildBootstrapEvents("living_region");
   store.createWorld({
-    worldId, idempotencyKey: `c-${worldId}`, requestHash: `h-${worldId}`, saveLabel: "P2",
+    worldId: WORLD, idempotencyKey: `c-${WORLD}`, requestHash: `h-${WORLD}`, saveLabel: "P2",
     characterName: "Tester", characterPresetId: "wanderer", worldTemplateId: "living_region",
     characterWound: "none", characterPromise: "observe", characterPrinciple: "care",
     characterProfileVersion: 1, bootstrapEvents: bootstrap,
   });
-  return { store, worldId, db, bootstrap };
+  return { store, db, bootstrap };
 }
 
-const draft = (idempotencyKey: string, playerText: string, worldTime = 0) =>
+const clarificationDraft = (idempotencyKey: string, playerText: string, worldTime = 0) =>
   buildReadSideConversationTurn({
-    worldId: "p2-world",
-    idempotencyKey,
-    playerText,
-    inputClass: "clarification",
-    responseKind: "clarification",
-    responseText: "Что именно ты хочешь спросить?",
-    worldTime,
+    worldId: WORLD, idempotencyKey, playerText,
+    inputClass: "clarification", responseKind: "clarification",
+    responseText: "Что именно ты хочешь спросить?", worldTime,
   });
 
 describe("pure conversation turn persistence (P2)", () => {
-  it("saves a zero-event turn exactly once and never moves world time", () => {
-    const { store, worldId, bootstrap } = freshStore();
+  it("saves a zero-event read-only turn exactly once and never moves world time", () => {
+    const { store, bootstrap } = freshStore();
     try {
-      const before = store.listConversationTurns(worldId).length;
-      const record = store.recordConversationTurn(draft("p2-1", "спроси меня ещё раз"));
+      const before = store.listConversationTurns(WORLD).length;
+      const record = store.recordConversationTurn(clarificationDraft("p2-1", "спроси меня ещё раз"));
       expect(record.turnSeq).toBeGreaterThan(0);
 
       // Zero world events, zero time: a pure conversation changes nothing.
-      const events = store.loadEvents(worldId);
+      const events = store.loadEvents(WORLD);
       expect(events.length).toBe(bootstrap.length);
-      const world = rebuildProjection(events).getSnapshot();
-      expect(world.time).toBe(rebuildProjection(bootstrap).getSnapshot().time);
+      expect(rebuildProjection(events).getSnapshot().time).toBe(rebuildProjection(bootstrap).getSnapshot().time);
 
-      // Retry with the same key + same hash returns the ORIGINAL turn.
-      const again = store.recordConversationTurn(draft("p2-1", "спроси меня ещё раз"));
+      const again = store.recordConversationTurn(clarificationDraft("p2-1", "спроси меня ещё раз"));
       expect(again.turnSeq).toBe(record.turnSeq);
-      expect(store.listConversationTurns(worldId).length).toBe(before + 1);
+      expect(store.listConversationTurns(WORLD).length).toBe(before + 1);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("pins the future speech contract: speech → speech_reaction, saved once", () => {
+    const { store, bootstrap } = freshStore();
+    try {
+      const projectedWorld = rebuildProjection(bootstrap).getSnapshot();
+      const draft = buildSpeechConversationTurn({
+        worldId: WORLD,
+        correlationId: "cmd-1",
+        idempotencyKey: "p2-speech",
+        playerText: "Привет, перевозчик",
+        worldTimeBefore: projectedWorld.time,
+        stagedEvents: [], // a pure conversation turn carries NO world events
+        projectedWorld,
+      });
+      expect(draft.inputClass).toBe("speech");
+      expect(draft.responseKind).toBe("speech_reaction");
+
+      const saved = store.recordConversationTurn(draft);
+      expect(saved.inputClass).toBe("speech");
+      expect(saved.responseKind).toBe("speech_reaction");
+      expect(store.loadEvents(WORLD).length).toBe(bootstrap.length);
+
+      const replayed = store.recordConversationTurn(draft);
+      expect(replayed.turnSeq).toBe(saved.turnSeq);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
     } finally {
       store.close();
     }
   });
 
   it("rejects a conflicting retry under the same key", () => {
-    const { store, worldId } = freshStore();
+    const { store } = freshStore();
     try {
-      store.recordConversationTurn(draft("p2-2", "первый"));
-      // Same key + different text (different requestHash) must be refused,
-      // and the record count must not grow.
+      store.recordConversationTurn(clarificationDraft("p2-2", "первый"));
       const conflicting = buildReadSideConversationTurn({
-        worldId, idempotencyKey: "p2-2", playerText: "совсем другое",
+        worldId: WORLD, idempotencyKey: "p2-2", playerText: "совсем другое",
         inputClass: "clarification", responseKind: "clarification",
         responseText: "x", worldTime: 0,
       });
       expect(() => store.recordConversationTurn(conflicting)).toThrow(DuplicateRequestError);
-      expect(store.listConversationTurns(worldId).length).toBe(1);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
     } finally {
       store.close();
     }
   });
 
-  it("recovers the original turn after a crash before the HTTP envelope (replay window)", () => {
-    const { store, worldId, db } = freshStore();
+  it("two connections with the same key + hash share ONE row (no DuplicateRequestError)", () => {
+    const { store, db } = freshStore();
+    const second = createMultiWorldStore(db);
     try {
-      // Crash window: the turn is durable, the replay envelope is NOT written.
-      store.recordConversationTurn(draft("p2-3", "чистая беседа"));
-      store.close();
-
-      // Retry reopens the store: the turn must still be there, once.
-      const reopened = createMultiWorldStore(db);
-      try {
-        const replay = reopened.getConversationTurnReplay(worldId, "p2-3");
-        expect(replay).not.toBeNull();
-        expect(replay!.turn.playerText).toBe("чистая беседа");
-        expect(reopened.listConversationTurns(worldId)).toHaveLength(1);
-
-        // Re-issuing the same turn does not add a second record.
-        reopened.recordConversationTurn(draft("p2-3", "чистая беседа"));
-        expect(reopened.listConversationTurns(worldId)).toHaveLength(1);
-      } finally {
-        reopened.close();
-      }
+      const turn = clarificationDraft("p2-cc", "один и тот же запрос");
+      const a = store.recordConversationTurn(turn);
+      const b = second.recordConversationTurn(turn);
+      expect(b.turnSeq).toBe(a.turnSeq);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      // A different hash on either connection is still a conflict.
+      const conflict = buildReadSideConversationTurn({
+        worldId: WORLD, idempotencyKey: "p2-cc", playerText: "другой",
+        inputClass: "clarification", responseKind: "clarification",
+        responseText: "y", worldTime: 0,
+      });
+      expect(() => second.recordConversationTurn(conflict)).toThrow(DuplicateRequestError);
     } finally {
-      try { store.close(); } catch { /* already closed */ }
+      second.close();
+      store.close();
+    }
+  });
+
+  it("HTTP recovery replay keeps the ORIGINAL MasterTurn kind (not contextual_clarification)", async () => {
+    const { store } = freshStore();
+    let runtime: WorldRuntime | null = null;
+    try {
+      // Crash window: the turn is durable, the HTTP envelope is NOT written.
+      const projectedWorld = rebuildProjection(store.loadEvents(WORLD)).getSnapshot();
+      const reply = "Ты подходишь ближе. Перед тобой — Перевозчик у переправы.";
+      store.recordConversationTurn(buildReadSideConversationTurn({
+        worldId: WORLD, idempotencyKey: "p2-http", playerText: "кто переводит лодку?",
+        inputClass: "inquiry", responseKind: "inquiry_answer",
+        responseText: reply, worldTime: projectedWorld.time,
+      }));
+      expect(store.getCommandReplay(WORLD, "p2-http")).toBeNull();
+
+      runtime = await new WorldRuntimeManager(store, { apiKey: "", chat: () => { throw new Error("model down"); } } as never).get(WORLD);
+      const res = await handleWorldCommand(runtime, { input: "кто переводит лодку?", idempotencyKey: "p2-http" });
+      const body = JSON.parse(res.body);
+      expect(res.statusCode).toBe(200);
+      expect(body.replayed).toBe(true);
+      // The turn's own kind survives recovery; only clarification turns map to
+      // contextual_clarification.
+      expect(body.masterTurn?.kind).toBe("inquiry_answer");
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+    } finally {
+      store.close();
     }
   });
 });
