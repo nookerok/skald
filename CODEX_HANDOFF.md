@@ -1,3 +1,24 @@
+# Current work (2026-10-10 — Conversation Director: P0+P1+P2 (S0))
+
+- P0 contract (`intent-parser/gm-contract.ts`): `GmContext`/`GmTurnDecision` +
+  strict `validateGmTurnDecision`; `supportedOperations()` from closed
+  vocabularies. 14 tests. Commit `b90d56b`.
+- P1 shadow director (`conversation/gm-context.ts`, `gm-prompt.ts`,
+  `conversation-director.ts`): observer-safe context with opaque handles
+  `e1..eN`; `interpretGmDecision` parses/validates and NEVER executes;
+  sanitized `GmDirectorTrace`; fire-and-forget shadow wiring in
+  `world-handlers` behind `GM_DIRECTOR_SHADOW`; new `gm_director` diagnostic
+  category; 7 problematic-replica fixtures + fallback tests. Commits
+  `88f28ae`/`edaafb7`.
+- P2 pure-conversation persistence: `recordConversationTurn` is proven
+  idempotent + transactional (save once, 0 events, 0 time, conflicting key →
+  DuplicateRequestError, crash-before-envelope → original turn recovered once).
+  `processSequence` skips its durable commit for an empty batch (documented).
+  Test `pure-conversation-persistence.test.ts`. Commit this block.
+- `npm run validate` PASS: 246 files, 2978 passed, 1 skipped. Deployed with a
+  VERIFIED receipt.
+- Next: P3 live conversation S1 (`gm_director.live_conversation`).
+
 - T8.1 runner hardened further: `/events` status/shape is asserted (non-200 or
   malformed → FAIL); approach/repeat must carry `ActionResolved`; blocked journey
   checks time; replay/conflict must commit no events; final state must be
