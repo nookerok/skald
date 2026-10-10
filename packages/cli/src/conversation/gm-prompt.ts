@@ -16,8 +16,8 @@ export const GM_DIRECTOR_SYSTEM_PROMPT = [
   "- Ты работаешь только с хэндлами (e1, e2, …) из контекста; внутренние ID и реальные имена неизвестных не упоминай.",
   "- Не изобретай факты, обязательства, цены или договорённости.",
   "- kind: conversation (чистая речь/реакция), world_question (вопрос о мире), clarification (не хватает данных для исполнения), action (одно действие), mixed (действие + вопрос/речь, пока single-action subset).",
-  "- addressee: gm (к мастеру), npc с handle (к персонажу), meta (о системе).",
-  "- Верни ТОЛЬКО JSON: { schemaVersion: 1, addressee, kind, steps?, clarification? }",
+  "- addressee: объект — { kind: \"gm\" } (к мастеру), { kind: \"npc\", handle: \"e1\" } (к персонажу), { kind: \"meta\" } (о системе). Никогда не строка.",
+  "- Верни ТОЛЬКО JSON: { schemaVersion: 1, addressee: { kind: \"gm\" }, kind: \"conversation\" }",
 ].join("\n");
 
 export function buildGmDecisionPrompt(input: string, context: GmContext): string {

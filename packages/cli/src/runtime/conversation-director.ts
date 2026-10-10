@@ -64,6 +64,27 @@ export function extractJsonObject(text: string): unknown | null {
   return null;
 }
 
+/**
+ * Closed normalization of a common model alias (S0): some models return
+ * `addressee: "gm"` / `"meta"` instead of the object form the contract
+ * requires. Mapping the alias here keeps the validator strict while raising the
+ * real schema-hit rate; a bare handle string is NOT an alias and stays invalid.
+ */
+export function normalizeDecisionShape(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return raw;
+  const decision = raw as Record<string, unknown>;
+  const addressee = decision["addressee"];
+  if (typeof addressee !== "string") return raw;
+  const token = addressee.trim().toLowerCase();
+  if (token === "gm" || token === "мастер" || token === "master") {
+    return { ...decision, addressee: { kind: "gm" } };
+  }
+  if (token === "meta" || token === "система" || token === "system") {
+    return { ...decision, addressee: { kind: "meta" } };
+  }
+  return raw;
+}
+
 /** Run one director interpretation. Pure side-effect free with respect to the world. */
 export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDirectorResult> {
   const started = Date.now();
@@ -123,7 +144,7 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
   const parsed = extractJsonObject(replyText);
   if (!parsed) return fallback("shape:not_json");
 
-  const validated = validateGmTurnDecision(parsed, { allowedHandles: input.handleKeys });
+  const validated = validateGmTurnDecision(normalizeDecisionShape(parsed), { allowedHandles: input.handleKeys });
   if (!validated.ok) {
     trace.validationErrors = [...validated.errors];
     trace.replyShape = Object.keys(parsed as Record<string, unknown>).slice(0, 8).join(",");

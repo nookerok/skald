@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MasterTurnSceneContext } from "@skald/world";
 import type { ModelRouter } from "@skald/world";
 import { buildGmContext } from "../src/conversation/gm-context.js";
-import { interpretGmDecision, extractJsonObject } from "../src/runtime/conversation-director.js";
+import { interpretGmDecision, extractJsonObject, normalizeDecisionShape } from "../src/runtime/conversation-director.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
 import { GM_FIXTURES, type GmFixture } from "./gm-fixtures.js";
 
@@ -182,5 +182,16 @@ describe("extractJsonObject", () => {
     expect(extractJsonObject('Вот ответ: {"a":1} окончательно')).toEqual({ a: 1 });
     expect(extractJsonObject("no braces")).toBeNull();
     expect(extractJsonObject('{"a":{"b":1}}')).toEqual({ a: { b: 1 } });
+  });
+});
+
+describe("normalizeDecisionShape", () => {
+  it("maps a closed addressee alias and leaves a bare handle untouched", () => {
+    const gm = normalizeDecisionShape({ schemaVersion: 1, addressee: "gm", kind: "conversation" }) as Record<string, unknown>;
+    expect(gm["addressee"]).toEqual({ kind: "gm" });
+    const meta = normalizeDecisionShape({ schemaVersion: 1, addressee: "meta", kind: "meta" }) as Record<string, unknown>;
+    expect(meta["addressee"]).toEqual({ kind: "meta" });
+    const bare = normalizeDecisionShape({ schemaVersion: 1, addressee: "e1", kind: "conversation" }) as Record<string, unknown>;
+    expect(bare["addressee"]).toBe("e1");
   });
 });
