@@ -448,7 +448,12 @@ export function createMultiWorldStore(dbPath: string): MultiWorldStore {
 
   function insertConversationTurnLocked(turn: ConversationTurnDraft): ConversationTurnRecord {
     const existing = getConversationTurnByIdempotency.get(turn.worldId, turn.idempotencyKey) as Record<string, unknown> | undefined;
-    if (existing) throw new DuplicateRequestError(turn.idempotencyKey);
+    // A row inserted by another connection between our pre-read and this lock:
+    // same hash → return the ORIGINAL (idempotent); different hash → conflict.
+    if (existing) {
+      if (existing["request_hash"] === turn.requestHash) return mapConversationTurn(existing);
+      throw new DuplicateRequestError(turn.idempotencyKey);
+    }
     const latest = latestConversationCreatedAt.get(turn.worldId) as { created_at?: number } | undefined;
     const createdAt = Math.max(Date.now(), (latest?.created_at ?? 0) + 1);
     try {

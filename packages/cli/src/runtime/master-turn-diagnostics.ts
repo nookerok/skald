@@ -117,6 +117,11 @@ export interface MasterTurnDiagnosticDimensions {
   readonly movementTargetKind?: string | undefined;
   readonly movementOutcome?: string | undefined;
   readonly replayed?: boolean | undefined;
+  /** Conversation Director shadow trace (S0). */
+  readonly decisionKind?: string | undefined;
+  readonly addresseeKind?: string | undefined;
+  readonly providerLatencyMs?: number | undefined;
+  readonly totalLatencyMs?: number | undefined;
 }
 
 function freeze<T>(value: T): T {
@@ -191,6 +196,10 @@ export function emitMasterTurnDiagnostic(
       ...(asText(dimensions.movementTargetKind, 40) ? { movementTargetKind: asText(dimensions.movementTargetKind, 40)! } : {}),
       ...(asText(dimensions.movementOutcome, 40) ? { movementOutcome: asText(dimensions.movementOutcome, 40)! } : {}),
       ...(typeof dimensions.replayed === "boolean" ? { replayed: dimensions.replayed } : {}),
+      ...(asText(dimensions.decisionKind, 32) ? { decisionKind: asText(dimensions.decisionKind, 32)! } : {}),
+      ...(asText(dimensions.addresseeKind, 32) ? { addresseeKind: asText(dimensions.addresseeKind, 32)! } : {}),
+      ...(asCount(dimensions.providerLatencyMs) !== undefined ? { providerLatencyMs: asCount(dimensions.providerLatencyMs)! } : {}),
+      ...(asCount(dimensions.totalLatencyMs) !== undefined ? { totalLatencyMs: asCount(dimensions.totalLatencyMs)! } : {}),
       recordedAt: new Date().toISOString(),
     }));
   } catch {

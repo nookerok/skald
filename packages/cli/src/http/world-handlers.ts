@@ -41,6 +41,7 @@ import {
   locationConnectionDestination,
   resolveInteractionTarget,
   resolveMovementTarget,
+  sceneEngagementView,
   narrateLLM,
   executeQuestionReadingRound,
   planCommandTime,
@@ -275,11 +276,14 @@ function recordCommandReplay(runtime: WorldRuntime, idempotencyKey: string, requ
   if (!saved || saved.requestHash !== requestHash) fail();
 }
 
-function duplicateConversationResponse(runtime: WorldRuntime, input: string, idempotencyKey: string): JsonResponse | null {  const existing = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
+function duplicateConversationResponse(runtime: WorldRuntime, input: string, idempotencyKey: string): JsonResponse | null {
+  const existing = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   if (!existing) return null;
   if (existing.requestHash !== conversationRequestHash(input)) return error("idempotency_conflict", "duplicate idempotencyKey", 409);
   const conversationTurn = toConversationTurnDTO(existing);
-  const masterTurn = masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "contextual_clarification", deterministicText: conversationTurn.responseText }, false);
+  // Preserve the ORIGINAL turn kind on a recovery replay: a pure conversation,
+  // speech or inquiry must not come back as a clarification (P2/revise #5).
+  const masterTurn = masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: masterTurnKindOf(existing.responseKind), deterministicText: conversationTurn.responseText }, false);
   if (isWorldChangingTurn(existing.inputClass)) {
     return json({ ok: false, error: { code: "idempotency_conflict", message: "duplicate idempotencyKey" }, conversationTurn, masterTurn }, 409);
   }
@@ -1180,7 +1184,18 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       const shadowSnapshot = snapshot;
       void (async () => {
         try {
-          const bundle = buildGmContext({ scene: shadowSnapshot.scene.context, conversation: shadowSnapshot.conversation });
+          const knowledge = buildPlayerKnowledgePresentation(
+            shadowSnapshot.events,
+            shadowSnapshot.world,
+            buildBeliefModel(shadowSnapshot.events, shadowSnapshot.world),
+            { startup: false, maxEntries: 8 },
+          );
+          const bundle = buildGmContext({
+            scene: shadowSnapshot.scene.context,
+            conversation: shadowSnapshot.conversation,
+            sceneEngagement: sceneEngagementView(shadowSnapshot.world),
+            knowledgeTexts: knowledge.entries.map((entry) => entry.text),
+          });
           const director = await interpretGmDecision({
             input,
             context: bundle.context,
@@ -1195,6 +1210,10 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             phase: "shadow",
             correlationId: `intent-${idempotencyKey}`,
             worldTime: shadowSnapshot.world.time,
+            ...(director.trace.decisionKind ? { decisionKind: director.trace.decisionKind } : {}),
+            ...(director.trace.addresseeKind ? { addresseeKind: director.trace.addresseeKind } : {}),
+            providerLatencyMs: director.trace.providerLatencyMs,
+            totalLatencyMs: director.trace.totalLatencyMs,
             ...(director.trace.schemaValid ? {} : { failureCategory: director.trace.fallbackReason ?? "invalid" }),
           });
         } catch {
