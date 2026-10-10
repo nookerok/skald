@@ -244,7 +244,11 @@ export class RuleEngine<W> {
       );
     }
 
-    // 1. Durable commit — always for non-empty batch
+    // 1. Durable commit — always for non-empty batch.
+    // A batch of ZERO events is deliberately not committed: there is nothing to
+    // append to the Event Log and no ConversationTurn may be smuggled through
+    // here (pure conversation turns are persisted via the read-side
+    // `recordConversationTurn` API, never via this path).
     if (this.durableCommitter && staged.length > 0) {
       const commitContext = options?.prepareCommitContext
         ? options.prepareCommitContext(immutableEventBatch(staged), working.getSnapshot())
