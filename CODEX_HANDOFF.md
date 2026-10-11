@@ -62,6 +62,17 @@
   immutable — a future run must use a fresh OUT path or remove them first.
 - Next: re-auth the provider session on the Pi, re-run `GM_RUNS=3` with a fresh
   OUT path, then judge raw/normalized/accepted; then item 8 single-flight.
+- Browser QA round 2 (`conversation-director-browser-20261011-2`): the prior
+  NTFS job (`…-1`) was BLOCKED on an ambiguous prologue click; this run used
+  the API-created scratch world path (recommended by that report) via the
+  Traycer in-app browser (fixed Codex runner unreachable from this session).
+  Result: browser/api/visual/repository PASS (10 gameplay sends each +1
+  worldTime 0→10, pending atomic, reload persistence, 0 DOM leaks, 0 console
+  errors, mobile no overflow, one 42px touch target «◉»); provider BLOCKED
+  (LLM 403 free_tier_session_expired — deterministic fallback served all
+  turns); overall BLOCKED for provider only. Reports in
+  `C:\Temp\opencode\skald-qa\conversation-director-browser-20261011-2-report.*`
+  and a Traycer review artifact.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
