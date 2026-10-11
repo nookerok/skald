@@ -45,10 +45,23 @@
   BLOCKED on unreadable env / no router / commit mismatch / dirty worktree /
   invalid GM_RUNS / corpus config error).
 - `npm run validate` PASS after this block: 247 files, 3001 passed, 1 skipped.
-  NOT committed — awaiting explicit commit/deploy instruction.
-- Next (after commit + deploy): live scorecard with `GM_RUNS>=3` on a keyed
-  machine; then decide the comparison baseline vs the earlier 27/35-request
-  runs (they are a DIFFERENT corpus — do not compare percentages directly).
+  Committed (`c24cfc2`), pushed, DEPLOYED to Orange Pi (updater: build+tests
+  PASS, health OK, intent/narration contract OK). Post-deploy 10-turn API smoke
+  on a scratch world: PASS (10/10 time+1, replay 200/replayed, conflict 409).
+- LIVE scorecard `GM_RUNS=3` on the Pi: the RUNNER is proven end-to-end —
+  `actualCommit == expectedCommit == c24cfc2`, clean tree, corpus
+  `gm-corpus-v1` digest recorded, three immutable files in `eval-out/`. The
+  MODEL result is 0/7 (schemaValid/rawSchemaValid/decisionAccepted all 0;
+  privacy 7/7): every `interpret`/`narrate` call on the Pi answers
+  `HTTP 403 free_tier_session_required` — the provider SESSION has expired
+  (reproduced outside the runner: `router.chat` for narrate/interpret both 403;
+  `analyze` has no model configured). This is an operational credential
+  problem, not a code defect; the scorecard correctly recorded it as fallbacks.
+  A re-authenticated provider session is REQUIRED before S0 can be closed on
+  quality numbers. Note: `eval-out/gm-shadow-scorecard.run{1,2,3}.json` are
+  immutable — a future run must use a fresh OUT path or remove them first.
+- Next: re-auth the provider session on the Pi, re-run `GM_RUNS=3` with a fresh
+  OUT path, then judge raw/normalized/accepted; then item 8 single-flight.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
