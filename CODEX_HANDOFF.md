@@ -116,8 +116,21 @@
     both weaker and stochastic on this corpus. This is NOT a claim that all
     OpenRouter free models are exhausted; only this candidate was measured.
 - Files: `eval-out/gm-shadow-scorecard-ab-{ollama_cloud,openrouter}.run{1,2,3}.json`.
+- Prompt iteration v2 at `2ec63b4` (four closed rules: pronoun→mentioned
+  NPC, ambiguity→clarification with candidates, imperative→action/mixed,
+  repeat-request→whoever spoke last). Ollama `GM_RUNS=3` with the pin, files
+  `eval-out/gm-shadow-scorecard-prompt2-ollama.run{1,2,3}.json`, effective
+  routes recorded (`ollama_cloud/gemma4:31b-cloud`, live_primary). 3/3 runs
+  IDENTICAL:
+  - schema/raw/accepted, handles, privacy stay **7/7**;
+  - **addressee 5/7 → 6/7** (retry-request fixed: gm/conversation);
+  - **kind 5/7 → 6/7** (action-demand-to-npc fixed: action).
+  - Remaining two stable misses: `pronoun-after-mention` (still gm instead of
+    the mentioned NPC — the model does not bind the pronoun through
+    recentTurns) and `ambiguous-recipient` (world_question instead of
+    clarification).
 - Still open for S0: an explicit quality threshold for addressee/kind (the
-  user's call), single-flight, and the NTFS browser job.
+  user's call; current 6/7 = 85.7%), single-flight, and the NTFS browser job.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
