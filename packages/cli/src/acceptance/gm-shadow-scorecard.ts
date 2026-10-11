@@ -229,8 +229,12 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
     expectedCommit,
     configFingerprint: configuration?.configFingerprint ?? null,
     pinnedProvider,
-    // Which live-discovery candidates actually served this run — a fallback
-    // scorecard without this would not prove a real model was exercised.
+    // The EFFECTIVE routes the router will actually iterate (post-pin), not
+    // the discovery selection snapshot — this is the serving order of record.
+    effectiveRoutes: {
+      interpret: router.routeCandidates("interpret").map((candidate) => ({ provider: candidate.provider, model: candidate.model, tier: candidate.tier })),
+    },
+    // Discovery selection kept for context (may differ from the pinned order).
     selection,
     promptSha256,
     timeoutMs,

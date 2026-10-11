@@ -52,7 +52,14 @@ export interface GmDimensionResult {
  */
 export interface GmCaseFact {
   readonly scenario: string;
-  readonly expected: { readonly addresseeKind: string; readonly kind: string };
+  readonly expected: {
+    readonly addresseeKind: string;
+    readonly kind: string;
+    /** The ONE handle an npc expectation must target, when specified. */
+    readonly expectedHandle?: string | undefined;
+    /** Scene allowlist the decision was validated against. */
+    readonly allowedHandles?: readonly string[] | undefined;
+  };
   readonly actual: {
     readonly addresseeKind?: string | undefined;
     readonly kind?: string | undefined;
@@ -160,7 +167,12 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
 
     cases.push(Object.freeze({
       scenario: entry.input,
-      expected: { addresseeKind: entry.expected.addresseeKind, kind: entry.expected.kind },
+      expected: {
+        addresseeKind: entry.expected.addresseeKind,
+        kind: entry.expected.kind,
+        expectedHandle: entry.expected.expectedHandle,
+        allowedHandles: entry.expected.allowedHandles !== undefined ? Object.freeze([...entry.expected.allowedHandles]) : undefined,
+      },
       actual: {
         addresseeKind: decisionValue?.addressee.kind,
         kind: decisionValue?.kind,

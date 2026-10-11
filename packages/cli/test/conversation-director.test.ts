@@ -227,6 +227,25 @@ describe("interpretGmDecision — fallbacks", () => {
     const result = await interpretGmDecision({ ...base, router: { apiKey: "", chat: vi.fn(async () => { throw new Error("down"); }) } as unknown as ModelRouter });
     expect(result).toMatchObject({ status: "fallback", reason: "provider_error" });
   });
+
+  it("keeps provider/model attribution on a PROVIDER ERROR (not just successes)", async () => {
+    const result = await interpretGmDecision({
+      ...base,
+      router: {
+        apiKey: "",
+        chat: vi.fn(async () => {
+          const error = new Error("unavailable") as Error & { provider: string; model: string };
+          error.provider = "openrouter";
+          error.model = "nvidia/nemotron-3-super-120b-a12b:free";
+          throw error;
+        }),
+      } as unknown as ModelRouter,
+    });
+    expect(result).toMatchObject({ status: "fallback", reason: "provider_error" });
+    // Attribution survives the failure path.
+    expect(result.trace.provider).toBe("openrouter");
+    expect(result.trace.model).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+  });
 });
 
 describe("extractJsonObject", () => {
@@ -368,16 +387,17 @@ describe("scoreGmCorpus", () => {
     const [npc, fb] = card.cases;
     expect(npc).toMatchObject({
       scenario: "case-npc",
-      expected: { addresseeKind: "npc", kind: "action" },
+      expected: { addresseeKind: "npc", kind: "action", expectedHandle: "eaaa111", allowedHandles: ["eaaa111"] },
       actual: { addresseeKind: "npc", kind: "action", handle: "eaaa111" },
       passes: { schema: true, addressee: true, kind: true, handles: true, privacy: true },
       provider: "ollama_cloud",
       model: "gemma4:31b-cloud",
       usedFallback: false,
     });
+    expect(fb.actual.addresseeKind).toBeUndefined();
+    expect(fb.expected.allowedHandles).toBeUndefined();
     expect(fb).toMatchObject({
       scenario: "case-fallback",
-      actual: { addresseeKind: undefined, kind: undefined },
       passes: { schema: false, addressee: false, kind: false, handles: false, privacy: true },
       fallbackReason: "schema:invalid",
       provider: "ollama_cloud",

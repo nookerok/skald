@@ -112,7 +112,9 @@
     schema 5/7·7/7·5/7, addressee 4/7·7/7·4/7, handles 5/7·6/7·5/7; misses
     differ every run.
   - Verdict: keep `ollama_cloud/gemma4:31b-cloud` as the scorecard primary —
-    OpenRouter free is both weaker and stochastic on this corpus.
+    the ONE OpenRouter free candidate tested (`nemotron-3-super-120b:free`) is
+    both weaker and stochastic on this corpus. This is NOT a claim that all
+    OpenRouter free models are exhausted; only this candidate was measured.
 - Files: `eval-out/gm-shadow-scorecard-ab-{ollama_cloud,openrouter}.run{1,2,3}.json`.
 - Still open for S0: an explicit quality threshold for addressee/kind (the
   user's call), single-flight, and the NTFS browser job.

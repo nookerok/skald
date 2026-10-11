@@ -162,7 +162,12 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
     trace.usedFallback = response.usedFallback;
     if (response.tier !== undefined) trace.tier = response.tier;
     replyText = typeof response.text === "string" ? response.text : "";
-  } catch {
+  } catch (error) {
+    // Provider errors carry sanitized provider/model ids (never keys or
+    // bodies); keep them so a failed call still attributes to a candidate.
+    const err = error as { provider?: unknown; model?: unknown };
+    if (typeof err?.provider === "string") trace.provider = err.provider.slice(0, 40);
+    if (typeof err?.model === "string") trace.model = err.model.slice(0, 80);
     return fallback("provider_error");
   }
 
