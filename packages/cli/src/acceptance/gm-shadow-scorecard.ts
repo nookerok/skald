@@ -35,7 +35,7 @@ import { buildGmContext } from "../conversation/gm-context.js";
 import { interpretGmDecision } from "../runtime/conversation-director.js";
 import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../conversation/gm-prompt.js";
 import { scoreGmCorpus, type GmScoreEntry } from "../conversation/gm-scorecard.js";
-import { createRouterConfiguration } from "../runtime/router-factory.js";
+import { createLiveRouterConfiguration } from "../runtime/router-factory.js";
 import { applyServiceEnv } from "./service-env.js";
 import { GM_CORPUS, GM_CORPUS_VERSION, expectedNpcHandle, type GmFixture } from "./gm-corpus.js";
 import { corpusConfigErrors, dirtyOffenders, parseGmRuns } from "./scorecard-env.js";
@@ -122,7 +122,12 @@ if (dirty.length > 0) blocked("worktree_dirty", { actualCommit: commit, offender
 const corpusErrors = corpusConfigErrors(GM_CORPUS);
 if (corpusErrors.length > 0) blocked("corpus_config_invalid", { errors: corpusErrors });
 
-const configuration = createRouterConfiguration();
+// Live discovery, exactly like the HTTP server: the bare
+// `createRouterConfiguration()` carries no selection and falls back to the
+// static Zen candidates, which are dead server-side (free tier is locked to
+// the OpenCode app). Without live discovery every entry would score as a
+// provider fallback and prove nothing about the director.
+const configuration = await createLiveRouterConfiguration();
 const configuredRouter = configuration?.router ?? null;
 if (!configuredRouter) blocked("no_router_configured");
 const router = configuredRouter;
@@ -185,6 +190,13 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
     });
   }
   const card = scoreGmCorpus(entries);
+  const routes = configuration?.selectionReport?.routes;
+  const selection = routes
+    ? Object.fromEntries(Object.entries(routes).map(([category, candidates]) => [
+        category,
+        (candidates ?? []).slice(0, 2).map((candidate) => ({ provider: candidate.provider, model: candidate.model, tier: candidate.tier })),
+      ]))
+    : null;
   const report = {
     schema: "GM_SHADOW_SCORECARD_V1",
     run: { index: runIndex, of: RUNS },
@@ -192,6 +204,9 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
     actualCommit: commit,
     expectedCommit,
     configFingerprint: configuration?.configFingerprint ?? null,
+    // Which live-discovery candidates actually served this run — a fallback
+    // scorecard without this would not prove a real model was exercised.
+    selection,
     promptSha256,
     timeoutMs,
     scorecard: card,
