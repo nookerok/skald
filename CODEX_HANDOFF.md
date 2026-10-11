@@ -99,9 +99,23 @@
 - Still required for a full browser-acceptance PASS: a new fixed NTFS Codex
   job with an API-created scratch world and STABLE screenshots (intermittent
   captures leave visual BLOCKED).
-- Next: judge whether addressee/kind 5/7 is acceptable for closing S0 (a
-  stronger OpenRouter free candidate exists as an alternative primary); then
-  item 8 single-flight.
+- A/B provider comparison at `7f12d0e` (per-case facts + `GM_SCORECARD_PROVIDER`
+  pin deployed; attribution is now formal — every case records the
+  provider/model from `ChatResult`):
+  - **ollama_cloud / gemma4:31b-cloud** (3/3 runs IDENTICAL): schema/raw/
+    accepted 7/7, handles 7/7, privacy 7/7; addressee 5/7, kind 5/7 with the
+    same four deterministic misses: `pronoun-after-mention` (npc→gm),
+    `ambiguous-recipient` (clarification answered as world_question),
+    `action-demand-to-npc` (action→conversation),
+    `retry-request` (gm→npc addressee).
+  - **openrouter / nemotron-3-super-120b-a12b:free** (3 runs, UNSTABLE):
+    schema 5/7·7/7·5/7, addressee 4/7·7/7·4/7, handles 5/7·6/7·5/7; misses
+    differ every run.
+  - Verdict: keep `ollama_cloud/gemma4:31b-cloud` as the scorecard primary —
+    OpenRouter free is both weaker and stochastic on this corpus.
+- Files: `eval-out/gm-shadow-scorecard-ab-{ollama_cloud,openrouter}.run{1,2,3}.json`.
+- Still open for S0: an explicit quality threshold for addressee/kind (the
+  user's call), single-flight, and the NTFS browser job.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
