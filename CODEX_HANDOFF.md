@@ -74,10 +74,15 @@
   and do not mask the other areas. The fixed NTFS Codex runner was NOT used
   from this opencode/Traycer session (no Codex thread-messaging tool); a
   mandatory NTFS run with an API-created scratch world is still required.
-- Touch-target fix IN THE WORKING TREE (not committed): `.voice-button`
+- Touch-target fix DEPLOYED as `0043edd` (separate UI commit): `.voice-button`
   min-width/min-height 42px → 44px in `skald-aaa.css` + contract test in
-  `client-modules.test.ts`. `npm run validate` PASS: 247 files, 3002 passed,
-  1 skipped. Awaiting explicit commit/push/deploy as a separate UI commit.
+  `client-modules.test.ts`. Updater PASS, service active, health 200, live
+  CSS verified on the Pi (`voice-button{min-width:44px;min-height:44px`).
+  Gate before deploy: 247 files, 3002 passed, 1 skipped.
+- Still required for a full browser-acceptance PASS: (a) provider re-auth on
+  the Pi then `GM_RUNS=3` with a fresh OUT path (real decisions, not
+  fallbacks), (b) a new fixed NTFS Codex job with an API-created scratch
+  world and STABLE screenshots (intermittent captures leave visual BLOCKED).
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
