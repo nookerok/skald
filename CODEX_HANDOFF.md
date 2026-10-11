@@ -62,17 +62,22 @@
   immutable — a future run must use a fresh OUT path or remove them first.
 - Next: re-auth the provider session on the Pi, re-run `GM_RUNS=3` with a fresh
   OUT path, then judge raw/normalized/accepted; then item 8 single-flight.
-- Browser QA round 2 (`conversation-director-browser-20261011-2`): the prior
-  NTFS job (`…-1`) was BLOCKED on an ambiguous prologue click; this run used
-  the API-created scratch world path (recommended by that report) via the
-  Traycer in-app browser (fixed Codex runner unreachable from this session).
-  Result: browser/api/visual/repository PASS (10 gameplay sends each +1
-  worldTime 0→10, pending atomic, reload persistence, 0 DOM leaks, 0 console
-  errors, mobile no overflow, one 42px touch target «◉»); provider BLOCKED
-  (LLM 403 free_tier_session_expired — deterministic fallback served all
-  turns); overall BLOCKED for provider only. Reports in
-  `C:\Temp\opencode\skald-qa\conversation-director-browser-20261011-2-report.*`
-  and a Traycer review artifact.
+- Browser QA round 2 (`conversation-director-browser-20261011-2`), CORRECTED
+  per review: overall **BLOCKED for three independent reasons** — (1) provider
+  LLM expired (`403 free_tier_session_expired`; deterministic fallback only,
+  Conversation Director NOT exercised with real decisions), (2) accessibility
+  touch-target defect: composer voice button «◉» measured 42px on mobile
+  (floor 44px), (3) visual evidence incomplete: screenshots intermittent
+  (2 captures / 2 timeouts) — intermittent captures cannot prove visual PASS.
+  Browser gameplay (10 sends, each +1 worldTime; pending atomic; reload
+  persistence; 0 DOM leaks; 0 console errors) and API PASS stand on their own
+  and do not mask the other areas. The fixed NTFS Codex runner was NOT used
+  from this opencode/Traycer session (no Codex thread-messaging tool); a
+  mandatory NTFS run with an API-created scratch world is still required.
+- Touch-target fix IN THE WORKING TREE (not committed): `.voice-button`
+  min-width/min-height 42px → 44px in `skald-aaa.css` + contract test in
+  `client-modules.test.ts`. `npm run validate` PASS: 247 files, 3002 passed,
+  1 skipped. Awaiting explicit commit/push/deploy as a separate UI commit.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).

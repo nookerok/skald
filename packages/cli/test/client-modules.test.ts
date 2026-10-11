@@ -101,6 +101,15 @@ describe("Browser ES modules — import link integrity", () => {
     expect(css).toContain("prefers-reduced-motion");
   });
 
+  it("keeps the composer voice button at a >=44px touch target", () => {
+    // Browser QA (conversation-director-browser-20261011-2) measured 42px on
+    // mobile; the accessibility floor is 44px, so the size is a contract.
+    const css = readFileSync(resolve(PUBLIC, "skald-aaa.css"), "utf-8");
+    const rule = css.match(/\.voice-button\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(rule).toContain("min-height:44px");
+    expect(rule).toContain("min-width:44px");
+  });
+
   it("keeps runtime palette ownership in one token layer", () => {
     const html = readFileSync(resolve(PUBLIC, "index.html"), "utf-8");
     const tokenCss = readFileSync(resolve(PUBLIC, "tokens.css"), "utf-8");
