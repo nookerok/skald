@@ -33,6 +33,12 @@ export interface GmDirectorTrace {
   readonly validationErrors: readonly string[];
   readonly providerLatencyMs: number;
   readonly totalLatencyMs: number;
+  /** Provider/model that actually answered this call (attribution evidence). */
+  readonly provider?: string | undefined;
+  readonly model?: string | undefined;
+  /** True when the router served a fallback candidate rather than the primary. */
+  readonly usedFallback?: boolean | undefined;
+  readonly tier?: string | undefined;
   readonly fallbackReason?: string | undefined;
   /** Closed summary of the invalid reply's top-level keys (never free text). */
   readonly replyShape?: string | undefined;
@@ -106,6 +112,10 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
     validationErrors: string[];
     providerLatencyMs: number;
     totalLatencyMs: number;
+    provider?: string;
+    model?: string;
+    usedFallback?: boolean;
+    tier?: string;
     fallbackReason?: string;
     replyShape?: string;
   } = {
@@ -145,6 +155,12 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
       priority: "interactive",
     });
     trace.providerLatencyMs = Date.now() - before;
+    // Attribution: which provider/model actually answered (ChatResult fields
+    // are sanitized ids, never keys or prompts).
+    trace.provider = response.provider;
+    trace.model = response.model;
+    trace.usedFallback = response.usedFallback;
+    if (response.tier !== undefined) trace.tier = response.tier;
     replyText = typeof response.text === "string" ? response.text : "";
   } catch {
     return fallback("provider_error");

@@ -52,7 +52,7 @@ function conversationOf(fixture: GmFixture): MasterConversationContext {
 function routerReturning(decision: unknown): ModelRouter {
   return {
     apiKey: "",
-    chat: vi.fn(async () => ({ text: JSON.stringify(decision) })),
+    chat: vi.fn(async () => ({ text: JSON.stringify(decision), provider: "ollama_cloud", model: "test-model", usedFallback: false })),
   } as unknown as ModelRouter;
 }
 
@@ -169,6 +169,10 @@ describe("interpretGmDecision — seven problematic replicas", () => {
       expect(result.decision.addressee.kind).toBe(fixture.expected.addresseeKind);
       expect(result.decision.kind).toBe(fixture.expected.kind);
       expect(result.trace.schemaValid).toBe(true);
+      // Attribution: the trace records which provider/model actually answered.
+      expect(result.trace.provider).toBe("ollama_cloud");
+      expect(result.trace.model).toBe("test-model");
+      expect(result.trace.usedFallback).toBe(false);
       const serialized = JSON.stringify(context);
       for (const forbidden of fixture.forbidden) expect(serialized).not.toContain(forbidden);
     });
@@ -343,6 +347,41 @@ describe("scoreGmCorpus", () => {
       trace: trace(true),
     }]);
     expect(unrestricted.dimensions.find((d) => d.dimension === "privacy")!.passed).toBe(1);
+  });
+
+  it("emits sanitized per-case facts: expected vs actual, provider and fallback reason", () => {
+    const withProvider = { ...trace(true), provider: "ollama_cloud", model: "gemma4:31b-cloud", usedFallback: false } as ReturnType<typeof trace>;
+    const card = scoreGmCorpus([
+      {
+        input: "case-npc",
+        expected: { addresseeKind: "npc" as const, kind: "action", allowedHandles: ["eaaa111"], expectedHandle: "eaaa111" },
+        trace: withProvider,
+        decision: { schemaVersion: 1, addressee: { kind: "npc", handle: "eaaa111" }, kind: "action" } as never,
+      },
+      { // fallback case: no decision, but the reason and provider stay visible
+        input: "case-fallback",
+        expected: { addresseeKind: "gm" as const, kind: "conversation" },
+        trace: { ...trace(false, false), fallbackReason: "schema:invalid", provider: "ollama_cloud", model: "gemma4:31b-cloud" } as ReturnType<typeof trace>,
+      },
+    ]);
+    expect(card.cases).toHaveLength(2);
+    const [npc, fb] = card.cases;
+    expect(npc).toMatchObject({
+      scenario: "case-npc",
+      expected: { addresseeKind: "npc", kind: "action" },
+      actual: { addresseeKind: "npc", kind: "action", handle: "eaaa111" },
+      passes: { schema: true, addressee: true, kind: true, handles: true, privacy: true },
+      provider: "ollama_cloud",
+      model: "gemma4:31b-cloud",
+      usedFallback: false,
+    });
+    expect(fb).toMatchObject({
+      scenario: "case-fallback",
+      actual: { addresseeKind: undefined, kind: undefined },
+      passes: { schema: false, addressee: false, kind: false, handles: false, privacy: true },
+      fallbackReason: "schema:invalid",
+      provider: "ollama_cloud",
+    });
   });
 });
 

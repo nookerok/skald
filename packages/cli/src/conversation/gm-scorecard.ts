@@ -44,6 +44,34 @@ export interface GmDimensionResult {
   readonly failures: readonly string[];
 }
 
+/**
+ * Sanitized per-case facts for one corpus entry: what was expected, what the
+ * model actually answered, and which provider served it. Handles are the
+ * opaque scene handles (never internal ids); nothing here is a prompt, a key
+ * or a world snapshot.
+ */
+export interface GmCaseFact {
+  readonly scenario: string;
+  readonly expected: { readonly addresseeKind: string; readonly kind: string };
+  readonly actual: {
+    readonly addresseeKind?: string | undefined;
+    readonly kind?: string | undefined;
+    readonly handle?: string | undefined;
+    readonly candidateHandles?: readonly string[] | undefined;
+  };
+  readonly passes: {
+    readonly schema: boolean;
+    readonly addressee: boolean;
+    readonly kind: boolean;
+    readonly handles: boolean;
+    readonly privacy: boolean;
+  };
+  readonly fallbackReason?: string | undefined;
+  readonly provider?: string | undefined;
+  readonly model?: string | undefined;
+  readonly usedFallback?: boolean | undefined;
+}
+
 export interface GmScorecard {
   readonly contractVersion: number;
   readonly corpusSize: number;
@@ -53,6 +81,8 @@ export interface GmScorecard {
   readonly p50LatencyMs: number | null;
   readonly p95LatencyMs: number | null;
   readonly dimensions: readonly GmDimensionResult[];
+  /** Per-case sanitized facts, in corpus order. */
+  readonly cases: readonly GmCaseFact[];
 }
 
 function percentile(sorted: readonly number[], q: number): number | null {
@@ -101,6 +131,7 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     privacy: { total, passed: 0, failures: [] },
   };
   const latencies: number[] = [];
+  const cases: GmCaseFact[] = [];
 
   for (const entry of entries) {
     if (entry.trace.schemaValid) dims.schema.passed += 1;
@@ -108,21 +139,40 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     if (entry.trace.totalLatencyMs > 0) latencies.push(entry.trace.totalLatencyMs);
 
     // Privacy is independent of the decision: a leaked ID fails even on fallback.
-    if (privacyPass(entry)) dims.privacy.passed += 1;
+    const privacyOk = privacyPass(entry);
+    if (privacyOk) dims.privacy.passed += 1;
     else dims.privacy.failures.push(entry.input);
 
-    if (!entry.decision) continue;
-    dims.decisionAccepted.passed += 1;
     const decisionValue = entry.decision;
+    const addresseeOk = decisionValue !== undefined && decisionValue.addressee.kind === entry.expected.addresseeKind;
+    const kindOk = decisionValue !== undefined && decisionValue.kind === entry.expected.kind;
+    const handlesOk = decisionValue !== undefined && handlesPass(entry, decisionValue);
 
-    if (decisionValue.addressee.kind === entry.expected.addresseeKind) dims.addressee.passed += 1;
-    else dims.addressee.failures.push(entry.input);
+    if (decisionValue !== undefined) {
+      dims.decisionAccepted.passed += 1;
+      if (addresseeOk) dims.addressee.passed += 1;
+      else dims.addressee.failures.push(entry.input);
+      if (kindOk) dims.kind.passed += 1;
+      else dims.kind.failures.push(entry.input);
+      if (handlesOk) dims.handles.passed += 1;
+      else dims.handles.failures.push(entry.input);
+    }
 
-    if (decisionValue.kind === entry.expected.kind) dims.kind.passed += 1;
-    else dims.kind.failures.push(entry.input);
-
-    if (handlesPass(entry, decisionValue)) dims.handles.passed += 1;
-    else dims.handles.failures.push(entry.input);
+    cases.push(Object.freeze({
+      scenario: entry.input,
+      expected: { addresseeKind: entry.expected.addresseeKind, kind: entry.expected.kind },
+      actual: {
+        addresseeKind: decisionValue?.addressee.kind,
+        kind: decisionValue?.kind,
+        handle: decisionValue?.addressee.kind === "npc" ? decisionValue.addressee.handle : undefined,
+        candidateHandles: decisionValue?.kind === "clarification" ? decisionValue.clarification?.candidateHandles : undefined,
+      },
+      passes: { schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, privacy: privacyOk },
+      fallbackReason: entry.trace.fallbackReason,
+      provider: entry.trace.provider,
+      model: entry.trace.model,
+      usedFallback: entry.trace.usedFallback,
+    }));
   }
 
   latencies.sort((a, b) => a - b);
@@ -137,5 +187,6 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     dimensions: Object.entries(dims).map(([dimension, d]) => ({
       dimension, total: d.total, passed: d.passed, failures: Object.freeze([...d.failures]),
     })),
+    cases: Object.freeze(cases),
   };
 }

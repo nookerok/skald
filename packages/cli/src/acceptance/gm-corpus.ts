@@ -1,11 +1,12 @@
 /**
  * Fixed evaluation corpus for the Conversation Director (SKALD S0).
  *
- * Seven problematic replicas (plus a prime) with the structural expectations a
+ * Exactly seven problematic replicas with the structural expectations a
  * decision must satisfy: the addressee, the turn kind and the never-leakable
  * surfaces. This is the single, versioned corpus the shadow scorecard runs —
  * so two runs of one version are comparable and a result can never be judged
- * against a moving sample.
+ * against a moving sample. Adding or changing a scenario MUST bump
+ * `GM_CORPUS_VERSION`.
  */
 
 import { stableActorHandle } from "../conversation/gm-context.js";
