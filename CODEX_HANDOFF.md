@@ -1,23 +1,57 @@
-# Current work (2026-10-10 — Conversation Director: P0+P1+P2 (S0))
+# Current work (2026-10-10 — Conversation Director: P0+P1+P2 (S0) + review hardening (REVISE rounds 1–2))
 
 - P0 contract (`intent-parser/gm-contract.ts`): `GmContext`/`GmTurnDecision` +
   strict `validateGmTurnDecision`; `supportedOperations()` from closed
-  vocabularies. 14 tests. Commit `b90d56b`.
+  vocabularies. Commits `b90d56b`.
 - P1 shadow director (`conversation/gm-context.ts`, `gm-prompt.ts`,
-  `conversation-director.ts`): observer-safe context with opaque handles
-  `e1..eN`; `interpretGmDecision` parses/validates and NEVER executes;
-  sanitized `GmDirectorTrace`; fire-and-forget shadow wiring in
-  `world-handlers` behind `GM_DIRECTOR_SHADOW`; new `gm_director` diagnostic
-  category; 7 problematic-replica fixtures + fallback tests. Commits
-  `88f28ae`/`edaafb7`.
-- P2 pure-conversation persistence: `recordConversationTurn` is proven
-  idempotent + transactional (save once, 0 events, 0 time, conflicting key →
+  `conversation-director.ts`): observer-safe context with opaque 48-bit hash
+  handles (`e` + 12 hex) + fail-closed collision check; `interpretGmDecision`
+  parses/validates and NEVER executes; `rawSchemaValid` vs `schemaValid` vs
+  `decisionAccepted`; fire-and-forget shadow wiring behind `GM_DIRECTOR_SHADOW`.
+  Commits `88f28ae`/`edaafb7`.
+- P2 pure-conversation persistence: `recordConversationTurn` idempotent +
+  transactional (save once, 0 events, 0 time, conflicting key →
   DuplicateRequestError, crash-before-envelope → original turn recovered once).
-  `processSequence` skips its durable commit for an empty batch (documented).
-  Test `pure-conversation-persistence.test.ts`. Commit this block.
-- `npm run validate` PASS: 246 files, 2978 passed, 1 skipped. Deployed with a
-  VERIFIED receipt.
-- Next: P3 live conversation S1 (`gm_director.live_conversation`).
+  Test `pure-conversation-persistence.test.ts`.
+- Independent review verdict REVISE (two rounds); production stays on
+  `b45d829`; not committed, not deployed. Round 1 fixed items 1–7:
+  1. Privacy dimension: each entry carries the serialized context + the
+     fixture's `forbidden` substrings; a leak fails even on fallback — and the
+     scorer is fail-closed (forbidden without a context is a miss).
+  2. `npcLabel` → the ONE expected handle (`expectedNpcHandle`); a different
+     VISIBLE actor is a miss (`expectedHandle`).
+  3. Digest covers the FULL manifest: every fixture field, system prompt AND
+     per-scene user prompts.
+  4. Actual commit from `git rev-parse HEAD`; `EXPECTED_COMMIT` is only the
+     expectation; mismatch → `commit_mismatch` (exit 2, no scorecard).
+  5. Validator tests: fabricated `candidateHandles[]` vs `allowedHandles`, plus
+     an end-to-end invisible-candidate fallback.
+  6. Literal `<HANDLE>` placeholders removed; few-shot npc/clarification
+     examples are generated per scene from REAL handles.
+  7. Versioned baseline: `GM_CORPUS_VERSION` ("gm-corpus-v1") + size + scenario
+     ids in every report; `GM_RUNS=<n>` repeats the corpus (one immutable file
+     per run).
+  Round 2 added four fail-closed guards (pure, in
+  `packages/cli/src/acceptance/scorecard-env.ts`, tests in
+  `gm-scorecard-env.test.ts`): `worktree_dirty` (any tracked change or
+  untracked file except `plan_*.md` blocks — a scorecard must describe exactly
+  `HEAD`), `gm_runs_invalid` (only positive integers; `abc`/`1.5`/`0` block),
+  the privacy fail-closed rule above, and `corpus_config_invalid` (an `npcLabel`
+  naming nobody blocks instead of weakening the npc check). Verified live:
+  `GM_RUNS=abc`/`1.5` → `gm_runs_invalid`; dirty tree → `worktree_dirty` with
+  the real offender list (`plan_*.md` tolerated).
+- New scorecard runner `npm run acceptance:gm-shadow:scorecard` (immutable
+  output in `eval-out/`, gitignored; `SKALD_ENV_FILE` supported; exit 2
+  BLOCKED on unreadable env / no router / commit mismatch / dirty worktree /
+  invalid GM_RUNS / corpus config error).
+- `npm run validate` PASS after this block: 247 files, 3001 passed, 1 skipped.
+  NOT committed — awaiting explicit commit/deploy instruction.
+- Next (after commit + deploy): live scorecard with `GM_RUNS>=3` on a keyed
+  machine; then decide the comparison baseline vs the earlier 27/35-request
+  runs (they are a DIFFERENT corpus — do not compare percentages directly).
+- Still OPEN: item 8 single-flight (a live route must prove
+  `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
+- P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
 
 - T8.1 runner hardened further: `/events` status/shape is asserted (non-200 or
   malformed → FAIL); approach/repeat must carry `ActionResolved`; blocked journey

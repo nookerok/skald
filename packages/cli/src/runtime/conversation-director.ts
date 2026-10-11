@@ -24,7 +24,12 @@ export interface GmDirectorTrace {
   readonly decisionKind?: string | undefined;
   readonly addresseeKind?: string | undefined;
   readonly referencedHandles?: readonly string[] | undefined;
+  /** Raw model reply validated BEFORE normalization (no aliases applied). */
+  readonly rawSchemaValid: boolean;
+  /** Valid AFTER the closed alias normalization. */
   readonly schemaValid: boolean;
+  /** A decision was accepted and returned to the caller. */
+  readonly decisionAccepted: boolean;
   readonly validationErrors: readonly string[];
   readonly providerLatencyMs: number;
   readonly totalLatencyMs: number;
@@ -95,7 +100,9 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
     decisionKind?: string;
     addresseeKind?: string;
     referencedHandles?: string[];
+    rawSchemaValid: boolean;
     schemaValid: boolean;
+    decisionAccepted: boolean;
     validationErrors: string[];
     providerLatencyMs: number;
     totalLatencyMs: number;
@@ -104,7 +111,9 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
   } = {
     turnKey: input.turnKey,
     contractVersion: GM_CONTRACT_VERSION,
+    rawSchemaValid: false,
     schemaValid: false,
+    decisionAccepted: false,
     validationErrors: [],
     providerLatencyMs: 0,
     totalLatencyMs: 0,
@@ -144,13 +153,20 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
   const parsed = extractJsonObject(replyText);
   if (!parsed) return fallback("shape:not_json");
 
-  const validated = validateGmTurnDecision(normalizeDecisionShape(parsed), { allowedHandles: input.handleKeys });
+  // Raw compliance (no server-side alias applied) vs compliance after the
+  // closed normalization; only the normalized form may become a decision.
+  const rawValidation = validateGmTurnDecision(parsed, { allowedHandles: input.handleKeys });
+  trace.rawSchemaValid = rawValidation.ok;
+
+  const normalized = normalizeDecisionShape(parsed);
+  const validated = validateGmTurnDecision(normalized, { allowedHandles: input.handleKeys });
+  trace.schemaValid = validated.ok;
   if (!validated.ok) {
     trace.validationErrors = [...validated.errors];
     trace.replyShape = Object.keys(parsed as Record<string, unknown>).slice(0, 8).join(",");
     return fallback("schema:invalid");
   }
-  trace.schemaValid = true;
+  trace.decisionAccepted = true;
   return decided(validated.decision);
 }
 

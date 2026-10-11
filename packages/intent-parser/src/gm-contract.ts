@@ -164,7 +164,14 @@ export function validateGmTurnDecision(
       }
       if ("candidateHandles" in c) {
         if (!Array.isArray(c["candidateHandles"])) errors.push("clarification.candidateHandles: must be an array");
-        else for (const handle of c["candidateHandles"] as unknown[]) validateHandle(handle, "clarification.candidateHandles[]", errors);
+        else for (const handle of c["candidateHandles"] as unknown[]) {
+          if (!validateHandle(handle, "clarification.candidateHandles[]", errors)) continue;
+          // The scene allowlist applies to EVERY handle, not just the addressee:
+          // a candidate that is not visible in this scene is a fabricated actor.
+          if (options.allowedHandles && !options.allowedHandles.includes(handle as VisibleActorKey)) {
+            errors.push(`clarification.candidateHandles[]: "${String(handle)}" is not a visible actor in this scene`);
+          }
+        }
       }
       if (kind !== "clarification") errors.push("clarification: only allowed when kind is clarification");
     }

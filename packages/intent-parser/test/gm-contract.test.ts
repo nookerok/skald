@@ -81,6 +81,21 @@ describe("validateGmTurnDecision — rejected", () => {
     if (!invisible.ok) expect(invisible.errors.join("\n")).toContain("not a visible actor");
   });
 
+  it("rejects a fabricated clarification candidate against the scene allowlist", () => {
+    // Visible candidates pass; one invisible candidate poisons the whole list.
+    const visible = validateGmTurnDecision(
+      { ...base, kind: "clarification", clarification: { question: "?", candidateHandles: ["e1"] } },
+      { allowedHandles: ["e1", "e2"] },
+    );
+    expect(visible.ok).toBe(true);
+    const fabricated = validateGmTurnDecision(
+      { ...base, kind: "clarification", clarification: { question: "?", candidateHandles: ["e1", "e9"] } },
+      { allowedHandles: ["e1", "e2"] },
+    );
+    expect(fabricated.ok).toBe(false);
+    if (!fabricated.ok) expect(fabricated.errors.join("\n")).toContain("not a visible actor");
+  });
+
   it("rejects an unknown kind", () => {
     reject({ ...base, kind: "banana" }, "kind");
   });

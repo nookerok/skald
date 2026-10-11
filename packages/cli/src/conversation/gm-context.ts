@@ -16,9 +16,13 @@ import { supportedOperations, type GmContext, type VisibleActorKey } from "@skal
 /** Hard cap on the known-facts slice; the builder owns the bound. */
 export const MAX_KNOWN_FACTS = 8;
 
-/** A stable, opaque handle for one scene observerRef (no shifting on insert). */
+/**
+ * A stable, opaque handle for one scene observerRef (no shifting on insert).
+ * 48 bits of sha256: large enough that a collision between two actors in one
+ * scene is effectively impossible; `buildGmContext` still fail-closes on one.
+ */
 export function stableActorHandle(observerRef: string): VisibleActorKey {
-  return `e${createHash("sha256").update(observerRef).digest("hex").slice(0, 6)}`;
+  return `e${createHash("sha256").update(observerRef).digest("hex").slice(0, 12)}`;
 }
 
 export interface GmContextInputs {
@@ -49,6 +53,12 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
   const ordered = [...inputs.scene.knownPeople].sort((a, b) => a.observerRef.localeCompare(b.observerRef));
   const actors = ordered.map((person) => {
     const handle = stableActorHandle(person.observerRef);
+    const existing = handleToObserverRef.get(handle);
+    // Fail-closed: a hash collision would silently alias two actors, so it is
+    // an error rather than a wrong conversation (review: handle collision).
+    if (existing !== undefined && existing !== person.observerRef) {
+      throw new Error(`gm-context: handle collision for ${handle}`);
+    }
     handleToObserverRef.set(handle, person.observerRef);
     return {
       handle,

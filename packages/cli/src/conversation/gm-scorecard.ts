@@ -1,19 +1,29 @@
 /**
  * Conversation Director shadow scorecard (SKALD S0).
  *
- * A pure, reproducible scorer: one fixed corpus, one decision per replica, six
- * separately reported dimensions (schema validity, addressee, kind, handles,
- * latency, fallback). It never scores prose quality and never executes.
+ * A pure, reproducible scorer over ONE fixed corpus. Every dimension uses the
+ * FULL corpus size as the denominator (a fallback counts as a miss for addressee,
+ * kind and handles), so the percentages are end-to-end and comparable across
+ * versions. Clarification candidate handles are checked against the scene
+ * allowlist exactly like an npc addressee; an npc expectation that names a
+ * specific NPC must hit THAT handle, and the serialized context is checked for
+ * forbidden substrings (privacy). Never executes and never scores prose quality.
  */
 
 import type { GmDirectorTrace } from "../runtime/conversation-director.js";
 import type { GmTurnDecision } from "@skald/intent-parser";
 
 export interface GmScoreExpectation {
-  readonly addresseeKind: "gm" | "npc" | "meta";
+  readonly addresseeKind: "gm" | "npc" | "meta" | "clarification";
   readonly kind: string;
   /** Allowed actor handles for this replica (server-assigned). */
   readonly allowedHandles?: readonly string[];
+  /**
+   * The ONE handle the npc addressee must target. Present when the expectation
+   * names a specific NPC: being in the allowlist is not enough — pointing at a
+   * different visible actor of the same class is a miss.
+   */
+  readonly expectedHandle?: string | undefined;
 }
 
 export interface GmScoreEntry {
@@ -21,6 +31,10 @@ export interface GmScoreEntry {
   readonly expected: GmScoreExpectation;
   readonly trace: GmDirectorTrace;
   readonly decision?: GmTurnDecision | undefined;
+  /** Serialized context sent to the model, when privacy is scored. */
+  readonly contextJson?: string | undefined;
+  /** Substrings that must not appear in `contextJson` (internal IDs, etc.). */
+  readonly forbidden?: readonly string[] | undefined;
 }
 
 export interface GmDimensionResult {
@@ -34,8 +48,8 @@ export interface GmScorecard {
   readonly contractVersion: number;
   readonly corpusSize: number;
   readonly schemaValid: number;
-  readonly decision: number;
-  readonly fallback: number;
+  readonly rawSchemaValid: number;
+  readonly decisionAccepted: number;
   readonly p50LatencyMs: number | null;
   readonly p95LatencyMs: number | null;
   readonly dimensions: readonly GmDimensionResult[];
@@ -46,57 +60,78 @@ function percentile(sorted: readonly number[], q: number): number | null {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 }
 
+function handlesPass(entry: GmScoreEntry, decision: GmTurnDecision): boolean {
+  const allowed = entry.expected.allowedHandles ?? [];
+  if (decision.addressee.kind === "npc") {
+    const handle = (decision.addressee as { handle?: string }).handle;
+    if (typeof handle !== "string" || !allowed.includes(handle)) return false;
+    // A specific NPC is expected: any other visible actor is a miss.
+    return entry.expected.expectedHandle === undefined || handle === entry.expected.expectedHandle;
+  }
+  if (decision.kind === "clarification") {
+    const candidates = decision.clarification?.candidateHandles ?? [];
+    // A clarification with no candidates, or with an invisible one, fails.
+    if (candidates.length === 0) return false;
+    return candidates.every((handle) => allowed.includes(handle));
+  }
+  return true;
+}
+
+/**
+ * True when the serialized context leaks none of the forbidden substrings.
+ * Fail-closed: forbidden substrings without a context to check are a failure —
+ * a scorer must never treat "no evidence" as "no leak".
+ */
+function privacyPass(entry: GmScoreEntry): boolean {
+  const forbidden = entry.forbidden ?? [];
+  if (forbidden.length === 0) return true;
+  if (entry.contextJson === undefined) return false;
+  return forbidden.every((needle) => !entry.contextJson!.includes(needle));
+}
+
 /** Score one entry against its expectation across every dimension. */
 export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
+  const total = entries.length;
   const dims: Record<string, { total: number; passed: number; failures: string[] }> = {
-    schema: { total: 0, passed: 0, failures: [] },
-    addressee: { total: 0, passed: 0, failures: [] },
-    kind: { total: 0, passed: 0, failures: [] },
-    handles: { total: 0, passed: 0, failures: [] },
+    schema: { total, passed: 0, failures: [] },
+    decisionAccepted: { total, passed: 0, failures: [] },
+    addressee: { total, passed: 0, failures: [] },
+    kind: { total, passed: 0, failures: [] },
+    handles: { total, passed: 0, failures: [] },
+    privacy: { total, passed: 0, failures: [] },
   };
   const latencies: number[] = [];
-  let decision = 0;
-  let fallback = 0;
 
   for (const entry of entries) {
-    dims.schema.total += 1;
     if (entry.trace.schemaValid) dims.schema.passed += 1;
     else dims.schema.failures.push(entry.input);
     if (entry.trace.totalLatencyMs > 0) latencies.push(entry.trace.totalLatencyMs);
 
-    if (!entry.decision) {
-      fallback += 1;
-      continue;
-    }
-    decision += 1;
+    // Privacy is independent of the decision: a leaked ID fails even on fallback.
+    if (privacyPass(entry)) dims.privacy.passed += 1;
+    else dims.privacy.failures.push(entry.input);
+
+    if (!entry.decision) continue;
+    dims.decisionAccepted.passed += 1;
     const decisionValue = entry.decision;
 
-    dims.addressee.total += 1;
     if (decisionValue.addressee.kind === entry.expected.addresseeKind) dims.addressee.passed += 1;
     else dims.addressee.failures.push(entry.input);
 
-    dims.kind.total += 1;
     if (decisionValue.kind === entry.expected.kind) dims.kind.passed += 1;
     else dims.kind.failures.push(entry.input);
 
-    dims.handles.total += 1;
-    if (decisionValue.addressee.kind !== "npc") {
-      dims.handles.passed += 1;
-    } else {
-      const handle = (decisionValue.addressee as { handle?: string }).handle;
-      const allowed = entry.expected.allowedHandles ?? [];
-      if (typeof handle === "string" && allowed.includes(handle)) dims.handles.passed += 1;
-      else dims.handles.failures.push(entry.input);
-    }
+    if (handlesPass(entry, decisionValue)) dims.handles.passed += 1;
+    else dims.handles.failures.push(entry.input);
   }
 
   latencies.sort((a, b) => a - b);
   return {
     contractVersion: entries[0]?.trace.contractVersion ?? 0,
-    corpusSize: entries.length,
+    corpusSize: total,
     schemaValid: dims.schema.passed,
-    decision,
-    fallback,
+    rawSchemaValid: entries.filter((e) => e.trace.rawSchemaValid).length,
+    decisionAccepted: dims.decisionAccepted.passed,
     p50LatencyMs: percentile(latencies, 0.5),
     p95LatencyMs: percentile(latencies, 0.95),
     dimensions: Object.entries(dims).map(([dimension, d]) => ({

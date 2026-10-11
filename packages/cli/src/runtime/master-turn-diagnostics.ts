@@ -125,6 +125,8 @@ export interface MasterTurnDiagnosticDimensions {
   readonly replyShape?: string | undefined;
   readonly validationErrors?: string | undefined;
   readonly schemaValid?: boolean | undefined;
+  readonly rawSchemaValid?: boolean | undefined;
+  readonly decisionAccepted?: boolean | undefined;
 }
 
 function freeze<T>(value: T): T {
@@ -206,6 +208,8 @@ export function emitMasterTurnDiagnostic(
       ...(asText(dimensions.replyShape, 160) ? { replyShape: asText(dimensions.replyShape, 160)! } : {}),
       ...(asText(dimensions.validationErrors, 240) ? { validationErrors: asText(dimensions.validationErrors, 240)! } : {}),
       ...(typeof dimensions.schemaValid === "boolean" ? { schemaValid: dimensions.schemaValid } : {}),
+      ...(typeof dimensions.rawSchemaValid === "boolean" ? { rawSchemaValid: dimensions.rawSchemaValid } : {}),
+      ...(typeof dimensions.decisionAccepted === "boolean" ? { decisionAccepted: dimensions.decisionAccepted } : {}),
       recordedAt: new Date().toISOString(),
     }));
   } catch {

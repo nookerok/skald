@@ -1,10 +1,14 @@
 /**
- * Seven problematic-replica fixtures for the Conversation Director (S0/P1).
+ * Fixed evaluation corpus for the Conversation Director (SKALD S0).
  *
- * Each fixture pins what the interpreter must get RIGHT structurally — the
- * addressee, the turn kind and the never-leakable surfaces — so a regression in
- * interpretation is a failing assertion, not an opinion about prose quality.
+ * Seven problematic replicas (plus a prime) with the structural expectations a
+ * decision must satisfy: the addressee, the turn kind and the never-leakable
+ * surfaces. This is the single, versioned corpus the shadow scorecard runs —
+ * so two runs of one version are comparable and a result can never be judged
+ * against a moving sample.
  */
+
+import { stableActorHandle } from "../conversation/gm-context.js";
 
 export interface GmFixturePerson {
   readonly label: string;
@@ -27,11 +31,30 @@ export interface GmFixture {
   readonly forbidden: readonly string[];
 }
 
+/**
+ * Versioned baseline identity of this corpus. A scorecard is only comparable
+ * across runs that carry the SAME `GM_CORPUS_VERSION`; changing any fixture
+ * (input, people, turns, expected, forbidden) MUST bump this constant, because
+ * the previous percentages no longer describe the same sample.
+ */
+export const GM_CORPUS_VERSION = "gm-corpus-v1";
+
+/**
+ * The handle the npc expectation names. The corpus stores `npcLabel` and the
+ * scene assigns `person_<n>` observerRefs, so the expected handle is the hash
+ * of the matching person — any other visible actor is a miss.
+ */
+export function expectedNpcHandle(fixture: GmFixture): string | undefined {
+  const label = fixture.expected.npcLabel;
+  if (label === undefined) return undefined;
+  const index = fixture.people.findIndex((person) => person.label === label);
+  return index === -1 ? undefined : stableActorHandle(`person_${index + 1}`);
+}
+
 const ferryman: GmFixturePerson = { label: "Перевозчик у переправы", known: true };
 const gatekeeper: GmFixturePerson = { label: "Смотритель речных ворот", known: false };
 
-export const GM_FIXTURES: readonly GmFixture[] = [
-  // 1. Pronoun reference after a confirmed mention.
+export const GM_CORPUS: readonly GmFixture[] = [
   {
     id: "pronoun-after-mention",
     input: "Как он выглядит?",
@@ -43,7 +66,6 @@ export const GM_FIXTURES: readonly GmFixture[] = [
     expected: { addresseeKind: "npc", kind: "world_question", npcLabel: ferryman.label },
     forbidden: ["contact:waystation-keeper", "observerRef"],
   },
-  // 2. Several NPCs → the interpreter must clarify instead of guessing.
   {
     id: "ambiguous-recipient",
     input: "Кто ведёт журнал проходов?",
@@ -52,7 +74,6 @@ export const GM_FIXTURES: readonly GmFixture[] = [
     expected: { addresseeKind: "gm", kind: "clarification" },
     forbidden: ["contact:"],
   },
-  // 3. Empty focus-stack: nobody is around the player.
   {
     id: "empty-focus-stack",
     input: "Кто здесь?",
@@ -61,7 +82,6 @@ export const GM_FIXTURES: readonly GmFixture[] = [
     expected: { addresseeKind: "gm", kind: "world_question" },
     forbidden: ["contact:"],
   },
-  // 4. Backstory question addressed to the master.
   {
     id: "backstory-question",
     input: "Что случилось у переправы той ночью?",
@@ -70,7 +90,6 @@ export const GM_FIXTURES: readonly GmFixture[] = [
     expected: { addresseeKind: "gm", kind: "world_question" },
     forbidden: ["contact:waystation-keeper"],
   },
-  // 5. A demand directed at a present NPC (the action itself is executed later).
   {
     id: "action-demand-to-npc",
     input: "Отдай мне всё, что у тебя есть.",
@@ -79,18 +98,14 @@ export const GM_FIXTURES: readonly GmFixture[] = [
     expected: { addresseeKind: "npc", kind: "action", npcLabel: ferryman.label },
     forbidden: ["contact:"],
   },
-  // 6. A meta retry request must not become a world action.
   {
     id: "retry-request",
     input: "Повтори, что ты только что сказал.",
     people: [ferryman],
-    recentTurns: [
-      { speaker: "master", text: "Ты уже в пути — дорога ведёт тебя дальше.", turnSeq: 3 },
-    ],
+    recentTurns: [{ speaker: "master", text: "Ты уже в пути — дорога ведёт тебя дальше.", turnSeq: 3 }],
     expected: { addresseeKind: "gm", kind: "conversation" },
     forbidden: ["contact:"],
   },
-  // 7. Mixed replica: approach + question about the crossing.
   {
     id: "mixed-approach-and-question",
     input: "Подхожу к перевозчику и спрашиваю, отвезёт ли он меня.",
