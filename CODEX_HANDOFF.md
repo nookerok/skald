@@ -79,10 +79,29 @@
   `client-modules.test.ts`. Updater PASS, service active, health 200, live
   CSS verified on the Pi (`voice-button{min-width:44px;min-height:44px`).
   Gate before deploy: 247 files, 3002 passed, 1 skipped.
-- Still required for a full browser-acceptance PASS: (a) provider re-auth on
-  the Pi then `GM_RUNS=3` with a fresh OUT path (real decisions, not
-  fallbacks), (b) a new fixed NTFS Codex job with an API-created scratch
-  world and STABLE screenshots (intermittent captures leave visual BLOCKED).
+- LIVE scorecard RE-RUN as `3268486` with a FRESH OUT after fixing the runner
+  to use `createLiveRouterConfiguration()` (the bare factory carried no live
+  selection and fell back to the dead static Zen candidates — this, not a
+  provider re-login, was why every entry had scored as a fallback; Zen free is
+  locked to the OpenCode app server-side, key valid, catalogue 200). The Pi's
+  existing keys already serve: Ollama Cloud `gemma4:31b-cloud` and OpenRouter
+  free both answer 200 (read-only probes). `GM_RUNS=3`, files
+  `eval-out/gm-shadow-scorecard-live1.run{1,2,3}.json`, selection recorded per
+  report (`ollama_cloud/gemma4:31b-cloud`, live_primary, interpret+narrate):
+  - **schemaValid 7/7, rawSchemaValid 7/7, decisionAccepted 7/7, handles 7/7,
+    privacy 7/7 — identical in all three runs** (first real S0 baseline for
+    `gm-corpus-v1`).
+  - **addressee 5/7** (same misses every run: pronoun-after-mention,
+    retry-request) and **kind 5/7** (ambiguous-recipient, action-demand-to-npc)
+    — deterministic model weaknesses, not stochastic noise; they are the
+    known quality gap, not a fallback artifact.
+  - latency p50 ~720–800 ms, p95 1.1–7.3 s.
+- Still required for a full browser-acceptance PASS: a new fixed NTFS Codex
+  job with an API-created scratch world and STABLE screenshots (intermittent
+  captures leave visual BLOCKED).
+- Next: judge whether addressee/kind 5/7 is acceptable for closing S0 (a
+  stronger OpenRouter free candidate exists as an alternative primary); then
+  item 8 single-flight.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
