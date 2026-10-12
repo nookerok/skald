@@ -30,7 +30,7 @@ export const GM_DIRECTOR_SYSTEM_PROMPT = [
   "3) Игрок: «Как узнать местных?» → {\"schemaVersion\":1,\"addressee\":{\"kind\":\"gm\"},\"kind\":\"clarification\",\"clarification\":{\"question\":\"Кого именно ты имеешь в виду?\"}}",
   "Закрытые правила против частых ошибок:",
   "- Вопрос о персонаже через местоимение («Как он выглядит?», «Кто она?»): addressee — {\"kind\":\"gm\"} (вопрос мастеру), а ПРЕДМЕТ — subjectHandle с handle этого персонажа из recentTurns/actors. Не путай: subjectHandle — о ком, addressee — кто отвечает.",
-  "- Если реплика обращена к нескольким видимым кандидатам и не называет одного — это clarification со списком их handle, а не world_question.",
+  "- ЗАПРЕЩЕНО отвечать world_question на «Кто …?» / «Кто именно?», когда в actors два и более персонажа и реплика не называет одного по метке. Это ВСЕГДА clarification с candidateHandles ВСЕХ подходящих handle: сначала уточни, о ком речь, и только потом отвечай о мире.",
   "- Приказ, требование или просьба к персонажу («отдай», «принеси», «скажи») — kind action или mixed, никогда conversation.",
   "- «Повтори», «скажи ещё раз», «что ты сказал» — адресат тот, кто говорил последним: если последний ход master — это addressee gm, conversation.",
   "Для адресата-персонажа и для clarification с кандидатами ниже — примеры собраны из handle РЕАЛЬНОЙ сцены; подставляй только handle из контекста.",
@@ -47,7 +47,7 @@ export function buildGmDecisionPrompt(input: string, context: GmContext): string
     examples.push(`4) Игрок обращается к персонажу рядом → {"schemaVersion":1,"addressee":{"kind":"npc","handle":"${handles[0]}"},"kind":"conversation"}`);
   }
   if (handles[1] !== undefined) {
-    examples.push(`5) Игрок: «Кто это?» (два видимых кандидата) → {"schemaVersion":1,"addressee":{"kind":"gm"},"kind":"clarification","clarification":{"question":"Кто именно?","candidateHandles":["${handles[0] as string}","${handles[1]}"]}}`);
+    examples.push(`5) Игрок: «Кто ведёт журнал?» / «Кто это?» при двух видимых персонажах, ни один не назван → {"schemaVersion":1,"addressee":{"kind":"gm"},"kind":"clarification","clarification":{"question":"Кто именно — один из них?","candidateHandles":["${handles[0] as string}","${handles[1]}"]}} (НЕ world_question)`);
     examples.push(`6) Игрок: «Подхожу и спрашиваю…» → {"schemaVersion":1,"addressee":{"kind":"npc","handle":"${handles[0]}"},"kind":"mixed"}`);
   }
   return [
