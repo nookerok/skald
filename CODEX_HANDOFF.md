@@ -129,8 +129,26 @@
     the mentioned NPC — the model does not bind the pronoun through
     recentTurns) and `ambiguous-recipient` (world_question instead of
     clarification).
-- Still open for S0: an explicit quality threshold for addressee/kind (the
-  user's call; current 6/7 = 85.7%), single-flight, and the NTFS browser job.
+- Honest-scorer + subjectHandle round at `b2de1cb`: handles now requires the
+  EXPECTED STRUCTURE (wrong type fails, not just a wrong handle); privacy
+  scans the MODEL ANSWER for forbidden substrings as well as the input
+  context; `GmTurnDecision` gained an observer-safe `subjectHandle`
+  (question-shaped kinds only, allowlist-validated) with prompt, corpus
+  (`pronoun-after-mention` → gm + subject) and a new end-to-end `subject`
+  dimension; `effectiveRoutes` covers narrate too. Ollama
+  `GM_SCORECARD_PROVIDER` `GM_RUNS=3`, files
+  `eval-out/gm-shadow-scorecard-subject-ollama.run{1,2,3}.json`, 3/3
+  IDENTICAL:
+  - schema/raw/accepted **7/7**, privacy **7/7** (context+answer);
+  - **addressee 7/7** (pronoun now expects gm — which the model answered —
+    and retry-request stays fixed);
+  - **kind 6/7**, **handles 6/7** (honest): the ONE remaining miss is
+    `ambiguous-recipient` — the model answers a direct world_question instead
+    of a clarification with candidates;
+  - **subject 7/7** — the model emits `subjectHandle` for the pronoun
+    question as the new prompt rule asks.
+- Still open for S0: the user's quality threshold (now a single stable miss),
+  single-flight, and the NTFS browser job.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
