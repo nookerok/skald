@@ -29,7 +29,7 @@ export const GM_DIRECTOR_SYSTEM_PROMPT = [
   "2) Игрок: «Что случилось у переправы той ночью?» → {\"schemaVersion\":1,\"addressee\":{\"kind\":\"gm\"},\"kind\":\"world_question\"}",
   "3) Игрок: «Как узнать местных?» → {\"schemaVersion\":1,\"addressee\":{\"kind\":\"gm\"},\"kind\":\"clarification\",\"clarification\":{\"question\":\"Кого именно ты имеешь в виду?\"}}",
   "Закрытые правила против частых ошибок:",
-  "- Местоимение (он/она/его/ему) о персонаже, упомянутом в recentTurns, адресуется ЭТОМУ персонажу (addressee npc с его handle), а не мастеру.",
+  "- Вопрос о персонаже через местоимение («Как он выглядит?», «Кто она?»): addressee — {\"kind\":\"gm\"} (вопрос мастеру), а ПРЕДМЕТ — subjectHandle с handle этого персонажа из recentTurns/actors. Не путай: subjectHandle — о ком, addressee — кто отвечает.",
   "- Если реплика обращена к нескольким видимым кандидатам и не называет одного — это clarification со списком их handle, а не world_question.",
   "- Приказ, требование или просьба к персонажу («отдай», «принеси», «скажи») — kind action или mixed, никогда conversation.",
   "- «Повтори», «скажи ещё раз», «что ты сказал» — адресат тот, кто говорил последним: если последний ход master — это addressee gm, conversation.",

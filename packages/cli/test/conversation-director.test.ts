@@ -11,7 +11,7 @@ import { interpretGmDecision, extractJsonObject, normalizeDecisionShape } from "
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
-import { GM_CORPUS, expectedNpcHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
+import { GM_CORPUS, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
 import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../src/conversation/gm-prompt.js";
 
 const ferrymanLabel = "Перевозчик у переправы";
@@ -149,13 +149,16 @@ describe("interpretGmDecision — seven problematic replicas", () => {
     it(`${fixture.id} → ${fixture.expected.addresseeKind}/${fixture.expected.kind}`, async () => {
       const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
       const npcHandle = fixture.expected.addresseeKind === "npc" ? expectedNpcHandle(fixture) : undefined;
+      const subjectHandle = expectedSubjectHandle(fixture);
       expect(npcHandle === undefined || [...handleToObserverRef.keys()].includes(npcHandle)).toBe(true);
+      expect(subjectHandle === undefined || [...handleToObserverRef.keys()].includes(subjectHandle)).toBe(true);
       const decision = {
         schemaVersion: 1,
         addressee: fixture.expected.addresseeKind === "npc"
           ? { kind: "npc", handle: npcHandle }
           : { kind: fixture.expected.addresseeKind },
         kind: fixture.expected.kind,
+        ...(subjectHandle !== undefined ? { subjectHandle } : {}),
       };
       const result = await interpretGmDecision({
         input: fixture.input,
@@ -398,10 +401,80 @@ describe("scoreGmCorpus", () => {
     expect(fb.expected.allowedHandles).toBeUndefined();
     expect(fb).toMatchObject({
       scenario: "case-fallback",
-      passes: { schema: false, addressee: false, kind: false, handles: false, privacy: true },
+      passes: { schema: false, addressee: false, kind: false, handles: false, subject: true, privacy: true },
       fallbackReason: "schema:invalid",
       provider: "ollama_cloud",
     });
+  });
+
+  it("fails handles when the decision has the WRONG TYPE (not just a wrong handle)", () => {
+    // Expected npc target, answered gm: the handle dimension must not pass.
+    const wrongAddresseeType = scoreGmCorpus([{
+      input: "pronoun",
+      expected: { addresseeKind: "npc" as const, kind: "world_question", allowedHandles: ["eaaa111"], expectedHandle: "eaaa111" },
+      trace: trace(true),
+      decision: { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question" } as never,
+    }]);
+    expect(wrongAddresseeType.dimensions.find((d) => d.dimension === "handles")!.passed).toBe(0);
+
+    // Expected clarification with candidates, answered world_question.
+    const wrongKindType = scoreGmCorpus([{
+      input: "ambiguous",
+      expected: { addresseeKind: "gm" as const, kind: "clarification", allowedHandles: ["eaaa111", "ebbb222"] },
+      trace: trace(true),
+      decision: { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question" } as never,
+    }]);
+    expect(wrongKindType.dimensions.find((d) => d.dimension === "handles")!.passed).toBe(0);
+  });
+
+  it("fails privacy when the MODEL ANSWER leaks a forbidden substring", () => {
+    const leakedAnswer = scoreGmCorpus([{
+      input: "leaky-answer",
+      expected: { addresseeKind: "gm" as const, kind: "clarification", allowedHandles: ["eaaa111"] },
+      trace: trace(true),
+      contextJson: '{"actors":[]}',
+      forbidden: ["contact:"],
+      decision: {
+        schemaVersion: 1, addressee: { kind: "gm" }, kind: "clarification",
+        clarification: { question: "Кто ведёт журнал — contact:waystation-keeper?", candidateHandles: ["eaaa111"] },
+      } as never,
+    }]);
+    expect(leakedAnswer.dimensions.find((d) => d.dimension === "privacy")!.passed).toBe(0);
+  });
+
+  it("scores the subject dimension end-to-end (missing or wrong topic fails)", () => {
+    const base = { allowedHandles: ["eaaa111", "ebbb222"], expectedSubjectHandle: "eaaa111" };
+    const right = scoreGmCorpus([{
+      input: "pronoun",
+      expected: { addresseeKind: "gm" as const, kind: "world_question", ...base },
+      trace: trace(true),
+      decision: { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: "eaaa111" } as never,
+    }]);
+    expect(right.dimensions.find((d) => d.dimension === "subject")!.passed).toBe(1);
+
+    const missing = scoreGmCorpus([{
+      input: "pronoun",
+      expected: { addresseeKind: "gm" as const, kind: "world_question", ...base },
+      trace: trace(true),
+      decision: { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question" } as never,
+    }]);
+    expect(missing.dimensions.find((d) => d.dimension === "subject")!.passed).toBe(0);
+
+    const wrongTopic = scoreGmCorpus([{
+      input: "pronoun",
+      expected: { addresseeKind: "gm" as const, kind: "world_question", ...base },
+      trace: trace(true),
+      decision: { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: "ebbb222" } as never,
+    }]);
+    expect(wrongTopic.dimensions.find((d) => d.dimension === "subject")!.passed).toBe(0);
+
+    // A fallback with an expected subject also fails it.
+    const fallback = scoreGmCorpus([{
+      input: "pronoun",
+      expected: { addresseeKind: "gm" as const, kind: "world_question", ...base },
+      trace: trace(false, false),
+    }]);
+    expect(fallback.dimensions.find((d) => d.dimension === "subject")!.passed).toBe(0);
   });
 });
 
@@ -413,6 +486,15 @@ describe("expectedNpcHandle", () => {
     expect(expectedNpcHandle(GM_CORPUS[2])).toBeUndefined(); // no npcLabel
     // A label absent from the corpus scene must not silently pick anyone.
     expect(expectedNpcHandle({ ...fixture, expected: { ...fixture.expected, npcLabel: "Несуществующий" } })).toBeUndefined();
+  });
+
+  it("maps subjectLabel to the topic handle (pronoun question is master-answered)", () => {
+    const fixture = GM_CORPUS.find((f) => f.expected.subjectLabel !== undefined)!;
+    expect(fixture.id).toBe("pronoun-after-mention");
+    expect(fixture.expected.addresseeKind).toBe("gm"); // master responds…
+    const handle = expectedSubjectHandle(fixture)!; // …the NPC is the subject
+    expect(handle).toBe(stableActorHandle(`person_${fixture.people.findIndex((p) => p.label === fixture.expected.subjectLabel) + 1}`));
+    expect(expectedSubjectHandle(GM_CORPUS[2])).toBeUndefined();
   });
 });
 

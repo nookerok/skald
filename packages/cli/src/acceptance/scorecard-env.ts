@@ -60,10 +60,14 @@ export function dirtyOffenders(porcelainLines: readonly string[]): string[] {
 export function corpusConfigErrors(corpus: readonly GmFixture[]): string[] {
   const errors: string[] = [];
   for (const fixture of corpus) {
-    const label = fixture.expected.npcLabel;
-    if (label === undefined) continue;
-    if (!fixture.people.some((person) => person.label === label)) {
-      errors.push(`${fixture.id}: npcLabel "${label}" is not in fixture.people`);
+    for (const [field, label] of [
+      ["npcLabel", fixture.expected.npcLabel],
+      ["subjectLabel", fixture.expected.subjectLabel],
+    ] as const) {
+      if (label === undefined) continue;
+      if (!fixture.people.some((person) => person.label === label)) {
+        errors.push(`${fixture.id}: ${field} "${label}" is not in fixture.people`);
+      }
     }
   }
   return errors;

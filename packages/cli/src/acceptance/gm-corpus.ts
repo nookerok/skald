@@ -27,7 +27,13 @@ export interface GmFixture {
   readonly input: string;
   readonly people: readonly GmFixturePerson[];
   readonly recentTurns: readonly GmFixtureTurn[];
-  readonly expected: { readonly addresseeKind: "gm" | "npc" | "meta"; readonly kind: string; readonly npcLabel?: string };
+  readonly expected: {
+    readonly addresseeKind: "gm" | "npc" | "meta";
+    readonly kind: string;
+    readonly npcLabel?: string;
+    /** The question's topic when it differs from who responds (subjectHandle). */
+    readonly subjectLabel?: string;
+  };
   /** Substrings that must never appear in the serialized context. */
   readonly forbidden: readonly string[];
 }
@@ -52,6 +58,19 @@ export function expectedNpcHandle(fixture: GmFixture): string | undefined {
   return index === -1 ? undefined : stableActorHandle(`person_${index + 1}`);
 }
 
+/**
+ * The subject handle a question-shaped expectation requires (the topic, which
+ * may differ from the responder). Same fail-closed rule as `expectedNpcHandle`:
+ * a label absent from the scene is caught by `corpusConfigErrors` before
+ * scoring rather than silently weakening the check.
+ */
+export function expectedSubjectHandle(fixture: GmFixture): string | undefined {
+  const label = fixture.expected.subjectLabel;
+  if (label === undefined) return undefined;
+  const index = fixture.people.findIndex((person) => person.label === label);
+  return index === -1 ? undefined : stableActorHandle(`person_${index + 1}`);
+}
+
 const ferryman: GmFixturePerson = { label: "Перевозчик у переправы", known: true };
 const gatekeeper: GmFixturePerson = { label: "Смотритель речных ворот", known: false };
 
@@ -64,7 +83,9 @@ export const GM_CORPUS: readonly GmFixture[] = [
       { speaker: "player", text: "Подойду к перевозчику", turnSeq: 1 },
       { speaker: "master", text: "Ты подходишь ближе. Перед тобой — Перевозчик у переправы.", turnSeq: 2 },
     ],
-    expected: { addresseeKind: "npc", kind: "world_question", npcLabel: ferryman.label },
+    // «Как он выглядит?» is addressed to the MASTER; the ferryman is the
+    // question's SUBJECT (subjectHandle), not the responder.
+    expected: { addresseeKind: "gm", kind: "world_question", subjectLabel: ferryman.label },
     forbidden: ["contact:waystation-keeper", "observerRef"],
   },
   {

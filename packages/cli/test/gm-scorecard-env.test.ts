@@ -55,14 +55,22 @@ describe("corpusConfigErrors", () => {
     expect(corpusConfigErrors(GM_CORPUS)).toEqual([]);
   });
 
-  it("rejects an npcLabel that names nobody in the fixture scene", () => {
-    const broken = [{
+  it("rejects an npcLabel or subjectLabel that names nobody in the fixture scene", () => {
+    const brokenNpc = [{
       ...GM_CORPUS[0],
       expected: { ...GM_CORPUS[0].expected, npcLabel: "Кого нет" },
     }];
-    const errors = corpusConfigErrors(broken);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toContain("npcLabel");
-    expect(errors[0]).toContain("Кого нет");
+    const npcErrors = corpusConfigErrors(brokenNpc);
+    expect(npcErrors).toHaveLength(1);
+    expect(npcErrors[0]).toContain("npcLabel");
+    expect(npcErrors[0]).toContain("Кого нет");
+
+    const brokenSubject = [{
+      ...GM_CORPUS[0],
+      expected: { ...GM_CORPUS[0].expected, subjectLabel: "Кого нет" },
+    }];
+    const subjectErrors = corpusConfigErrors(brokenSubject);
+    expect(subjectErrors).toHaveLength(1);
+    expect(subjectErrors[0]).toContain("subjectLabel");
   });
 });

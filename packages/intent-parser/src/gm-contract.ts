@@ -75,8 +75,16 @@ export type GmTurnKind = "conversation" | "world_question" | "clarification" | "
 /** The structured interpretation result. Steps are validated in S3 (P6). */
 export interface GmTurnDecision {
   schemaVersion: 1;
+  /** Who RESPONDS: master, a visible NPC, or the system. */
   addressee: GmAddressee;
   kind: GmTurnKind;
+  /**
+   * WHO the decision is ABOUT (the question's topic), when that differs from
+   * who responds: «Как он выглядит?» is addressed to the master with the NPC
+   * as subject. Observer-safe handle, never an internal id. Only on
+   * question-shaped kinds (world_question, clarification, mixed).
+   */
+  subjectHandle?: VisibleActorKey;
   steps?: readonly unknown[];
   clarification?: {
     question: string;
@@ -121,7 +129,7 @@ export function validateGmTurnDecision(
   if (!isPlainObject(raw)) {
     return { ok: false, errors: ["decision: not an object"] };
   }
-  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "steps", "clarification"], "decision", errors);
+  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "steps", "clarification"], "decision", errors);
 
   if (raw["schemaVersion"] !== GM_CONTRACT_VERSION) {
     errors.push(`decision: schemaVersion must be ${GM_CONTRACT_VERSION}`);
@@ -146,6 +154,19 @@ export function validateGmTurnDecision(
   const kind = raw["kind"];
   if (typeof kind !== "string" || !GmTurnKindSet.has(kind)) {
     errors.push(`kind: unknown "${String(kind)}"`);
+  }
+
+  if ("subjectHandle" in raw) {
+    // The topic of a question-shaped turn only: a conversation or an action
+    // has no separate subject from its addressee.
+    if (kind !== "world_question" && kind !== "clarification" && kind !== "mixed") {
+      errors.push("subjectHandle: only allowed for kind world_question, clarification or mixed");
+    }
+    if (validateHandle(raw["subjectHandle"], "subjectHandle", errors)) {
+      if (options.allowedHandles && !options.allowedHandles.includes(raw["subjectHandle"] as VisibleActorKey)) {
+        errors.push(`subjectHandle: "${String(raw["subjectHandle"])}" is not a visible actor in this scene`);
+      }
+    }
   }
 
   if ("steps" in raw) {

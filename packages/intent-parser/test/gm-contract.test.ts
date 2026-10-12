@@ -96,6 +96,26 @@ describe("validateGmTurnDecision — rejected", () => {
     if (!fabricated.ok) expect(fabricated.errors.join("\n")).toContain("not a visible actor");
   });
 
+  it("validates subjectHandle: visible topic on questions only", () => {
+    // A question about a person: master responds, the person is the subject.
+    const ok = validateGmTurnDecision(
+      { ...base, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: "e1" },
+      { allowedHandles: ["e1", "e2"] },
+    );
+    expect(ok.ok).toBe(true);
+    // Invisible subject is a fabricated actor.
+    const invisible = validateGmTurnDecision(
+      { ...base, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: "e9" },
+      { allowedHandles: ["e1"] },
+    );
+    expect(invisible.ok).toBe(false);
+    if (!invisible.ok) expect(invisible.errors.join("\n")).toContain("subjectHandle");
+    // A conversation or an action has no separate subject from its addressee.
+    const wrongKind = validateGmTurnDecision({ ...base, kind: "conversation", subjectHandle: "e1" }, { allowedHandles: ["e1"] });
+    expect(wrongKind.ok).toBe(false);
+    if (!wrongKind.ok) expect(wrongKind.errors.join("\n")).toContain("subjectHandle");
+  });
+
   it("rejects an unknown kind", () => {
     reject({ ...base, kind: "banana" }, "kind");
   });

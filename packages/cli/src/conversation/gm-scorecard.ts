@@ -24,6 +24,12 @@ export interface GmScoreExpectation {
    * different visible actor of the same class is a miss.
    */
   readonly expectedHandle?: string | undefined;
+  /**
+   * The subject handle a question-shaped expectation requires
+   * (`GmTurnDecision.subjectHandle`) — the topic, which may differ from the
+   * addressee. When set, a decision without the right subject fails.
+   */
+  readonly expectedSubjectHandle?: string | undefined;
 }
 
 export interface GmScoreEntry {
@@ -57,6 +63,8 @@ export interface GmCaseFact {
     readonly kind: string;
     /** The ONE handle an npc expectation must target, when specified. */
     readonly expectedHandle?: string | undefined;
+    /** The subject handle a question-shaped expectation requires. */
+    readonly expectedSubjectHandle?: string | undefined;
     /** Scene allowlist the decision was validated against. */
     readonly allowedHandles?: readonly string[] | undefined;
   };
@@ -64,6 +72,7 @@ export interface GmCaseFact {
     readonly addresseeKind?: string | undefined;
     readonly kind?: string | undefined;
     readonly handle?: string | undefined;
+    readonly subjectHandle?: string | undefined;
     readonly candidateHandles?: readonly string[] | undefined;
   };
   readonly passes: {
@@ -71,6 +80,7 @@ export interface GmCaseFact {
     readonly addressee: boolean;
     readonly kind: boolean;
     readonly handles: boolean;
+    readonly subject: boolean;
     readonly privacy: boolean;
   };
   readonly fallbackReason?: string | undefined;
@@ -97,8 +107,22 @@ function percentile(sorted: readonly number[], q: number): number | null {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 }
 
+/**
+ * The addressee a decision must carry for one expectation. The scorer's
+ * expectation vocabulary allows the pseudo-kind "clarification" (a
+ * clarification is always addressed to the master).
+ */
+function expectedDecisionAddresseeKind(entry: GmScoreEntry): string {
+  return entry.expected.addresseeKind === "clarification" ? "gm" : entry.expected.addresseeKind;
+}
+
 function handlesPass(entry: GmScoreEntry, decision: GmTurnDecision): boolean {
   const allowed = entry.expected.allowedHandles ?? [];
+  // The EXPECTED structure must be present: answering gm when an npc target
+  // was required (or world_question when a clarification was required) fails
+  // handles too — otherwise a wrong-shaped decision escapes this dimension.
+  if (decision.addressee.kind !== expectedDecisionAddresseeKind(entry)) return false;
+  if (decision.kind !== entry.expected.kind) return false;
   if (decision.addressee.kind === "npc") {
     const handle = (decision.addressee as { handle?: string }).handle;
     if (typeof handle !== "string" || !allowed.includes(handle)) return false;
@@ -114,16 +138,44 @@ function handlesPass(entry: GmScoreEntry, decision: GmTurnDecision): boolean {
   return true;
 }
 
+/** True when the subject expectation is satisfied (no subject expected → pass). */
+function subjectPass(entry: GmScoreEntry, decision: GmTurnDecision | undefined): boolean {
+  const expected = entry.expected.expectedSubjectHandle;
+  if (expected === undefined) return true;
+  if (decision === undefined) return false;
+  const subject = decision.subjectHandle;
+  if (typeof subject !== "string") return false;
+  const allowed = entry.expected.allowedHandles;
+  if (allowed !== undefined && !allowed.includes(subject)) return false;
+  return subject === expected;
+}
+
+/** Every string leaf of a decision (question, handle fields, free text). */
+function decisionStrings(value: unknown, out: string[] = []): string[] {
+  if (typeof value === "string") { out.push(value); return out; }
+  if (Array.isArray(value)) { for (const item of value) decisionStrings(item, out); return out; }
+  if (typeof value === "object" && value !== null) {
+    for (const item of Object.values(value)) decisionStrings(item, out);
+  }
+  return out;
+}
+
 /**
- * True when the serialized context leaks none of the forbidden substrings.
- * Fail-closed: forbidden substrings without a context to check are a failure —
- * a scorer must never treat "no evidence" as "no leak".
+ * True when nothing leaks: the INPUT context carries none of the forbidden
+ * substrings AND no string the MODEL produced (clarification question, handle
+ * text, steps) contains them either. Fail-closed: forbidden substrings without
+ * a context to check are a failure — "no evidence" is never "no leak".
  */
 function privacyPass(entry: GmScoreEntry): boolean {
   const forbidden = entry.forbidden ?? [];
   if (forbidden.length === 0) return true;
   if (entry.contextJson === undefined) return false;
-  return forbidden.every((needle) => !entry.contextJson!.includes(needle));
+  if (forbidden.some((needle) => entry.contextJson!.includes(needle))) return false;
+  if (entry.decision !== undefined) {
+    const answers = decisionStrings(entry.decision);
+    if (forbidden.some((needle) => answers.some((text) => text.includes(needle)))) return false;
+  }
+  return true;
 }
 
 /** Score one entry against its expectation across every dimension. */
@@ -135,6 +187,7 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     addressee: { total, passed: 0, failures: [] },
     kind: { total, passed: 0, failures: [] },
     handles: { total, passed: 0, failures: [] },
+    subject: { total, passed: 0, failures: [] },
     privacy: { total, passed: 0, failures: [] },
   };
   const latencies: number[] = [];
@@ -151,9 +204,14 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     else dims.privacy.failures.push(entry.input);
 
     const decisionValue = entry.decision;
-    const addresseeOk = decisionValue !== undefined && decisionValue.addressee.kind === entry.expected.addresseeKind;
+    const addresseeOk = decisionValue !== undefined && decisionValue.addressee.kind === expectedDecisionAddresseeKind(entry);
     const kindOk = decisionValue !== undefined && decisionValue.kind === entry.expected.kind;
     const handlesOk = decisionValue !== undefined && handlesPass(entry, decisionValue);
+    // Scored for every entry: a missing subject on an expected topic fails,
+    // and an expectation-free entry has nothing to check.
+    const subjectOk = subjectPass(entry, decisionValue);
+    if (subjectOk) dims.subject.passed += 1;
+    else dims.subject.failures.push(entry.input);
 
     if (decisionValue !== undefined) {
       dims.decisionAccepted.passed += 1;
@@ -171,15 +229,17 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
         addresseeKind: entry.expected.addresseeKind,
         kind: entry.expected.kind,
         expectedHandle: entry.expected.expectedHandle,
+        expectedSubjectHandle: entry.expected.expectedSubjectHandle,
         allowedHandles: entry.expected.allowedHandles !== undefined ? Object.freeze([...entry.expected.allowedHandles]) : undefined,
       },
       actual: {
         addresseeKind: decisionValue?.addressee.kind,
         kind: decisionValue?.kind,
         handle: decisionValue?.addressee.kind === "npc" ? decisionValue.addressee.handle : undefined,
+        subjectHandle: decisionValue?.subjectHandle,
         candidateHandles: decisionValue?.kind === "clarification" ? decisionValue.clarification?.candidateHandles : undefined,
       },
-      passes: { schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, privacy: privacyOk },
+      passes: { schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, privacy: privacyOk },
       fallbackReason: entry.trace.fallbackReason,
       provider: entry.trace.provider,
       model: entry.trace.model,

@@ -42,7 +42,7 @@ import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../conversatio
 import { scoreGmCorpus, type GmScoreEntry } from "../conversation/gm-scorecard.js";
 import { createLiveRouterConfiguration, refreshRouterSelection } from "../runtime/router-factory.js";
 import { applyServiceEnv } from "./service-env.js";
-import { GM_CORPUS, GM_CORPUS_VERSION, expectedNpcHandle, type GmFixture } from "./gm-corpus.js";
+import { GM_CORPUS, GM_CORPUS_VERSION, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "./gm-corpus.js";
 import { corpusConfigErrors, dirtyOffenders, parseGmRuns } from "./scorecard-env.js";
 
 const OUT = process.env["OUT"] ?? "eval-out/gm-shadow-scorecard.json";
@@ -169,6 +169,7 @@ const prepared = GM_CORPUS.map((fixture) => {
     allowedHandles,
     userPrompt: buildGmDecisionPrompt(fixture.input, context),
     expectedHandle: expectedNpcHandle(fixture),
+    expectedSubjectHandle: expectedSubjectHandle(fixture),
   };
 });
 
@@ -206,6 +207,7 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
         kind: expectedKind,
         allowedHandles: item.allowedHandles,
         expectedHandle: item.expectedHandle,
+        expectedSubjectHandle: item.expectedSubjectHandle,
       },
       contextJson: item.contextJson,
       forbidden: item.fixture.forbidden,
@@ -233,6 +235,7 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
     // the discovery selection snapshot — this is the serving order of record.
     effectiveRoutes: {
       interpret: router.routeCandidates("interpret").map((candidate) => ({ provider: candidate.provider, model: candidate.model, tier: candidate.tier })),
+      narrate: router.routeCandidates("narrate").map((candidate) => ({ provider: candidate.provider, model: candidate.model, tier: candidate.tier })),
     },
     // Discovery selection kept for context (may differ from the pinned order).
     selection,
