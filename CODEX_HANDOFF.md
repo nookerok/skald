@@ -147,8 +147,18 @@
     of a clarification with candidates;
   - **subject 7/7** — the model emits `subjectHandle` for the pronoun
     question as the new prompt rule asks.
-- Still open for S0: the user's quality threshold (now a single stable miss),
-  single-flight, and the NTFS browser job.
+- Prompt v3 (clarification ban) at `29d215c`: an unaddressed «Кто …?» among
+  two or more visible actors is now a PROHIBITION — always a clarification
+  listing every fitting handle, never a world_question — and the scene-derived
+  example mirrors the previously failing replica. Ollama `GM_SCORECARD_PROVIDER`
+  `GM_RUNS=3`, files `eval-out/gm-shadow-scorecard-clar3-ollama.run{1,2,3}.json`,
+  3/3 IDENTICAL and **7/7 on EVERY dimension** (schema, decisionAccepted,
+  addressee, kind, handles, subject, privacy) with ZERO failing cases: the
+  first fully green `gm-corpus-v1` baseline for
+  `ollama_cloud/gemma4:31b-cloud`.
+- Still open for S0 closure: single-flight (`providerCalls === 1` under
+  concurrency), the fixed NTFS browser job with stable screenshots, and human
+  acceptance. The quality threshold question is moot at 7/7.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
