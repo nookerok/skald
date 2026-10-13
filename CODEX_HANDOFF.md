@@ -187,6 +187,25 @@
   envelopes (worldTime 1), worldTime advanced exactly once. (An initial
   state read raced the commit by milliseconds; the follow-up read and both
   envelopes confirm the single advance.)
+- Single-flight scope fix + LIVE PROOF at `5c1909a`:
+  - The flight key is now `intent-hash(worldId|idempotencyKey|input)` in
+    world-handlers AND the director additionally scopes its own registry by
+    the replica text (defense in depth) — the same idempotency key in another
+    world, or with a changed replica, can no longer share a shadow slot.
+  - Director regressions: same key+text → 1 call; different turnKeys → 2;
+    same key + different text → 2; after settle a new call is allowed.
+  - NEW integration test (`gm-director-single-flight-http.test.ts`) drives the
+    REAL `handleWorldCommand` with a barrier router and `GM_DIRECTOR_SHADOW=1`:
+    concurrent identical requests in one world → exactly ONE provider call and
+    exactly ONE `gm_director` diagnostic; the same key in TWO worlds → two
+    independent calls (cross-world isolation).
+  - The `gm_director` diagnostic now carries `provider`/`model`.
+  - LIVE PROOF (scratch-only process on the Pi: port 3100, own /tmp DB,
+    `GM_DIRECTOR_SHADOW=1`, production service untouched): two parallel
+    identical POSTs → both 200, server log shows exactly **1**
+    `gm_director` row (`provider=ollama_cloud`, `model=gemma4:31b-cloud`,
+    `providerLatencyMs=690`, decision accepted) and exactly **1** `kind:llm`
+    row. The process was stopped afterwards.
 - Still open for S0 closure: the fixed NTFS browser job with stable
   screenshots, and human acceptance.
 - Still OPEN: item 8 single-flight (a live route must prove
