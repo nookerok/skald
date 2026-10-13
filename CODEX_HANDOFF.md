@@ -156,9 +156,26 @@
   addressee, kind, handles, subject, privacy) with ZERO failing cases: the
   first fully green `gm-corpus-v1` baseline for
   `ollama_cloud/gemma4:31b-cloud`.
+- Corpus/pin round at `9777369`:
+  - `GM_CORPUS_VERSION` → **gm-corpus-v2** (the pronoun fixture had moved to
+    gm+subject without a bump, violating the constant's own reproducibility
+    contract; changelog added).
+  - The A/B pin is now declared and ENFORCED as interpret-only: a fail-closed
+    `provider_pin_leak` guard blocks any run whose effective interpret route
+    contains another provider; the local `opencode_run` appended to narrate is
+    documented and never serves scorecard calls.
+  - Baseline rerun `GM_SCORECARD_PROVIDER=ollama_cloud` `GM_RUNS=3`, files
+    `eval-out/gm-shadow-scorecard-v2-ollama.run{1,2,3}.json`, 3/3 IDENTICAL,
+    corpus `gm-corpus-v2`, **7/7 on every dimension**, zero failures, effective
+    interpret `ollama_cloud/gemma4:31b-cloud` (live_primary).
+  - LIVE failure-path proven (was unit-test-only): one run with
+    `GM_TIMEOUT_MS=1` (`eval-out/gm-shadow-scorecard-failpath.json`) — all 7
+    entries are `provider_error` fallbacks and EVERY case carries
+    `provider=ollama_cloud` / `model=gemma4:31b-cloud`, i.e. the attribution
+    survives real timeouts end to end.
 - Still open for S0 closure: single-flight (`providerCalls === 1` under
   concurrency), the fixed NTFS browser job with stable screenshots, and human
-  acceptance. The quality threshold question is moot at 7/7.
+  acceptance.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
