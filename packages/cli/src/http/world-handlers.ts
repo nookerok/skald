@@ -1194,9 +1194,13 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
     // only path that may change the world (G1).
     if (gmDirectorShadowEnabled() && runtime.router) {
       const shadowSnapshot = snapshot;
-      // Opaque correlation: the player's replica and the idempotency key must
-      // never enter the diagnostic stream (revise P1).
-      const shadowCorrelation = `intent-${conversationRequestHash(idempotencyKey)}`;
+          // Opaque correlation: the player's replica and the idempotency key
+          // must never enter the diagnostic stream (revise P1). Scoped by
+          // WORLD and by the request hash: idempotency is
+          // (world_id, idempotency_key) in storage, so a key reused in another
+          // world — or with a different replica — must never share a
+          // single-flight slot.
+          const shadowCorrelation = `intent-${conversationRequestHash(`${runtime.worldId}|${idempotencyKey}|${input}`)}`;
       void (async () => {
         try {
           const knowledge = buildPlayerKnowledgePresentation(
@@ -1233,6 +1237,8 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             providerLatencyMs: director.trace.providerLatencyMs,
             totalLatencyMs: director.trace.totalLatencyMs,
             ...(director.trace.replyShape ? { replyShape: director.trace.replyShape } : {}),
+            ...(director.trace.provider ? { provider: director.trace.provider } : {}),
+            ...(director.trace.model ? { model: director.trace.model } : {}),
             schemaValid: director.trace.schemaValid,
             rawSchemaValid: director.trace.rawSchemaValid,
             decisionAccepted: director.trace.decisionAccepted,

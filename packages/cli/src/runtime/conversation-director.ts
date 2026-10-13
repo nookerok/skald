@@ -7,6 +7,7 @@
  * against the legacy path; only the legacy path may change the world.
  */
 
+import { createHash } from "node:crypto";
 import type { ChatMessage, ModelRouter } from "@skald/world";
 import {
   GM_CONTRACT_VERSION,
@@ -124,7 +125,11 @@ export function normalizeDecisionShape(raw: unknown): unknown {
 export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDirectorResult> {
   const flight = input.flight;
   if (!flight) return interpretGmDecisionOnce(input);
-  const existing = flight.get(input.turnKey);
+  // Defense in depth: scope by the replica TEXT as well as the caller's
+  // turnKey, so one shared registry can never serve the same key to two
+  // different requests (cross-world or changed-text collisions).
+  const flightKey = `${input.turnKey}|${createHash("sha256").update(input.input).digest("hex").slice(0, 16)}`;
+  const existing = flight.get(flightKey);
   if (existing) {
     const shared = await existing;
     return { ...shared, shared: true };
@@ -132,8 +137,8 @@ export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDir
   const leader = interpretGmDecisionOnce(input);
   // Track the SETTLED promise (never rejects in practice: provider errors are
   // mapped to fallbacks) and always release the key on settle.
-  const tracked = leader.finally(() => { flight.delete(input.turnKey); });
-  flight.set(input.turnKey, tracked);
+  const tracked = leader.finally(() => { flight.delete(flightKey); });
+  flight.set(flightKey, tracked);
   return tracked;
 }
 

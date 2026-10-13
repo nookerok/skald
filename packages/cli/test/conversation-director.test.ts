@@ -538,13 +538,24 @@ describe("interpretGmDecision — single-flight", () => {
     expect(chat).toHaveBeenCalledTimes(2);
   });
 
-  it("different turnKeys never share a call", async () => {
+  it("different turnKeys never share a call (cross-world scope)", async () => {
     const chat = vi.fn(async () => ({ text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "m", usedFallback: false }));
     const router = { apiKey: "", chat } as unknown as ModelRouter;
     const flight = createGmDirectorFlight();
     await Promise.all([
       interpretGmDecision({ ...base, turnKey: "intent-k1", router, flight }),
       interpretGmDecision({ ...base, turnKey: "intent-k2", router, flight }),
+    ]);
+    expect(chat).toHaveBeenCalledTimes(2);
+  });
+
+  it("the SAME turnKey with a DIFFERENT replica does not share (text scope)", async () => {
+    const chat = vi.fn(async () => ({ text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "m", usedFallback: false }));
+    const router = { apiKey: "", chat } as unknown as ModelRouter;
+    const flight = createGmDirectorFlight();
+    await Promise.all([
+      interpretGmDecision({ ...base, input: "Привет", router, flight }),
+      interpretGmDecision({ ...base, input: "Кто здесь?", router, flight }),
     ]);
     expect(chat).toHaveBeenCalledTimes(2);
   });
