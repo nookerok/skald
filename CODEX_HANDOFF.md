@@ -173,9 +173,22 @@
     entries are `provider_error` fallbacks and EVERY case carries
     `provider=ollama_cloud` / `model=gemma4:31b-cloud`, i.e. the attribution
     survives real timeouts end to end.
-- Still open for S0 closure: single-flight (`providerCalls === 1` under
-  concurrency), the fixed NTFS browser job with stable screenshots, and human
-  acceptance.
+- Single-flight (item 8) at `43cfffd`: `interpretGmDecision` takes an explicit
+  caller-owned flight registry (`createGmDirectorFlight`, keyed by turnKey =
+  `intent-<hash(idempotencyKey)>`, no hidden globals). Concurrent identical
+  player requests share ONE provider call; the follower receives the leader
+  result marked `shared` and world-handlers emits ONE `gm_director` diagnostic
+  per logical turn. The registry releases keys on settle — concurrency
+  collapse, not a cache. Four concurrency tests: one chat call for two
+  concurrent calls; a fresh call after settle; distinct keys never share;
+  pass-through without a registry. LIVE parallel check on the deployed server
+  (`43cfffd`): two simultaneous POSTs with the SAME idempotency key on a
+  scratch world → both HTTP 200 `ok:true`, one `replayed:true`, identical
+  envelopes (worldTime 1), worldTime advanced exactly once. (An initial
+  state read raced the commit by milliseconds; the follow-up read and both
+  envelopes confirm the single advance.)
+- Still open for S0 closure: the fixed NTFS browser job with stable
+  screenshots, and human acceptance.
 - Still OPEN: item 8 single-flight (a live route must prove
   `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
 - P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
