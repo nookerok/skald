@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MasterTurnSceneContext } from "@skald/world";
 import type { ModelRouter } from "@skald/world";
 import { buildGmContext } from "../src/conversation/gm-context.js";
-import { interpretGmDecision, extractJsonObject, normalizeDecisionShape } from "../src/runtime/conversation-director.js";
+import { interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight } from "../src/runtime/conversation-director.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
@@ -495,6 +495,68 @@ describe("expectedNpcHandle", () => {
     const handle = expectedSubjectHandle(fixture)!; // …the NPC is the subject
     expect(handle).toBe(stableActorHandle(`person_${fixture.people.findIndex((p) => p.label === fixture.expected.subjectLabel) + 1}`));
     expect(expectedSubjectHandle(GM_CORPUS[2])).toBeUndefined();
+  });
+});
+
+describe("interpretGmDecision — single-flight", () => {
+  const built = buildGmContext({ scene: sceneOf(GM_CORPUS[2]), conversation: conversationOf(GM_CORPUS[2]) });
+  const base = {
+    input: "Привет",
+    context: built.context,
+    handleKeys: [...built.handleToObserverRef.keys()],
+    turnKey: "intent-same-key",
+  };
+
+  it("two concurrent identical calls share ONE provider call; the follower is marked shared", async () => {
+    const chat = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return { text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "test-model", usedFallback: false };
+    });
+    const router = { apiKey: "", chat } as unknown as ModelRouter;
+    const flight = createGmDirectorFlight();
+
+    const [a, b] = await Promise.all([
+      interpretGmDecision({ ...base, router, flight }),
+      interpretGmDecision({ ...base, router, flight }),
+    ]);
+    // ONE provider call for both concurrent requests.
+    expect(chat).toHaveBeenCalledTimes(1);
+    // Same outcome; exactly one of the two is the shared follower.
+    expect(a.status).toBe("decision");
+    expect(b.status).toBe("decision");
+    expect([a.shared === true, b.shared === true].filter(Boolean)).toHaveLength(1);
+    // The registry releases the key on settle — no result caching.
+    expect(flight.size).toBe(0);
+  });
+
+  it("a later call after settle is a NEW provider call (concurrency collapse, not a cache)", async () => {
+    const chat = vi.fn(async () => ({ text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "m", usedFallback: false }));
+    const router = { apiKey: "", chat } as unknown as ModelRouter;
+    const flight = createGmDirectorFlight();
+    await interpretGmDecision({ ...base, router, flight });
+    await interpretGmDecision({ ...base, router, flight });
+    expect(chat).toHaveBeenCalledTimes(2);
+  });
+
+  it("different turnKeys never share a call", async () => {
+    const chat = vi.fn(async () => ({ text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "m", usedFallback: false }));
+    const router = { apiKey: "", chat } as unknown as ModelRouter;
+    const flight = createGmDirectorFlight();
+    await Promise.all([
+      interpretGmDecision({ ...base, turnKey: "intent-k1", router, flight }),
+      interpretGmDecision({ ...base, turnKey: "intent-k2", router, flight }),
+    ]);
+    expect(chat).toHaveBeenCalledTimes(2);
+  });
+
+  it("without a flight registry behavior is unchanged (pass-through)", async () => {
+    const chat = vi.fn(async () => ({ text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "m", usedFallback: false }));
+    const router = { apiKey: "", chat } as unknown as ModelRouter;
+    await Promise.all([
+      interpretGmDecision({ ...base, router }),
+      interpretGmDecision({ ...base, router }),
+    ]);
+    expect(chat).toHaveBeenCalledTimes(2);
   });
 });
 

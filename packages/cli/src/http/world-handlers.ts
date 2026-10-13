@@ -83,7 +83,7 @@ import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { buildGmContext } from "../conversation/gm-context.js";
-import { interpretGmDecision, gmDirectorShadowEnabled } from "../runtime/conversation-director.js";
+import { interpretGmDecision, gmDirectorShadowEnabled, createGmDirectorFlight } from "../runtime/conversation-director.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
 import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js";
 import { splitTargetCompound } from "../runtime/master-turn-validator.js";
@@ -108,6 +108,15 @@ function acknowledgeRequestHash(worldTime: number, eventNumber: number): string 
     .update(JSON.stringify({ kind: "acknowledge", worldTime, eventNumber }))
     .digest("hex");
 }
+
+/**
+ * Single-flight registry for the shadow Conversation Director. Keyed by the
+ * turnKey (`intent-<hash(idempotencyKey)>`), so two concurrent identical
+ * player requests share ONE provider call and ONE diagnostic; entries are
+ * removed on settle and never cache results. Operational state, not game
+ * state — the Event Log remains the only source of truth.
+ */
+const gmDirectorFlight = createGmDirectorFlight();
 
 export interface JsonResponse {
   statusCode: number;
@@ -1209,8 +1218,11 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             router: runtime.router!,
             turnKey: shadowCorrelation,
             timeoutMs: 4000,
+            flight: gmDirectorFlight,
           });
-          emitMasterTurnDiagnostic(runtime.diagnostics, {
+          // Single-flight: a follower shares the leader's result — one
+          // provider call, one diagnostic, identical outcome.
+          if (director.shared !== true) emitMasterTurnDiagnostic(runtime.diagnostics, {
             category: "gm_director",
             outcome: director.status,
             phase: "shadow",

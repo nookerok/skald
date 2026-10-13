@@ -52,11 +52,30 @@ export interface GmDirectorInput {
   readonly router: ModelRouter;
   readonly turnKey: string;
   readonly timeoutMs?: number | undefined;
+  /**
+   * Optional single-flight registry owned by the caller (never a hidden
+   * global): concurrent calls with the SAME turnKey share one provider call.
+   * Omit it for no dedup (tests, one-shot scripts).
+   */
+  readonly flight?: GmDirectorFlight | undefined;
+}
+
+/**
+ * Single-flight registry: turnKey → the in-flight (or just-settled) director
+ * call. Owned by the runtime that serves requests; entries are removed as
+ * soon as the promise settles, so the map never caches results — it only
+ * collapses concurrency.
+ */
+export type GmDirectorFlight = Map<string, Promise<GmDirectorResult>>;
+
+/** Creates an empty single-flight registry for one runtime/server. */
+export function createGmDirectorFlight(): GmDirectorFlight {
+  return new Map();
 }
 
 export type GmDirectorResult =
-  | { readonly status: "decision"; readonly decision: GmTurnDecision; readonly trace: GmDirectorTrace }
-  | { readonly status: "fallback"; readonly reason: string; readonly trace: GmDirectorTrace };
+  | { readonly status: "decision"; readonly decision: GmTurnDecision; readonly trace: GmDirectorTrace; readonly shared?: boolean }
+  | { readonly status: "fallback"; readonly reason: string; readonly trace: GmDirectorTrace; readonly shared?: boolean };
 
 /** Best-effort JSON object extraction from a model reply (never throws). */
 export function extractJsonObject(text: string): unknown | null {
@@ -96,8 +115,30 @@ export function normalizeDecisionShape(raw: unknown): unknown {
   return raw;
 }
 
-/** Run one director interpretation. Pure side-effect free with respect to the world. */
+/**
+ * Single-flight entry point: concurrent calls with the same `turnKey` share
+ * ONE provider call (the follower receives the leader's result marked
+ * `shared: true` so it can skip duplicate diagnostics). Without a `flight`
+ * registry this is a direct pass-through.
+ */
 export async function interpretGmDecision(input: GmDirectorInput): Promise<GmDirectorResult> {
+  const flight = input.flight;
+  if (!flight) return interpretGmDecisionOnce(input);
+  const existing = flight.get(input.turnKey);
+  if (existing) {
+    const shared = await existing;
+    return { ...shared, shared: true };
+  }
+  const leader = interpretGmDecisionOnce(input);
+  // Track the SETTLED promise (never rejects in practice: provider errors are
+  // mapped to fallbacks) and always release the key on settle.
+  const tracked = leader.finally(() => { flight.delete(input.turnKey); });
+  flight.set(input.turnKey, tracked);
+  return tracked;
+}
+
+/** Run one director interpretation. Pure side-effect free with respect to the world. */
+async function interpretGmDecisionOnce(input: GmDirectorInput): Promise<GmDirectorResult> {
   const started = Date.now();
   // Mutable working copy; frozen into the readonly trace on return.
   const trace: {
