@@ -43,8 +43,12 @@ export interface GmFixture {
  * across runs that carry the SAME `GM_CORPUS_VERSION`; changing any fixture
  * (input, people, turns, expected, forbidden) MUST bump this constant, because
  * the previous percentages no longer describe the same sample.
+ *
+ * v2 (2026-10-12): `pronoun-after-mention` moved from npc-addressee to
+ * gm-addressee + subjectLabel under the `subjectHandle` contract; no other
+ * fixture changed.
  */
-export const GM_CORPUS_VERSION = "gm-corpus-v1";
+export const GM_CORPUS_VERSION = "gm-corpus-v2";
 
 /**
  * The handle the npc expectation names. The corpus stores `npcLabel` and the

@@ -16,9 +16,12 @@
  *   [GM_SCORECARD_PROVIDER=<provider>] [SKALD_ENV_FILE=<env>] \
  *     npm run acceptance:gm-shadow:scorecard
  *
- * `GM_SCORECARD_PROVIDER` pins every route to ONE provider (A/B comparisons);
- * a pin the discovery did not select fail-closes with
- * `provider_not_in_selection` instead of silently failing over.
+ * `GM_SCORECARD_PROVIDER` pins the SCORECARD route (interpret — the only
+ * category the director calls) to ONE provider for A/B comparisons; a pin the
+ * discovery did not select fail-closes with `provider_not_in_selection`, and
+ * an effective interpret route containing another provider fail-closes with
+ * `provider_pin_leak`. Narrate may still carry the local `opencode_run`
+ * transport appended by the router factory — it never serves scorecard calls.
  *
  * Fail-closed exits with code 2 and NO scorecard file when: the env file is
  * unreadable, no router is configured, `EXPECTED_COMMIT` does not match the
@@ -137,9 +140,11 @@ const configuredRouter = configuration?.router ?? null;
 if (!configuredRouter) blocked("no_router_configured");
 const router = configuredRouter;
 
-// Optional A/B pin: restrict every route to ONE provider so a comparison run
-// can never silently fail over to another one. Without a pin the normal
-// discovery order (Zen → Ollama Cloud → OpenRouter) applies.
+// Optional A/B pin: restrict the SCORECARD route (interpret — the only
+// category the director calls) to ONE provider so a comparison run can never
+// silently fail over. Note: `refreshRouterSelection` re-appends the local
+// `opencode_run` transport to NARRATE by design; narrate never serves
+// scorecard calls, and the assertion below proves interpret stays exclusive.
 const pinnedProvider = process.env["GM_SCORECARD_PROVIDER"] ?? null;
 if (pinnedProvider !== null) {
   const selection = configuration?.selectionReport;
@@ -154,6 +159,12 @@ if (pinnedProvider !== null) {
     });
   }
   refreshRouterSelection(router, { ...selection, routes: pinnedRoutes });
+  // Fail-closed pin contract: the EFFECTIVE interpret route must be the pinned
+  // provider only — otherwise this run would not be the A/B it claims to be.
+  const leaked = router.routeCandidates("interpret").filter((candidate) => candidate.provider !== pinnedProvider);
+  if (leaked.length > 0) {
+    blocked("provider_pin_leak", { provider: pinnedProvider, leaked: leaked.map((c) => `${c.provider}/${c.model}`) });
+  }
 }
 
 // Build the per-fixture scenes ONCE: the same contexts feed the model, the
