@@ -205,14 +205,19 @@
     exactly ONE `gm_director` diagnostic; the same key in TWO worlds → two
     independent calls (cross-world isolation).
   - The `gm_director` diagnostic now carries `provider`/`model`.
-  - LIVE PROOF (scratch-only process on the Pi: port 3100, own /tmp DB,
-    `GM_DIRECTOR_SHADOW=1`, production service untouched): two parallel
-    identical POSTs → both 200, server log shows exactly **1**
-    `gm_director` row (`provider=ollama_cloud`, `model=gemma4:31b-cloud`,
-    `providerLatencyMs=690`, decision accepted) and exactly **1** `kind:llm`
-    row. The process was stopped afterwards.
+  - LIVE PROOF with a DURABLE RECEIPT: `docs/acceptance/gm-single-flight-live-receipt.json`
+    (schema `GM_SINGLE_FLIGHT_LIVE_RECEIPT_V1`, commit `d8dc741`, scratch-only
+    process port 3100 + own /tmp DB, `GM_DIRECTOR_SHADOW=1`, production service
+    untouched): two parallel identical POSTs → both 200, exactly **1**
+    `gm_director` row (`ollama_cloud/gemma4:31b-cloud`, decision accepted) and
+    exactly **1** `kind:llm` row; `serverLogSha256=4da7b619…` recorded for
+    re-verification. Verdict PASS.
 - Still open for S0 closure: the fixed NTFS browser job with stable
   screenshots, and human acceptance.
+- Operational fix on the Pi: `skald-data/skald.env` line 9 was a stray bare
+  token (`narrow-caption`) that errored on every sourcing — commented out with
+  a timestamped backup; `bash -n` OK, sourcing clean, service restarted and
+  healthy (all timers active).
 - Single-flight (former item 8) is CLOSED — scope fix, unit+integration
   tests and the live scratch receipt above; do not re-open it as "open".
 - P0–P2 remain OPEN (S0 is not closed yet); do NOT start P3
