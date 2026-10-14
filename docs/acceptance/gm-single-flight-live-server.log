@@ -1,0 +1,17 @@
+[persistence] migrated v10->v11: conversation turn classes widened
+[persistence] migrated v11->v12: conversation memory metadata column added
+[persistence] migrated v12->v13: command response envelopes added
+(node:2154399) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Skald server started
+  Host: http://127.0.0.1:3100
+  DB:   /tmp/gm-shadow-live/events.sqlite (exists)
+  PID:  2154399
+  Press Ctrl-C to stop
+{"kind":"intent","category":"command_outcome","outcome":"none","provider":"master_turn","phase":"read_only","attempt":1,"durationMs":0,"timeoutMs":0,"priority":"interactive","worldTime":0,"turn":0,"temporalCost":0,"tickPassedCount":0,"timePolicy":"read_only","movementTargetKind":"none","movementOutcome":"none","recordedAt":"2026-10-14T18:49:05.343Z"}
+{"kind":"intent","category":"command_outcome","outcome":"replayed","provider":"master_turn","phase":"replay","attempt":1,"durationMs":0,"timeoutMs":0,"priority":"interactive","worldTime":0,"turn":0,"temporalCost":0,"tickPassedCount":0,"timePolicy":"replay","movementTargetKind":"none","movementOutcome":"replayed","replayed":true,"recordedAt":"2026-10-14T18:49:05.357Z"}
+{"kind":"intent","category":"gm_director","outcome":"decision","provider":"ollama_cloud","model":"gemma4:31b-cloud","phase":"shadow","attempt":1,"durationMs":0,"timeoutMs":0,"priority":"interactive","correlationId":"intent-e1d1de79740a9d1a7aba9d19dd110db06ab543463249fc3789419053d50671d5","worldTime":0,"turn":0,"decisionKind":"world_question","addresseeKind":"gm","providerLatencyMs":698,"totalLatencyMs":701,"schemaValid":true,"rawSchemaValid":true,"decisionAccepted":true,"recordedAt":"2026-10-14T18:49:05.945Z"}
+{"kind":"provider","category":"narrate","outcome":"success","provider":"ollama_cloud","model":"gemma4:31b-cloud","configuredModel":"gemma4:31b-cloud","phase":"request","attempt":1,"durationMs":1340,"timeoutMs":30000,"priority":"interactive","correlationId":"conversation:sf-live-2154394","worldTime":0,"recordedAt":"2026-10-14T18:49:06.676Z"}
+{"kind":"llm","category":"success","outcome":"success","provider":"ollama_cloud","durationMs":1342,"turn":0,"worldTime":0,"attempt":1,"priority":"interactive","timeout":30000,"retryOutcome":"none","worldId":"world-f1e03fa3-2e14-4396-b844-9be4332735f9","recordedAt":"2026-10-14T18:49:06.701Z","correlationId":"conversation:sf-live-2154394","model":"gemma4:31b-cloud","configuredModel":"gemma4:31b-cloud"}
+
+Received SIGTERM, shutting down...

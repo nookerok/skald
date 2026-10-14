@@ -4,7 +4,7 @@
   "actualCommit": "d8dc741a13d553457ff5c4975fb23cb6e9d1dc73",
   "scratchProcess": { "port": 3100, "dbPath": "/tmp/gm-shadow-live/events.sqlite", "shadowEnv": "GM_DIRECTOR_SHADOW=1", "productionServiceTouched": false, "healthyAtStart": "yes" },
   "request": { "worldId": "world-f1e03fa3-2e14-4396-b844-9be4332735f9", "input": "Где я?", "idempotencyKey": "sf-live-2154394", "parallel": 2, "httpStatus": ["200", "200"] },
-  "evidence": { "gmDirectorDiagnostics": 1, "llmRows": 1, "serverLogSha256": "4da7b619fea744e597b4913038c80b3f1f2a66a285e755265f8cbf96c135b30f" },
+  "evidence": { "gmDirectorDiagnostics": 1, "llmRows": 1, "serverLogPath": "docs/acceptance/gm-single-flight-live-server.log", "serverLogSha256": "1c9f8f204e2d68ef601c5a56b68c3a205d74680e2adad750f1aa557be4f26b42", "serverLogNote": "Hash covers the archived file INCLUDING the trailing 'Received SIGTERM' shutdown line; the in-run hash (4da7b619...) was taken just before shutdown and differed by that line only." },
   "gmDirectorRow": {"kind":"intent","category":"gm_director","outcome":"decision","provider":"ollama_cloud","model":"gemma4:31b-cloud","phase":"shadow","attempt":1,"durationMs":0,"timeoutMs":0,"priority":"interactive","correlationId":"intent-e1d1de79740a9d1a7aba9d19dd110db06ab543463249fc3789419053d50671d5","worldTime":0,"turn":0,"decisionKind":"world_question","addresseeKind":"gm","providerLatencyMs":698,"totalLatencyMs":701,"schemaValid":true,"rawSchemaValid":true,"decisionAccepted":true,"recordedAt":"2026-10-14T18:49:05.945Z"},
   "expectation": { "gmDirectorDiagnostics": 1, "llmRows": 1 },
   "verdict": "PASS"

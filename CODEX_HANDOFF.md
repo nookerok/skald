@@ -211,7 +211,18 @@
     untouched): two parallel identical POSTs → both 200, exactly **1**
     `gm_director` row (`ollama_cloud/gemma4:31b-cloud`, decision accepted) and
     exactly **1** `kind:llm` row; `serverLogSha256=4da7b619…` recorded for
-    re-verification. Verdict PASS.
+    re-verification. Verdict PASS. The sanitized server log itself is
+    archived next to it as
+    `docs/acceptance/gm-single-flight-live-server.log` (sha256 matches the
+    receipt; it shows request 1 executing, request 2 `replayed`, exactly one
+    `gm_director` row and one `kind:llm` row, plus the trailing SIGTERM line —
+    the reason the pre-shutdown in-run hash differed).
+- Fresh Pi re-verification (independent of the receipt run): services
+  `active,active,active`, health 200, HEAD `d8dc741`, `skald.env` line 9 is
+  the commented stray token, sourcing CLEAN.
+- Handler-level failure-path test added: a REJECTING provider at the real
+  `handleWorldCommand` still yields exactly ONE failed provider call and ONE
+  `gm_director` diagnostic (`outcome=fallback`, provider attributed).
 - Still open for S0 closure: the fixed NTFS browser job with stable
   screenshots, and human acceptance.
 - Operational fix on the Pi: `skald-data/skald.env` line 9 was a stray bare
