@@ -1,0 +1,81 @@
+{
+  "schema": "GM_SINGLE_FLIGHT_LIVE_RECEIPT_V2",
+  "recordedAt": "2026-10-14T19:51:32.987Z",
+  "actualCommit": "44cb998f8895a327a655712193c771de281a5d2d",
+  "mode": "in-process-concurrent with REAL provider (live discovery)",
+  "httpLayerNote": "Over HTTP a duplicate usually wins the durable replay race (12/12 bursts replayed in the parallel probe); replay proves idempotency only. This receipt proves SHARING: both requests reached the shadow path in one process.",
+  "environment": {
+    "envFile": "/home/nooker/skald-data/skald.env",
+    "providerSelection": "live"
+  },
+  "request": {
+    "worldId": "world-sf-live-proof",
+    "input": "Где я?",
+    "idempotencyKey": "sf-live-proof",
+    "parallel": 2,
+    "httpStatus": [
+      200,
+      200
+    ],
+    "replayedFlags": [
+      false,
+      false
+    ]
+  },
+  "evidence": {
+    "interpretProviderCalls": 1,
+    "decisionRows": 1,
+    "sharedRows": 1,
+    "decisionOutcome": "decision",
+    "decisionProvider": "ollama_cloud",
+    "decisionModel": "gemma4:31b-cloud",
+    "decisionLatencyMs": 703,
+    "diagnosticRowsSha256": "a423f9fcd1e124f671a8411236b9e25acc3218d1cb7739d02a4d1a583b1c56c6"
+  },
+  "decisionRow": {
+    "kind": "intent",
+    "category": "gm_director",
+    "outcome": "decision",
+    "provider": "ollama_cloud",
+    "model": "gemma4:31b-cloud",
+    "phase": "shadow",
+    "attempt": 1,
+    "durationMs": 0,
+    "timeoutMs": 0,
+    "priority": "interactive",
+    "correlationId": "intent-bf215f1f8f33eea65acae572d5c26ec28848a4fe7d5122031b8cc85c237b0265",
+    "worldTime": 0,
+    "turn": 0,
+    "decisionKind": "world_question",
+    "addresseeKind": "gm",
+    "providerLatencyMs": 703,
+    "totalLatencyMs": 704,
+    "schemaValid": true,
+    "rawSchemaValid": true,
+    "decisionAccepted": true,
+    "recordedAt": "2026-10-14T19:51:32.678Z"
+  },
+  "sharedRow": {
+    "kind": "intent",
+    "category": "gm_director",
+    "outcome": "shared",
+    "provider": "master_turn",
+    "phase": "shadow",
+    "attempt": 1,
+    "durationMs": 0,
+    "timeoutMs": 0,
+    "priority": "interactive",
+    "correlationId": "intent-bf215f1f8f33eea65acae572d5c26ec28848a4fe7d5122031b8cc85c237b0265",
+    "worldTime": 0,
+    "turn": 0,
+    "providerLatencyMs": 0,
+    "totalLatencyMs": 704,
+    "recordedAt": "2026-10-14T19:51:32.678Z"
+  },
+  "expectation": {
+    "decisionRows": 1,
+    "sharedRows": 1,
+    "interpretProviderCalls": 1
+  },
+  "verdict": "PASS"
+}

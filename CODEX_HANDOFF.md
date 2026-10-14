@@ -217,6 +217,20 @@
     receipt; it shows request 1 executing, request 2 `replayed`, exactly one
     `gm_director` row and one `kind:llm` row, plus the trailing SIGTERM line —
     the reason the pre-shutdown in-run hash differed).
+    **Scope note**: the V1 HTTP run proves idempotency/replay (request 2 took
+    the durable replay path, so only one request reached the shadow). An HTTP
+    parallel probe (12/12 bursts) confirmed the durable duplicate window is
+    milliseconds wide and always wins over HTTP — replay ≠ sharing.
+  - SEMANTIC LIVE PROOF (V2): `docs/acceptance/gm-single-flight-live-receipt-v2.json`
+    (schema `GM_SINGLE_FLIGHT_LIVE_RECEIPT_V2`, commit `44cb998`): the same
+    proof IN-PROCESS with the REAL router (live discovery → Ollama Cloud),
+    two concurrent identical requests, **`replayedFlags: [false, false]`** —
+    BOTH reached the shadow path — and evidence `interpretProviderCalls=1,
+    decisionRows=1, sharedRows=1` (`ollama_cloud/gemma4:31b-cloud`, 703ms,
+    `diagnosticRowsSha256` recorded). The `shared` row (outcome="shared") is
+    emitted ONLY when a follower actually joins the in-flight call; a replay
+    never produces one. Verdict PASS. Runner:
+    `packages/cli/src/acceptance/gm-single-flight-live.ts`.
 - Fresh Pi re-verification (independent of the receipt run): services
   `active,active,active`, health 200, HEAD `d8dc741`, `skald.env` line 9 is
   the commented stray token, sourcing CLEAN.
