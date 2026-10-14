@@ -24,6 +24,7 @@ import { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink
 import { AIReadinessService } from "./ai-readiness.js";
 import { DiscoveryRefresher, type DiscoveryRefreshEvent } from "./discovery-refresh.js";
 import { createRouterConfiguration, type RouterConfiguration } from "./router-factory.js";
+import { createGmDirectorFlight, type GmDirectorFlight } from "./conversation-director.js";
 import type { AIReadinessReport } from "@skald/world";
 import { probeLiveIntentContract, type LiveIntentContractReport } from "../acceptance/live-intent-contract.js";
 import { buildMasterConversationContext } from "../conversation/context-builder.js";
@@ -42,6 +43,12 @@ export interface WorldRuntime {
   narration: NarrationScheduler;
   /** Operational diagnostic sink for LLM narration telemetry. */
   diagnostics: NarrationDiagnosticSink;
+  /**
+   * Single-flight registry for the shadow Conversation Director, owned by
+   * THIS runtime: per-world lifecycle, explicit owner, no module-level
+   * global. Operational state only — never game state.
+   */
+  gmDirectorFlight: GmDirectorFlight;
 }
 
 export class WorldRuntimeManager {
@@ -241,6 +248,7 @@ export class WorldRuntimeManager {
       worldId, bus, registry, engine, projection, processedKeys, router,
       store: this.store, queue, narration: new NarrationScheduler(8, 2, this.diagnosticSink, worldId),
       diagnostics: this.diagnosticSink,
+      gmDirectorFlight: createGmDirectorFlight(),
     };
 
     // Crash recovery: roll any pending critical checks

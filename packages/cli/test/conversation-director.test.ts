@@ -560,6 +560,35 @@ describe("interpretGmDecision — single-flight", () => {
     expect(chat).toHaveBeenCalledTimes(2);
   });
 
+  it("a provider ERROR collapses too: follower gets the SAME fallback, the registry clears, the next call retries", async () => {
+    const chat = vi.fn(async () => {
+      const error = new Error("upstream down") as Error & { provider: string; model: string };
+      error.provider = "openrouter";
+      error.model = "nemotron:free";
+      throw error;
+    });
+    const router = { apiKey: "", chat } as unknown as ModelRouter;
+    const flight = createGmDirectorFlight();
+
+    const [a, b] = await Promise.all([
+      interpretGmDecision({ ...base, router, flight }),
+      interpretGmDecision({ ...base, router, flight }),
+    ]);
+    // ONE failed provider call serves both concurrent requests.
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(a).toMatchObject({ status: "fallback", reason: "provider_error" });
+    expect(b).toMatchObject({ status: "fallback", reason: "provider_error" });
+    expect(a.trace.provider).toBe("openrouter");
+    expect(b.trace.provider).toBe("openrouter");
+    expect([a.shared === true, b.shared === true].filter(Boolean)).toHaveLength(1);
+    // Failure does NOT poison the registry: the key is released on settle.
+    expect(flight.size).toBe(0);
+
+    // The next call is a fresh attempt, not a cached failure.
+    await interpretGmDecision({ ...base, router, flight });
+    expect(chat).toHaveBeenCalledTimes(2);
+  });
+
   it("without a flight registry behavior is unchanged (pass-through)", async () => {
     const chat = vi.fn(async () => ({ text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" }), provider: "ollama_cloud", model: "m", usedFallback: false }));
     const router = { apiKey: "", chat } as unknown as ModelRouter;

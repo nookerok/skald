@@ -62,6 +62,11 @@
   immutable — a future run must use a fresh OUT path or remove them first.
 - Next: re-auth the provider session on the Pi, re-run `GM_RUNS=3` with a fresh
   OUT path, then judge raw/normalized/accepted; then item 8 single-flight.
+  <!-- SUPERSEDED: the 403 was later root-caused to the runner missing live
+       discovery (Zen free is locked to the OpenCode app; re-auth would not
+       have helped). Fixed in 3268486; Ollama Cloud/OpenRouter work. Item 8 is
+       now closed (see single-flight entries below). This paragraph stays only
+       as the record of what that round observed. -->
 - Browser QA round 2 (`conversation-director-browser-20261011-2`), CORRECTED
   per review: overall **BLOCKED for three independent reasons** — (1) provider
   LLM expired (`403 free_tier_session_expired`; deterministic fallback only,
@@ -208,9 +213,13 @@
     row. The process was stopped afterwards.
 - Still open for S0 closure: the fixed NTFS browser job with stable
   screenshots, and human acceptance.
-- Still OPEN: item 8 single-flight (a live route must prove
-  `providerCalls === 1`, one diagnostic, identical envelopes under concurrency).
-- P0/P1/P2 remain open; do NOT start P3 (`gm_director.live_conversation`).
+- Single-flight (former item 8) is CLOSED — scope fix, unit+integration
+  tests and the live scratch receipt above; do not re-open it as "open".
+- P0–P2 remain OPEN (S0 is not closed yet); do NOT start P3
+  (`gm_director.live_conversation`).
+
+<!-- HISTORICAL SNAPSHOT (2026-09, T7/T8 runner work) — kept for context only,
+     not the current milestone state. -->
 
 - T8.1 runner hardened further: `/events` status/shape is asserted (non-200 or
   malformed → FAIL); approach/repeat must carry `ActionResolved`; blocked journey
@@ -222,8 +231,8 @@
   scripted and repaired plans. Replay diagnostics are covered for approach,
   journey, rejection and blocked (each replays as `replayed`/`replay`, cost 0, no
   new events/time).
-- `npm run validate` PASS: 237 files, 2919 passed, 1 skipped. Committed, pushed,
-  deployed; strict runner re-run; SSH/service receipt captured separately.
+- Historic gate record (superseded): `npm run validate` PASS: 237 files, 2919
+  passed, 1 skipped at that time; committed, pushed, deployed.
 
 # Current work (2026-10-04 — proximity matrix: whisper requires engaged)
 
