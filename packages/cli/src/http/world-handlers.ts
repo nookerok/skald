@@ -1217,8 +1217,22 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             flight: runtime.gmDirectorFlight,
           });
           // Single-flight: a follower shares the leader's result — one
-          // provider call, one diagnostic, identical outcome.
-          if (director.shared !== true) emitMasterTurnDiagnostic(runtime.diagnostics, {
+          // provider call, one decision diagnostic. The follower still emits
+          // a DISTINCT `shared` row: its existence proves the second request
+          // REACHED this shadow path (it did not replay earlier) and joined
+          // the in-flight call, which is what makes single-flight observable
+          // in tests and in live receipts.
+          if (director.shared === true) {
+            emitMasterTurnDiagnostic(runtime.diagnostics, {
+              category: "gm_director",
+              outcome: "shared",
+              phase: "shadow",
+              correlationId: shadowCorrelation,
+              worldTime: shadowSnapshot.world.time,
+              providerLatencyMs: 0,
+              totalLatencyMs: director.trace.totalLatencyMs,
+            });
+          } else emitMasterTurnDiagnostic(runtime.diagnostics, {
             category: "gm_director",
             outcome: director.status,
             phase: "shadow",

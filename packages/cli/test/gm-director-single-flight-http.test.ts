@@ -38,8 +38,20 @@ function barrierRouter() {
   return { router: { apiKey: "", chat } as any, chat, release: () => release() };
 }
 
-function gmDiagnostics(manager: WorldRuntimeManager): any[] {
+function gmRows(manager: WorldRuntimeManager): any[] {
   return manager.narrationDiagnostics().filter((event) => (event as any).category === "gm_director") as any[];
+}
+/** Rows where the director actually ran (leader). Excludes `shared` joins. */
+function gmDecisions(manager: WorldRuntimeManager): any[] {
+  return gmRows(manager).filter((row) => row.outcome !== "shared");
+}
+/**
+ * Rows emitted ONLY when a request REACHED the shadow path and joined the
+ * leader's in-flight call — the observable proof that single-flight fired
+ * (a request that replayed earlier never produces one).
+ */
+function gmShared(manager: WorldRuntimeManager): any[] {
+  return gmRows(manager).filter((row) => row.outcome === "shared");
 }
 
 async function freshManager(
@@ -94,7 +106,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 3000): Promise<void
 describe("gm director single-flight over the real HTTP handler", () => {
   afterEach(() => { vi.unstubAllEnvs(); });
 
-  it("concurrent identical requests in ONE world → one provider call, one gm_director diagnostic", async () => {
+  it("concurrent identical requests → one interpret call, one decision row, one SHARED row (both reached shadow)", async () => {
     vi.stubEnv("GM_DIRECTOR_SHADOW", "1");
     const { router, chat, release } = barrierRouter();
     const { manager, runtime } = await freshManager("one", "sf-world-1", router);
@@ -124,10 +136,17 @@ describe("gm director single-flight over the real HTTP handler", () => {
     expect(chat.mock.calls.length).toBe(1);
 
     release();
-    // One logical turn → exactly one gm_director diagnostic.
-    await waitFor(() => gmDiagnostics(manager).length >= 1);
+    // One leader decision row…
+    await waitFor(() => gmRows(manager).length >= 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(gmDiagnostics(manager)).toHaveLength(1);
+    expect(gmDecisions(manager)).toHaveLength(1);
+    expect(gmDecisions(manager)[0].outcome).toBe("decision");
+    // …and ONE `shared` row: the follower REACHED this shadow path and joined
+    // the leader's in-flight call. Without it this test could pass merely
+    // because the second request replayed at the durable layer.
+    expect(gmShared(manager)).toHaveLength(1);
+    expect(gmShared(manager)[0].correlationId).toBe(gmDecisions(manager)[0].correlationId);
+    // Exactly ONE provider interpret call behind both rows.
     expect(chat.mock.calls.length).toBe(1);
   });
 
@@ -147,12 +166,15 @@ describe("gm director single-flight over the real HTTP handler", () => {
     expect(parse(ra).replayed).toBeUndefined();
     expect(parse(rb).replayed).toBeUndefined();
 
-    // Both worlds fire their own shadow interpretation.
+    // Both worlds fire their own shadow interpretation; neither joins the
+    // other (different turnKeys) — no `shared` rows anywhere.
     await waitFor(() => chat.mock.calls.length >= 2);
     release();
-    await waitFor(() => gmDiagnostics(a.manager).length >= 1 && gmDiagnostics(b.manager).length >= 1);
-    expect(gmDiagnostics(a.manager)).toHaveLength(1);
-    expect(gmDiagnostics(b.manager)).toHaveLength(1);
+    await waitFor(() => gmDecisions(a.manager).length >= 1 && gmDecisions(b.manager).length >= 1);
+    expect(gmDecisions(a.manager)).toHaveLength(1);
+    expect(gmDecisions(b.manager)).toHaveLength(1);
+    expect(gmShared(a.manager)).toHaveLength(0);
+    expect(gmShared(b.manager)).toHaveLength(0);
     expect(chat.mock.calls.length).toBe(2);
   });
 
@@ -171,14 +193,15 @@ describe("gm director single-flight over the real HTTP handler", () => {
 
     await waitFor(() => chat.mock.calls.length >= 1);
     release();
-    // ONE failed provider call serves both requests: one diagnostic, outcome
-    // fallback with the failing provider attributed.
-    await waitFor(() => gmDiagnostics(manager).length >= 1);
+    // ONE failed provider call serves both requests: one decision row
+    // (outcome=fallback, provider attributed) plus one `shared` row proving
+    // the follower reached the shadow path and joined the failing call.
+    await waitFor(() => gmRows(manager).length >= 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(gmDiagnostics(manager)).toHaveLength(1);
+    expect(gmDecisions(manager)).toHaveLength(1);
+    expect(gmDecisions(manager)[0].outcome).toBe("fallback");
+    expect(gmDecisions(manager)[0].provider).toBe("ollama_cloud");
+    expect(gmShared(manager)).toHaveLength(1);
     expect(chat.mock.calls.length).toBe(1);
-    const [diagnostic] = gmDiagnostics(manager);
-    expect(diagnostic.outcome).toBe("fallback");
-    expect(diagnostic.provider).toBe("ollama_cloud");
   });
 });
