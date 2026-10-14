@@ -1,0 +1,92 @@
+{
+  "schema": "GM_SINGLE_FLIGHT_LIVE_RECEIPT_V3",
+  "recordedAt": "2026-10-14T20:19:27.475Z",
+  "actualCommit": "332b189d5486c63b03d51193e10ec45edb5d2294",
+  "expectedCommit": "332b189d5486c63b03d51193e10ec45edb5d2294",
+  "commitMatches": true,
+  "mode": "in-process-concurrent with REAL provider (live discovery)",
+  "httpLayerNote": "Over HTTP a duplicate usually wins the durable replay race (12/12 bursts replayed in the parallel probe); replay proves idempotency only. This receipt proves SHARING: both requests reached the shadow path in one process.",
+  "environment": {
+    "envFile": "/home/nooker/skald-data/skald.env",
+    "providerSelection": "live"
+  },
+  "request": {
+    "worldId": "world-sf-live-proof",
+    "input": "Где я?",
+    "idempotencyKey": "sf-live-proof",
+    "parallel": 2,
+    "httpStatus": [
+      200,
+      200
+    ],
+    "replayedFlags": [
+      false,
+      false
+    ]
+  },
+  "guards": {
+    "statusesOk": true,
+    "neitherReplayed": true,
+    "commitMatches": true,
+    "oneDecision": true,
+    "oneShared": true,
+    "oneInterpretCall": true
+  },
+  "evidence": {
+    "interpretProviderCalls": 1,
+    "interpretCallsSource": "explicit Proxy counter around the real router.chat",
+    "leaderDecisionRows": 1,
+    "sharedRows": 1,
+    "decisionOutcome": "decision",
+    "decisionProvider": "ollama_cloud",
+    "decisionModel": "gemma4:31b-cloud",
+    "decisionLatencyMs": 749,
+    "diagnosticRowsSha256": "fa1f09d398d738cc63bee6f462b6f3afc7ea1ef85d2ab505769e926280d25746"
+  },
+  "decisionRow": {
+    "kind": "intent",
+    "category": "gm_director",
+    "outcome": "decision",
+    "provider": "ollama_cloud",
+    "model": "gemma4:31b-cloud",
+    "phase": "shadow",
+    "attempt": 1,
+    "durationMs": 0,
+    "timeoutMs": 0,
+    "priority": "interactive",
+    "correlationId": "intent-bf215f1f8f33eea65acae572d5c26ec28848a4fe7d5122031b8cc85c237b0265",
+    "worldTime": 0,
+    "turn": 0,
+    "decisionKind": "world_question",
+    "addresseeKind": "gm",
+    "providerLatencyMs": 749,
+    "totalLatencyMs": 751,
+    "schemaValid": true,
+    "rawSchemaValid": true,
+    "decisionAccepted": true,
+    "recordedAt": "2026-10-14T20:19:27.093Z"
+  },
+  "sharedRow": {
+    "kind": "intent",
+    "category": "gm_director",
+    "outcome": "shared",
+    "provider": "master_turn",
+    "phase": "shadow",
+    "attempt": 1,
+    "durationMs": 0,
+    "timeoutMs": 0,
+    "priority": "interactive",
+    "correlationId": "intent-bf215f1f8f33eea65acae572d5c26ec28848a4fe7d5122031b8cc85c237b0265",
+    "worldTime": 0,
+    "turn": 0,
+    "providerLatencyMs": 0,
+    "totalLatencyMs": 751,
+    "recordedAt": "2026-10-14T20:19:27.093Z"
+  },
+  "expectation": {
+    "decisionRows": 1,
+    "sharedRows": 1,
+    "interpretProviderCalls": 1
+  },
+  "verdict": "PASS"
+}

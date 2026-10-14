@@ -232,8 +232,24 @@
     never produces one. Verdict PASS. Runner:
     `packages/cli/src/acceptance/gm-single-flight-live.ts`.
 - Fresh Pi re-verification (independent of the receipt run): services
-  `active,active,active`, health 200, HEAD `d8dc741`, `skald.env` line 9 is
-  the commented stray token, sourcing CLEAN.
+  `active,active,active`, health 200, HEAD `d8dc741` at that moment; AFTER
+  the V3 work the same check shows HEAD `332b189`, healthy, env CLEAN.
+- Runner hardening (V3) at `332b189` and the semantic receipt re-run:
+  `docs/acceptance/gm-single-flight-live-receipt-v3.json` (schema
+  `GM_SINGLE_FLIGHT_LIVE_RECEIPT_V3`): `interpretProviderCalls` is an EXPLICIT
+  Proxy counter around the real `router.chat` (never inferred from rows),
+  `actualCommit` always comes from `git rev-parse HEAD` with
+  `expectedCommit` compared separately (`commitMatches: true`), and the
+  verdict records every guard — all true: `statusesOk` (200/200),
+  `neitherReplayed` ([false,false]), `commitMatches`, `oneDecision`,
+  `oneShared`, `oneInterpretCall` — with `ollama_cloud/gemma4:31b-cloud`
+  (749ms). Verdict PASS.
+- Known flaky risk (not a defect, documented): the full parallel test suite
+  intermittently fails 3 SQLite-backed integration files on a FIRST run
+  (`command-time-integration`, `game-shell-http`, `presence-http`); an
+  immediate re-run passes clean (latest: 248 files, 3018 passed, 1 skipped,
+  `[validate] PASS` on the first attempt). Root-causing the SQLite test
+  isolation is a separate task.
 - Handler-level failure-path test added: a REJECTING provider at the real
   `handleWorldCommand` still yields exactly ONE failed provider call and ONE
   `gm_director` diagnostic (`outcome=fallback`, provider attributed).
