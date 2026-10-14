@@ -12,6 +12,7 @@
  *   packages/cli/src/acceptance/gm-single-flight-live.ts [receiptPath]
  */
 import { createHash } from "node:crypto";
+import { execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -52,7 +53,24 @@ store.createWorld({
   characterProfileVersion: 1,
   bootstrapEvents: buildBootstrapEvents("living_region"),
 });
-const manager = new WorldRuntimeManager(store, configuration.router);
+// Explicit interpret-call counter: a Proxy around the REAL router counts
+// every `interpret` chat call. Never inferred from diagnostic rows.
+let interpretChatCalls = 0;
+const baseRouter = configuration.router;
+const countingRouter = new Proxy(baseRouter, {
+  get(target, prop, receiver) {
+    if (prop === "chat") {
+      return (category: string, messages: unknown, options: unknown) => {
+        if (category === "interpret") interpretChatCalls += 1;
+        return (target.chat as (c: string, m: unknown, o: unknown) => unknown)(category, messages, options);
+      };
+    }
+    const value = Reflect.get(target, prop, receiver);
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+  },
+});
+
+const manager = new WorldRuntimeManager(store, countingRouter);
 const runtime = await manager.get(worldId);
 
 const gmRows = () => manager.narrationDiagnostics().filter((e: any) => e.category === "gm_director") as any[];
@@ -78,22 +96,35 @@ await new Promise((resolve) => setTimeout(resolve, 300));
 
 const dec = decisions();
 const sh = shared();
-const interpretCalls = dec.filter((r) => Number(r.providerLatencyMs) > 0).length;
 const rowsSha = createHash("sha256").update(JSON.stringify(gmRows())).digest("hex");
-const ok = dec.length === 1 && sh.length === 1 && interpretCalls === 1
+
+// Commit provenance: actualCommit is ALWAYS computed from git; the env value
+// is only an expectation compared against it, never a substitute.
+const actualCommit = execSync("git rev-parse HEAD", { cwd: process.cwd() }).toString().trim();
+const expectedCommit = process.env["EXPECTED_COMMIT"] ?? null;
+const commitMatches = expectedCommit === null || expectedCommit === actualCommit;
+
+const statusesOk = a.statusCode === 200 && b.statusCode === 200;
+const neitherReplayed = (ra.replayed ?? false) === false && (rb.replayed ?? false) === false;
+const ok = statusesOk && neitherReplayed && commitMatches
+  && dec.length === 1 && sh.length === 1 && interpretChatCalls === 1
   && dec[0].provider === "ollama_cloud" && String(dec[0].decisionAccepted) === "true";
 
 const receipt = {
-  schema: "GM_SINGLE_FLIGHT_LIVE_RECEIPT_V2",
+  schema: "GM_SINGLE_FLIGHT_LIVE_RECEIPT_V3",
   recordedAt: new Date().toISOString(),
-  actualCommit: process.env["EXPECTED_COMMIT"] ?? (await import("node:child_process")).execSync("git rev-parse HEAD", { cwd: process.cwd() }).toString().trim(),
+  actualCommit,
+  expectedCommit,
+  commitMatches,
   mode: "in-process-concurrent with REAL provider (live discovery)",
   httpLayerNote: "Over HTTP a duplicate usually wins the durable replay race (12/12 bursts replayed in the parallel probe); replay proves idempotency only. This receipt proves SHARING: both requests reached the shadow path in one process.",
   environment: { envFile: envFile ?? null, providerSelection: configuration.selectionReport?.routes ? "live" : "unknown" },
   request: { worldId, input: "Где я?", idempotencyKey: "sf-live-proof", parallel: 2, httpStatus: [a.statusCode, b.statusCode], replayedFlags: [ra.replayed ?? false, rb.replayed ?? false] },
+  guards: { statusesOk, neitherReplayed, commitMatches, oneDecision: dec.length === 1, oneShared: sh.length === 1, oneInterpretCall: interpretChatCalls === 1 },
   evidence: {
-    interpretProviderCalls: interpretCalls,
-    decisionRows: dec.length,
+    interpretProviderCalls: interpretChatCalls,
+    interpretCallsSource: "explicit Proxy counter around the real router.chat",
+    leaderDecisionRows: dec.length,
     sharedRows: sh.length,
     decisionOutcome: dec[0]?.outcome ?? null,
     decisionProvider: dec[0]?.provider ?? null,
@@ -109,5 +140,5 @@ const receipt = {
 
 if (existsSync(receiptPath)) { console.error(JSON.stringify({ verdict: "BLOCKED", reason: "receipt_exists", receiptPath })); process.exit(1); }
 writeFileSync(receiptPath, JSON.stringify(receipt, null, 2));
-console.log(JSON.stringify({ verdict: receipt.verdict, interpretCalls, decisions: dec.length, shared: sh.length, provider: dec[0]?.provider, latency: dec[0]?.providerLatencyMs, receiptPath }));
+console.log(JSON.stringify({ verdict: receipt.verdict, interpretCalls: interpretChatCalls, decisions: dec.length, shared: sh.length, provider: dec[0]?.provider, latency: dec[0]?.providerLatencyMs, receiptPath }));
 process.exit(receipt.verdict === "PASS" ? 0 : 1);
