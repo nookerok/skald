@@ -244,12 +244,21 @@
   `neitherReplayed` ([false,false]), `commitMatches`, `oneDecision`,
   `oneShared`, `oneInterpretCall` — with `ollama_cloud/gemma4:31b-cloud`
   (749ms). Verdict PASS.
-- Known flaky risk (not a defect, documented): the full parallel test suite
-  intermittently fails 3 SQLite-backed integration files on a FIRST run
-  (`command-time-integration`, `game-shell-http`, `presence-http`); an
-  immediate re-run passes clean (latest: 248 files, 3018 passed, 1 skipped,
-  `[validate] PASS` on the first attempt). Root-causing the SQLite test
-  isolation is a separate task.
+- Flaky SQLite gate: ROOT-CAUSED AND FIXED (was: "known flaky risk"). The
+  vitest teardown ran `cleanupManagedTempDirs(..., ttlMs: 0)` — it swept ALL
+  `skald-*` temp dirs regardless of age, so a SECOND overlapping vitest
+  instance's teardown deleted the first instance's ACTIVE SQLite files
+  (reproduced deterministically: full suite + overlapping short run → `2
+  failed` persistence tests / transient "disk I/O error" hits like
+  `command-time-integration`, `game-shell-http`, `presence-http`; first run
+  fails, rerun green — the classic overlap signature). Fix:
+  `scripts/vitest-global-setup.ts` now sweeps with
+  `VITEST_TEARDOWN_TTL_MS = 60 min` (dirs younger than the TTL belong to a
+  live run and survive; aged garbage from crashed runs is swept by the next
+  teardown or the CLI preflight). Regression-tested: the process-level test
+  now asserts an AGED sentinel is swept while a FRESH one survives, plus a
+  TTL contract test (>= 30 min). The reproduction experiment re-run with the
+  fix: overlapping runs both GREEN (248 files).
 - Handler-level failure-path test added: a REJECTING provider at the real
   `handleWorldCommand` still yields exactly ONE failed provider call and ONE
   `gm_director` diagnostic (`outcome=fallback`, provider attributed).

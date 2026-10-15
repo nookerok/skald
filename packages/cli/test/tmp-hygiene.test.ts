@@ -5,12 +5,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 // @ts-ignore - plain Node ESM module without type declarations
 import { cleanupManagedTempDirs, isSafePrefix, selectStaleManagedDirs, tempHeadroom } from "../../../scripts/tmp-hygiene.mjs";
+import { VITEST_TEARDOWN_TTL_MS } from "../../../scripts/vitest-global-setup.js";
 
 describe("selectStaleManagedDirs", () => {
   const now = 1_000_000;
@@ -95,15 +96,44 @@ describe("tmp-hygiene CLI", () => {
     expect(refused.status).toBe(1);
   });
 
-  it("a real vitest run removes managed scratch dirs (process level)", () => {
-    const sentinel = join(tmpdir(), `skald-sentinel-${process.pid}-${Date.now()}`);
-    mkdirSync(sentinel, { recursive: true });
+  it("a real vitest run sweeps AGED managed dirs but spares a fresh one (process level)", () => {
+    const stamp = `${process.pid}-${Date.now()}`;
+    const aged = join(tmpdir(), `skald-sentinel-aged-${stamp}`);
+    const fresh = join(tmpdir(), `skald-sentinel-fresh-${stamp}`);
+    mkdirSync(aged, { recursive: true });
+    mkdirSync(fresh, { recursive: true });
+    const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    utimesSync(aged, old, old);
     const res = spawnSync("npx", ["vitest", "run", "packages/events/test/events.test.ts", "--reporter=dot"], {
       cwd: process.cwd(),
       encoding: "utf8",
       timeout: 120_000,
     });
     expect(res.status).toBe(0);
-    expect(existsSync(sentinel)).toBe(false);
+    // AGED garbage from crashed runs is swept…
+    expect(existsSync(aged)).toBe(false);
+    // …but a FRESH dir can belong to a CONCURRENT vitest instance and must
+    // survive — deleting it is how overlapping runs destroyed each other's
+    // active SQLite files ("disk I/O error" flake).
+    expect(existsSync(fresh)).toBe(true);
+    rmSync(fresh, { recursive: true, force: true });
   }, 150_000);
+});
+
+describe("vitest teardown TTL (concurrent-run safety)", () => {
+  it("is far larger than any suite duration and never sweeps fresh dirs", () => {
+    // Contract: the teardown TTL must exceed a full suite by a wide margin;
+    // lowering it below 30 minutes re-opens the cross-run destruction bug.
+    expect(VITEST_TEARDOWN_TTL_MS).toBeGreaterThanOrEqual(30 * 60 * 1000);
+    const root = mkdtempSync(join(tmpdir(), "hygiene-teardown-"));
+    mkdirSync(join(root, "skald-active-run")); // another live instance's dir
+    mkdirSync(join(root, "skald-dead-garbage"));
+    const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    utimesSync(join(root, "skald-dead-garbage"), old, old);
+
+    const receipt = cleanupManagedTempDirs(root, { prefix: "skald-", ttlMs: VITEST_TEARDOWN_TTL_MS });
+    expect(existsSync(join(root, "skald-active-run"))).toBe(true);
+    expect(existsSync(join(root, "skald-dead-garbage"))).toBe(false);
+    expect(receipt.removed).toBe(1);
+  });
 });
