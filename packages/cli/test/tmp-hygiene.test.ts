@@ -137,3 +137,50 @@ describe("vitest teardown TTL (concurrent-run safety)", () => {
     expect(receipt.removed).toBe(1);
   });
 });
+
+describe("low headroom (no forced wipe)", () => {
+  it("fails early instead of deleting fresh dirs when space is short", () => {
+    const root = mkdtempSync(join(tmpdir(), "hygiene-headroom-"));
+    mkdirSync(join(root, "skald-live-run")); // fresh: belongs to a live run
+    // Impossible headroom request → the CLI must error WITHOUT wiping.
+    const res = spawnSync(process.execPath, [
+      "scripts/tmp-hygiene.mjs", `--root=${root}`, "--prefix=skald-",
+      "--ttl-minutes=120", "--min-free-mb=999999999", "--min-free-inodes=0",
+    ], { cwd: process.cwd(), encoding: "utf8" });
+
+    expect(res.status).toBe(1);
+    const body = JSON.parse(res.stdout);
+    expect(body.ok).toBe(false);
+    expect(body.receipt.reason).toBe("low_headroom");
+    // The fresh dir survives: low space is an operator error, never a reason
+    // to destroy another (or this) run's active state.
+    expect(existsSync(join(root, "skald-live-run"))).toBe(true);
+    // The routine TTL pass still removed nothing here (nothing was aged).
+    expect(body.receipt.removed).toBe(0);
+  });
+});
+
+describe("validate EXIT-trap ownership", () => {
+  it("removes only this run's private TMPDIR root and spares a concurrent run's dir", () => {
+    const base = mkdtempSync(join(tmpdir(), "hygiene-base-"));
+    const foreign = join(base, "skald-other-run-active"); // another run's dir
+    mkdirSync(foreign);
+    writeFileSync(join(foreign, "events.sqlite"), "x".repeat(512));
+
+    const res = spawnSync("bash", [
+      "-c",
+      `TMPDIR=${JSON.stringify(base)} bash -c 'source scripts/validate-tmp-root.sh; skald_validate_tmp_init; echo "root=$TMPDIR"; touch "$TMPDIR/mine"; exit 7'`,
+    ], { cwd: process.cwd(), encoding: "utf8" });
+
+    // Exit code is preserved (7), not masked by cleanup.
+    expect(res.status).toBe(7);
+    const ownedRoot = (res.stdout.match(/root=(.*)/) ?? [])[1];
+    expect(ownedRoot).toBeTruthy();
+    expect(String(ownedRoot).startsWith(base)).toBe(true);
+    // The owned root is gone after exit…
+    expect(existsSync(String(ownedRoot))).toBe(false);
+    // …and the CONCURRENT run's fresh dir with a live DB is untouched.
+    expect(existsSync(join(foreign, "events.sqlite"))).toBe(true);
+    rmSync(base, { recursive: true, force: true });
+  });
+});

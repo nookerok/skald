@@ -244,21 +244,28 @@
   `neitherReplayed` ([false,false]), `commitMatches`, `oneDecision`,
   `oneShared`, `oneInterpretCall` — with `ollama_cloud/gemma4:31b-cloud`
   (749ms). Verdict PASS.
-- Flaky SQLite gate: ROOT-CAUSED AND FIXED (was: "known flaky risk"). The
-  vitest teardown ran `cleanupManagedTempDirs(..., ttlMs: 0)` — it swept ALL
-  `skald-*` temp dirs regardless of age, so a SECOND overlapping vitest
-  instance's teardown deleted the first instance's ACTIVE SQLite files
-  (reproduced deterministically: full suite + overlapping short run → `2
-  failed` persistence tests / transient "disk I/O error" hits like
-  `command-time-integration`, `game-shell-http`, `presence-http`; first run
-  fails, rerun green — the classic overlap signature). Fix:
-  `scripts/vitest-global-setup.ts` now sweeps with
-  `VITEST_TEARDOWN_TTL_MS = 60 min` (dirs younger than the TTL belong to a
-  live run and survive; aged garbage from crashed runs is swept by the next
-  teardown or the CLI preflight). Regression-tested: the process-level test
-  now asserts an AGED sentinel is swept while a FRESH one survives, plus a
-  TTL contract test (>= 30 min). The reproduction experiment re-run with the
-  fix: overlapping runs both GREEN (248 files).
+- Flaky SQLite gate: ROOT-CAUSED AND FIXED across ALL THREE cleanup paths
+  (was: "known flaky risk"):
+  1. **vitest teardown** swept ALL `skald-*` dirs (`ttlMs: 0`) — an overlapping
+     instance's teardown deleted the first instance's ACTIVE SQLite files
+     (reproduced: `2 failed` persistence tests). Fixed earlier: sweep uses
+     `VITEST_TEARDOWN_TTL_MS` (60 min) — fresh dirs of a live run survive.
+  2. **validate.sh EXIT-trap** ran the hygiene CLI with `--ttl-minutes=0` over
+     the SHARED base tmp — one run's exit could kill another run's active
+     dirs (reproduced by review). Fixed: per-run PRIVATE temp root
+     (`scripts/validate-tmp-root.sh` exports TMPDIR to
+     `skald-validate-run-XXXXXX`) and the trap removes ONLY that root,
+     preserving the exit code.
+  3. **CLI low-headroom "aggressive" pass** auto-swept with `ttlMs: 0`.
+     Fixed: no forced wipe ever — low headroom after the TTL pass is a hard
+     error (`reason: low_headroom`, exit 1); an explicit `--ttl-minutes=0`
+     remains for an operator scoping their OWN root.
+  Regressions: process-level aged-vs-fresh sentinel, TTL contract (>= 30 min),
+  low-headroom CLI (fresh dir survives + exit 1), EXIT-trap ownership
+  (foreign concurrent dir survives, owned root removed, exit code preserved).
+  DECISIVE EXPERIMENT: TWO FULL `scripts/validate.sh` runs overlapped → both
+  `rc=0 [validate] PASS` with distinct private roots (`skald-validate-run-*
+  = 0` left afterwards).
 - Handler-level failure-path test added: a REJECTING provider at the real
   `handleWorldCommand` still yields exactly ONE failed provider call and ONE
   `gm_director` diagnostic (`outcome=fallback`, provider attributed).

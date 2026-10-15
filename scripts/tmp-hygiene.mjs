@@ -106,21 +106,16 @@ if (process.argv[1] && process.argv[1].endsWith("tmp-hygiene.mjs")) {
   }
 
   // Routine pass: managed dirs older than the TTL (safe with concurrent runs).
-  // If headroom is still too low, aggressively drop ALL managed dirs (still
-  // prefix-scoped, never symlinks/foreign) so a full tmpfs recovers.
+  // NO aggressive ttl:0 sweep here: a forced wipe can delete ANOTHER live
+  // run's active dirs (TTL does not prove a dir is idle, but ttl:0 certainly
+  // does not prove it is dead). If headroom is still too low, fail early and
+  // loud — the operator frees space or scopes an explicit
+  // `--ttl-minutes=0` pass to a root they own.
   const routine = cleanupManagedTempDirs(root, { prefix, ttlMs });
   let receipt = routine;
-  let headroom = tempHeadroom(root);
-  if (headroom.freeBytes < minFreeBytes || headroom.freeInodes < minFreeInodes) {
-    const aggressive = cleanupManagedTempDirs(root, { prefix, ttlMs: 0 });
-    receipt = {
-      ...routine,
-      removed: routine.removed + aggressive.removed,
-      removedBytes: routine.removedBytes + aggressive.removedBytes,
-    };
-    headroom = tempHeadroom(root);
-  }
+  const headroom = tempHeadroom(root);
   const ok = headroom.freeBytes >= minFreeBytes && headroom.freeInodes >= minFreeInodes;
+  if (!ok) receipt = { ...receipt, ok: false, reason: "low_headroom" };
   console.log(JSON.stringify({ ok, root, prefix, receipt, headroom, minFreeBytes, minFreeInodes }));
   process.exit(ok ? 0 : 1);
 }
