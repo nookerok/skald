@@ -4,14 +4,14 @@
  * never touched.
  */
 
-import { describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 // @ts-ignore - plain Node ESM module without type declarations
 import { cleanupManagedTempDirs, isSafePrefix, selectStaleManagedDirs, tempHeadroom } from "../../../scripts/tmp-hygiene.mjs";
-import { VITEST_TEARDOWN_TTL_MS, VITEST_RUN_PREFIX } from "../../../scripts/vitest-global-setup.js";
+import vitestGlobalSetup, { VITEST_TEARDOWN_TTL_MS, VITEST_RUN_PREFIX } from "../../../scripts/vitest-global-setup.js";
 
 describe("selectStaleManagedDirs", () => {
   const now = 1_000_000;
@@ -186,8 +186,51 @@ describe("owner liveness beats TTL (long or hung runs)", () => {
 });
 
 describe("ownership follows the marker, not the path shape", () => {
-  it("a NON-standard shared TMPDIR is not treated as private: the run nests its own marked root", () => {
+  it("nests its own marked root in a NON-standard shared TMPDIR and sweeps THAT base on teardown", () => {
+    // Exercises the real setup/teardown pair in-process: the teardown must
+    // sweep the INHERITED base captured before TMPDIR was reassigned, not the
+    // private root it created (which tmpdir() would have returned).
     const shared = mkdtempSync(join(tmpdir(), "skald-shared-ci-job-"));
+    const stale = mkdtempSync(join(shared, "skald-stale-scratch-"));
+    const live = mkdtempSync(join(shared, "skald-live-scratch-"));
+    writeFileSync(join(live, ".owner"), `pid=${process.pid}\n`);
+    // Both older than the teardown TTL: only live ownership may spare one.
+    const old = Date.now() / 1000 - VITEST_TEARDOWN_TTL_MS / 1000 - 60;
+    utimesSync(stale, old, old);
+    utimesSync(live, old, old);
+
+    const saved = process.env["TMPDIR"];
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      process.env["TMPDIR"] = shared;
+      const teardown = vitestGlobalSetup();
+      // The shared dir is NOT adopted: a marked private root sits inside it.
+      const runRoot = process.env["TMPDIR"] ?? "";
+      expect(runRoot.startsWith(shared)).toBe(true);
+      expect(runRoot).not.toBe(shared);
+      expect(runRoot.slice(shared.length + 1).startsWith(VITEST_RUN_PREFIX)).toBe(true);
+      expect(readFileSync(join(runRoot, ".owner"), "utf8")).toMatch(/^pid=\d+$/m);
+
+      teardown();
+
+      // Swept in the inherited base: stale reclaimed, live-owned spared.
+      expect(existsSync(stale)).toBe(false);
+      expect(existsSync(live)).toBe(true);
+      // The run's own root is always removed.
+      expect(existsSync(runRoot)).toBe(false);
+    } finally {
+      vi.restoreAllMocks();
+      if (saved === undefined) delete process.env["TMPDIR"];
+      else process.env["TMPDIR"] = saved;
+      rmSync(shared, { recursive: true, force: true });
+    }
+  });
+
+  it("a real standalone run reclaims a stale scratch sibling in its inherited TMPDIR", () => {
+    const shared = mkdtempSync(join(tmpdir(), "skald-shared-ci-job-"));
+    const stale = mkdtempSync(join(shared, "skald-stale-scratch-"));
+    const old = Date.now() / 1000 - VITEST_TEARDOWN_TTL_MS / 1000 - 60;
+    utimesSync(stale, old, old);
     const res = spawnSync("npx", ["vitest", "run", "packages/events/test/events.test.ts", "--reporter=dot"], {
       cwd: process.cwd(),
       encoding: "utf8",
@@ -195,16 +238,34 @@ describe("ownership follows the marker, not the path shape", () => {
       env: { ...process.env, TMPDIR: shared },
     });
     expect(res.status).toBe(0);
-    // The teardown receipt must point INSIDE the shared dir at a private
-    // `skald-vitest-run-*` root — not at the shared dir itself.
     const receipt = /\[tmp-hygiene\] teardown (.*)$/m.exec(res.stderr)?.[1];
     expect(receipt).toBeTruthy();
     const body = JSON.parse(String(receipt));
-    expect(body.root.startsWith(shared)).toBe(true);
-    expect(body.root).not.toBe(shared);
-    expect(body.root).toContain(VITEST_RUN_PREFIX);
-    // The shared dir carries no ownership marker and survives untouched.
+    // The receipt root is the INHERITED base, and the stale sibling is gone.
+    expect(body.root).toBe(shared);
+    expect(body.removed).toBeGreaterThanOrEqual(1);
+    expect(existsSync(stale)).toBe(false);
+    // The shared dir was never adopted as this run's own root.
     expect(existsSync(join(shared, ".owner"))).toBe(false);
+    rmSync(shared, { recursive: true, force: true });
+  }, 150_000);
+
+  it("a real standalone run spares an old sibling whose owner is still alive", () => {
+    const shared = mkdtempSync(join(tmpdir(), "skald-shared-ci-job-"));
+    const live = mkdtempSync(join(shared, "skald-live-scratch-"));
+    writeFileSync(join(live, ".owner"), `pid=${process.pid}\n`);
+    const old = Date.now() / 1000 - VITEST_TEARDOWN_TTL_MS / 1000 - 60;
+    utimesSync(live, old, old);
+    const res = spawnSync("npx", ["vitest", "run", "packages/events/test/events.test.ts", "--reporter=dot"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      timeout: 120_000,
+      env: { ...process.env, TMPDIR: shared },
+    });
+    expect(res.status).toBe(0);
+    const body = JSON.parse(String(/\[tmp-hygiene\] teardown (.*)$/m.exec(res.stderr)?.[1]));
+    expect(body.sparedLive).toBeGreaterThanOrEqual(1);
+    expect(existsSync(live)).toBe(true);
     rmSync(shared, { recursive: true, force: true });
   }, 150_000);
 

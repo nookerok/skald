@@ -43,8 +43,12 @@ export default function globalSetup(): () => void {
   }
 
   return () => {
-    // Sweep the temp root by TTL — live-owned dirs are spared by marker.
-    const receipt = cleanupManagedTempDirs(tmpdir(), { prefix: "skald-", ttlMs: VITEST_TEARDOWN_TTL_MS });
+    // Sweep the INHERITED temp root (captured BEFORE TMPDIR was reassigned),
+    // not tmpdir(): after setup TMPDIR is this run's private root, so sweeping
+    // tmpdir() would only ever look inside it and stale scratch dirs left in a
+    // shared base (`/tmp`, `/var/tmp`, a CI job dir) would never be reclaimed.
+    // TTL + liveness: live-owned and fresh siblings survive.
+    const receipt = cleanupManagedTempDirs(inherited, { prefix: "skald-", ttlMs: VITEST_TEARDOWN_TTL_MS });
     console.error("[tmp-hygiene] teardown", JSON.stringify(receipt));
     // Remove ONLY this run's own root (it is marker-owned and already above).
     if (runRoot) rmSync(runRoot, { recursive: true, force: true });

@@ -57,16 +57,12 @@
   (reproduced outside the runner: `router.chat` for narrate/interpret both 403;
   `analyze` has no model configured). This is an operational credential
   problem, not a code defect; the scorecard correctly recorded it as fallbacks.
-  A re-authenticated provider session is REQUIRED before S0 can be closed on
-  quality numbers. Note: `eval-out/gm-shadow-scorecard.run{1,2,3}.json` are
+  A provider session must answer before S0 can be closed on quality numbers,
+  but re-auth of THAT provider is NOT the fix: the 403 was later root-caused to
+  the runner missing live discovery (Zen free is locked to the OpenCode app).
+  Fixed in `3268486`; Ollama Cloud/OpenRouter work. Note:
+  `eval-out/gm-shadow-scorecard.run{1,2,3}.json` are
   immutable — a future run must use a fresh OUT path or remove them first.
-- Next: re-auth the provider session on the Pi, re-run `GM_RUNS=3` with a fresh
-  OUT path, then judge raw/normalized/accepted; then item 8 single-flight.
-  <!-- SUPERSEDED: the 403 was later root-caused to the runner missing live
-       discovery (Zen free is locked to the OpenCode app; re-auth would not
-       have helped). Fixed in 3268486; Ollama Cloud/OpenRouter work. Item 8 is
-       now closed (see single-flight entries below). This paragraph stays only
-       as the record of what that round observed. -->
 - Browser QA round 2 (`conversation-director-browser-20261011-2`), CORRECTED
   per review: overall **BLOCKED for three independent reasons** — (1) provider
   LLM expired (`403 free_tier_session_expired`; deterministic fallback only,
@@ -292,6 +288,17 @@ overlapping bare `npm test` runs → all green, distinct roots, zero
      without nesting. Gate PASS: 3026 passed / 1 skipped; overlap runs from
      `/tmp` AND `/var/tmp` → both validate PASS, both bare runs green,
      distinct roots, zero leftovers.
+  6. **The teardown must sweep the INHERITED temp root** (follow-up review
+     P2): `globalSetup` reassigns `TMPDIR` to its private root, so the old
+     `cleanupManagedTempDirs(tmpdir(), …)` looked INSIDE that private root and
+     stale scratch siblings in a shared base were never reclaimed by a
+     standalone `npm test` (validate.sh was unaffected — its base pass runs
+     before the reassignment). The inherited base is now captured first and
+     swept in teardown. Regressions (16 focused tests): the real setup/teardown
+     pair nests a marked root in a custom `TMPDIR`, reclaims a stale sibling
+     there and spares an old live-owned one; a real standalone run does both
+     (`removed: 1`, `sparedLive: 1`, `root: /var/tmp`) and never marks the
+     shared dir; a live-owned `TMPDIR` is still reused without nesting.
 - Handler-level failure-path test added: a REJECTING provider at the real
   `handleWorldCommand` still yields exactly ONE failed provider call and ONE
   `gm_director` diagnostic (`outcome=fallback`, provider attributed).
