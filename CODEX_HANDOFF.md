@@ -276,8 +276,22 @@
      so both entry points are ownership-rooted. Regression: an OLD dir owned
      by a live pid survives (sparedLive: 1), an OLD dir with a dead pid is
      swept. Experiments: two overlapping full `validate.sh` runs AND two
-     overlapping bare `npm test` runs → all green, distinct roots, zero
-     leftovers.
+overlapping bare `npm test` runs → all green, distinct roots, zero
+      leftovers.
+  5. **Ownership follows the MARKER, not the path shape** (follow-up review
+     P2): the vitest setup used to treat ANY custom `TMPDIR` other than `/tmp`
+     as already-private, so a shared `/var/tmp`, `/tmp/ci-job` or any CI job dir
+     was swept directly and never marked. Now a run reuses the inherited
+     `TMPDIR` only when `.owner` names a LIVE pid; otherwise it creates and
+     marks `skald-vitest-run-*` INSIDE it (`/var/tmp` and a custom dir are now
+     covered). Node's `mkdtempSync` gets NO `XXXXXX` template (it appends the
+     random part itself); GNU `mktemp` KEEPS `XXXXXX` (it requires it) —
+     `skald_validate_tmp_init` additionally refuses to continue with an empty
+     or missing root. Regressions: custom shared `TMPDIR` nests a marked
+     root and leaves the parent unmarked; live-owned `TMPDIR` is reused
+     without nesting. Gate PASS: 3026 passed / 1 skipped; overlap runs from
+     `/tmp` AND `/var/tmp` → both validate PASS, both bare runs green,
+     distinct roots, zero leftovers.
 - Handler-level failure-path test added: a REJECTING provider at the real
   `handleWorldCommand` still yields exactly ONE failed provider call and ONE
   `gm_director` diagnostic (`outcome=fallback`, provider attributed).

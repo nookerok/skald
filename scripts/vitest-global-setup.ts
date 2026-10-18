@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 // @ts-ignore - plain Node ESM module without type declarations
-import { cleanupManagedTempDirs } from "./tmp-hygiene.mjs";
+import { cleanupManagedTempDirs, isOwnedByLiveProcess, OWNER_MARKER } from "./tmp-hygiene.mjs";
 
 /**
  * Teardown TTL: strictly larger than any full suite duration (validate runs
@@ -26,18 +26,20 @@ export const VITEST_TEARDOWN_TTL_MS = 60 * 60 * 1000;
 export const VITEST_RUN_PREFIX = "skald-vitest-run-";
 
 export default function globalSetup(): () => void {
-  // OWNERSHIP: a bare `npm test` (outside validate.sh) must ALSO own its temp
-  // root, so its scratch dirs never sit in the shared base where another run's
-  // sweep could reach them. Workers inherit this env; the root carries the
-  // `.owner` marker, so any concurrent sweep spares it by LIVENESS, not age.
-  // When TMPDIR is already a run-owned root (validate.sh exports
-  // `skald-validate-run-*`), we keep it and only sweep TTL-scoped.
+  // OWNERSHIP by MARKER, never by path shape: a custom/shared TMPDIR
+  // (`/var/tmp`, `/tmp/ci-job`, ...) is NOT private just because it is not
+  // `/tmp`. Only an `.owner` marker naming a LIVE pid proves the directory is
+  // a run's own root (validate.sh exports `skald-validate-run-*`, and a nested
+  // vitest reuses it). Otherwise this run creates its own root INSIDE the
+  // inherited TMPDIR and marks it, so concurrent sweeps spare it by liveness.
   const envTmp = process.env["TMPDIR"];
-  const alreadyPrivate = typeof envTmp === "string" && envTmp.length > 0 && !/^\/tmp\/?$/.test(envTmp);
-  const runRoot = alreadyPrivate ? null : mkdtempSync(join(tmpdir(), `${VITEST_RUN_PREFIX}XXXXXX`));
+  const inherited = typeof envTmp === "string" && envTmp.length > 0 ? envTmp : tmpdir();
+  const ownedByLiveRun = isOwnedByLiveProcess(inherited);
+  // No `XXXXXX` template: mkdtemp appends the random part itself.
+  const runRoot = ownedByLiveRun ? null : mkdtempSync(join(inherited, VITEST_RUN_PREFIX));
   if (runRoot) {
     process.env["TMPDIR"] = runRoot;
-    writeFileSync(join(runRoot, ".owner"), `pid=${process.pid}\n`);
+    writeFileSync(join(runRoot, OWNER_MARKER), `pid=${process.pid}\n`);
   }
 
   return () => {

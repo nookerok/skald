@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 // @ts-ignore - plain Node ESM module without type declarations
 import { cleanupManagedTempDirs, isSafePrefix, selectStaleManagedDirs, tempHeadroom } from "../../../scripts/tmp-hygiene.mjs";
-import { VITEST_TEARDOWN_TTL_MS } from "../../../scripts/vitest-global-setup.js";
+import { VITEST_TEARDOWN_TTL_MS, VITEST_RUN_PREFIX } from "../../../scripts/vitest-global-setup.js";
 
 describe("selectStaleManagedDirs", () => {
   const now = 1_000_000;
@@ -183,6 +183,49 @@ describe("owner liveness beats TTL (long or hung runs)", () => {
     expect(res.stdout.trim()).toMatch(/^pid=\d+$/m);
     rmSync(base, { recursive: true, force: true });
   });
+});
+
+describe("ownership follows the marker, not the path shape", () => {
+  it("a NON-standard shared TMPDIR is not treated as private: the run nests its own marked root", () => {
+    const shared = mkdtempSync(join(tmpdir(), "skald-shared-ci-job-"));
+    const res = spawnSync("npx", ["vitest", "run", "packages/events/test/events.test.ts", "--reporter=dot"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      timeout: 120_000,
+      env: { ...process.env, TMPDIR: shared },
+    });
+    expect(res.status).toBe(0);
+    // The teardown receipt must point INSIDE the shared dir at a private
+    // `skald-vitest-run-*` root — not at the shared dir itself.
+    const receipt = /\[tmp-hygiene\] teardown (.*)$/m.exec(res.stderr)?.[1];
+    expect(receipt).toBeTruthy();
+    const body = JSON.parse(String(receipt));
+    expect(body.root.startsWith(shared)).toBe(true);
+    expect(body.root).not.toBe(shared);
+    expect(body.root).toContain(VITEST_RUN_PREFIX);
+    // The shared dir carries no ownership marker and survives untouched.
+    expect(existsSync(join(shared, ".owner"))).toBe(false);
+    rmSync(shared, { recursive: true, force: true });
+  }, 150_000);
+
+  it("reuses a TMPDIR that a LIVE run already owns (validate.sh's private root)", () => {
+    const owned = mkdtempSync(join(tmpdir(), "skald-validate-run-"));
+    writeFileSync(join(owned, ".owner"), `pid=${process.pid}\n`);
+    const res = spawnSync("npx", ["vitest", "run", "packages/events/test/events.test.ts", "--reporter=dot"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      timeout: 120_000,
+      env: { ...process.env, TMPDIR: owned },
+    });
+    expect(res.status).toBe(0);
+    const receipt = /\[tmp-hygiene\] teardown (.*)$/m.exec(res.stderr)?.[1];
+    const body = JSON.parse(String(receipt));
+    // No nesting: the live-owned root is used as-is, and the nested run never
+    // removes it (its owner is still alive).
+    expect(body.root).toBe(owned);
+    expect(existsSync(join(owned, ".owner"))).toBe(true);
+    rmSync(owned, { recursive: true, force: true });
+  }, 150_000);
 });
 
 describe("low headroom (no forced wipe)", () => {

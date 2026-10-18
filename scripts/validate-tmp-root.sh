@@ -21,11 +21,20 @@
 
 skald_validate_tmp_init() {
   local base="${TMPDIR:-/tmp}"
-  # mktemp under the BASE tmp: our own namespaced, unique directory.
+  # GNU `mktemp` REQUIRES a `XXXXXX` template (Node's mkdtempSync does not and
+  # appends its own randomness, which is why the vitest setup drops it there).
+  # No trailing slash after the template.
   SKALD_VALIDATE_TMP_ROOT="$(mktemp -d "${base%/}/skald-validate-run-XXXXXX")" || {
     echo "[validate] cannot create private temp root under ${base}" >&2
     return 1
   }
+  # A root that does not exist means creation failed: never continue with an
+  # empty root (a silent empty TMPDIR would put every scratch dir in the shared
+  # base and destroy the ownership guarantee).
+  if [ -z "$SKALD_VALIDATE_TMP_ROOT" ] || [ ! -d "$SKALD_VALIDATE_TMP_ROOT" ]; then
+    echo "[validate] private temp root was not created under ${base}" >&2
+    return 1
+  fi
   # Children (npm → vitest → tests → mkdtempSync(tmpdir())) inherit this.
   export TMPDIR="$SKALD_VALIDATE_TMP_ROOT"
   # Ownership marker: `pid=<shell pid>` — liveness beats TTL in every sweep.
