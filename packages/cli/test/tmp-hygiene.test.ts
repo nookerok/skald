@@ -138,6 +138,53 @@ describe("vitest teardown TTL (concurrent-run safety)", () => {
   });
 });
 
+describe("owner liveness beats TTL (long or hung runs)", () => {
+  const deadPid = spawnSync(process.execPath, ["-e", "process.exit(0)"]).pid ?? -1;
+
+  it("an OLD dir owned by a LIVE process is never swept, however old its mtime", () => {
+    const root = mkdtempSync(join(tmpdir(), "hygiene-live-owner-"));
+    const live = join(root, "skald-validate-run-live");
+    mkdirSync(live);
+    writeFileSync(join(live, "events.sqlite"), "x".repeat(1024));
+    writeFileSync(join(live, ".owner"), `pid=${process.pid}\n`);
+    // Older than any TTL: age alone must not prove death.
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(live, old, old);
+
+    const receipt = cleanupManagedTempDirs(root, { prefix: "skald-", ttlMs: 60 * 1000 });
+    expect(existsSync(join(live, "events.sqlite"))).toBe(true);
+    expect(receipt.removed).toBe(0);
+    expect(receipt.sparedLive).toBe(1);
+  });
+
+  it("an OLD dir whose owner is dead IS swept (marker proves death)", () => {
+    const root = mkdtempSync(join(tmpdir(), "hygiene-dead-owner-"));
+    const dead = join(root, "skald-validate-run-dead");
+    mkdirSync(dead);
+    writeFileSync(join(dead, "events.sqlite"), "x".repeat(1024));
+    writeFileSync(join(dead, ".owner"), `pid=${deadPid}\n`);
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(dead, old, old);
+
+    const receipt = cleanupManagedTempDirs(root, { prefix: "skald-", ttlMs: 60 * 1000 });
+    expect(existsSync(dead)).toBe(false);
+    expect(receipt.removed).toBe(1);
+    expect(receipt.sparedLive).toBe(0);
+  });
+
+  it("marks the private root with the owning pid so every sweep can spare it", () => {
+    const base = mkdtempSync(join(tmpdir(), "hygiene-marker-"));
+    const res = spawnSync("bash", [
+      "-c",
+      `TMPDIR=${JSON.stringify(base)} bash -c 'source scripts/validate-tmp-root.sh; skald_validate_tmp_init; cat "$SKALD_VALIDATE_TMP_ROOT/.owner"'`,
+    ], { cwd: process.cwd(), encoding: "utf8" });
+    // The helper is sourced again in a fresh shell, so its own root was removed
+    // on exit — the marker content is what we assert.
+    expect(res.stdout.trim()).toMatch(/^pid=\d+$/m);
+    rmSync(base, { recursive: true, force: true });
+  });
+});
+
 describe("low headroom (no forced wipe)", () => {
   it("fails early instead of deleting fresh dirs when space is short", () => {
     const root = mkdtempSync(join(tmpdir(), "hygiene-headroom-"));
@@ -166,6 +213,11 @@ describe("validate EXIT-trap ownership", () => {
     const foreign = join(base, "skald-other-run-active"); // another run's dir
     mkdirSync(foreign);
     writeFileSync(join(foreign, "events.sqlite"), "x".repeat(512));
+    // The reviewer's uncovered edge: a foreign dir that is OLD by mtime but
+    // still owned by a LIVE process must survive any sweep.
+    writeFileSync(join(foreign, ".owner"), `pid=${process.pid}\n`);
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(foreign, old, old);
 
     const res = spawnSync("bash", [
       "-c",

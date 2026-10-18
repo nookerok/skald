@@ -5,17 +5,55 @@
  * (`skald-`). Repeated runs filled the tmpfs on the Orange Pi and broke a
  * deploy with ENOSPC. This module provides a SAFE, testable cleanup:
  *
- * - only DIRECT child directories whose name starts with the managed prefix;
+* - only DIRECT child directories whose name starts with the managed prefix;
  * - never symlinks (so it cannot escape the temp root);
- * - only entries older than a TTL;
+ * - only entries older than the TTL;
+ * - LIVENESS beats TTL: a dir whose `.owner` marker names a live pid (a run
+ *   that is long or hung) is never removed, however old its mtime;
  * - a headroom preflight (free bytes + free inodes) that fails early;
- * - a receipt with removed count/bytes and remaining headroom.
+ * - a receipt with removed count/bytes, sparedLive and remaining headroom.
  *
  * It never touches the production DB or unrelated directories.
  */
 
-import { readdirSync, statSync, rmSync, statfsSync, lstatSync } from "node:fs";
+import { readdirSync, statSync, rmSync, statfsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+
+/** Ownership marker a run writes into its private temp root (`pid=<n>`). */
+export const OWNER_MARKER = ".owner";
+
+/** Reads the owning pid from a managed dir; null when absent/unparsable. */
+export function ownerPid(path, readFile = readFileSync) {
+  try {
+    const text = readFile(join(path, OWNER_MARKER), "utf8");
+    const match = /^pid=(\d+)$/m.exec(String(text).trim());
+    return match ? Number(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when the pid names a live process. EPERM counts as alive (not ours). */
+export function isPidAlive(pid, kill = process.kill) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err?.code === "EPERM";
+  }
+}
+
+/**
+ * Whether a managed dir is owned by a STILL-LIVE run. Age is not proof of
+ * death: a long or hung validation must never be swept mid-flight, so every
+ * cleanup skips dirs whose owner marker names a live pid (pid reuse only ever
+ * spares a dir for longer — the conservative direction).
+ */
+export function isOwnedByLiveProcess(path, probe = isPidAlive) {
+  const pid = ownerPid(path);
+  return pid !== null && probe(pid);
+}
 
 /** Pure selection: managed, real directories older than the TTL. */
 export function selectStaleManagedDirs(entries, options) {
@@ -40,18 +78,29 @@ function dirSize(path) {
   return total;
 }
 
-/** Remove stale managed temp dirs; returns a receipt. Best-effort. */
+/**
+ * Remove stale managed temp dirs; returns a receipt. Best-effort.
+ * A dir owned by a LIVE run (see isOwnedByLiveProcess) is never removed, no
+ * matter how old its mtime is; the receipt reports `sparedLive` for them.
+ */
 export function cleanupManagedTempDirs(root, options) {
   const now = options.now ?? Date.now();
   let dirents = [];
-  try { dirents = readdirSync(root, { withFileTypes: true }); } catch { return { root, prefix: options.prefix, ttlMs: options.ttlMs, removed: 0, removedBytes: 0, scanned: 0 }; }
+  try { dirents = readdirSync(root, { withFileTypes: true }); } catch { return { root, prefix: options.prefix, ttlMs: options.ttlMs, removed: 0, removedBytes: 0, sparedLive: 0, scanned: 0 }; }
   const entries = dirents.map((dirent) => {
     const full = join(root, dirent.name);
     let mtimeMs = 0;
     try { mtimeMs = statSync(full).mtimeMs; } catch { /* ignore */ }
     return { name: dirent.name, mtimeMs, isDirectory: dirent.isDirectory(), isSymbolicLink: dirent.isSymbolicLink() };
   });
-  const targets = selectStaleManagedDirs(entries, { prefix: options.prefix, ttlMs: options.ttlMs, now });
+  const stale = selectStaleManagedDirs(entries, { prefix: options.prefix, ttlMs: options.ttlMs, now });
+  let sparedLive = 0;
+  const targets = [];
+  for (const name of stale) {
+    // Liveness beats TTL: an owner with a live pid means a run is still using it.
+    if (isOwnedByLiveProcess(join(root, name))) { sparedLive += 1; continue; }
+    targets.push(name);
+  }
   let removedBytes = 0;
   let removed = 0;
   for (const name of targets) {
@@ -62,7 +111,7 @@ export function cleanupManagedTempDirs(root, options) {
       removed += 1;
     } catch { /* best-effort */ }
   }
-  return { root, prefix: options.prefix, ttlMs: options.ttlMs, removed, removedBytes, scanned: entries.length };
+  return { root, prefix: options.prefix, ttlMs: options.ttlMs, removed, removedBytes, sparedLive, scanned: entries.length };
 }
 
 export function tempHeadroom(root) {

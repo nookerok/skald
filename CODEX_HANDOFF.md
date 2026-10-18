@@ -266,6 +266,18 @@
   DECISIVE EXPERIMENT: TWO FULL `scripts/validate.sh` runs overlapped → both
   `rc=0 [validate] PASS` with distinct private roots (`skald-validate-run-*
   = 0` left afterwards).
+  4. **LIVENESS beats TTL** (follow-up review P2): age alone is not proof of
+     death, so every owned root now carries a `.owner` marker with its live
+     pid, and every sweep (validate base pass, vitest teardown, CLI) SPARS
+     any dir whose owner pid is alive — an OLD but still-running validation is
+     never deleted (`sparedLive` in the receipt). Dead-owner and unmarked dirs
+     still age out by TTL. A bare `npm test` (outside validate.sh) now also
+     owns a private root (`skald-vitest-run-*`, exported TMPDIR + marker),
+     so both entry points are ownership-rooted. Regression: an OLD dir owned
+     by a live pid survives (sparedLive: 1), an OLD dir with a dead pid is
+     swept. Experiments: two overlapping full `validate.sh` runs AND two
+     overlapping bare `npm test` runs → all green, distinct roots, zero
+     leftovers.
 - Handler-level failure-path test added: a REJECTING provider at the real
   `handleWorldCommand` still yields exactly ONE failed provider call and ONE
   `gm_director` diagnostic (`outcome=fallback`, provider attributed).

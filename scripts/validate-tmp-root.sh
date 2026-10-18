@@ -8,6 +8,10 @@
 # shared base tmp, which let one validate run delete another run's ACTIVE
 # SQLite files (the cross-run flake root cause).
 #
+# LIVENESS: the root carries `.owner` with the owning shell PID. Any hygiene
+# sweep MUST skip a managed dir whose owner is still alive, regardless of age —
+# TTL alone would still let a long or hung run be deleted mid-flight.
+#
 # Usage (from validate.sh, after the base headroom/hygiene step):
 #   . scripts/validate-tmp-root.sh
 #   skald_validate_tmp_init
@@ -24,6 +28,8 @@ skald_validate_tmp_init() {
   }
   # Children (npm → vitest → tests → mkdtempSync(tmpdir())) inherit this.
   export TMPDIR="$SKALD_VALIDATE_TMP_ROOT"
+  # Ownership marker: `pid=<shell pid>` — liveness beats TTL in every sweep.
+  printf 'pid=%s\n' "$$" > "$SKALD_VALIDATE_TMP_ROOT/.owner"
   # Replace any previous EXIT trap: cleanup must be ownership-scoped.
   trap 'skald_code=$?; rm -rf "$SKALD_VALIDATE_TMP_ROOT"; exit "$skald_code"' EXIT
 }
