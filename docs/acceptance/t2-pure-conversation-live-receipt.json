@@ -1,0 +1,146 @@
+{
+  "schema": "T2_PURE_CONVERSATION_LIVE_RECEIPT",
+  "recordedAt": "2026-10-19T21:17:06Z",
+  "recordedAtSource": "repository host clock (WSL)",
+  "ticket": "conversation-director / P2 — T2 Чистый разговор без событий",
+  "dod": [
+    "чат один раз, без событий/времени",
+    "retry не дублирует",
+    "исходный kind сохраняется"
+  ],
+  "target": {
+    "host": "nooker@192.168.0.5",
+    "device": "orangepi4-lts",
+    "baseUrl": "http://127.0.0.1:3000 (loopback on the device)",
+    "service": "skald.service",
+    "node": "v22.23.1",
+    "persistence": "sqlite"
+  },
+  "actualCommit": "037ddc02291f8ed3faeb238a7f369d5d72a28a36",
+  "expectedCommit": "037ddc02291f8ed3faeb238a7f369d5d72a28a36",
+  "commitMatches": true,
+  "clockNote": {
+    "piUtcAtEvidenceSnapshot": "2026-10-19T18:17:41Z",
+    "piLocalAtEvidenceSnapshot": "2026-10-19T21:17:41 MSK",
+    "piNtpSynchronized": true,
+    "serviceRestartAnchor": "2026-10-19T21:11:15 MSK (the restart performed inside the run; = 18:11:15Z on the Pi clock)",
+    "offset": "the Pi clock reads ~3h behind the repository host clock; both are reported so no reader has to guess"
+  },
+  "world": {
+    "worldId": "world-1e1fadbc-943e-44a7-aa2b-807c08bace21",
+    "characterName": "T2Check",
+    "backgroundId": "wanderer",
+    "entrypointId": "river_waystation_arrival",
+    "templateId": "living_region",
+    "scratch": true,
+    "createdVia": "POST /api/worlds with header Idempotency-Key: t2-check-world-1 -> HTTP 201, created=true"
+  },
+  "baseline": {
+    "eventNumber": 60,
+    "worldTime": 0,
+    "eventCount": 60,
+    "chronicleTurns": 0
+  },
+  "checks": [
+    { "id": 1, "name": "inquiry: HTTP 200", "expected": 200, "actual": 200, "pass": true },
+    { "id": 2, "name": "inquiry: read-side branch", "expected": "inquiry", "actual": "inquiry", "pass": true },
+    { "id": 3, "name": "inquiry: response carries NO state (world did not move)", "expected": "absent", "actual": "absent", "pass": true },
+    { "id": 4, "name": "inquiry: response carries NO presentation", "expected": "absent", "actual": "absent", "pass": true },
+    { "id": 5, "name": "inquiry: inputClass", "expected": "inquiry", "actual": "inquiry", "pass": true },
+    { "id": 6, "name": "inquiry: responseKind", "expected": "inquiry_answer", "actual": "inquiry_answer", "pass": true },
+    { "id": 7, "name": "inquiry: conversation turn did not advance time", "expected": "worldTimeBefore == worldTimeAfter", "actual": "0 == 0", "pass": true },
+    { "id": 8, "name": "inquiry: master turn did not advance time", "expected": "worldTimeBefore == worldTimeAfter", "actual": "0 == 0", "pass": true },
+    { "id": 9, "name": "inquiry: revision eventNumber unchanged", "expected": 60, "actual": 60, "pass": true },
+    { "id": 10, "name": "inquiry: event log count unchanged", "expected": 60, "actual": 60, "pass": true },
+    { "id": 11, "name": "inquiry: state.eventNumber unchanged", "expected": 60, "actual": 60, "pass": true },
+    { "id": 12, "name": "inquiry: state.worldTime unchanged", "expected": 0, "actual": 0, "pass": true },
+    { "id": 13, "name": "inquiry: exactly one conversation turn", "expected": 1, "actual": 1, "pass": true },
+    { "id": 14, "name": "inquiry: no world chronicle turn added", "expected": 0, "actual": 0, "pass": true },
+    { "id": 15, "name": "replay: HTTP 200", "expected": 200, "actual": 200, "pass": true },
+    { "id": 16, "name": "replay: replayed flag", "expected": true, "actual": true, "pass": true },
+    { "id": 17, "name": "replay: same master turn kind as the original", "expected": "inquiry_answer", "actual": "inquiry_answer", "pass": true },
+    { "id": 18, "name": "replay: event log count still unchanged", "expected": 60, "actual": 60, "pass": true },
+    { "id": 19, "name": "replay: still exactly one conversation turn", "expected": 1, "actual": 1, "pass": true },
+    { "id": 20, "name": "conflict: HTTP 409", "expected": 409, "actual": 409, "pass": true },
+    { "id": 21, "name": "conflict: error code", "expected": "idempotency_conflict", "actual": "idempotency_conflict", "pass": true },
+    { "id": 22, "name": "clarification: HTTP 200", "expected": 200, "actual": 200, "pass": true },
+    { "id": 23, "name": "clarification: read-side (no time advance)", "expected": "worldTimeBefore == worldTimeAfter", "actual": "0 == 0", "pass": true },
+    { "id": 24, "name": "restart: health is ok again", "expected": true, "actual": true, "pass": true },
+    { "id": 25, "name": "post-restart replay: HTTP 200", "expected": 200, "actual": 200, "pass": true },
+    { "id": 26, "name": "post-restart replay: replayed flag", "expected": true, "actual": true, "pass": true },
+    { "id": 27, "name": "post-restart replay: original master turn kind preserved", "expected": "contextual_clarification", "actual": "contextual_clarification", "pass": true },
+    { "id": 28, "name": "post-restart replay: kind is contextual_clarification (T2 regression target)", "expected": "contextual_clarification", "actual": "contextual_clarification", "pass": true },
+    { "id": 29, "name": "post-restart: event log count unchanged", "expected": 60, "actual": 60, "pass": true },
+    { "id": 30, "name": "post-restart: state.eventNumber unchanged", "expected": 60, "actual": 60, "pass": true },
+    { "id": 31, "name": "post-restart: state.worldTime unchanged", "expected": 0, "actual": 0, "pass": true },
+    { "id": 32, "name": "post-restart: exactly two conversation turns (no duplicates)", "expected": 2, "actual": 2, "pass": true },
+    { "id": 33, "name": "post-restart: the clarification turn appears exactly once", "expected": 1, "actual": 1, "pass": true },
+    { "id": 34, "name": "post-restart: clarification responseKind preserved", "expected": "clarification", "actual": "clarification", "pass": true },
+    { "id": 35, "name": "ai-probe: readiness.playable", "expected": true, "actual": true, "pass": true },
+    { "id": 36, "name": "ai-probe: an interpret route answers ok", "expected": true, "actual": true, "pass": true },
+    { "id": 37, "name": "ai-probe: routerAvailable on the world state", "expected": true, "actual": true, "pass": true },
+    {
+      "id": 38,
+      "name": "live narration on the read-side inquiry turn",
+      "expected": "ready + narrationText",
+      "actual": "not_requested",
+      "pass": false,
+      "supersededBy": "liveNarrationProbe",
+      "resolution": "The expectation was wrong, not the system: a deterministic read-side inquiry never schedules a narration job (narrationState=not_requested), so no provider call is expected on that turn. The live-provider claim is proved separately on a turn where the LLM must answer — see liveNarrationProbe."
+    }
+  ],
+  "counters": {
+    "automatedChecks": 38,
+    "passed": 37,
+    "failed": 1,
+    "failedIsSuperseded": true
+  },
+  "liveNarrationProbe": {
+    "purpose": "prove a live provider answer, not the deterministic fallback, on a turn where the LLM is required",
+    "input": "осмотреться",
+    "idempotencyKey": "t2-live-llm-1",
+    "httpStatus": 200,
+    "masterTurnKind": "action_outcome",
+    "narrationStatusAtResponse": "pending",
+    "chronicleNarrationState": "ready",
+    "narrativeLLM": {
+      "usedFallback": false,
+      "text": "Небольшой путевой двор расположен у реки и кромки леса. На настиле остались тёмные следы воды выше обычного уровня. Верхний ряд камней переправы то скрывается под водой, то показывается вновь. Старая плоскодонка вытащена на берег, и её борт недавно просмолён заново."
+    },
+    "deterministicText": "Небольшой путевой двор у реки и кромки леса.",
+    "note": "The provider text carries scene details the deterministic line does not have, and usedFallback is false."
+  },
+  "readiness": {
+    "aiProbeHttpStatus": 503,
+    "status": "degraded",
+    "playable": true,
+    "activeModel": "gemma4:31b-cloud",
+    "routes": [
+      { "route": "interpret", "provider": "ollama_cloud", "model": "gemma4:31b-cloud", "status": "ok", "phase": "response_shape" },
+      { "route": "interpret", "provider": "ollama_cloud", "model": "gemma4:31b-cloud", "status": "unavailable", "phase": "configuration" },
+      { "route": "narrate", "provider": "ollama_cloud", "model": "gemma4:31b-cloud", "status": "ok", "phase": "response_shape" },
+      { "route": "narrate", "provider": "opencode_run", "model": "opencode/muse-spark-1.3-contributor-free", "status": "failed", "phase": "request" }
+    ],
+    "note": "degraded but playable: the primary live model serves both routes; the backup narrate route and one interpret candidate are not usable. A failure of the single live route would push narration onto the deterministic fallback."
+  },
+  "finalWorldState": {
+    "worldTime": 1,
+    "eventNumber": 86,
+    "eventCount": 86,
+    "routerAvailable": true,
+    "conversationTurns": [
+      { "idempotencyKey": "t2-inq-1", "inputClass": "inquiry", "responseKind": "inquiry_answer" },
+      { "idempotencyKey": "t2-clar-1", "inputClass": "clarification", "responseKind": "clarification" },
+      { "idempotencyKey": "t2-live-llm-1", "inputClass": "action", "responseKind": "action_outcome" }
+    ],
+    "chronicleTurns": 1
+  },
+  "notes": [
+    "The T2 checks (1..37) all ran BEFORE the world-changing «осмотреться» probe, so the no-event / no-time evidence is not polluted by it.",
+    "«осмотреться» is world-changing by contract: it moved the scratch world to worldTime=1 and added the only chronicle turn.",
+    "A speech turn is NOT a pure conversation turn: it commits Domain Events and advances time. Only inquiry / meta / clarification are read-side.",
+    "The idempotency key travels in the request body field idempotencyKey; the Idempotency-Key header is used only for world creation.",
+    "The scratch world stays in the catalog (there is no delete endpoint); it is labelled T2Check."
+  ],
+  "verdict": "PASS"
+}

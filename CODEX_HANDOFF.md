@@ -238,8 +238,27 @@
   `expectedCommit` compared separately (`commitMatches: true`), and the
   verdict records every guard — all true: `statusesOk` (200/200),
   `neitherReplayed` ([false,false]), `commitMatches`, `oneDecision`,
-  `oneShared`, `oneInterpretCall` — with `ollama_cloud/gemma4:31b-cloud`
-  (749ms). Verdict PASS.
+   `oneShared`, `oneInterpretCall` — with `ollama_cloud/gemma4:31b-cloud`
+   (749ms). Verdict PASS.
+- T2 (P2 — pure conversation persistence) CLOSED by a LIVE run on the Pi:
+  receipt `docs/acceptance/t2-pure-conversation-live-receipt.json` (schema
+  `T2_PURE_CONVERSATION_LIVE_RECEIPT`, deployed commit `037ddc0`, scratch world
+  `world-1e1fadbc-943e-44a7-aa2b-807c08bace21` «T2Check», 38 checks, 37 pass).
+  DoD proved live: (1) a pure conversation turn commits NOTHING — HTTP 200,
+  `status=inquiry`, the response carries NO `state` and NO `presentation`,
+  `worldTimeBefore == worldTimeAfter`, event log count 60 → 60, one chat entry
+  and zero chronicle turns; (2) retry under the same `idempotencyKey` answers
+  200 with `replayed:true` and no second entry, while a DIFFERENT body under
+  that key answers 409 `idempotency_conflict`; (3) the original kind survives
+  a real `systemctl restart skald.service` — the replayed clarification keeps
+  `masterTurn.kind=contextual_clarification` and appears exactly once. The one
+  non-passing check is an EXPIRED EXPECTATION, not a defect: a deterministic
+  read-side inquiry never schedules a narration job (`narrationState=not_requested`),
+  so live provider text is proved separately on a master turn
+  (`narrativeLLM.usedFallback=false`). Readiness on the device is
+  `degraded but playable`: `ollama_cloud/gemma4:31b-cloud` serves both routes,
+  the `opencode_run` narrate backup and one interpret candidate are not usable.
+  S0 is still open (browser QA + human acceptance); P3 must not start.
 - Flaky SQLite gate: ROOT-CAUSED AND FIXED across ALL THREE cleanup paths
   (was: "known flaky risk"):
   1. **vitest teardown** swept ALL `skald-*` dirs (`ttlMs: 0`) — an overlapping
