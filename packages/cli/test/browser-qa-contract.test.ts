@@ -302,6 +302,36 @@ describe("validateBrowserQaReport", () => {
     expect(errors.some((message) => message.includes("pixels must not be reported as captured"))).toBe(true);
   });
 
+  it("treats vertical overflow as scrollable, but catches a horizontally off-screen element", () => {
+    const audit = renderedAudit();
+    // A conversation feed that extends below the fold is normal: the
+    // in-viewport check must not contradict the measurements.
+    const scrolled = {
+      ...audit,
+      viewports: audit.viewports.map((viewport) => ({
+        ...viewport,
+        elements: viewport.elements.map((element) => (element.semanticKey === "shell-header"
+          ? { ...element, rect: { ...element.rect, height: element.rect.height + 4000 } }
+          : element)),
+      })),
+    };
+    const scrolledReport = buildBrowserQaReport(evidence({ screenshots: [], visualEvidence: { ...renderedStructureEvidence(), renderedAudit: scrolled }, verdicts: { ...allPass(), human: "blocked" } }));
+    expect(validateBrowserQaReport(scrolledReport)).toEqual([]);
+
+    // An element pushed sideways out of the viewport IS a defect.
+    const offScreen = {
+      ...audit,
+      viewports: audit.viewports.map((viewport) => ({
+        ...viewport,
+        elements: viewport.elements.map((element) => (element.semanticKey === "command-input"
+          ? { ...element, rect: { ...element.rect, x: element.rect.x + viewport.width + 40 } }
+          : element)),
+      })),
+    };
+    const offScreenReport = buildBrowserQaReport(evidence({ screenshots: [], visualEvidence: { ...renderedStructureEvidence(), renderedAudit: offScreen }, verdicts: { ...allPass(), human: "blocked" } }));
+    expect(validateBrowserQaReport(offScreenReport).some((message) => message.includes("viewport check contradicts bounding boxes"))).toBe(true);
+  });
+
   it("fails the visual area on a measured overflow, a hidden element or an overlap", () => {
     const audit = renderedAudit();
     // A failed check is recorded as failed: the measurement and the verdict

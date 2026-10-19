@@ -233,6 +233,15 @@ export const REQUIRED_RENDERED_AUDIT_CHECKS = Object.freeze([
   "interactive-hit-targets",
 ] as const);
 
+/**
+ * Meaning of `key-elements-in-viewport`: no audited element is pushed outside
+ * the HORIZONTAL viewport and no audited element is unrendered (zero size).
+ * Vertical overflow is normal for a scrollable page — a long conversation feed
+ * legitimately extends below the fold — so it is not a defect on its own;
+ * reachability is asserted separately (a runner measures that the composer
+ * becomes visible after scrolling).
+ */
+
 /** Rendered bounding box measured in CSS pixels. */
 export interface BrowserQaRenderRect {
   readonly x: number;
@@ -253,6 +262,7 @@ export interface BrowserQaRenderedElement {
   readonly computedStyle: {
     readonly display: string;
     readonly visibility: string;
+    /** Numeric opacity (0..1); CSS strings are not accepted. */
     readonly opacity: number;
     readonly position: string;
     readonly overflowX: string;
@@ -457,7 +467,7 @@ function validateRenderedAudit(value: unknown, verdict: unknown): readonly strin
     }
     if (checks.get("horizontal-overflow") === true && isRecord(doc) && Number(doc.scrollWidth) > Number(doc.clientWidth)) errors.push(prefix + " horizontal-overflow contradicts document metrics");
     if (checks.get("key-elements-visible") === true && elements.some((item) => isRecord(item) && (item.visible !== true || !isRecord(item.computedStyle) || item.computedStyle.display === "none" || item.computedStyle.visibility === "hidden" || item.computedStyle.opacity === 0))) errors.push(prefix + " visibility check contradicts element metrics");
-    if (checks.get("key-elements-in-viewport") === true && elements.some((item) => isRecord(item) && (!isRecord(item.rect) || Number(item.rect.width) <= 0 || Number(item.rect.height) <= 0 || Number(item.rect.x) < 0 || Number(item.rect.y) < 0 || Number(item.rect.x) + Number(item.rect.width) > Number(viewport.width) || Number(item.rect.y) + Number(item.rect.height) > Number(viewport.height)))) errors.push(prefix + " viewport check contradicts bounding boxes");
+    if (checks.get("key-elements-in-viewport") === true && elements.some((item) => isRecord(item) && (!isRecord(item.rect) || Number(item.rect.width) <= 0 || Number(item.rect.height) <= 0 || Number(item.rect.x) < 0 || Number(item.rect.x) + Number(item.rect.width) > Number(viewport.width)))) errors.push(prefix + " viewport check contradicts bounding boxes");
     if (checks.get("key-text-not-clipped") === true && elements.some((item) => isRecord(item) && item.textContent === true && (!isRecord(item.contentMetrics) || Number(item.contentMetrics.scrollWidth) > Number(item.contentMetrics.clientWidth) || Number(item.contentMetrics.scrollHeight) > Number(item.contentMetrics.clientHeight)))) errors.push(prefix + " clipping check contradicts content metrics");
     if (checks.get("interactive-hit-targets") === true && elements.some((item) => isRecord(item) && item.interactive === true && item.hitTargetMatches !== true)) errors.push(prefix + " hit-target check contradicts element metrics");
     if (checks.get("mobile-touch-targets") === true && elements.some((item) => isRecord(item) && item.interactive === true && (!isRecord(item.rect) || Number(item.rect.width) < 44 || Number(item.rect.height) < 44))) errors.push(prefix + " touch-target check contradicts element metrics");

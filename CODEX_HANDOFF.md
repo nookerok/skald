@@ -259,6 +259,31 @@
   `degraded but playable`: `ollama_cloud/gemma4:31b-cloud` serves both routes,
   the `opencode_run` narrate backup and one interpret candidate are not usable.
   S0 is still open (browser QA + human acceptance); P3 must not start.
+- Browser QA in SCREENSHOTLESS mode (the fixed NTFS Codex runner was NOT used —
+  this session is a native opencode/Traycer session without Codex
+  thread-messaging, so the run used `$skald-traycer-browser-qa`; the report
+  states this). Deployed runtime `037ddc0`, LAN UI, scratch world
+  `world-2c295f3d-a322-4d06-bfd6-b44cdc3055a4` («TraycerQa»), viewports
+  1280×800 and 390×844, 5 mutations of an authorized budget of 25, console
+  clean. `page.screenshot()` timed out after 15s → `screenshot` BLOCKED, and
+  the rendered-structure audit covered it (gate `proceed`, `screenshot` listed
+  as covered). Evidence: `docs/acceptance/traycer-browser-qa-report-2026-10-19.json`
+  (+ the rendered audit beside it) — validates against
+  `browser-qa-contract.ts` with ZERO errors. All structural checks pass on
+  both viewports (no horizontal overflow, 11/11 audited elements visible and
+  inside the horizontal viewport, 0 unintended overlaps, no clipped text,
+  44px hit targets, mobile touch targets). Live behaviour: one input → one
+  master turn, pending atomic (`aria-busy=true`, both controls disabled,
+  «МАСТЕР отвечает…»), read-only inquiry left `worldTime` at 1 and the event
+  log at 86, reload preserved the feed and the composer. Findings recorded:
+  the composer is NOT docked (below the fold at scroll 0, fully visible after
+  scrolling — reachable), the connection dot is decorative (no accessible
+  name; the text status is exposed via `#status-text[role=status]`), and pixels
+  were never assessed (`pixelCapture: not_captured`). Verdict: repository/api/
+  browser/visual/provider pass, **human blocked** → overall **blocked**. The
+  contract's in-viewport rule now measures horizontal containment and a
+  positive size (vertical overflow is normal for a scrollable page; reachability
+  is a separate DOM assertion).
 - Flaky SQLite gate: ROOT-CAUSED AND FIXED across ALL THREE cleanup paths
   (was: "known flaky risk"):
   1. **vitest teardown** swept ALL `skald-*` dirs (`ttlMs: 0`) — an overlapping

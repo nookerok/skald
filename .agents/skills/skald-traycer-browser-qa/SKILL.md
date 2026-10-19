@@ -35,12 +35,35 @@ This skill produces real browser evidence; keep the API smoke separate.
 Prove and record each capability before creating a world or clicking a gameplay
 control:
 
-    browser, viewport, screenshot, dom, console, report_dir
+    browser, viewport, screenshot, rendered_audit, dom, console, report_dir
 
 `evaluatePreflightGate` (`packages/cli/src/acceptance/browser-qa-contract.ts`)
-allows `proceed_reduced` only with an explicit `acknowledgedBy` naming who
-accepted each missing capability; an uncovered area then reports `blocked`,
+treats `screenshot` and `rendered_audit` as ALTERNATIVES: the visual area is
+proven by either one, and the gate stops only when both are blocked or a
+required capability (`browser`, `viewport`, `dom`, `console`, `report_dir`) is
+blocked. `proceed_reduced` requires an explicit `acknowledgedBy` naming who
+accepted each uncovered capability; an uncovered area then reports `blocked`,
 never `pass`.
+
+### Screenshotless mode: rendered structure
+
+When pixel capture is blocked, the run may still judge layout and interface
+state from the ACTUALLY RENDERED page. Collect a bounded render audit — an
+allowlist of semantic elements only, never the whole DOM and never internal
+ids — with viewport/document sizes, per-element rect, computed CSS, content
+metrics, visible/interactive flags, role and accessible name, control state,
+and measured overlaps. Then compute, per viewport:
+`horizontal-overflow`, `key-elements-visible`, `key-elements-in-viewport`,
+`no-unintended-overlap`, `key-text-not-clipped`, `interactive-hit-targets`,
+plus `mobile-touch-targets` on mobile viewports.
+
+Report it as `visualEvidence.method = "rendered_structure"`,
+`pixelCapture = "not_captured"`, `pixelReview = "not_run"`,
+`notAssessed = ["pixel_appearance", "subjective_aesthetics"]` and the
+`renderedAudit` object. `visual` may be `pass` only when every mandatory
+check passed; `human` stays `blocked` — a structural audit is machine evidence
+and must never be reported as a human judgement. Colour artifacts,
+anti-aliasing and subjective appearance cannot be confirmed this way.
 
 ### Screenshot capability is frequently blocked
 
@@ -55,11 +78,12 @@ const shot = await Promise.race([
 ```
 
 If it times out on both a simple `about:blank`/data-URL page and the Skald
-page, mark `screenshot` blocked and the `visual` verdict `blocked`. Keep the
-DOM/layout evidence (viewport, `scrollWidth` vs `innerWidth`, control bounding
-boxes, touch-target sizes) and say the pixels are unverified. `page.locator(...)`
-has no `screenshot`; do not rely on it. Tabs whose `viewed` flag is `false` may
-be the cause — if the user opens the browser tile, retry once before giving up.
+page, mark `screenshot` blocked. The run may then continue in screenshotless
+mode: the rendered-structure audit above stands in for the missing pixels, and
+the report must state that pixel appearance and subjective aesthetics were not
+assessed. `page.locator(...)` has no `screenshot`; do not rely on it. Tabs whose
+`viewed` flag is `false` may be the cause — if the user opens the browser tile,
+retry once before giving up.
 
 ## Driving the app
 

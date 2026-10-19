@@ -1,0 +1,953 @@
+{
+  "collector": "dom-geometry-computed-style-v1",
+  "complete": true,
+  "viewports": [
+    {
+      "label": "mobile-390x844",
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 1.5,
+      "isMobile": true,
+      "document": {
+        "clientHeight": 844,
+        "clientWidth": 380,
+        "scrollHeight": 2080,
+        "scrollWidth": 380
+      },
+      "elements": [
+        {
+          "semanticKey": "shell-topbar",
+          "role": "header",
+          "accessibleName": "← Меню\n        ✦ SKALD Бассейн Речного Стража\n        Ход 1·",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 227.54,
+            "width": 380,
+            "x": 0,
+            "y": 0
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(246, 233, 203)",
+            "display": "flex",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "relative",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 227,
+            "clientWidth": 380,
+            "scrollHeight": 227,
+            "scrollWidth": 380
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "place-label",
+          "role": "generic",
+          "accessibleName": "Переправа у Чёрного леса",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 18,
+            "width": 147.47,
+            "x": 104.04,
+            "y": 140.88
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(170, 183, 183)",
+            "display": "block",
+            "fontSize": "12px",
+            "lineHeight": "18px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 18,
+            "clientWidth": 147,
+            "scrollHeight": 18,
+            "scrollWidth": 147
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "time-label",
+          "role": "generic",
+          "accessibleName": "Ход 1",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 18,
+            "width": 30.44,
+            "x": 57,
+            "y": 140.88
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(170, 183, 183)",
+            "display": "block",
+            "fontSize": "12px",
+            "lineHeight": "18px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 18,
+            "clientWidth": 30,
+            "scrollHeight": 18,
+            "scrollWidth": 30
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "status-line",
+          "role": "status",
+          "accessibleName": "Мастер отвечает",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 17.28,
+            "width": 91,
+            "x": 270.33,
+            "y": 50.23
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(158, 173, 176)",
+            "display": "block",
+            "fontSize": "11.52px",
+            "lineHeight": "17.28px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 17,
+            "clientWidth": 91,
+            "scrollHeight": 17,
+            "scrollWidth": 91
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "chat-feed",
+          "role": "log",
+          "accessibleName": "ТЫосмотретьсяТвоё действиеМАСТЕРХод 1Ты оказался в небольшом",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 1374.7,
+            "width": 358.67,
+            "x": 10.67,
+            "y": 319.81
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(240, 234, 223)",
+            "display": "flex",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "auto",
+            "overflowY": "auto",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 1375,
+            "clientWidth": 359,
+            "scrollHeight": 1375,
+            "scrollWidth": 359
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "composer-form",
+          "role": "form",
+          "accessibleName": "Что ты делаешь?\n              \n              ◉",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 294.53,
+            "width": 360,
+            "x": 10,
+            "y": 1707.18
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(247, 233, 201)",
+            "display": "grid",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 293,
+            "clientWidth": 359,
+            "scrollHeight": 293,
+            "scrollWidth": 359
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "composer-input",
+          "role": "textbox",
+          "accessibleName": "Например: «Иду к северному проходу и держусь ближе к реке»",
+          "visible": true,
+          "interactive": true,
+          "textContent": false,
+          "rect": {
+            "height": 82,
+            "width": 330.67,
+            "x": 24.67,
+            "y": 1754.04
+          },
+          "computedStyle": {
+            "backgroundColor": "rgb(11, 23, 32)",
+            "color": "rgb(240, 234, 223)",
+            "display": "block",
+            "fontSize": "16.8px",
+            "lineHeight": "23.52px",
+            "opacity": 1,
+            "overflowX": "auto",
+            "overflowY": "auto",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 81,
+            "clientWidth": 329,
+            "scrollHeight": 81,
+            "scrollWidth": 329
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "send-button",
+          "role": "button",
+          "accessibleName": "Отправить",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 330.67,
+            "x": 24.67,
+            "y": 1843.04
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(7, 16, 23)",
+            "display": "block",
+            "fontSize": "11.52px",
+            "lineHeight": "17.28px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 44,
+            "clientWidth": 331,
+            "scrollHeight": 44,
+            "scrollWidth": 331
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "map-button",
+          "role": "button",
+          "accessibleName": "Карта",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 116,
+            "x": 10,
+            "y": 173.88
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(255, 255, 255, 0.024)",
+            "color": "rgb(193, 204, 204)",
+            "display": "block",
+            "fontSize": "10.24px",
+            "lineHeight": "15.36px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 43,
+            "clientWidth": 115,
+            "scrollHeight": 43,
+            "scrollWidth": 115
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "character-button",
+          "role": "button",
+          "accessibleName": "Ты",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 116,
+            "x": 132,
+            "y": 173.88
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(255, 255, 255, 0.024)",
+            "color": "rgb(193, 204, 204)",
+            "display": "block",
+            "fontSize": "10.24px",
+            "lineHeight": "15.36px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 43,
+            "clientWidth": 115,
+            "scrollHeight": 43,
+            "scrollWidth": 115
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "knowledge-button",
+          "role": "button",
+          "accessibleName": "Знания",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 116,
+            "x": 254,
+            "y": 173.88
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(255, 255, 255, 0.024)",
+            "color": "rgb(193, 204, 204)",
+            "display": "block",
+            "fontSize": "10.24px",
+            "lineHeight": "15.36px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 43,
+            "clientWidth": 115,
+            "scrollHeight": 43,
+            "scrollWidth": 115
+          },
+          "hitTargetMatches": true
+        }
+      ],
+      "overlapPairs": [
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 2654,
+          "secondSemanticKey": "place-label"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 548,
+          "secondSemanticKey": "time-label"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 1572,
+          "secondSemanticKey": "status-line"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 5104,
+          "secondSemanticKey": "map-button"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 5104,
+          "secondSemanticKey": "character-button"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 5104,
+          "secondSemanticKey": "knowledge-button"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "composer-form",
+          "overlapArea": 27115,
+          "secondSemanticKey": "composer-input"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "composer-form",
+          "overlapArea": 14549,
+          "secondSemanticKey": "send-button"
+        }
+      ],
+      "checks": [
+        {
+          "detail": "document scrollWidth 380 vs clientWidth 380",
+          "id": "horizontal-overflow",
+          "passed": true
+        },
+        {
+          "detail": "11/11 visible",
+          "id": "key-elements-visible",
+          "passed": true
+        },
+        {
+          "detail": "all 11 elements inside the horizontal viewport 390px; below the fold at scroll 0 (reachable by scrolling): composer-form,composer-input,send-button",
+          "id": "key-elements-in-viewport",
+          "passed": true
+        },
+        {
+          "detail": "0 unintended of 8 overlapping pairs",
+          "id": "no-unintended-overlap",
+          "passed": true
+        },
+        {
+          "detail": "no clipped text among allowlisted elements",
+          "id": "key-text-not-clipped",
+          "passed": true
+        },
+        {
+          "detail": "44px minimum hit target",
+          "id": "interactive-hit-targets",
+          "passed": true
+        },
+        {
+          "detail": "touch targets >= 44px",
+          "id": "mobile-touch-targets",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "label": "desktop-1280x800",
+      "width": 1280,
+      "height": 800,
+      "deviceScaleFactor": 1.5,
+      "isMobile": false,
+      "document": {
+        "clientHeight": 800,
+        "clientWidth": 1270,
+        "scrollHeight": 1594,
+        "scrollWidth": 1270
+      },
+      "elements": [
+        {
+          "semanticKey": "shell-topbar",
+          "role": "header",
+          "accessibleName": "← Меню\n        ✦ SKALD Бассейн Речного Стража\n        Ход 1·",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 68,
+            "width": 1270,
+            "x": 0,
+            "y": 0
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(246, 233, 203)",
+            "display": "flex",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "sticky",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 67,
+            "clientWidth": 1270,
+            "scrollHeight": 67,
+            "scrollWidth": 1270
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "place-label",
+          "role": "generic",
+          "accessibleName": "Переправа у Чёрного леса",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 20.41,
+            "width": 167.14,
+            "x": 450.27,
+            "y": 23.46
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(170, 183, 183)",
+            "display": "block",
+            "fontSize": "13.6px",
+            "lineHeight": "20.4px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 20,
+            "clientWidth": 167,
+            "scrollHeight": 20,
+            "scrollWidth": 167
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "time-label",
+          "role": "generic",
+          "accessibleName": "Ход 1",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 20.41,
+            "width": 34.49,
+            "x": 398.82,
+            "y": 23.46
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(170, 183, 183)",
+            "display": "block",
+            "fontSize": "13.6px",
+            "lineHeight": "20.4px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 20,
+            "clientWidth": 34,
+            "scrollHeight": 20,
+            "scrollWidth": 34
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "status-line",
+          "role": "status",
+          "accessibleName": "Мир слушает",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 19.2,
+            "width": 80.06,
+            "x": 858.23,
+            "y": 24.06
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(158, 173, 176)",
+            "display": "block",
+            "fontSize": "12.8px",
+            "lineHeight": "19.2px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 19,
+            "clientWidth": 80,
+            "scrollHeight": 19,
+            "scrollWidth": 80
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "chat-feed",
+          "role": "log",
+          "accessibleName": "ТЫосмотретьсяТвоё действиеМАСТЕРХод 1Ты оказался в небольшом",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 1072.7,
+            "width": 858.67,
+            "x": 205.67,
+            "y": 209.86
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(240, 234, 223)",
+            "display": "flex",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "auto",
+            "overflowY": "auto",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 1073,
+            "clientWidth": 859,
+            "scrollHeight": 1073,
+            "scrollWidth": 859
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "composer-form",
+          "role": "form",
+          "accessibleName": "Что ты делаешь?\n              \n              ◉",
+          "visible": true,
+          "interactive": false,
+          "textContent": true,
+          "rect": {
+            "height": 217.33,
+            "width": 860,
+            "x": 38.4,
+            "y": 1295.23
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(247, 233, 201)",
+            "display": "grid",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 216,
+            "clientWidth": 859,
+            "scrollHeight": 216,
+            "scrollWidth": 859
+          },
+          "hitTargetMatches": null
+        },
+        {
+          "semanticKey": "composer-input",
+          "role": "textbox",
+          "accessibleName": "Например: «Иду к северному проходу и держусь ближе к реке»",
+          "visible": true,
+          "interactive": true,
+          "textContent": false,
+          "rect": {
+            "height": 82,
+            "width": 822.67,
+            "x": 57.06,
+            "y": 1362.9
+          },
+          "computedStyle": {
+            "backgroundColor": "rgb(11, 23, 32)",
+            "color": "rgb(240, 234, 223)",
+            "display": "block",
+            "fontSize": "16.8px",
+            "lineHeight": "23.52px",
+            "opacity": 1,
+            "overflowX": "auto",
+            "overflowY": "auto",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 81,
+            "clientWidth": 821,
+            "scrollHeight": 81,
+            "scrollWidth": 821
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "send-button",
+          "role": "button",
+          "accessibleName": "Отправить",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 132,
+            "x": 747.73,
+            "y": 1311.9
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(7, 16, 23)",
+            "display": "block",
+            "fontSize": "12.48px",
+            "lineHeight": "18.72px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 44,
+            "clientWidth": 132,
+            "scrollHeight": 44,
+            "scrollWidth": 132
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "map-button",
+          "role": "button",
+          "accessibleName": "Карта",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 66.86,
+            "x": 962.96,
+            "y": 11.67
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(255, 255, 255, 0.024)",
+            "color": "rgb(193, 204, 204)",
+            "display": "block",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 43,
+            "clientWidth": 66,
+            "scrollHeight": 43,
+            "scrollWidth": 66
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "character-button",
+          "role": "button",
+          "accessibleName": "Ты",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 45.07,
+            "x": 1035.82,
+            "y": 11.67
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(255, 255, 255, 0.024)",
+            "color": "rgb(193, 204, 204)",
+            "display": "block",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 43,
+            "clientWidth": 44,
+            "scrollHeight": 43,
+            "scrollWidth": 44
+          },
+          "hitTargetMatches": true
+        },
+        {
+          "semanticKey": "knowledge-button",
+          "role": "button",
+          "accessibleName": "Знания",
+          "visible": true,
+          "interactive": true,
+          "textContent": true,
+          "rect": {
+            "height": 44,
+            "width": 77.93,
+            "x": 1086.9,
+            "y": 11.67
+          },
+          "computedStyle": {
+            "backgroundColor": "rgba(255, 255, 255, 0.024)",
+            "color": "rgb(193, 204, 204)",
+            "display": "block",
+            "fontSize": "16px",
+            "lineHeight": "24px",
+            "opacity": 1,
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "pointerEvents": "auto",
+            "position": "static",
+            "visibility": "visible"
+          },
+          "contentMetrics": {
+            "clientHeight": 43,
+            "clientWidth": 77,
+            "scrollHeight": 43,
+            "scrollWidth": 77
+          },
+          "hitTargetMatches": true
+        }
+      ],
+      "overlapPairs": [
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 3411,
+          "secondSemanticKey": "place-label"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 704,
+          "secondSemanticKey": "time-label"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 1537,
+          "secondSemanticKey": "status-line"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 2942,
+          "secondSemanticKey": "map-button"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 1983,
+          "secondSemanticKey": "character-button"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "shell-topbar",
+          "overlapArea": 3429,
+          "secondSemanticKey": "knowledge-button"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "composer-form",
+          "overlapArea": 67459,
+          "secondSemanticKey": "composer-input"
+        },
+        {
+          "allowed": true,
+          "firstSemanticKey": "composer-form",
+          "overlapArea": 5808,
+          "secondSemanticKey": "send-button"
+        }
+      ],
+      "checks": [
+        {
+          "detail": "document scrollWidth 1270 vs clientWidth 1270",
+          "id": "horizontal-overflow",
+          "passed": true
+        },
+        {
+          "detail": "11/11 visible",
+          "id": "key-elements-visible",
+          "passed": true
+        },
+        {
+          "detail": "all 11 elements inside the horizontal viewport 1280px; below the fold at scroll 0 (reachable by scrolling): composer-form,composer-input,send-button",
+          "id": "key-elements-in-viewport",
+          "passed": true
+        },
+        {
+          "detail": "0 unintended of 8 overlapping pairs",
+          "id": "no-unintended-overlap",
+          "passed": true
+        },
+        {
+          "detail": "no clipped text among allowlisted elements",
+          "id": "key-text-not-clipped",
+          "passed": true
+        },
+        {
+          "detail": "44px minimum hit target",
+          "id": "interactive-hit-targets",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}
