@@ -6,6 +6,29 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const STATUSES = new Set(["PASS", "FAIL", "BLOCKED"]);
+const PREFLIGHT_CAPABILITIES = Object.freeze([
+  "browser",
+  "viewport",
+  "screenshot",
+  "rendered_audit",
+  "dom",
+  "console",
+  "report_dir",
+]);
+/**
+ * Capabilities that must pass on their own. The two visual instruments are
+ * ALTERNATIVES: a rendered-structure audit may stand in for an unavailable
+ * screenshot, and vice versa. Only when BOTH are unavailable is the visual
+ * area unproven.
+ */
+const REQUIRED_PREFLIGHT_CAPABILITIES = Object.freeze([
+  "browser",
+  "viewport",
+  "dom",
+  "console",
+  "report_dir",
+]);
+const ALTERNATIVE_VISUAL_CAPABILITIES = Object.freeze(["screenshot", "rendered_audit"]);
 
 function argsOf(argv) {
   const values = new Map();
@@ -87,8 +110,10 @@ async function atomicJson(file, value) {
   await atomicText(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function writeAck({ outputRoot, jobId, runToken, mutationLimit }) {
+async function writeAck({ outputRoot, jobId, runToken, mutationLimit, preflight, acknowledgedBy }) {
   validateIdentity(jobId, runToken);
+  const validatedPreflight = validatePreflight(preflight);
+  const gate = decidePreflightGate(validatedPreflight, acknowledgedBy);
   const root = path.resolve(outputRoot);
   const reserved = [
     `${jobId}.ack.json`,
@@ -115,6 +140,17 @@ async function writeAck({ outputRoot, jobId, runToken, mutationLimit }) {
     status: "ACK",
     acknowledgedAt: new Date().toISOString(),
     mutationLimit: limit,
+    preflight: validatedPreflight,
+    preflightGate: gate.gate,
+    blockedCapabilities: gate.blockedCapabilities,
+    // The report mirrors this reduced scope; it names exactly the gaps the
+    // operator accepted, so the gate can be re-derived from the report alone.
+    ...(gate.gate === "proceed_reduced"
+      ? {
+          acknowledgedBy: acknowledgedBy.trim(),
+          reducedScope: { missing: gate.uncoveredCapabilities, acknowledgedBy: acknowledgedBy.trim() },
+        }
+      : {}),
   };
   await atomicJson(path.join(root, `${jobId}.ack.json`), payload);
   return payload;
@@ -123,9 +159,7 @@ async function writeAck({ outputRoot, jobId, runToken, mutationLimit }) {
 async function writeProgress({ outputRoot, jobId, runToken, phase, mutationTotal }) {
   validateIdentity(jobId, runToken);
   const root = path.resolve(outputRoot);
-  const ack = await json(path.join(root, `${jobId}.ack.json`), "ACK");
-  equal(ack.jobId, jobId, "ACK jobId");
-  equal(ack.runToken, runToken, "ACK runToken");
+  await readAckForJob(root, jobId, runToken);
   const payload = {
     schema: "QA_JOB_PROGRESS_V1",
     protocol: "QA_FILE_BRIDGE_V1",
@@ -148,9 +182,7 @@ async function writeReport({
 }) {
   validateIdentity(jobId, runToken);
   const root = path.resolve(outputRoot);
-  const ack = await json(path.join(root, `${jobId}.ack.json`), "ACK");
-  equal(ack.jobId, jobId, "ACK jobId");
-  equal(ack.runToken, runToken, "ACK runToken");
+  await readAckForJob(root, jobId, runToken);
   const jsonPath = path.join(root, `${jobId}-report.json`);
   const markdownPath = path.join(root, `${jobId}-report.md`);
   for (const file of [jsonPath, markdownPath, path.join(root, `${jobId}.complete.json`)]) {
@@ -177,6 +209,7 @@ async function writeReport({
 async function writeCompletion({ outputRoot, jobId, runToken }) {
   validateIdentity(jobId, runToken);
   const root = path.resolve(outputRoot);
+  const ack = await readAckForJob(root, jobId, runToken);
   const completionPath = path.join(root, `${jobId}.complete.json`);
   try {
     await readFile(completionPath);
@@ -207,6 +240,7 @@ async function writeCompletion({ outputRoot, jobId, runToken }) {
       markdownSha256: await hash(markdownPath),
     },
     mutationCounts: report.mutationCounts ?? { total: 0 },
+    preflightGate: ack.preflightGate,
     completedAt: new Date().toISOString(),
   };
   await atomicJson(completionPath, payload);
@@ -221,6 +255,20 @@ async function verify({ outputRoot, jobId, runToken }) {
   const done = await json(path.join(root, `${jobId}.complete.json`), "completion");
   equal(ack.schema, "QA_JOB_ACK_V1", "ACK schema");
   equal(ack.protocol, "QA_FILE_BRIDGE_V1", "ACK protocol");
+  let preflightVerified = false;
+  let preflightGate = null;
+  let blockedCapabilities = null;
+  try {
+    const validatedPreflight = validatePreflight(ack.preflight);
+    const gate = decidePreflightGate(validatedPreflight, ack.acknowledgedBy);
+    preflightGate = gate.gate;
+    blockedCapabilities = gate.blockedCapabilities;
+    preflightVerified = ack.preflightGate === gate.gate &&
+      JSON.stringify(ack.blockedCapabilities) === JSON.stringify(gate.blockedCapabilities) &&
+      (done.preflightGate === undefined || done.preflightGate === gate.gate);
+  } catch {
+    // Preserve verification of immutable receipts created before ACK preflight existed.
+  }
   equal(ack.jobId, jobId, "ACK jobId");
   equal(ack.runToken, runToken, "ACK runToken");
   equal(done.schema, "QA_JOB_COMPLETE_V1", "completion schema");
@@ -261,6 +309,9 @@ async function verify({ outputRoot, jobId, runToken }) {
     jobId,
     runToken,
     status: done.status,
+    preflightVerified,
+    preflightGate,
+    blockedCapabilities,
     worldId: report.worldId ?? null,
     mutationCounts: done.mutationCounts ?? report.mutationCounts ?? null,
     reportJsonPath,
@@ -284,11 +335,12 @@ async function selfTest() {
     mutationCounts: { total: 0 },
     delivery: { protocol: "QA_FILE_BRIDGE_V1", runToken },
   };
+  const preflight = Object.fromEntries(PREFLIGHT_CAPABILITIES.map((capability) => [capability, "PASS"]));
   try {
-    await writeAck({ outputRoot: root, jobId, runToken, mutationLimit: 0 });
+    await writeAck({ outputRoot: root, jobId, runToken, mutationLimit: 0, preflight });
     let duplicateRejected = false;
     try {
-      await writeAck({ outputRoot: root, jobId, runToken, mutationLimit: 0 });
+      await writeAck({ outputRoot: root, jobId, runToken, mutationLimit: 0, preflight });
     } catch (error) {
       duplicateRejected = String(error.message).includes("already has an artifact");
     }
@@ -353,6 +405,8 @@ switch (mode) {
     result = await writeAck({
       ...common,
       mutationLimit: args.get("mutation-limit") ?? "0",
+      preflight: decodePreflight(required(args, "preflight-base64")),
+      acknowledgedBy: args.get("acknowledged-by"),
     });
     break;
   case "progress":
@@ -381,3 +435,67 @@ switch (mode) {
     throw new Error(`Unsupported --mode: ${mode}`);
 }
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+function validatePreflight(preflight) {
+  if (!preflight || typeof preflight !== "object" || Array.isArray(preflight)) {
+    throw new Error("preflight must be a JSON object with the seven recorded capabilities");
+  }
+  const keys = Object.keys(preflight).sort();
+  const expected = [...PREFLIGHT_CAPABILITIES].sort();
+  if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+    const missing = expected.filter((key) => !keys.includes(key));
+    const extra = keys.filter((key) => !expected.includes(key));
+    throw new Error("preflight capability set mismatch (missing: " +
+      (missing.join(",") || "none") + "; extra: " + (extra.join(",") || "none") + ")");
+  }
+  for (const capability of PREFLIGHT_CAPABILITIES) {
+    if (preflight[capability] !== "PASS" && preflight[capability] !== "BLOCKED") {
+      throw new Error("preflight." + capability + " must be PASS or BLOCKED");
+    }
+  }
+  return Object.freeze({ ...preflight });
+}
+/**
+ * Mirrors the repository contract (packages/cli/src/acceptance/browser-qa-contract.ts):
+ * the visual area is proven by EITHER instrument; the gaps that require an
+ * explicit acknowledgment are the required capabilities that failed plus BOTH
+ * visual instruments when neither is available.
+ */
+function decidePreflightGate(preflight, acknowledgedBy) {
+  const blockedCapabilities = PREFLIGHT_CAPABILITIES.filter((capability) => preflight[capability] !== "PASS");
+  const uncovered = REQUIRED_PREFLIGHT_CAPABILITIES.filter((capability) => preflight[capability] !== "PASS");
+  const visualAvailable = ALTERNATIVE_VISUAL_CAPABILITIES.some((capability) => preflight[capability] === "PASS");
+  if (!visualAvailable) uncovered.push(...ALTERNATIVE_VISUAL_CAPABILITIES);
+  if (uncovered.length === 0) {
+    return { gate: "proceed", blockedCapabilities, uncoveredCapabilities: [] };
+  }
+  if (typeof acknowledgedBy === "string" && acknowledgedBy.trim().length > 0) {
+    return { gate: "proceed_reduced", blockedCapabilities, uncoveredCapabilities: uncovered };
+  }
+  return { gate: "stop", blockedCapabilities, uncoveredCapabilities: uncovered };
+}
+function decodePreflight(encoded) {
+  let value;
+  try {
+    value = JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
+  } catch {
+    throw new Error("--preflight-base64 must encode a valid preflight JSON object");
+  }
+  return validatePreflight(value);
+}
+async function readAckForJob(root, jobId, runToken) {
+  const ack = await json(path.join(root, jobId + ".ack.json"), "ACK");
+  equal(ack.jobId, jobId, "ACK jobId");
+  equal(ack.runToken, runToken, "ACK runToken");
+  validatePreflight(ack.preflight);
+  const expectedGate = decidePreflightGate(ack.preflight, ack.acknowledgedBy);
+  equal(ack.preflightGate, expectedGate.gate, "ACK preflight gate");
+  equal(JSON.stringify(ack.blockedCapabilities), JSON.stringify(expectedGate.blockedCapabilities), "ACK blocked capabilities");
+  if (expectedGate.gate === "proceed_reduced") {
+    const missing = ack.reducedScope?.missing;
+    if (!Array.isArray(missing) || JSON.stringify(missing) !== JSON.stringify(expectedGate.uncoveredCapabilities)) {
+      throw new Error("ACK reduced scope must name exactly the uncovered capabilities");
+    }
+    equal(ack.reducedScope?.acknowledgedBy, ack.acknowledgedBy, "ACK reduced scope acknowledgment");
+  }
+  return ack;
+}

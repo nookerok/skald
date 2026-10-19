@@ -46,6 +46,24 @@ uses schema `QA_JOB_COMPLETE_V1` and contains `jobId`, `runToken`, final
 status, relative report paths, SHA-256 for both reports and final mutation
 counts.
 
+Every new ACK must contain `preflight` with exactly these seven keys:
+`browser`, `viewport`, `screenshot`, `rendered_audit`, `dom`, `console`, and
+`report_dir`. Each value is exactly `PASS` or `BLOCKED`. The helper derives and
+records `preflightGate` (`proceed`, `proceed_reduced`, or `stop`) and
+`blockedCapabilities`.
+
+The two visual instruments are ALTERNATIVES. `screenshot` and `rendered_audit`
+may each stand in for the other: a rendered-structure audit proves the visual
+area when pixel capture is unavailable, and pixel capture proves it when the
+render audit cannot run. The gate is `stop` only when a required capability
+(`browser`, `viewport`, `dom`, `console`, `report_dir`) is blocked, or when BOTH
+visual instruments are blocked; a `proceed_reduced` additionally requires a
+non-empty `--acknowledged-by` name. Never open the game or create a world
+unless the ACK says `proceed` or `proceed_reduced` with a non-empty
+`acknowledgedBy`. If the gate is `stop`, do not open the game or create a
+world; publish a `BLOCKED` report and completion receipt with zero gameplay
+mutations.
+
 Only a valid completion receipt whose job/token/report hashes agree is a
 delivered result. Verify it from the WSL task with:
 
@@ -66,7 +84,9 @@ and calculates the report hashes itself. For example:
       --output-root /mnt/c/Users/<Windows-user>/Documents/Codex/2026-09-13/skald-browser-qa-v2/outputs/qa-evidence \
       --job-id <jobId> \
       --run-token <runToken> \
-      --mutation-limit <limit>
+      --mutation-limit <limit> \
+      --preflight-base64 <base64-encoded-preflight-json> \
+      [--acknowledged-by <operator-name>]
 
 Use `progress --phase <phase> --mutation-total <count>` around mutations,
 `report --source-json <draft-json> --source-markdown <draft-md>` to publish
@@ -96,7 +116,8 @@ the result once the completion receipt validates.
    - exact initial state or `worldTime` when known;
    - viewport(s) and flows to inspect;
    - the maximum number of state-changing gameplay clicks;
-   - whether screenshots are required;
+   - whether screenshots are required, or the run is screenshotless and must
+     collect a rendered-structure audit instead;
    - required DOM, console, accessibility, network, and persistence evidence;
    - the instruction to use `$browser:control-in-app-browser`;
    - the prohibition on repository, server, systemd, and SQLite changes.
@@ -123,15 +144,62 @@ permission to retry a state-changing operation.
 ## Preflight before the first mutation (plan_9 §15)
 
 Before opening the browser or creating a scratch world, the runner must prove
-these six capabilities and record each probe outcome in the ACK artifact:
+these seven capabilities and record each probe outcome in the ACK artifact:
 
-    browser, viewport, screenshot, dom, console, report_dir
+    browser, viewport, screenshot, rendered_audit, dom, console, report_dir
 
 The gate mirrors `packages/cli/src/acceptance/browser-qa-contract.ts`
-(`evaluatePreflightGate`): proceed only when all six pass; `proceed_reduced`
-only with an explicit `acknowledgedBy` naming who accepted each missing
-capability; otherwise stop before the first mutation. An area left uncovered
-by a reduced scope reports `blocked`, never `pass`.
+(`evaluatePreflightGate`): `browser`, `viewport`, `dom`, `console` and
+`report_dir` must pass; the visual area is proven by EITHER `screenshot` OR
+`rendered_audit`; `proceed_reduced` only with an explicit `acknowledgedBy`
+naming who accepted each uncovered capability; otherwise stop before the first
+mutation. An area left uncovered by a reduced scope reports `blocked`, never
+`pass`.
+
+### Isolated preflight surface (no game access)
+
+To break the "no tab → no DOM probe" loop, the preflight MAY open an isolated
+`about:blank` tab and use it ONLY to prove `browser`, `viewport`,
+`rendered_audit`, `dom` and `console` (viewport size, computed CSS, DOM
+readout, console capture). Before a successful ACK the runner MUST NOT
+navigate to Skald, call the Skald API, create a world, or perform any
+gameplay action. After a successful ACK the normal flow starts: open the LAN
+UI, create the scratch world, then inspect.
+
+### Screenshotless visual acceptance (rendered structure)
+
+When pixel capture is unavailable, the runner may still judge layout and
+interface state from the ACTUALLY RENDERED page structure. Collect a bounded
+render audit — never the whole DOM and never internal ids:
+
+- viewport and document sizes (`clientWidth/Height`, `scrollWidth/Height`);
+- for an allowlist of semantic elements only (`role` or a stable public
+  selector): bounding rect, computed CSS (`display`, `visibility`, `opacity`,
+  `position`, `overflow*`, `pointerEvents`, `fontSize`, `lineHeight`, `color`,
+  `backgroundColor`), content metrics, visible/interactive/text flags, role
+  and accessible name, and control state (disabled, `aria-busy`);
+- measured overlaps, each marked intentional or harmful.
+
+Then compute exactly these checks per viewport:
+`horizontal-overflow`, `key-elements-visible`, `key-elements-in-viewport`,
+`no-unintended-overlap`, `key-text-not-clipped`, `interactive-hit-targets`, plus
+`mobile-touch-targets` on mobile viewports.
+
+Report it as:
+
+    visualEvidence.method = "rendered_structure"
+    visualEvidence.pixelCapture = "not_captured"
+    visualEvidence.pixelReview = "not_run"
+    visualEvidence.notAssessed = ["pixel_appearance", "subjective_aesthetics"]
+    visualEvidence.renderedAudit = { collector: "dom-geometry-computed-style-v1",
+                                      complete: true, viewports: [...] }
+
+`visual` may be `pass` only when every mandatory render-audit check passed.
+`human` stays `not_run`/`blocked` — a structural audit is machine evidence and
+must never be reported as a human judgement. Colour artifacts, anti-aliasing
+and subjective appearance CANNOT be confirmed this way; the report must say so
+through `notAssessed`. A `BLOCKED` screenshot must be recorded as blocked and
+never marked as pass.
 
 ## Mutation boundary
 
@@ -159,6 +227,8 @@ Require a compact PASS/FAIL report covering the requested checks, with:
 - reload/persistence result;
 - console error count and exact critical messages;
 - screenshot paths when requested;
+- for a screenshotless run: the rendered-structure audit and the explicit
+  statement that pixel appearance and subjective aesthetics were not assessed;
 - distinction between application failure and browser-tool limitation.
 
 The JSON report must also contain the matching delivery protocol and run token.
