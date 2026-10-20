@@ -514,10 +514,13 @@ function namedSceneFocus(
   consider("target", scene.visibleObjects.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   consider("target", scene.accessibleItems.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   if (candidates.length === 0) return null;
-  const best = candidates.reduce((top, entry) => (entry.hits > top.hits ? entry : top));
-  const tied = candidates.filter((entry) => entry.hits === best.hits);
-  if (tied.length !== 1) return null;
-  return freeze({ kind: best.kind, surface: truncate(best.surface, MASTER_CONVERSATION_MAX_SURFACE), turnSeq });
+  // A mention is not a ranking contest: the replica named TWO referents
+  // ("с архивистом и смотрителем") carries no focus, even when one of them
+  // shares more words with the text. A later pronoun must not silently
+  // point at the word-count winner.
+  if (candidates.length > 1) return null;
+  const only = candidates[0]!;
+  return freeze({ kind: only.kind, surface: truncate(only.surface, MASTER_CONVERSATION_MAX_SURFACE), turnSeq });
 }
 
 /**

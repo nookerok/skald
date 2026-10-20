@@ -704,6 +704,10 @@ export function splitCompoundTarget(target: string): { readonly head: string; re
   const head = cleaned.slice(0, match.index).trim();
   const tail = cleaned.slice(match.index + match[0].length).trim();
   if (head.length === 0 || tail.length === 0) return null;
+  // A conjunction alone is not a second action: "подойду к человеку в
+  // плаще и шляпе с запада" names one person and two garments. The tail
+  // must start with a verb the lexicon knows.
+  if (!findBestVerb(tail)) return null;
   return { head, tail };
 }
 
@@ -718,6 +722,9 @@ export function splitPlayerClauses(text: string): { readonly head: string; reado
   const head = cleaned.slice(0, match.index).trim();
   const tail = cleaned.slice(match.index + match[0].length).trim();
   if (head.length === 0 || tail.length === 0) return null;
+  // Same rule as the target split: the tail must be an action, not the rest
+  // of a description.
+  if (!findBestVerb(tail)) return null;
   return { head, tail };
 }
 

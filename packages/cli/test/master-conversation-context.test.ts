@@ -122,6 +122,24 @@ describe("master conversation context", () => {
     ]);
   });
 
+  it("takes no focus when the replica names two referents at once, even by word count", () => {
+    // "хочу поговорить с архивистом и смотрителем речных ворот" names TWO
+    // people. A ranking winner would point the next pronoun at whichever
+    // label shared more words with the text.
+    const cityScene: MasterTurnSceneContext = {
+      ...scene(),
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Архивист Речного Стража", knownAs: ["Архивист Речного Стража"], known: true },
+        { observerRef: "person_2", kind: "person", label: "Смотритель речных ворот", knownAs: ["Смотритель речных ворот"], known: true },
+      ],
+    };
+    const context = buildMasterConversationContext([
+      row(1, { playerText: "хочу поговорить с архивистом и смотрителем речных ворот" }),
+    ], "w1", { scene: cityScene });
+
+    expect(context.recentFocus).toEqual([]);
+  });
+
   it("takes no focus when the replica names two referents at once", () => {
     const cityScene: MasterTurnSceneContext = {
       ...scene(),

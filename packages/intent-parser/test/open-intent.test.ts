@@ -840,6 +840,16 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     expect(result.interpretations).toEqual(["подхожу к архивисту", "приветствую его"]);
   });
 
+  it("keeps a conjunction inside a description instead of splitting the action", () => {
+    // "подойду к человеку в плаще и шляпе с запада" names ONE person and two
+    // garments: the conjunction is not a second action.
+    const result = interpretIntent("подойду к человеку в плаще и шляпе с запада");
+    expect(result.type).not.toBe("ClarificationRequired");
+    if (result.type === "ActionIntentCommand" || result.type === "InteractionCommand") {
+      expect(result.target?.raw ?? "").toMatch(/плаще и шляпе/iu);
+    }
+  });
+
   it("never turns a compound into one target naming two things", () => {
     const result = interpretIntent("подхожу к архивисту и приветствую его");
     if (result.type === "ActionIntentCommand" || result.type === "InteractionCommand") {

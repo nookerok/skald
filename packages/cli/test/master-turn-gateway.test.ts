@@ -196,6 +196,29 @@ describe("master turn gateway V2", () => {
     expect(result).toMatchObject({ status: "clarification", question: "К чему именно подойти?" });
   });
 
+  it("keeps a meaningful clarification when the server patch cannot be executed", async () => {
+    // The server resolved the referent, but the patched proposal carried no
+    // executable intent. Falling through to the generic "rephrase" fallback
+    // would be worse than the question the player can actually answer.
+    const snap = citySnapshot();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: null,
+      supportingClauses: [],
+      target: { role: "target", surface: "архивисту" },
+      referents: [],
+      ambiguity: { kind: "referent", question: "К кому именно подойти?", candidates: ["Архивист Речного Стража", "Смотритель речных ворот"] },
+    }));
+
+    // The replica has no known verb, so the model is consulted.
+    const result = await interpretMasterTurn("хочу поговорить с архивистом", snap, router);
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toBe("К кому именно подойти?");
+  });
+
   it("treats several pronouns that name one referent as a single group", () => {
     // "что на нём одето, в каком он насстроении?" carries two pronouns and
     // one addressee. Treating them as several groups left the turn without
@@ -225,6 +248,20 @@ describe("master turn gateway V2", () => {
       { ...binding("нём", "Архивист Речного Стража"), resolution: "ambiguous" as const },
       binding("он", "Архивист Речного Стража"),
     ])).toBeNull();
+
+    // Two DIFFERENT people can share one display label: the identity decides.
+    const sameLabel = (pronoun: string, candidate: string) => ({
+      ...binding(pronoun, "Незнакомый человек"),
+      candidates: [candidate],
+    });
+    expect(sharedSinglePronounSurface([
+      sameLabel("нём", "person_1"),
+      sameLabel("он", "person_2"),
+    ])).toBeNull();
+    expect(sharedSinglePronounSurface([
+      sameLabel("нём", "person_1"),
+      sameLabel("он", "person_1"),
+    ])).toBe("Незнакомый человек");
   });
 
   it("asks which action was meant instead of pretending a person was ambiguous", async () => {

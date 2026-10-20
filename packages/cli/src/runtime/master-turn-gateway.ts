@@ -588,12 +588,19 @@ function rephraseOption(): readonly [{ readonly optionId: string; readonly label
  */
 export function sharedSinglePronounSurface(bindings: readonly PronounBinding[]): string | null {
   if (bindings.length < 2) return null;
-  const surfaces = new Set<string>();
+  // Two referents can share one display label ("Незнакомый человек"), so
+  // the identity decides — not the wording. Pronouns that name DIFFERENT
+  // referents are two groups even when their labels are equal.
+  const refs = new Set<string>();
+  let surface: string | null = null;
   for (const binding of bindings) {
     if (binding.resolution !== "single" || !binding.mention) return null;
-    surfaces.add(binding.mention.surface);
+    if (binding.candidates.length !== 1) return null;
+    refs.add(binding.candidates[0]!);
+    if (surface === null) surface = binding.mention.surface;
+    else if (surface !== binding.mention.surface) return null;
   }
-  return surfaces.size === 1 ? [...surfaces][0]! : null;
+  return refs.size === 1 ? surface : null;
 }
 
 function resolvePronounsDeterministic(
@@ -1442,7 +1449,14 @@ export async function interpretMasterTurn(
   const serverResolved = typedProposal && typedProposal.ambiguity
     ? resolveAmbiguityAgainstScene(typedProposal, snapshot.scene)
     : null;
-  const staticCheck = validateTurnProposal(serverResolved ?? parsed);
+  // The server patch is used ONLY when the patched proposal still passes the
+  // full static check. A patch that leaves the proposal without an
+  // executable intent would turn a meaningful clarification into the generic
+  // "rephrase" fallback — worse than the question the player can answer.
+  const patchedCheck = serverResolved ? validateTurnProposal(serverResolved) : null;
+  const staticCheck = serverResolved && patchedCheck?.status !== "accepted"
+    ? validateTurnProposal(parsed)
+    : validateTurnProposal(serverResolved ?? parsed);
   if (staticCheck.status === "clarification") {
     // Stamp the asking scene revision onto the structured candidate so an
     // exact answer revalidates without a second model call (review P1).
