@@ -23,7 +23,7 @@
  *   a world-changing outcome closes it by the legacy rule.
  */
 
-import { parseIntent } from "@skald/intent-parser";
+import { parseIntent, stemRussianToken } from "@skald/intent-parser";
 import {
   isGenericActionFallback,
   narrationKey,
@@ -302,7 +302,7 @@ export function buildMasterConversationContext(
 
   return freeze({
     recentTurns: freeze(recentTurns),
-    recentFocus: collectFocus(window),
+    recentFocus: collectFocus(window, scene),
     pendingClarification,
     schemaVersion: 1 as const,
     lastTurns: freeze(lastTurns.messages),
@@ -411,7 +411,7 @@ function shownNarrationText(
  * deterministic re-parse of accepted action text remains as the legacy
  * fallback for rows written before metadata existed.
  */
-function collectFocus(window: readonly ConversationTurn[]): readonly ConversationReferent[] {
+function collectFocus(window: readonly ConversationTurn[], scene: MasterTurnSceneContext | null): readonly ConversationReferent[] {
   const focus: ConversationReferent[] = [];
   const seen = new Set<string>();
   const push = (candidate: ConversationReferent): void => {
@@ -437,7 +437,7 @@ function collectFocus(window: readonly ConversationTurn[]): readonly Conversatio
     }
     if ((turn.inputClass !== "action" && turn.inputClass !== "mixed")
       || (turn.responseKind !== "action_outcome" && turn.responseKind !== "mixed_outcome")) continue;
-    const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq);
+    const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq, scene);
     if (!candidate) continue;
     push(candidate);
   }
@@ -445,24 +445,79 @@ function collectFocus(window: readonly ConversationTurn[]): readonly Conversatio
 }
 
 /** Re-parses one accepted player text for its target/destination surface. */
-function focusFromPlayerText(playerText: string, turnSeq: number): ConversationReferent | null {
-  let parsed: ReturnType<typeof parseIntent>;
+function focusFromPlayerText(playerText: string, turnSeq: number, scene: MasterTurnSceneContext | null): ConversationReferent | null {
+  let parsed: ReturnType<typeof parseIntent> | undefined;
   try {
     parsed = parseIntent(playerText);
   } catch {
-    return null;
+    parsed = undefined;
   }
-  if (parsed.type === "JourneyIntent") {
+  if (parsed?.type === "JourneyIntent") {
     const surface = truncate(parsed.destination.raw.trim(), MASTER_CONVERSATION_MAX_SURFACE);
     if (!surface) return null;
     return freeze({ kind: "destination" as const, surface, turnSeq });
   }
-  if (parsed.type === "ActionIntentCommand" || parsed.type === "InteractionCommand") {
+  if (parsed?.type === "ActionIntentCommand" || parsed?.type === "InteractionCommand") {
     const raw = parsed.target?.raw?.trim();
-    if (!raw) return null;
-    return freeze({ kind: "target" as const, surface: truncate(raw, MASTER_CONVERSATION_MAX_SURFACE), turnSeq });
+    if (raw) return freeze({ kind: "target" as const, surface: truncate(raw, MASTER_CONVERSATION_MAX_SURFACE), turnSeq });
   }
-  return null;
+  // The replica may name a referent the deterministic layer cannot parse
+  // ("хочу поговорить с архивистом" has no known verb): the SCENE knows who
+  // that is. Without this the focus stays empty and the next pronoun ("а что
+  // на нём надето?") has two candidates, so the master asks which person the
+  // player means — forever, because the answer never records a focus either.
+  return namedSceneFocus(playerText, turnSeq, scene);
+}
+
+/**
+ * Finds the ONE scene referent the player named in their own words. A tie
+ * yields nothing: an ambiguous name must not silently pick a person.
+ */
+function namedSceneFocus(
+  playerText: string,
+  turnSeq: number,
+  scene: MasterTurnSceneContext | null,
+): ConversationReferent | null {
+  if (!scene) return null;
+  const words = new Set(
+    playerText
+      .toLowerCase()
+      .replace(/ё/gu, "е")
+      .split(/[^a-zа-я0-9]+/iu)
+      .filter((word) => word.length >= 3)
+      .map((word) => stemRussianToken(word))
+      .filter((word) => word.length >= 3),
+  );
+  if (words.size === 0) return null;
+  const candidates: { kind: ConversationReferent["kind"]; surface: string; hits: number }[] = [];
+  const consider = (kind: ConversationReferent["kind"], entries: readonly { label: string; knownAs: readonly string[] }[]): void => {
+    for (const entry of entries) {
+      const labels = [entry.label, ...entry.knownAs];
+      let hits = 0;
+      for (const label of labels) {
+        const labelStems = new Set(
+          label
+            .toLowerCase()
+            .replace(/ё/gu, "е")
+            .split(/[^a-zа-я0-9]+/iu)
+            .filter((word) => word.length >= 3)
+            .map((word) => stemRussianToken(word))
+            .filter((word) => word.length >= 3),
+        );
+        const overlap = [...labelStems].filter((stem) => words.has(stem)).length;
+        if (overlap > hits) hits = overlap;
+      }
+      if (hits > 0) candidates.push({ kind, surface: entry.label, hits });
+    }
+  };
+  consider("target", scene.knownPeople.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
+  consider("target", scene.visibleObjects.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
+  consider("target", scene.accessibleItems.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
+  if (candidates.length === 0) return null;
+  const best = candidates.reduce((top, entry) => (entry.hits > top.hits ? entry : top));
+  const tied = candidates.filter((entry) => entry.hits === best.hits);
+  if (tied.length !== 1) return null;
+  return freeze({ kind: best.kind, surface: truncate(best.surface, MASTER_CONVERSATION_MAX_SURFACE), turnSeq });
 }
 
 /**
@@ -601,7 +656,7 @@ function collectMentions(
     }
     if ((turn.inputClass !== "action" && turn.inputClass !== "mixed")
       || (turn.responseKind !== "action_outcome" && turn.responseKind !== "mixed_outcome")) continue;
-    const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq);
+    const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq, scene);
     if (!candidate || candidate.kind !== "destination") continue;
     const matched = matchSceneMention(candidate.surface, scene);
     push(freeze({

@@ -150,8 +150,10 @@ export function conflictingActions(actions: readonly string[]): ClassifiedClarif
     .slice(0, 3);
   return Object.freeze({
     reason: "conflicting_actions" as const,
+    // The options are the player's own words, so the question quotes them
+    // instead of reading like the master would perform the action itself.
     question: named.length > 0
-      ? `Что именно ты хочешь сделать — ${named.join(" или ")}?`
+      ? `Что именно ты хочешь сделать: ${named.map((label) => `«${label}»`).join(" или ")}?`
       : "Что именно ты хочешь сделать?",
     options: actions.length > 0
       ? actions.slice(0, 3).map((label, index) => ({

@@ -255,6 +255,16 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "прошептать", mode: "communicate", operation: "whisper", target: "forbidden" },
   { verb: "произнести", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "обратиться", mode: "communicate", operation: "speak", target: "optional" },
+  // Greetings and thanks: everyday openers the master must understand, and
+  // the tail of compound replicas like «подхожу к архивисту и приветствую
+  // его» — without them the second clause was absorbed into the target and
+  // the world-side resolver reported a false ambiguity between people.
+  { verb: "приветств", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "приветствую", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "поздорова", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "здорова", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "поблагодар", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "благодар", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "сказать", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "говорю", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "говоришь", mode: "communicate", operation: "speak", target: "optional" },
@@ -633,11 +643,35 @@ function buildClarification(
   return {
     type: "ClarificationRequired",
     clarificationId,
+    // The options are the player's own words, so the question quotes them:
+    // a bare "подхожу к архивисту или приветствую его?" would read as if the
+    // master were the one doing the action.
     question: named.length > 0
-      ? `Что именно ты хочешь сделать — ${named.join(" или ")}?`
+      ? `Что именно ты хочешь сделать: ${named.map((label) => `«${label}»`).join(" или ")}?`
       : "Что именно ты хочешь сделать?",
     interpretations: candidates.map((c, index) => playerLabels[index] ?? c.label),
   };
+}
+
+/**
+ * A compound replica is reported with the player's own clauses: the
+ * question quotes what they said ("подхожу к архивисту" / "приветствую
+ * его") and every option stays executable as the text it names.
+ */
+function compoundClarification(
+  rawText: string,
+  mode: IntentMode,
+  operation: IntentOperation,
+  afterVerbRaw: string,
+): ClarificationRequest {
+  const clauses = splitPlayerClauses(rawText);
+  const candidates = clauses
+    ? [
+      { mode, operation, label: clauses.head },
+      { mode, operation, label: clauses.tail },
+    ]
+    : [{ mode, operation, label: `${operation} — ${afterVerbRaw || "окружение"}` }];
+  return buildClarification(rawText, candidates, `compound-${Date.now()}`);
 }
 
 /**
@@ -645,8 +679,46 @@ function buildClarification(
  * A single-action parser cannot silently execute only the first part.
  */
 function hasCompoundConjunction(text: string): boolean {
-  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|смотр|взгляд|наблюд|ищ|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп)/iu.test(text)
+  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|смотр|взгляд|наблюд|ищ|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп|приветств|поздорова|здорова|благодар)/iu.test(text)
     || /(?:^|\s)(?:потом|затем|после|одновременно)\s+/iu.test(text);
+}
+
+/**
+ * A conjunction INSIDE the extracted target means the target swallowed a
+ * second clause: "подхожу к архивисту и приветствую его" is two actions, not
+ * one action aimed at a thing called "архивисту и приветствую его".
+ *
+ * The verb whitelist above cannot cover this: it lists known verb stems, so
+ * any clause whose verb the lexicon does not know ("приветствую") would be
+ * absorbed into the target and the world-side resolver would then report a
+ * false ambiguity between the visible people. A conjunction is the reliable
+ * signal, so it is checked on the SURFACE instead of on a verb list.
+ */
+const TARGET_CLAUSE_CONJUNCTION = /\s(?:и|а|но|или)\s/iu;
+
+/** Splits a target surface on its first clause conjunction. */
+export function splitCompoundTarget(target: string): { readonly head: string; readonly tail: string } | null {
+  const cleaned = target.trim().replace(/[?!.,;:]+$/u, "");
+  const match = TARGET_CLAUSE_CONJUNCTION.exec(cleaned);
+  if (!match || match.index <= 0) return null;
+  const head = cleaned.slice(0, match.index).trim();
+  const tail = cleaned.slice(match.index + match[0].length).trim();
+  if (head.length === 0 || tail.length === 0) return null;
+  return { head, tail };
+}
+
+/**
+ * Splits the player's own sentence into its two clauses, so a compound
+ * question quotes what the player actually said instead of rephrasing it.
+ */
+export function splitPlayerClauses(text: string): { readonly head: string; readonly tail: string } | null {
+  const cleaned = text.trim().replace(/[?!.,;:]+$/u, "");
+  const match = TARGET_CLAUSE_CONJUNCTION.exec(cleaned);
+  if (!match || match.index <= 0) return null;
+  const head = cleaned.slice(0, match.index).trim();
+  const tail = cleaned.slice(match.index + match[0].length).trim();
+  if (head.length === 0 || tail.length === 0) return null;
+  return { head, tail };
 }
 
 const ROUTE_HINT_PATTERNS = [
@@ -1051,21 +1123,13 @@ export function interpretIntent(
   // matched, a second action verb before it means the single-action parser
   // cannot silently execute one half.
   if (beforeVerb.length > 0 && findBestVerb(beforeVerb)) {
-    return buildClarification(
-      rawText,
-      [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${beforeVerb || afterVerbRaw || "окружение"}` }],
-      `compound-${Date.now()}`,
-    );
+    return compoundClarification(rawText, verb.mode, verb.operation, beforeVerb || afterVerbRaw);
   }
 
   // Compound phrase detection: "осматриваюсь и иду к реке", "слушать перевозчика, потом перейти мост".
   // Check BEFORE stripping conjunctions so "и иду" is still visible.
   if (verb.canonical && hasCompoundConjunction(afterVerbRaw)) {
-    return buildClarification(
-      rawText,
-      [{ mode: "perceive", operation: "observe", label: `${verb.canonical} — ${afterVerbRaw || "окружение"}` }],
-      `compound-${Date.now()}`,
-    );
+    return compoundClarification(rawText, "perceive", "observe", afterVerbRaw);
   }
 
   // Consume the entire word token, not just the matched stem prefix.
@@ -1080,16 +1144,29 @@ export function interpretIntent(
     // LLM path can still plan it and a degraded model falls back to a
     // specific question instead of the generic fallback.
     if (hasCompoundConjunction(afterVerbRaw)) {
-      return buildClarification(
-        rawText,
-        [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${afterVerbRaw || "окружение"}` }],
-        `compound-${Date.now()}`,
-      );
+      return compoundClarification(rawText, verb.mode, verb.operation, afterVerbRaw);
     }
     // «обойти башню с запада» names a target plus an approach direction;
     // do not mistake the directional modifier for the target itself.
     const approachTarget = extractApproachTarget(afterVerb);
     if (approachTarget) {
+      // A conjunction inside the target means a second clause was absorbed
+      // ("архивисту и приветствую его"): report the compound, never a target
+      // that names two things at once.
+      const compoundTarget = splitCompoundTarget(approachTarget);
+      if (compoundTarget) {
+        // Name the clauses in the player's own words so the question quotes
+        // what they actually said.
+        const clauses = splitPlayerClauses(rawText) ?? compoundTarget;
+        return buildClarification(
+          rawText,
+          [
+            { mode: verb.mode, operation: verb.operation, label: clauses.head },
+            { mode: verb.mode, operation: verb.operation, label: clauses.tail },
+          ],
+          `compound-${Date.now()}`,
+        );
+      }
       return {
         type: "ActionIntentCommand",
         mode: verb.mode,
@@ -1147,11 +1224,7 @@ export function interpretIntent(
   // clarifies specifically instead of executing half the phrase.
   if (verb.mode === "travel") {
     if (hasCompoundConjunction(afterVerbRaw)) {
-      return buildClarification(
-        rawText,
-        [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${afterVerbRaw || "окружение"}` }],
-        `compound-${Date.now()}`,
-      );
+      return compoundClarification(rawText, verb.mode, verb.operation, afterVerbRaw);
     }
     const dir = extractDirectionFromText(afterVerb);
     if (dir) {
@@ -1183,11 +1256,7 @@ export function interpretIntent(
   // "наваливаюсь плечом и толкаю дверь" — single-action parser cannot
   // silently execute only the first part.
   if (hasCompoundConjunction(afterVerb)) {
-    return buildClarification(
-      rawText,
-      [{ mode: verb.mode, operation: verb.operation, label: `${verb.operation} — ${afterVerb || "окружение"}` }],
-      `compound-${Date.now()}`,
-    );
+    return compoundClarification(rawText, verb.mode, verb.operation, afterVerb);
   }
 
   // place/use carry a tool + acted-on + canonical goal. The catch-all target

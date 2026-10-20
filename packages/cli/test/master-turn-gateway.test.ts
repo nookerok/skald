@@ -220,8 +220,59 @@ describe("master turn gateway V2", () => {
     expect(JSON.stringify(result)).not.toMatch(/schema|observerRef|TurnProposal/i);
   });
 
-  it("never repairs usable replies", async () => {
-    const snap = snapshot();
+  it("does not mark a NEW clarification as resolving the pending question", async () => {
+    // A player answers the pending question, but the answer produces another
+    // question. Marking the turn as "resolves" dropped the live question from
+    // the context, so the next answer had nothing to bind to and the master
+    // asked the same question again.
+    const base = snapshot();
+    const fence = base.scene.context.visibleObjects.find((object) => object.label === "Ограда");
+    expect(fence).toBeDefined();
+    const stored = {
+      turnSeq: 1,
+      worldId: "test-world",
+      correlationId: "c1",
+      idempotencyKey: "k1",
+      playerText: "Подхожу к ней.",
+      inputClass: "action",
+      worldTimeBefore: 0,
+      worldTimeAfter: 0,
+      responseKind: "clarification",
+      responseText: "К чему именно подойти?",
+      createdAt: 1,
+      contextMetadata: {
+        schemaVersion: 1,
+        clarification: {
+          question: "К чему именно подойти?",
+          options: [{ optionId: "candidate-1", label: "Ограда" }],
+        },
+      },
+    } as any;
+    const conversation = buildMasterConversationContext([stored], "test-world", { scene: base.scene.context });
+    expect(conversation.pendingClarification).not.toBeNull();
+    const snap: MasterTurnSnapshot = { ...base, conversation };
+
+    const asking = {
+      chat: vi.fn(async () => ({
+        text: JSON.stringify({
+          schemaVersion: 2,
+          kind: "action",
+          primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ней." },
+          supportingClauses: [],
+          target: { role: "target", observerRef: fence!.observerRef, surface: fence!.label },
+          referents: [{ role: "target", observerRef: fence!.observerRef, surface: fence!.label }],
+          ambiguity: { kind: "referent", question: "К чему именно подойти?", candidates: ["Ограда", "Двор"] },
+        }),
+      })),
+    } as any;
+
+    const result = await interpretMasterTurn("к ограде", snap, asking);
+
+    expect(result.status).toBe("clarification");
+    expect((result as { pendingLink?: { relation: string } }).pendingLink).toBeUndefined();
+  });
+
+  it("never repairs usable replies", async () => {    const snap = snapshot();
     const fence = snap.scene.context.visibleObjects.find((object) => object.label === "Ограда");
     expect(fence).toBeDefined();
     const ambiguous = {

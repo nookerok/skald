@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { classifyPlayerInput, parseIntent } from "@skald/intent-parser";
 
 describe("player input inquiry classification", () => {
+  it("never answers a referent disambiguation with the player's own background", () => {
+    const result = classifyPlayerInput(
+      "когда я говорю архивист, я имею ввиду Архивиста Речного Стража",
+      parseIntent,
+    );
+    expect(result.kind).not.toBe("inquiry");
+    if (result.kind === "inquiry") {
+      expect(result.inquiry.queryId).not.toBe("character_identity");
+    }
+  });
+
   it.each([
     ["где я?", "current_location"],
     ["что я вижу?", "visible_scene"],

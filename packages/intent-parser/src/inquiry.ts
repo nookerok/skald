@@ -203,6 +203,15 @@ export function isUnresolvedFocusSurface(surface: string): boolean {
   return UNRESOLVED_FOCUS_SURFACES.has(surface.trim().toLowerCase().replace(/ё/gu, "е"));
 }
 
+/**
+ * A player sentence that NAMES a referent ("я имею в виду Архивиста",
+ * "я говорю про перевозчика") is a disambiguation, never a question about the
+ * player. Without this guard such a sentence could be answered with the
+ * player's own background — a reply that has nothing to do with the question
+ * the master asked.
+ */
+const DISAMBIGUATION_MARKER = /(?:имею|имеешь)\s+в\s*виду|имею\s+ввиду|говорю\s+про|под\s+\S+\s+я\s+имею|значит\s+под/i;
+
 /** Deterministic spatial-focus patterns for explicit-noun questions. `beyond` has no deterministic producer yet and arrives via validated proposals. */
 const SPATIAL_FOCUS_PATTERNS: readonly [InquiryRelation, RegExp][] = [
   ["behind", /^(?:а\s+)?что\s+(?:там\s+)?за\s+(.+)$/iu],
@@ -237,6 +246,9 @@ function directInquiry(input: string): InquiryRequest | null {
   const normalized = normalizeQuestion(input);
   const withoutPrefix = normalized.replace(DIRECT_PREFIX, "").replace(WANT_TO_KNOW_PREFIX, "").trim();
   if (isExplicitSpeech(normalized)) return null;
+  // A referent disambiguation is not a question about the player: the master
+  // must bind the named referent, not answer with the player's background.
+  if (DISAMBIGUATION_MARKER.test(normalized)) return null;
   for (const [queryId, patterns] of INQUIRY_PATTERNS) {
     if (patterns.some((pattern) => pattern.test(withoutPrefix))) {
       return Object.freeze({ type: "InquiryRequest", queryId, rawText: input, confidence: 1, source: "deterministic" });

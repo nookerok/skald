@@ -1005,7 +1005,11 @@ async function interpretFramedInput(
     worldTime: options?.worldTime,
     referentCount: refs.length,
   });
-  return { ...inner, pendingLink: resolvesLink(pending.turnSeq) };
+  // A NEW clarification does not resolve the pending one: it replaces it.
+  // Marking it as "resolves" would drop the live question from the
+  // context, so the player's next answer would have nothing to bind to
+  // and the master would ask the same question again.
+  return inner.status === "clarification" ? inner : { ...inner, pendingLink: resolvesLink(pending.turnSeq) };
 }
 
 /**

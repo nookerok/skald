@@ -101,6 +101,42 @@ describe("master conversation context", () => {
     expect(context.recentFocus).toEqual([{ kind: "target", surface: "реку", turnSeq: 1 }]);
   });
 
+  it("takes the focus from the named scene referent when the replica parses to no target", () => {
+    // "хочу поговорить с архивистом" has no known verb, so the deterministic
+    // re-parse yields no target. Without the scene fallback the focus stayed
+    // empty, the next pronoun had two candidates and the master asked which
+    // person the player meant — over and over.
+    const cityScene: MasterTurnSceneContext = {
+      ...scene(),
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Архивист Речного Стража", knownAs: ["Архивист Речного Стража"], known: true },
+        { observerRef: "person_2", kind: "person", label: "Смотритель речных ворот", knownAs: ["Смотритель речных ворот"], known: true },
+      ],
+    };
+    const context = buildMasterConversationContext([
+      row(1, { playerText: "хочу поговорить с  архивистом" }),
+    ], "w1", { scene: cityScene });
+
+    expect(context.recentFocus).toEqual([
+      { kind: "target", surface: "Архивист Речного Стража", turnSeq: 1 },
+    ]);
+  });
+
+  it("takes no focus when the replica names two referents at once", () => {
+    const cityScene: MasterTurnSceneContext = {
+      ...scene(),
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Архивист Речного Стража", knownAs: ["Архивист Речного Стража"], known: true },
+        { observerRef: "person_2", kind: "person", label: "Смотритель речных ворот", knownAs: ["Смотритель речных ворот"], known: true },
+      ],
+    };
+    const context = buildMasterConversationContext([
+      row(1, { playerText: "поговорить с архивистом и смотрителем" }),
+    ], "w1", { scene: cityScene });
+
+    expect(context.recentFocus).toEqual([]);
+  });
+
   it("extracts destination focus from accepted journeys", () => {
     const context = buildMasterConversationContext([
       row(1, { playerText: "иду к Речной Страже" }),

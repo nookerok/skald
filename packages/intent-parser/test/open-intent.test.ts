@@ -826,6 +826,26 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     const result = interpretIntent("Иду к Речному Стражу");
     expect(result.type).toBe("JourneyIntent");
   });
+
+  it("names both clauses of a compound whose second verb the lexicon does not know", () => {
+    // The second clause ("приветствую его") used to be absorbed into the
+    // target, so the world-side resolver saw two possible people and asked
+    // a false ambiguity question instead of naming the two actions.
+    const result = interpretIntent("подхожу к архивисту и приветствую его");
+    expect(result.type).toBe("ClarificationRequired");
+    if (result.type !== "ClarificationRequired") return;
+    expect(result.question).toBe(
+      "Что именно ты хочешь сделать: «подхожу к архивисту» или «приветствую его»?",
+    );
+    expect(result.interpretations).toEqual(["подхожу к архивисту", "приветствую его"]);
+  });
+
+  it("never turns a compound into one target naming two things", () => {
+    const result = interpretIntent("подхожу к архивисту и приветствую его");
+    if (result.type === "ActionIntentCommand" || result.type === "InteractionCommand") {
+      expect(result.target?.raw ?? "").not.toMatch(/\s(?:и|а|но|или)\s/iu);
+    }
+  });
 });
 
 describe("interpretIntent — experiment affordance", () => {
