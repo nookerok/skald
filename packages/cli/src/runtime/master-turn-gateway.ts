@@ -586,6 +586,13 @@ function resolvePronounsDeterministic(
   snapshot: MasterTurnSnapshot,
   options?: MasterTurnGatewayOptions,
 ): PronounStep {
+  // A compound the deterministic parser already refused owns the turn: a
+  // pronoun inside the refused clause is not a referent of the whole turn.
+  // Binding it asked "who exactly" about a person the player never named —
+  // a false ambiguity — instead of naming the two actions the player said.
+  if (deterministic.type === "ClarificationRequired" && deterministic.clarificationId.startsWith("compound-")) {
+    return { kind: "same" };
+  }
   const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
   if (bindings.length !== 1) return { kind: "same" };
   const binding: PronounBinding = bindings[0]!;

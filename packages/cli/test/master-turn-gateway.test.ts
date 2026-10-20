@@ -196,6 +196,31 @@ describe("master turn gateway V2", () => {
     expect(result).toMatchObject({ status: "clarification", question: "К чему именно подойти?" });
   });
 
+  it("asks which action was meant instead of pretending a person was ambiguous", async () => {
+    // "подхожу к архивисту и приветствую его" is two actions. The pronoun
+    // inside the second clause must not be bound as a referent of the whole
+    // turn: that produced "Архивист или Смотритель?" about a person the
+    // player never mentioned.
+    const snap = citySnapshot();
+    const router = routerReturning("не разбираем");
+
+    const result = await interpretMasterTurn("подхожу к архивисту и приветствую его", snap, router);
+
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toBe(
+      "Что именно ты хочешь сделать: «подхожу к архивисту» или «приветствую его»?",
+    );
+    expect(result.options.map((option) => option.label)).toEqual([
+      "подхожу к архивисту",
+      "приветствую его",
+    ]);
+    // The model may still plan the compound ("подойду к ней и осмотрюсь"),
+    // so it is consulted; when it cannot, the honest fallback is the
+    // compound question — never a question about a person.
+    expect(router.chat).toHaveBeenCalled();
+  });
+
   it("resolves a model-declared ambiguity when the scene names exactly one candidate", async () => {
     // The model hedged ("Архивист или Смотритель?"), but the server owns
     // referent binding: the surface names ONE visible person, so the turn
