@@ -122,6 +122,26 @@ describe("master conversation context", () => {
     ]);
   });
 
+  it("keeps the focus when a full name shares a word with another label", () => {
+    // "Архивист Речного Стража" and "Смотритель Речного Стража" share
+    // "Стража". Naming the Архивист in full is still ONE subject: the
+    // shared fragment is not a second mention.
+    const cityScene: MasterTurnSceneContext = {
+      ...scene(),
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Архивист Речного Стража", knownAs: ["Архивист Речного Стража"], known: true },
+        { observerRef: "person_2", kind: "person", label: "Смотритель Речного Стража", knownAs: ["Смотритель Речного Стража"], known: true },
+      ],
+    };
+    const context = buildMasterConversationContext([
+      row(1, { playerText: "хочу поговорить с Архивистом Речного Стража" }),
+    ], "w1", { scene: cityScene });
+
+    expect(context.recentFocus).toEqual([
+      { kind: "target", surface: "Архивист Речного Стража", turnSeq: 1 },
+    ]);
+  });
+
   it("takes no focus when the replica names two referents at once, even by word count", () => {
     // "хочу поговорить с архивистом и смотрителем речных ворот" names TWO
     // people. A ranking winner would point the next pronoun at whichever

@@ -706,9 +706,28 @@ export function splitCompoundTarget(target: string): { readonly head: string; re
   if (head.length === 0 || tail.length === 0) return null;
   // A conjunction alone is not a second action: "подойду к человеку в
   // плаще и шляпе с запада" names one person and two garments. The tail
-  // must start with a verb the lexicon knows.
-  if (!findBestVerb(tail)) return null;
+  // must BE an action: a verb inside a description is part of it.
+  if (!clauseStartsWithVerb(tail)) return null;
   return { head, tail };
+}
+
+/**
+ * Introductory words a second clause may carry ("и затем приветствую его").
+ * They are stripped before the verb check.
+ */
+const CLAUSE_LEAD_INS = /^(?:(?:и|а|но|или|затем|потом|сразу|вслух|просто|тоже)\s+)+/iu;
+
+/**
+ * True when the clause is an independent verbal construction: the clause
+ * STARTS with a verb the lexicon knows. A verb buried inside a description
+ * ("шляпе, которую нельзя трогать с запада") is part of the description,
+ * not a second action.
+ */
+function clauseStartsWithVerb(clause: string): boolean {
+  const stripped = clause.trim().replace(CLAUSE_LEAD_INS, "").trim();
+  if (stripped.length === 0) return false;
+  const match = findBestVerb(stripped);
+  return match !== undefined && match.wordStart === 0;
 }
 
 /**
@@ -722,9 +741,9 @@ export function splitPlayerClauses(text: string): { readonly head: string; reado
   const head = cleaned.slice(0, match.index).trim();
   const tail = cleaned.slice(match.index + match[0].length).trim();
   if (head.length === 0 || tail.length === 0) return null;
-  // Same rule as the target split: the tail must be an action, not the rest
+  // Same rule as the target split: the tail must BE an action, not the rest
   // of a description.
-  if (!findBestVerb(tail)) return null;
+  if (!clauseStartsWithVerb(tail)) return null;
   return { head, tail };
 }
 
@@ -1086,7 +1105,12 @@ export function interpretIntent(
   const { utterance, cleaned: afterUtterance } = extractUtterance(text);
   text = afterUtterance.replace(SOFTENER_PREFIX, "").trim();
 
-  const verbMatch = findBestVerb(text);
+  // The main verb comes from the main clause: a verb inside an attributive
+  // description ("к человеку в плаще и шляпе, которую нельзя трогать")
+  // is a modifier, not the action of the replica. When the head has no verb
+  // at all, the whole text is still searched.
+  const headClause = text.split(/,/u)[0] ?? text;
+  const verbMatch = findBestVerb(headClause) ?? findBestVerb(text);
 
   if (!verbMatch) {
     if (hasDirectionWords(text)) {

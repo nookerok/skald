@@ -489,11 +489,11 @@ function namedSceneFocus(
       .filter((word) => word.length >= 3),
   );
   if (words.size === 0) return null;
-  const candidates: { kind: ConversationReferent["kind"]; surface: string; hits: number }[] = [];
+  const candidates: { kind: ConversationReferent["kind"]; surface: string; matched: Set<string> }[] = [];
   const consider = (kind: ConversationReferent["kind"], entries: readonly { label: string; knownAs: readonly string[] }[]): void => {
     for (const entry of entries) {
       const labels = [entry.label, ...entry.knownAs];
-      let hits = 0;
+      const matched = new Set<string>();
       for (const label of labels) {
         const labelStems = new Set(
           label
@@ -504,22 +504,30 @@ function namedSceneFocus(
             .map((word) => stemRussianToken(word))
             .filter((word) => word.length >= 3),
         );
-        const overlap = [...labelStems].filter((stem) => words.has(stem)).length;
-        if (overlap > hits) hits = overlap;
+        for (const stem of labelStems) if (words.has(stem)) matched.add(stem);
       }
-      if (hits > 0) candidates.push({ kind, surface: entry.label, hits });
+      if (matched.size > 0) candidates.push({ kind, surface: entry.label, matched });
     }
   };
   consider("target", scene.knownPeople.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   consider("target", scene.visibleObjects.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   consider("target", scene.accessibleItems.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   if (candidates.length === 0) return null;
-  // A mention is not a ranking contest: the replica named TWO referents
-  // ("с архивистом и смотрителем") carries no focus, even when one of them
-  // shares more words with the text. A later pronoun must not silently
-  // point at the word-count winner.
-  if (candidates.length > 1) return null;
-  const only = candidates[0]!;
+  // A mention is not a ranking contest. What separates "the replica named
+  // TWO people" from "two labels share a word" is an EXCLUSIVE match: a
+  // candidate is named only when it matched a word no other candidate
+  // matched. "Архивист Речного Стража" and "Смотритель Речного Стража"
+  // share "стража", so the full name keeps the focus on the Архивист, while
+  // "с архивистом и смотрителем" names two people and keeps no focus.
+  const named = candidates.filter((candidate) => {
+    for (const stem of candidate.matched) {
+      const shared = candidates.some((other) => other !== candidate && other.matched.has(stem));
+      if (!shared) return true;
+    }
+    return false;
+  });
+  if (named.length !== 1) return null;
+  const only = named[0]!;
   return freeze({ kind: only.kind, surface: truncate(only.surface, MASTER_CONVERSATION_MAX_SURFACE), turnSeq });
 }
 
