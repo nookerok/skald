@@ -358,10 +358,71 @@ function planMemory(proposal: TurnProposalV2): Pick<ValidatedMasterTurnPlan, "go
   });
 }
 
+/**
+ * Resolves a model-declared referent ambiguity against the current scene.
+ * Returns a patched proposal when the scene names exactly ONE candidate for
+ * the slot, otherwise null (a real ambiguity still asks the player).
+ * Only referent/destination ambiguities are resolved this way: an ambiguity
+ * about the ACTION is the model's own question and stays untouched.
+ */
+export function resolveAmbiguityAgainstScene(
+  proposal: TurnProposalV2,
+  scene: MasterTurnSceneSnapshot,
+): TurnProposalV2 | null {
+  const ambiguity = proposal.ambiguity;
+  if (!ambiguity) return null;
+  if (ambiguity.kind !== "referent" && ambiguity.kind !== "destination") return null;
+  const slot = inferAmbiguitySlot(proposal);
+  if (!slot) return null;
+  const surface = ambiguitySlotSurface(proposal, slot);
+  if (!surface) return null;
+  const bound = bindSceneSurface(surface, sceneBindEntries(scene));
+  if (bound.status !== "unique") return null;
+  const referent = freeze({ role: slot, observerRef: bound.entry.observerRef, surface: bound.entry.label });
+  const { ambiguity: _resolved, ...rest } = proposal;
+  void _resolved;
+  return freeze({
+    ...rest,
+    ...(slot === "target" ? { target: referent } : {}),
+    ...(slot === "addressee" ? { addressedEntity: referent } : {}),
+    ...(slot === "destination" && rest.primaryIntent?.kind === "journey"
+      ? { primaryIntent: freeze({ ...rest.primaryIntent, destination: referent }) }
+      : {}),
+    // The patched referent must be LISTED: a target that carries an
+    // observerRef the proposal does not mention is rejected by the static
+    // validator as an inconsistent structure.
+    referents: freeze(
+      rest.referents.some((entry) => entry.role === slot)
+        ? rest.referents.map((entry) => (entry.role === slot ? referent : entry))
+        : [...rest.referents, referent],
+    ),
+  }) as TurnProposalV2;
+}
+
+/** The surface the model named for the slot it left unresolved. */
+function ambiguitySlotSurface(proposal: TurnProposalV2, slot: AmbiguitySlot): string | null {
+  if (slot === "target") return proposal.target?.surface?.trim() || null;
+  if (slot === "addressee") return proposal.addressedEntity?.surface?.trim() || null;
+  if (slot === "destination" && proposal.primaryIntent?.kind === "journey") {
+    return proposal.primaryIntent.destination.surface?.trim() || null;
+  }
+  return null;
+}
+
 function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTurnValidation {
   const { proposal, scene, world, rawText } = input;
 
   if (proposal.ambiguity) {
+    // The model may hedge about a referent, but the SERVER owns referent
+    // binding. When the scene decides the slot on its own, the ambiguity is
+    // resolved here instead of asking the player: "к архивисту" names one
+    // visible person, and asking "Архивист или Смотритель?" made the player
+    // lose the thread on every follow-up.
+    const serverBound = resolveAmbiguityAgainstScene(proposal, scene);
+    if (serverBound) {
+      const revalidated = validateMasterTurnPlanInner({ ...input, proposal: serverBound });
+      if (revalidated.status === "accepted") return revalidated;
+    }
     const slot = inferAmbiguitySlot(proposal);
     return {
       status: "clarification",

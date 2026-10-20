@@ -29,6 +29,7 @@ import {
   unclearPrimaryAction,
   unknownObservedTarget,
   validateActionProposal,
+  parseTurnProposal,
   validateTurnProposal,
   type ActionIntentCommand,
   type AmbiguitySlot,
@@ -46,7 +47,7 @@ import { describeConversationContext, type MasterConversationContext } from "../
 import type { FramedClarification } from "../conversation/types.js";
 import { bindTurnPronouns, pronounNumber, type PronounBinding } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
-import { validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
+import { resolveAmbiguityAgainstScene, validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
 import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
 import { emitMasterTurnDiagnostic, type MasterTurnDiagnosticDimensions } from "./master-turn-diagnostics.js";
 import {
@@ -1400,7 +1401,15 @@ export async function interpretMasterTurn(
     ...proposalStructureDims(parsed),
   });
 
-  const staticCheck = validateTurnProposal(parsed);
+  // The model may hedge about a referent, but the SERVER owns referent
+  // binding. When the current scene names exactly one candidate for the
+  // unresolved slot, the hedge is resolved here instead of asking the
+  // player to pick again ("к архивисту" names one visible person).
+  const typedProposal = parseTurnProposal(parsed);
+  const serverResolved = typedProposal && typedProposal.ambiguity
+    ? resolveAmbiguityAgainstScene(typedProposal, snapshot.scene)
+    : null;
+  const staticCheck = validateTurnProposal(serverResolved ?? parsed);
   if (staticCheck.status === "clarification") {
     // Stamp the asking scene revision onto the structured candidate so an
     // exact answer revalidates without a second model call (review P1).

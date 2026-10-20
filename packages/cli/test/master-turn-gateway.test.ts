@@ -50,6 +50,54 @@ function routerReturning(text: string) {
   return { chat: vi.fn().mockResolvedValue({ text }) } as any;
 }
 
+
+/**
+ * A city scene with two visible people: the archivist and the gatekeeper.
+ * Both live in the WORLD (so a target resolves) and in the scene (so the
+ * model can name them).
+ */
+function citySnapshot(): MasterTurnSnapshot {
+  const projection = new WorldProjector();
+  const bus = new EventBus();
+  const log = [
+    ...bootstrap(),
+    event("ObjectPlaced", "boot-contact-archivist", {
+      entityId: "contact:archivist", x: 0, y: 0, name: "Архивист Речного Стража",
+      aliases: ["архивист", "архивиста", "архивисту"], description: "Хранитель городских записей.",
+      components: { contact: { locationId: "camp", backgroundId: "wanderer" } },
+    }),
+    event("ObjectPlaced", "boot-contact-gatekeeper", {
+      entityId: "contact:gatekeeper", x: 0, y: 0, name: "Смотритель речных ворот",
+      aliases: ["смотритель", "смотрителя"], description: "Ведёт журнал проходов у ворот.",
+      components: { contact: { locationId: "camp", backgroundId: "wanderer" } },
+    }),
+  ];
+  for (const entry of log) {
+    projection.apply(entry);
+    bus.append(entry);
+  }
+  const events = bus.query();
+  const world = projection.getSnapshot();
+  const scene = buildMasterTurnSceneContext(events, world);
+  const references = new Map(scene.references);
+  references.set("person_1", { kind: "person", internalId: "contact:archivist", label: "Архивист Речного Стража" });
+  references.set("person_2", { kind: "person", internalId: "contact:gatekeeper", label: "Смотритель речных ворот" });
+  const people = [
+    { observerRef: "person_1", kind: "person" as const, label: "Архивист Речного Стража", knownAs: ["Архивист Речного Стража"], known: true },
+    { observerRef: "person_2", kind: "person" as const, label: "Смотритель речных ворот", knownAs: ["Смотритель речных ворот"], known: true },
+  ];
+  return {
+    events,
+    world,
+    scene: {
+      ...scene,
+      references,
+      context: { ...scene.context, knownPeople: people },
+    },
+    conversation: buildMasterConversationContext([], "test-world"),
+  };
+}
+
 describe("master turn gateway V2", () => {
   it("takes the deterministic fast path without calling the model", async () => {
     const router = routerReturning("{}");
@@ -146,6 +194,46 @@ describe("master turn gateway V2", () => {
     const result = await interpretMasterTurn("Подхожу к ней.", snap, router);
 
     expect(result).toMatchObject({ status: "clarification", question: "К чему именно подойти?" });
+  });
+
+  it("resolves a model-declared ambiguity when the scene names exactly one candidate", async () => {
+    // The model hedged ("Архивист или Смотритель?"), but the server owns
+    // referent binding: the surface names ONE visible person, so the turn
+    // executes instead of asking the player to pick again.
+    const snap = citySnapshot();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ней." },
+      supportingClauses: [],
+      target: { role: "target", surface: "архивисту" },
+      referents: [],
+      ambiguity: { kind: "referent", question: "Кого или что именно — Архивист Речного Стража или Смотритель речных ворот?", candidates: ["Архивист Речного Стража", "Смотритель речных ворот"] },
+    }));
+
+    // "хочу поговорить с архивистом" has no known verb, so the deterministic
+    // fast path declines it: the model is consulted and its hedge reaches
+    // the server — exactly the live case.
+    const result = await interpretMasterTurn("хочу поговорить с архивистом", snap, router);
+
+    expect(result.status).not.toBe("clarification");
+  });
+
+  it("keeps a real ambiguity as a question when the scene cannot decide", async () => {
+    const snap = citySnapshot();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "action",
+      primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подхожу к ней." },
+      supportingClauses: [],
+      target: { role: "target", surface: "к ней" },
+      referents: [],
+      ambiguity: { kind: "referent", question: "К кому именно?", candidates: ["Архивист Речного Стража", "Смотритель речных ворот"] },
+    }));
+
+    const result = await interpretMasterTurn("подхожу к ней", snap, router);
+
+    expect(result.status).toBe("clarification");
   });
 
   it("carries the model relation on ambiguity clarifications", async () => {
