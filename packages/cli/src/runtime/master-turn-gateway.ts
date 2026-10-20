@@ -579,6 +579,23 @@ function rephraseOption(): readonly [{ readonly optionId: string; readonly label
  * other topics nudge with the named topic. Anything else (no pronouns,
  * several groups) returns same so the existing fast-path/LLM flow decides.
  */
+/**
+ * The surface every pronoun in the replica names, when they all name the
+ * SAME referent. «что на нём одето, в каком он насстроении?» carries two
+ * pronouns and one addressee; rewriting only one of them (or none) left the
+ * model with an unbound pronoun, and the model then hedged about which
+ * person the player meant.
+ */
+export function sharedSinglePronounSurface(bindings: readonly PronounBinding[]): string | null {
+  if (bindings.length < 2) return null;
+  const surfaces = new Set<string>();
+  for (const binding of bindings) {
+    if (binding.resolution !== "single" || !binding.mention) return null;
+    surfaces.add(binding.mention.surface);
+  }
+  return surfaces.size === 1 ? [...surfaces][0]! : null;
+}
+
 function resolvePronounsDeterministic(
   input: string,
   classification: PlayerInputClassification,
@@ -594,8 +611,15 @@ function resolvePronounsDeterministic(
     return { kind: "same" };
   }
   const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
-  if (bindings.length !== 1) return { kind: "same" };
-  const binding: PronounBinding = bindings[0]!;
+  if (bindings.length === 0) return { kind: "same" };
+  // Pronouns that all name the SAME referent form one group: rewriting them
+  // together is what lets the model answer "что на нём одето" about the
+  // person the player just addressed.
+  const sharedSurface = sharedSinglePronounSurface(bindings);
+  if (bindings.length !== 1 && sharedSurface === null) return { kind: "same" };
+  const binding: PronounBinding = bindings.length === 1
+    ? bindings[0]!
+    : { ...bindings[0]!, resolution: "single" as const, mention: { ...bindings[0]!.mention!, surface: sharedSurface! } };
   const scene = snapshot.scene.context;
 
   if (binding.mention && (classification.kind === "inquiry" || classification.kind === "inquiry_candidate")
@@ -798,7 +822,9 @@ function resolvePronounsDeterministic(
   const candidateQuestion = classification.kind === "inquiry_candidate";
   if (!pronounInTarget && !candidateQuestion) return { kind: "same" };
 
-  const rewritten = substitutePronoun(input, binding.pronoun, surface);
+  const rewritten = sharedSurface !== null
+    ? bindings.reduce((text, entry) => substitutePronoun(text, entry.pronoun, sharedSurface), input)
+    : substitutePronoun(input, binding.pronoun, surface);
   if (rewritten === input) return { kind: "same" };
   const next = classifyPlayerInput(rewritten, parseIntent);
   if (next.kind === "inquiry") {

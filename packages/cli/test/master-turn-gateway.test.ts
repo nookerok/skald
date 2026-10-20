@@ -4,7 +4,7 @@ import { WorldProjector, buildMasterTurnSceneContext, createRules } from "@skald
 import { RuleEngine } from "@skald/rule-engine";
 import { isGenericFallbackText } from "@skald/intent-parser";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
-import { interpretMasterTurn, matchFrameOption, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
+import { interpretMasterTurn, matchFrameOption, sharedSinglePronounSurface, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
 
 function event(type: string, eventId: string, payload: unknown, timestamp = 0): DomainEvent {
   return { eventId, type, schemaVersion: 1, payload, timestamp, correlationId: "bootstrap", causationId: null };
@@ -194,6 +194,37 @@ describe("master turn gateway V2", () => {
     const result = await interpretMasterTurn("Подхожу к ней.", snap, router);
 
     expect(result).toMatchObject({ status: "clarification", question: "К чему именно подойти?" });
+  });
+
+  it("treats several pronouns that name one referent as a single group", () => {
+    // "что на нём одето, в каком он насстроении?" carries two pronouns and
+    // one addressee. Treating them as several groups left the turn without
+    // a binding at all; one shared referent is one group.
+    const binding = (pronoun: string, surface: string) => ({
+      pronoun,
+      classes: ["person" as const],
+      preposition: null,
+      candidates: ["person_1"],
+      mention: { surface, turnSeq: 1 },
+      resolution: "single" as const,
+    });
+
+    expect(sharedSinglePronounSurface([
+      binding("нём", "Архивист Речного Стража"),
+      binding("он", "Архивист Речного Стража"),
+    ])).toBe("Архивист Речного Стража");
+
+    // Two different addressees stay two groups: the server must not pick.
+    expect(sharedSinglePronounSurface([
+      binding("нём", "Архивист Речного Стража"),
+      binding("он", "Смотритель речных ворот"),
+    ])).toBeNull();
+
+    // An unresolved pronoun is no group either.
+    expect(sharedSinglePronounSurface([
+      { ...binding("нём", "Архивист Речного Стража"), resolution: "ambiguous" as const },
+      binding("он", "Архивист Речного Стража"),
+    ])).toBeNull();
   });
 
   it("asks which action was meant instead of pretending a person was ambiguous", async () => {
