@@ -175,6 +175,21 @@ describe("master conversation context", () => {
     expect(context.recentFocus).toEqual([]);
   });
 
+  it("does not rank a nested label when both nested and full labels were named", () => {
+    const nestedScene: MasterTurnSceneContext = {
+      ...scene(),
+      knownPeople: [
+        { observerRef: "person_1", kind: "person", label: "Архивист", knownAs: ["Архивист"], known: true },
+        { observerRef: "person_2", kind: "person", label: "Старый Архивист", knownAs: ["Старый Архивист"], known: true },
+      ],
+    };
+    const context = buildMasterConversationContext([
+      row(1, { playerText: "хочу поговорить с архивистом и старым архивистом" }),
+    ], "w1", { scene: nestedScene });
+
+    expect(context.recentFocus).toEqual([]);
+  });
+
   it("extracts destination focus from accepted journeys", () => {
     const context = buildMasterConversationContext([
       row(1, { playerText: "иду к Речной Страже" }),

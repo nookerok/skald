@@ -431,10 +431,6 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
       ...(slot ? { framed: framedCandidate(proposal, slot, scene) } : {}),
     };
   }
-  if (proposal.primaryIntent === null) {
-    return { status: "invalid", reason: "proposal primary intent is missing" };
-  }
-
   const revision = freeze({ worldTime: world.time, eventNumber: world.eventNumber });
   const memory = planMemory(proposal);
   const focus: ValidatedConversationReferent[] = [];
@@ -444,6 +440,26 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
       focus.push(entry);
     }
   };
+
+  if (proposal.primaryIntent === null) {
+    if (proposal.kind !== "inquiry" || !proposal.questionPlan || proposal.supportingClauses.length > 0
+      || proposal.target !== undefined || proposal.addressedEntity !== undefined) {
+      return { status: "invalid", reason: "null primary is only valid for a read-only inquiry QuestionPlan" };
+    }
+    return {
+      status: "accepted",
+      plan: freeze({
+        contextRevision: revision,
+        kind: proposal.kind,
+        execution: null,
+        postActionInquiries: freeze([]),
+        metaInquiry: null,
+        deferredClauses: freeze([]),
+        focus: freeze(focus),
+        ...memory,
+      }),
+    };
+  }
 
   if (proposal.kind === "meta") {
     if (proposal.primaryIntent.kind !== "meta") return { status: "invalid", reason: "meta turn requires a meta primary intent" };

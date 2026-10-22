@@ -44,7 +44,7 @@ import {
 } from "@skald/intent-parser";
 import type { AIDiagnosticSink, ChatMessage, MasterSceneReference, MasterTurnSceneContext, MasterTurnSceneSnapshot, ModelRouter, ReadonlyWorld, QuestionRoundSpec } from "@skald/world";
 import { describeConversationContext, type MasterConversationContext } from "../conversation/context-builder.js";
-import type { FramedClarification } from "../conversation/types.js";
+import { CONVERSATION_MEMORY_MAX_QUESTION, type FramedClarification } from "../conversation/types.js";
 import { bindTurnPronouns, pronounNumber, type PronounBinding } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
 import { resolveAmbiguityAgainstScene, validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
@@ -219,8 +219,8 @@ function frameStems(value: string): readonly string[] {
 
 /**
  * Matches a replica against persisted clarification options (review P0):
- * exact normalized-label match first (identical display labels collapse
- * to the first option, consistent with the speak binder), then unique
+ * exact normalized-label match first (identical display labels remain
+ * ambiguous when they refer to different scene candidates), then unique
  * stem overlap with the option vocabulary (scene aliases fold into the
  * stem tier). A tie for best overlap stays ambiguous; no overlap matches
  * nothing. Selection is checked by option data (labels, refs, patches),
@@ -234,12 +234,17 @@ export function matchFrameOption(
   if (!norm) return { status: "none" };
   const seen = new Map<string, ClarificationOption>();
   for (const option of options) {
-    const key = normalizeFrameText(option.label);
-    if (key.length > 0 && !seen.has(key)) seen.set(key, option);
+    const label = normalizeFrameText(option.label);
+    if (!label) continue;
+    const refs = [...(option.referentRefs ?? [])].sort().join(",");
+    const action = option.intentPatch?.actionText ?? "";
+    const key = `${label}|refs:${refs}|action:${action}`;
+    if (!seen.has(key)) seen.set(key, option);
   }
   const unique = [...seen.values()];
   const exact = unique.filter((option) => normalizeFrameText(option.label) === norm);
-  if (exact.length > 0) return { status: "matched", option: exact[0]! };
+  if (exact.length > 1) return { status: "ambiguous" };
+  if (exact.length === 1) return { status: "matched", option: exact[0]! };
   const inputWords = new Set(frameStems(input));
   let best: ClarificationOption | null = null;
   let bestHits = 0;
@@ -897,6 +902,150 @@ function patchProposalReferent(
     referents: freeze(rest.referents.map((entry) => entry.role === slot ? referent : entry)),
   }) as TurnProposalV2;
 }
+function observerSafeLabelForRef(scene: MasterTurnSceneSnapshot, observerRef: string): string | null {
+  const context = scene.context;
+  const entries = [
+    ...context.knownPeople,
+    ...context.visibleObjects,
+    ...context.accessibleItems,
+    ...context.knownRoutes,
+    ...context.knownTopics.map((topic) => ({ observerRef: topic.observerRef, label: topic.text })),
+  ];
+  return entries.find((entry) => entry.observerRef === observerRef)?.label ?? null;
+}
+
+function patchQuestionPlanSubject(
+  proposal: TurnProposalV2,
+  subjectId: string,
+  observerRef: string,
+  surface: string,
+): TurnProposalV2 | null {
+  const questionPlan = proposal.questionPlan;
+  if (!questionPlan || !questionPlan.parts.some((part) => part.subjectRefs.includes(subjectId))) return null;
+  const subject = questionPlan.subjects.find((entry) => entry.id === subjectId);
+  if (!subject || subject.kind !== "entity") return null;
+  const subjects = questionPlan.subjects.map((entry) => entry.id === subjectId
+    ? freeze({ ...entry, observerRef, surface })
+    : entry);
+  return freeze({
+    ...proposal,
+    questionPlan: freeze({ ...questionPlan, subjects: freeze(subjects) }),
+  });
+}
+
+function frameQuestionSubject(
+  proposal: TurnProposalV2,
+  subjectId: string,
+  originalInput: string,
+  revision: { readonly worldTime: number; readonly eventNumber: number },
+): FramedClarification | undefined {
+  // A continuation must replay the exact player replica. Never persist a
+  // truncated input and then validate it as if it were the original question.
+  if (originalInput.length > CONVERSATION_MEMORY_MAX_QUESTION) return undefined;
+  return { slot: "question_subject", subjectId, proposal, originalInput, revision };
+}
+
+/**
+ * Resolves only a question ambiguity whose alternatives are observable
+ * people in this scene. Semantic alternatives remain a clarification.
+ */
+function questionAmbiguityPeopleRefs(
+  proposal: TurnProposalV2,
+  scene: MasterTurnSceneSnapshot,
+): ReadonlySet<string> | null {
+  const ambiguity = proposal.ambiguity;
+  if (!ambiguity || ambiguity.kind !== "question") return null;
+  const refs = new Set<string>();
+  for (const candidate of ambiguity.candidates) {
+    const words = normalizeFrameText(candidate).split(/[^\p{L}\p{N}]+/u)
+      .filter((word) => word.length >= 3)
+      .map((word) => stemRussianToken(word));
+    if (words.length === 0) return null;
+    const matches = scene.context.knownPeople.filter((person) => {
+      const labels = [person.label, ...(person.knownAs ?? [])];
+      return labels.some((label) => {
+        const labelWords = normalizeFrameText(label).split(/[^\p{L}\p{N}]+/u)
+          .filter((word) => word.length >= 3)
+          .map((word) => stemRussianToken(word));
+        return words.every((word) => labelWords.includes(word));
+      });
+    });
+    if (matches.length === 0) return null;
+    for (const person of matches) refs.add(person.observerRef);
+  }
+  return refs.size > 0 ? refs : null;
+}
+
+type QuestionAmbiguityResolution =
+  | { readonly status: "resolved"; readonly proposal: TurnProposalV2 }
+  | { readonly status: "clarification"; readonly outcome: MasterTurnGatewayOutcome };
+
+function resolveQuestionSubjectAmbiguity(
+  proposal: TurnProposalV2,
+  input: string,
+  snapshot: MasterTurnSnapshot,
+): QuestionAmbiguityResolution | null {
+  if (proposal.ambiguity?.kind !== "question"
+    || proposal.kind !== "inquiry"
+    || proposal.primaryIntent !== null
+    || !proposal.questionPlan
+    || proposal.supportingClauses.length > 0
+    || proposal.target !== undefined
+    || proposal.addressedEntity !== undefined) return null;
+
+  const candidateRefs = questionAmbiguityPeopleRefs(proposal, snapshot.scene);
+  if (!candidateRefs) return null;
+  const linkedEntitySubjects = proposal.questionPlan.subjects.filter((subject) =>
+    subject.kind === "entity"
+    && proposal.questionPlan!.parts.some((part) => part.subjectRefs.includes(subject.id)),
+  );
+  // A single subject slot is required. Multi-entity questions keep the
+  // model's ambiguity instead of silently selecting one side.
+  if (linkedEntitySubjects.length !== 1) return null;
+  const subject = linkedEntitySubjects[0]!;
+  const { ambiguity: _ambiguity, ...base } = proposal;
+  void _ambiguity;
+  const binding = resolveQuestionPlanBindings(
+    base.questionPlan!,
+    snapshot.scene.context,
+    snapshot.conversation,
+    snapshot.scene.references,
+  );
+
+  if (binding.status === "clarification") {
+    if (binding.subjectId !== subject.id) return null;
+    const optionRefs = new Set(binding.options.flatMap((option) => option.referentRefs ?? []));
+    if (optionRefs.size !== candidateRefs.size || [...candidateRefs].some((ref) => !optionRefs.has(ref))) return null;
+    const framed = frameQuestionSubject(base as TurnProposalV2, subject.id, input, snapshot.scene.context.revision);
+    return {
+      status: "clarification",
+      outcome: {
+        status: "clarification",
+        question: binding.question,
+        options: binding.options,
+        framed,
+      },
+    };
+
+  }
+
+  const resolved = binding.bindings.find((entry) => entry.subject.id === subject.id);
+  if (!resolved || resolved.resolution !== "resolved" || !resolved.resolvedRef
+    || !candidateRefs.has(resolved.resolvedRef)) return null;
+  const surface = observerSafeLabelForRef(snapshot.scene, resolved.resolvedRef);
+  if (!surface) return null;
+  const questionPlan = base.questionPlan!;
+  const subjects = questionPlan.subjects.map((entry) => entry.id === subject.id
+    ? freeze({ ...entry, observerRef: resolved.resolvedRef!, surface })
+    : entry);
+  return {
+    status: "resolved",
+    proposal: freeze({
+      ...base,
+      questionPlan: freeze({ ...questionPlan, subjects: freeze(subjects) }),
+    }) as TurnProposalV2,
+  };
+}
 
 /**
  * Fills the unresolved slot of a stored deterministic intent with the
@@ -938,8 +1087,51 @@ function tryResolveFramed(
   const framed = pending.framed;
   if (!framed) return null;
   const revision = snapshot.scene.context.revision;
-  if (framed.revision.worldTime !== revision.worldTime || framed.revision.eventNumber !== revision.eventNumber) return null;
+  const isQuestionSubject = framed.slot === "question_subject";
+  if (!isQuestionSubject && (framed.revision.worldTime !== revision.worldTime || framed.revision.eventNumber !== revision.eventNumber)) return null;
   try {
+    if (framed.proposal && isQuestionSubject) {
+      if (!framed.subjectId || !framed.originalInput) return null;
+      const surface = observerSafeLabelForRef(snapshot.scene, observerRef);
+      if (!surface) return null;
+      const patched = patchQuestionPlanSubject(framed.proposal, framed.subjectId, observerRef, surface);
+      if (!patched) return null;
+      const staticCheck = validateTurnProposal(patched);
+      if (staticCheck.status !== "accepted") return null;
+      const validation = validateMasterTurnPlan({
+        proposal: staticCheck.proposal,
+        scene: snapshot.scene,
+        world: snapshot.world,
+        rawText: framed.originalInput,
+      });
+      if (validation.status !== "accepted") return null;
+      const round = buildQuestionRound(staticCheck.proposal, validation.plan, snapshot, framed.originalInput, options);
+      if (round.status === "clarification") {
+        return {
+          status: "clarification",
+          question: round.question,
+          options: round.options,
+          ...(round.framed ? { framed: round.framed } : {}),
+        };
+      }
+      if (!round.spec) return null;
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "clarification_resolved",
+        outcome: "plan",
+        phase: "routing",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+        referentCount: 1,
+      });
+      return {
+        status: "plan",
+        plan: validation.plan,
+        scene: snapshot.scene,
+        questionRound: round.spec,
+        pendingLink: resolvesLink(pending.turnSeq),
+      };
+    }
+    if (framed.slot === "question_subject") return null;
     if (framed.proposal) {
       const staticCheck = validateTurnProposal(framed.proposal);
       if (staticCheck.status !== "accepted") return null;
@@ -1194,7 +1386,12 @@ function preferCompoundOverClarification(
 
 type QuestionRoundBuild =
   | { readonly status: "ok"; readonly spec: QuestionRoundSpec | null }
-  | { readonly status: "clarification"; readonly question: string; readonly options: readonly ClarificationOption[] };
+  | {
+    readonly status: "clarification";
+    readonly question: string;
+    readonly options: readonly ClarificationOption[];
+    readonly framed?: FramedClarification | undefined;
+  };
 
 /**
  * Builds the bounded reading-round spec from an accepted proposal
@@ -1208,6 +1405,7 @@ function buildQuestionRound(
   proposal: TurnProposalV2,
   plan: ValidatedMasterTurnPlan,
   snapshot: MasterTurnSnapshot,
+  originalInput: string,
   options?: MasterTurnGatewayOptions,
 ): QuestionRoundBuild {
   if (!proposal.questionPlan) return { status: "ok", spec: null };
@@ -1220,7 +1418,13 @@ function buildQuestionRound(
       correlationId: options?.correlationId,
       worldTime: options?.worldTime,
     });
-    return bound;
+    const subject = bound.subjectId
+      ? proposal.questionPlan.subjects.find((entry) => entry.id === bound.subjectId)
+      : undefined;
+    const framed = bound.subjectId && subject?.kind === "entity"
+      ? frameQuestionSubject(proposal, bound.subjectId, originalInput, snapshot.scene.context.revision)
+      : undefined;
+    return { ...bound, ...(framed ? { framed } : {}) };
   }
   const questionPlan: QuestionPlan = Object.freeze({
     subjects: bound.bindings,
@@ -1446,8 +1650,25 @@ export async function interpretMasterTurn(
   // unresolved slot, the hedge is resolved here instead of asking the
   // player to pick again ("к архивисту" names one visible person).
   const typedProposal = parseTurnProposal(parsed);
-  const serverResolved = typedProposal && typedProposal.ambiguity
-    ? resolveAmbiguityAgainstScene(typedProposal, snapshot.scene)
+  const questionResolution = typedProposal
+    ? resolveQuestionSubjectAmbiguity(typedProposal, input, snapshot)
+    : null;
+  if (questionResolution?.status === "clarification") {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "question_plan_ambiguous",
+      outcome: "clarification",
+      phase: "routing",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    return questionResolution.outcome;
+  }
+  const proposalForStatic = questionResolution?.status === "resolved"
+    ? questionResolution.proposal
+    : typedProposal ?? parsed;
+  const serverResolved = proposalForStatic && typeof proposalForStatic === "object"
+    && "ambiguity" in proposalForStatic && proposalForStatic.ambiguity
+    ? resolveAmbiguityAgainstScene(proposalForStatic as TurnProposalV2, snapshot.scene)
     : null;
   // The server patch is used ONLY when the patched proposal still passes the
   // full static check. A patch that leaves the proposal without an
@@ -1455,8 +1676,8 @@ export async function interpretMasterTurn(
   // "rephrase" fallback — worse than the question the player can answer.
   const patchedCheck = serverResolved ? validateTurnProposal(serverResolved) : null;
   const staticCheck = serverResolved && patchedCheck?.status !== "accepted"
-    ? validateTurnProposal(parsed)
-    : validateTurnProposal(serverResolved ?? parsed);
+    ? validateTurnProposal(proposalForStatic)
+    : validateTurnProposal(serverResolved ?? proposalForStatic);
   if (staticCheck.status === "clarification") {
     // Stamp the asking scene revision onto the structured candidate so an
     // exact answer revalidates without a second model call (review P1).
@@ -1534,12 +1755,13 @@ export async function interpretMasterTurn(
     diagnostics: options?.diagnostics,
   });
   if (contextual.status === "accepted") {
-    const bound = buildQuestionRound(staticCheck.proposal, contextual.plan, snapshot, options);
+    const bound = buildQuestionRound(staticCheck.proposal, contextual.plan, snapshot, input, options);
     if (bound.status === "clarification") {
       return preferCompoundOverClarification(input, snapshot, options, {
         status: "clarification",
         question: bound.question,
         options: bound.options,
+        ...(bound.framed ? { framed: bound.framed } : {}),
       });
     }
     return {

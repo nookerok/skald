@@ -158,6 +158,7 @@ describe("interpretGmDecision — seven problematic replicas", () => {
           ? { kind: "npc", handle: npcHandle }
           : { kind: fixture.expected.addresseeKind },
         kind: fixture.expected.kind,
+        ...(fixture.expected.kind === "clarification" ? { clarification: { question: "Which one?" } } : {}),
         ...(subjectHandle !== undefined ? { subjectHandle } : {}),
       };
       const result = await interpretGmDecision({

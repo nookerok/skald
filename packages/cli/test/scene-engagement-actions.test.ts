@@ -55,6 +55,29 @@ describe("scene engagement actions", () => {
     }
   });
 
+
+  it("whispers through the command path after giving an item deepens engagement", async () => {
+    const { store, runtime } = await fresh("whisper-engaged");
+    try {
+      await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "approach" });
+      expect(runtime.projection.getSnapshot().sceneEngagement?.state).toBe("near");
+
+      await handleWorldCommand(runtime, { input: "отдать обломок перевозчику", idempotencyKey: "give" });
+      expect(runtime.projection.getSnapshot().sceneEngagement?.state).toBe("engaged");
+
+      const eventCount = runtime.bus.query().length;
+      const response = parse(await handleWorldCommand(runtime, { input: "прошептать", idempotencyKey: "whisper" }));
+      const committed = runtime.bus.query().slice(eventCount);
+      expect(committed).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: "ActionResolved", payload: expect.objectContaining({ result: "whisper" }) }),
+      ]));
+      expect(response.ok).toBe(true);
+      expect(JSON.stringify(response)).toContain("Ты говоришь тихо");
+    } finally {
+      store.close();
+    }
+  });
+
   it("«отойти» clears the engagement and answers honestly, deterministically", async () => {
     const { store, runtime } = await fresh("withdraw");
     try {

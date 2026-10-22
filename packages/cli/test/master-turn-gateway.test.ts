@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { EventBus, type DomainEvent } from "@skald/event-bus";
 import { WorldProjector, buildMasterTurnSceneContext, createRules } from "@skald/world";
 import { RuleEngine } from "@skald/rule-engine";
 import { isGenericFallbackText } from "@skald/intent-parser";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
+import { buildReadSideConversationTurn, buildTurnMemoryMetadata } from "../src/conversation/builder.js";
+import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
+import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
 import { interpretMasterTurn, matchFrameOption, sharedSinglePronounSurface, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
 
 function event(type: string, eventId: string, payload: unknown, timestamp = 0): DomainEvent {
@@ -1214,7 +1220,7 @@ describe("unified frame selection (review P1)", () => {
 });
 
 describe("whole-replica inquiry completeness (T3)", () => {
-  const COMPOUND_REPLICA = "Где я и почему я тут оказался?";
+  const COMPOUND_REPLICA = "Что на нём одето и как он себя ведёт?";
 
   function proposalReturning(extra?: Record<string, unknown>) {
     return {
@@ -1236,10 +1242,10 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(result.status).toBe("plan");
   });
 
-  it("keeps the honest single-query answer when the model is unavailable", async () => {
+  it("clarifies instead of answering an unrelated query when the model is unavailable", async () => {
     const result = await interpretMasterTurn(COMPOUND_REPLICA, snapshot(), null);
 
-    expect(result.status).toBe("inquiry");
+    expect(result.status).toBe("clarification");
   });
 
   it("still short-circuits a whole-replica inquiry with a model available", async () => {
@@ -1569,4 +1575,178 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(result.options.length).toBeGreaterThanOrEqual(2);
     expect((result as { questionRound?: unknown }).questionRound).toBeUndefined();
   });
+  it("continues a model question ambiguity through a persisted read-only QuestionPlan", async () => {
+    const snap = snapshot();
+    const references = new Map(snap.scene.references);
+    references.set("person_1", { kind: "person", internalId: "contact:first", label: "Guard" });
+    references.set("person_3", { kind: "person", internalId: "contact:second", label: "Guard" });
+    const people = [
+      { observerRef: "person_1", kind: "person" as const, label: "Guard", knownAs: [], known: true, portrait: { visibleAppearance: ["dark coat"], distinguishingFeatures: ["brass badge"], publicRole: "ferry keeper", addressForms: [] } },
+      { observerRef: "person_3", kind: "person" as const, label: "Guard", knownAs: [], known: true, portrait: { visibleAppearance: ["blue scarf"], distinguishingFeatures: ["silver key"], publicRole: "gate keeper", addressForms: [] } },
+    ];
+    const scene = { ...snap.scene, references, context: { ...snap.scene.context, knownPeople: people } };
+    const input = "Что на нём одето и как он себя ведёт?";
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "inquiry",
+      primaryIntent: null,
+      supportingClauses: [],
+      referents: [],
+      ambiguity: { kind: "question", question: "Which guard do you mean?", candidates: ["Guard", "Guard"] },
+      questionPlan: {
+        subjects: [{ id: "guard", surface: "Guard", kind: "entity" }],
+        parts: [
+          { id: "clothes", subjectRefs: ["guard"], aspect: "appearance", time: "current", purpose: "describe" },
+          { id: "reaction", subjectRefs: ["guard"], aspect: "observed_reaction", time: "current", purpose: "describe" },
+        ],
+      },
+      readings: [
+        { partId: "clothes", source: "person" },
+        { partId: "reaction", source: "scene" },
+      ],
+    }));
+    const first = await interpretMasterTurn(input, { ...snap, scene }, router);
+    expect(first.status).toBe("clarification");
+    if (first.status !== "clarification") return;
+    expect(first.framed).toMatchObject({ slot: "question_subject", subjectId: "guard", originalInput: input });
+    expect(first.options).toHaveLength(2);
+    expect(first.options[0]!.label).not.toBe(first.options[1]!.label);
+    expect(first.options.every((option) => option.referentRefs?.length === 1)).toBe(true);
+    expect(first.options.map((option) => option.label).join(" ")).toContain("ferry keeper");
+    expect(first.options.map((option) => option.label).join(" ")).toContain("gate keeper");
+    expect(JSON.stringify(first.options)).not.toContain("contact:first");
+
+
+    const metadata = buildTurnMemoryMetadata({
+      clarification: { question: first.question, options: first.options, framed: first.framed },
+    });
+    const dbPath = join(mkdtempSync(join(tmpdir(), "skald-question-continuation-")), "events.sqlite");
+    const initialStore = createMultiWorldStore(dbPath);
+    initialStore.recordConversationTurn(buildReadSideConversationTurn({
+      worldId: LEGACY_WORLD_ID,
+      idempotencyKey: "question-frame",
+      playerText: input,
+      inputClass: "inquiry",
+      responseKind: "clarification",
+      responseText: first.question,
+      worldTime: snap.world.time,
+      contextMetadata: metadata,
+    }));
+    initialStore.close();
+
+    const reloadedStore = createMultiWorldStore(dbPath);
+    try {
+      const conversation = buildMasterConversationContext(
+        reloadedStore.listRecentConversationTurns(LEGACY_WORLD_ID, { limit: 30 }),
+        LEGACY_WORLD_ID,
+        { scene: scene.context },
+      );
+      expect(conversation.pendingClarification).toMatchObject({
+        question: first.question,
+        originalInput: input,
+      });
+      expect(conversation.pendingClarification?.framed).toEqual(first.framed);
+      expect(conversation.pendingClarification?.options).toEqual(first.options);
+
+      const selected = conversation.pendingClarification!.options[1]!;
+      const answer = await interpretMasterTurn(selected.label, { ...snap, scene, conversation }, router);
+      expect(answer.status).toBe("plan");
+      if (answer.status !== "plan") return;
+      expect(answer.plan.execution).toBeNull();
+      expect(answer.plan.kind).toBe("inquiry");
+      expect(answer.questionRound?.questionPlan.subjects[0]).toMatchObject({
+        resolution: "resolved",
+        resolvedRef: selected.referentRefs![0],
+      });
+      expect(answer.questionRound?.questionPlan.parts.map((part) => part.aspect)).toEqual(["appearance", "observed_reaction"]);
+      expect(answer.questionRound?.readings).toEqual([
+        { partId: "clothes", source: "person" },
+        { partId: "reaction", source: "scene" },
+      ]);
+      expect(answer.questionRound?.questionPlan.actionIntent).toBeNull();
+      expect(answer.pendingLink).toEqual({
+        relation: "resolves",
+        clarificationTurnSeq: conversation.pendingClarification!.turnSeq,
+      });
+      expect(router.chat).toHaveBeenCalledTimes(1);
+      expect(snap.world.time).toBe(0);
+      expect(snap.events).toHaveLength(5);
+
+      const oversized = await interpretMasterTurn(input + " ".repeat(500), { ...snap, scene }, router);
+      expect(oversized.status).toBe("clarification");
+      if (oversized.status === "clarification") expect(oversized.framed).toBeUndefined();
+    } finally {
+      reloadedStore.close();
+    }
+  });
+
+  it("resolves a question ambiguity when recent focus identifies one candidate", async () => {
+    const snap = citySnapshot();
+    const archivist = [...snap.scene.references].find(([, reference]) => reference.internalId === "contact:archivist")?.[0];
+    const gatekeeper = [...snap.scene.references].find(([, reference]) => reference.internalId === "contact:gatekeeper")?.[0];
+    expect(archivist).toBeDefined();
+    expect(gatekeeper).toBeDefined();
+    const conversation = {
+      ...snap.conversation,
+      recentFocus: [{
+        kind: "target" as const,
+        surface: "Архивист Речного Стража",
+        turnSeq: 1,
+        identity: { kind: "person" as const, internalId: "contact:archivist" },
+      }],
+    };
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "inquiry",
+      primaryIntent: null,
+      supportingClauses: [],
+      referents: [],
+      ambiguity: {
+        kind: "question",
+        question: "Which person do you mean?",
+        candidates: ["Архивист Речного Стража", "Смотритель речных ворот"],
+      },
+      questionPlan: {
+        subjects: [{ id: "person", surface: "он", kind: "entity" }],
+        parts: [{ id: "clothes", subjectRefs: ["person"], aspect: "appearance", time: "current", purpose: "describe" }],
+      },
+      readings: [{ partId: "clothes", source: "person" }],
+    }));
+    const result = await interpretMasterTurn("Что на нём одето?", { ...snap, conversation }, router);
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution).toBeNull();
+    expect(result.questionRound?.questionPlan.subjects[0]).toMatchObject({
+      resolution: "resolved",
+      resolvedRef: archivist,
+    });
+    expect(result.questionRound?.questionPlan.subjects[0]?.resolvedRef).not.toBe(gatekeeper);
+    expect(router.chat).toHaveBeenCalledTimes(1);
+    expect(snap.world.time).toBe(0);
+    expect(snap.events).toHaveLength(7);
+  });
+
+  it("preserves a semantic question ambiguity when its choices are not scene people", async () => {
+    const snap = snapshot();
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      kind: "inquiry",
+      primaryIntent: null,
+      supportingClauses: [],
+      referents: [],
+      ambiguity: { kind: "question", question: "Which aspect do you mean?", candidates: ["appearance", "reaction"] },
+      questionPlan: {
+        subjects: [{ id: "guard", surface: "Guard", kind: "entity" }],
+        parts: [{ id: "clothes", subjectRefs: ["guard"], aspect: "appearance", time: "current", purpose: "describe" }],
+      },
+      readings: [{ partId: "clothes", source: "person" }],
+    }));
+    const result = await interpretMasterTurn("Что на нём одето и как он себя ведёт?", snap, router);
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).toBe("Which aspect do you mean?");
+    expect(result.options.map((option) => option.label)).toEqual(["appearance", "reaction"]);
+    expect(result.framed).toBeUndefined();
+  });
+
 });

@@ -48,8 +48,8 @@ describe("validateGmTurnDecision — accepted", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("accepts an action with steps (deep step validation deferred to S3)", () => {
-    const result = validateGmTurnDecision({ ...base, kind: "action", steps: [{ kind: "action", verb: "approach" }] });
+  it("accepts an action classification without executable steps", () => {
+    const result = validateGmTurnDecision({ ...base, kind: "action" });
     expect(result.ok).toBe(true);
   });
 });
@@ -120,8 +120,10 @@ describe("validateGmTurnDecision — rejected", () => {
     reject({ ...base, kind: "banana" }, "kind");
   });
 
-  it("rejects steps on a conversation and a clarification on an action", () => {
-    reject({ ...base, kind: "conversation", steps: [] }, "steps");
+  it("rejects arbitrary executable steps and requires clarification payload", () => {
+    reject({ ...base, kind: "action", steps: [{ kind: "action", verb: "approach" }] }, "unknown field");
+    reject({ ...base, kind: "action", steps: [{ kind: "action", verb: "approach", target: "person_1" }] }, "unknown field");
+    reject({ ...base, kind: "clarification" }, "clarification: required");
     reject({ ...base, kind: "action", clarification: { question: "?" } }, "clarification");
   });
 

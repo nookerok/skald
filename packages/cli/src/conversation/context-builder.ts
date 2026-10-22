@@ -513,6 +513,26 @@ function namedSceneFocus(
   consider("target", scene.visibleObjects.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   consider("target", scene.accessibleItems.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   if (candidates.length === 0) return null;
+  // A conjunction can explicitly name two referents even when one label is
+  // nested inside the other («Архивист и Старый Архивист»). Exclusive-word
+  // ranking alone would select the longer label and silently bind the next
+  // pronoun to only one of the two. Fail closed when candidate evidence
+  // occurs on both sides of a referent conjunction.
+  const normalizedText = playerText.toLowerCase().replace(/ё/gu, "е");
+  const conjunction = /\s+(?:и|или|а|но)\s+/giu;
+  for (const match of normalizedText.matchAll(conjunction)) {
+    const index = match.index ?? -1;
+    if (index < 0) continue;
+    const sideHasCandidate = (text: string): boolean => {
+      const sideWords = new Set(text.split(/[^a-zа-я0-9]+/iu)
+        .filter((word) => word.length >= 3)
+        .map((word) => stemRussianToken(word))
+        .filter((word) => word.length >= 3));
+      return candidates.some((candidate) => [...candidate.matched].some((stem) => sideWords.has(stem)));
+    };
+    if (sideHasCandidate(normalizedText.slice(0, index))
+      && sideHasCandidate(normalizedText.slice(index + match[0].length))) return null;
+  }
   // A mention is not a ranking contest. What separates "the replica named
   // TWO people" from "two labels share a word" is an EXCLUSIVE match: a
   // candidate is named only when it matched a word no other candidate

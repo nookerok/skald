@@ -93,10 +93,18 @@ export function validateTurnProposal(raw: unknown): TurnProposalValidation {
   }
 
   // A proposal that reports ONLY ambiguity carries a null primaryIntent by
-  // contract; kind consistency must not reject a field the schema allows.
+  // contract. A bounded inquiry QuestionPlan is also a valid read-only primary:
+  // it has no execution/event authority and is checked again against the scene.
   if (proposal.primaryIntent === null) {
     if (proposal.ambiguity) return ambiguityClarification(proposal);
-    return { status: "invalid", code: "primary_missing", reason: "proposal primary intent is missing without ambiguity" };
+    const questionPlanOnly = proposal.kind === "inquiry"
+      && proposal.questionPlan !== undefined
+      && proposal.supportingClauses.length === 0
+      && proposal.target === undefined
+      && proposal.addressedEntity === undefined;
+    if (!questionPlanOnly) {
+      return { status: "invalid", code: "primary_missing", reason: "null primary requires ambiguity or a read-only inquiry QuestionPlan" };
+    }
   }
 
   const consistency = checkKindConsistency(proposal);
@@ -161,8 +169,11 @@ function checkKindConsistency(proposal: TurnProposalV2): TurnProposalValidation 
       }
       return null;
     case "inquiry":
+      if (primary === null && proposal.questionPlan !== undefined
+        && proposal.supportingClauses.length === 0
+        && proposal.target === undefined && proposal.addressedEntity === undefined) return null;
       if (!primary || primary.kind !== "inquiry") {
-        return { status: "invalid", code: "kind_primary_mismatch", reason: "inquiry turn requires an inquiry primary intent" };
+        return { status: "invalid", code: "kind_primary_mismatch", reason: "inquiry turn requires an inquiry primary intent or a read-only QuestionPlan" };
       }
       return null;
     case "speech":

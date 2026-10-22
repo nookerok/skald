@@ -3,6 +3,7 @@ import type { Rule } from "@skald/rule-engine";
 import type { ReadonlyWorld } from "../../projection.js";
 import { canContain, assessCapability, isItemAccessible } from "../../action-capability/capability.js";
 import { resolveInteractionTarget } from "../../interactions/index.js";
+import { sameRussianStem } from "@skald/intent-parser";
 import { resolveProximity } from "../../interactions/proximity.js";
 import { ruleEventId } from "../../ids.js";
 import { AFFORDANCES, type Affordance } from "../../action-capability/types.js";
@@ -87,29 +88,21 @@ function placementFor(world: ReadonlyWorld, itemId: string) {
   return world.actionCapabilities?.placements.get(itemId);
 }
 
+function recipientQueryMatches(target: { name: string; aliases: readonly string[] }, raw: string): boolean {
+  const queryWords = raw.trim().toLowerCase().replace(/[?!.,;:]+$/u, "").split(/\s+/u);
+  if (queryWords.length === 0 || queryWords[0] === "") return false;
+  return [target.name, ...target.aliases].some((label) => {
+    const labelWords = label.trim().toLowerCase().split(/\s+/u);
+    return queryWords.length <= labelWords.length
+      && queryWords.every((word, index) => word === labelWords[index] || sameRussianStem(word, labelWords[index] ?? ""));
+  });
+}
+
 function recipientId(world: ReadonlyWorld, raw: unknown): string | undefined {
   if (typeof raw !== "string" || raw.trim().length === 0) return undefined;
-  const query = raw.trim().toLowerCase();
-  const entity = [...world.entities.values()].find((candidate) => {
-    if (candidate.id === PLAYER_ID) return false;
-    // A contact target must be present in the current location: a person who
-    // physically stands elsewhere is never a valid give/place recipient
-    // (destination-continuity materializes every contact in the world).
-    const contact = candidate.components.contact;
-    if (contact && contact.locationId !== world.currentLocationId) return false;
-    return candidate.name.toLowerCase().includes(query)
-      || candidate.id.toLowerCase().includes(query)
-      || candidate.aliases.some((alias) => alias.toLowerCase() === query);
-  });
-  if (entity) return entity.id;
-  const object = [...world.objects.values()].find((candidate) =>
-    candidate.id !== PLAYER_ID
-    && isItemAccessible(world, PLAYER_ID, candidate.id)
-    && (candidate.name.toLowerCase().includes(query)
-      || candidate.id.toLowerCase().includes(query)
-      || candidate.aliases.some((alias) => alias.toLowerCase() === query)),
-  );
-  return object?.id;
+  const resolution = resolveInteractionTarget(world, "give", raw.trim());
+  if (resolution.kind !== "resolved" || !recipientQueryMatches(resolution.target, raw)) return undefined;
+  return resolution.target.id;
 }
 
 function originalPayload(event: DomainEvent): Record<string, unknown> | undefined {

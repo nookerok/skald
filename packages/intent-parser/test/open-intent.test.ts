@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { splitCompoundTarget } from "../src/deterministic-interpreter.js";
 import {
   parseIntent,
   interpretIntent,
@@ -843,6 +844,7 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
   it.each([
     "подойду к человеку в плаще и шляпе с запада",
     "подойду к человеку в плаще и шляпе, которую нельзя трогать с запада",
+    "подхожу к человеку в плаще и шляпе, которую нельзя трогать с запада",
   ])("keeps a conjunction inside a description instead of splitting the action: %j", (input) => {
     // "подойду к человеку в плаще и шляпе с запада" names ONE person and two
     // garments: the conjunction is not a second action — and the verb inside
@@ -860,6 +862,15 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     // is still recognised — with or without an introductory word.
     expect(interpretIntent("подхожу к архивисту и приветствую его").type).toBe("ClarificationRequired");
     expect(interpretIntent("подхожу к архивисту и затем приветствую его").type).toBe("ClarificationRequired");
+  });
+
+  it("recognizes inflected second actions without treating buried description verbs as clauses", () => {
+    const result = interpretIntent("подхожу к архивисту и беру книгу, которую нельзя использовать");
+    expect(result.type).toBe("ClarificationRequired");
+    if (result.type !== "ClarificationRequired") return;
+    expect(result.question).toContain("беру книгу");
+    expect(result.question).toContain("которую нельзя использовать");
+    expect(splitCompoundTarget("человеку в плаще и шляпе, которую нельзя трогать")).toBeNull();
   });
 
   it("never turns a compound into one target naming two things", () => {

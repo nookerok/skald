@@ -1,4 +1,4 @@
-import { QUESTION_LIST_REFS, type ExecutableIntent, type QuestionListRef, type TurnProposalV2 } from "@skald/intent-parser";
+import { QUESTION_LIST_REFS, QUESTION_REF_ID_PATTERN, parseTurnProposal, type ExecutableIntent, type QuestionListRef, type TurnProposalV2 } from "@skald/intent-parser";
 
 export type ConversationInputClass =
   | "action"
@@ -138,7 +138,7 @@ export interface ConversationMemoryClarificationOption {
 }
 
 /** Referent slot a clarification choice fills inside a stored candidate. */
-export type FramedReferentSlot = "target" | "addressee" | "destination";
+export type FramedReferentSlot = "target" | "addressee" | "destination" | "question_subject";
 
 /**
  * Closed structured candidate persisted with a clarification (review P1):
@@ -154,6 +154,9 @@ export interface FramedClarification {
   };
   readonly proposal?: TurnProposalV2 | undefined;
   readonly intent?: ExecutableIntent | undefined;
+  /** Plan-local subject id and original player replica for a read-only question continuation. */
+  readonly subjectId?: string | undefined;
+  readonly originalInput?: string | undefined;
 }
 
 export type ConversationContinuationRelation = "resolves" | "continues" | "new_topic" | "cancels";
@@ -336,19 +339,36 @@ function parseRevision(raw: unknown): { readonly worldTime: number; readonly eve
  */
 function parseFramedClarification(raw: unknown): FramedClarification | null {
   if (!isRecord(raw)) return null;
-  if (!Object.keys(raw).every((key) => key === "slot" || key === "revision" || key === "proposal" || key === "intent")) return null;
-  if (raw.slot !== "target" && raw.slot !== "addressee" && raw.slot !== "destination") return null;
+  const allowed = ["slot", "revision", "proposal", "intent", "subjectId", "originalInput"];
+  if (!Object.keys(raw).every((key) => allowed.includes(key))) return null;
+  if (raw.slot !== "target" && raw.slot !== "addressee" && raw.slot !== "destination" && raw.slot !== "question_subject") return null;
   const revision = parseRevision(raw.revision);
   if (!revision) return null;
   const hasProposal = raw.proposal !== undefined;
   const hasIntent = raw.intent !== undefined;
   if (hasProposal === hasIntent) return null;
-  if (hasProposal && !isRecord(raw.proposal)) return null;
+  const proposal = hasProposal ? parseTurnProposal(raw.proposal) : null;
+  if (hasProposal && !proposal) return null;
   if (hasIntent && !isRecord(raw.intent)) return null;
+  if (raw.slot === "question_subject") {
+    if (!proposal?.questionPlan || hasIntent) return null;
+    if (!isCleanText(raw.subjectId, 32) || !QUESTION_REF_ID_PATTERN.test(raw.subjectId as string)) return null;
+    if (!isCleanText(raw.originalInput, CONVERSATION_MEMORY_MAX_QUESTION)) return null;
+    const subject = proposal.questionPlan.subjects.find((entry) => entry.id === raw.subjectId);
+    if (!subject || subject.kind !== "entity") return null;
+    return {
+      slot: "question_subject",
+      revision,
+      proposal,
+      subjectId: raw.subjectId as string,
+      originalInput: raw.originalInput as string,
+    };
+  }
+  if (raw.subjectId !== undefined || raw.originalInput !== undefined) return null;
   return {
-    slot: raw.slot,
+    slot: raw.slot as FramedReferentSlot,
     revision,
-    ...(hasProposal ? { proposal: raw.proposal as TurnProposalV2 } : {}),
+    ...(proposal ? { proposal } : {}),
     ...(hasIntent ? { intent: raw.intent as ExecutableIntent } : {}),
   };
 }
@@ -534,6 +554,8 @@ export function serializeConversationMemoryMetadata(metadata: ConversationMemory
             revision: { worldTime: framed.revision.worldTime, eventNumber: framed.revision.eventNumber },
             ...(framed.proposal !== undefined ? { proposal: framed.proposal } : {}),
             ...(framed.intent !== undefined ? { intent: framed.intent } : {}),
+            ...(framed.subjectId !== undefined ? { subjectId: framed.subjectId } : {}),
+            ...(framed.originalInput !== undefined ? { originalInput: cappedText(framed.originalInput, CONVERSATION_MEMORY_MAX_QUESTION) } : {}),
           },
         } : {}),
       };

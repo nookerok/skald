@@ -72,7 +72,8 @@ export type GmAddressee =
 
 export type GmTurnKind = "conversation" | "world_question" | "clarification" | "action" | "mixed";
 
-/** The structured interpretation result. Steps are validated in S3 (P6). */
+/** The structured interpretation result. Executable steps stay absent until
+ * their closed schema and authority handoff are implemented. */
 export interface GmTurnDecision {
   schemaVersion: 1;
   /** Who RESPONDS: master, a visible NPC, or the system. */
@@ -85,7 +86,6 @@ export interface GmTurnDecision {
    * question-shaped kinds (world_question, clarification, mixed).
    */
   subjectHandle?: VisibleActorKey;
-  steps?: readonly unknown[];
   clarification?: {
     question: string;
     candidateHandles?: readonly VisibleActorKey[];
@@ -129,7 +129,7 @@ export function validateGmTurnDecision(
   if (!isPlainObject(raw)) {
     return { ok: false, errors: ["decision: not an object"] };
   }
-  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "steps", "clarification"], "decision", errors);
+  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "clarification"], "decision", errors);
 
   if (raw["schemaVersion"] !== GM_CONTRACT_VERSION) {
     errors.push(`decision: schemaVersion must be ${GM_CONTRACT_VERSION}`);
@@ -169,11 +169,9 @@ export function validateGmTurnDecision(
     }
   }
 
-  if ("steps" in raw) {
-    if (!Array.isArray(raw["steps"])) errors.push("steps: must be an array");
-    else if (kind === "conversation" || kind === "world_question") errors.push("steps: not allowed for this kind");
+  if (kind === "clarification" && !("clarification" in raw)) {
+    errors.push("clarification: required for kind clarification");
   }
-
   if ("clarification" in raw) {
     const c = raw["clarification"];
     if (!isPlainObject(c)) {

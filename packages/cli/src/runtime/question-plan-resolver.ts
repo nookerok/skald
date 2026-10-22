@@ -40,6 +40,8 @@ export type QuestionPlanBindingOutcome =
     readonly status: "clarification";
     readonly question: string;
     readonly options: readonly ClarificationOption[];
+    /** Plan-local id of the ambiguous entity subject, when safely continuable. */
+    readonly subjectId?: string | undefined;
   };
 
 /** Deictic place surfaces answered from the current location alone. */
@@ -61,6 +63,8 @@ interface SceneCandidate {
   readonly ref: string;
   /** Primary label first, then aliases — all player-facing surfaces. */
   readonly labels: readonly string[];
+  /** A first observer-safe distinguishing detail for duplicate public labels. */
+  readonly disambiguator?: string | undefined;
   readonly person: boolean;
   readonly thing: boolean;
   readonly topic: boolean;
@@ -86,11 +90,19 @@ function surfaceMatches(surface: string, labels: readonly string[]): boolean {
 }
 
 function sceneCandidates(scene: MasterTurnSceneContext): readonly SceneCandidate[] {
-  const referent = (entry: { readonly observerRef: string; readonly label: string; readonly knownAs?: readonly string[] }, flags: { person: boolean; thing: boolean; topic: boolean }): SceneCandidate => ({
-    ref: entry.observerRef,
-    labels: Object.freeze([entry.label, ...(entry.knownAs ?? [])]),
-    ...flags,
-  });
+  const referent = (entry: { readonly observerRef: string; readonly label: string; readonly knownAs?: readonly string[]; readonly portrait?: MasterTurnSceneContext["knownPeople"][number]["portrait"] }, flags: { person: boolean; thing: boolean; topic: boolean }): SceneCandidate => {
+    const portrait = entry.portrait;
+    const disambiguator = portrait
+      ? [portrait.publicRole, ...portrait.distinguishingFeatures, ...portrait.visibleAppearance]
+        .find((value) => typeof value === "string" && value.trim().length > 0)?.trim()
+      : undefined;
+    return {
+      ref: entry.observerRef,
+      labels: Object.freeze([entry.label, ...(entry.knownAs ?? [])]),
+      ...(disambiguator ? { disambiguator } : {}),
+      ...flags,
+    };
+  };
   return [
     ...scene.knownPeople.map((entry) => referent(entry, { person: true, thing: false, topic: false })),
     ...scene.visibleObjects.map((entry) => referent(entry, { person: false, thing: true, topic: false })),
@@ -104,12 +116,19 @@ function labelForRef(candidates: readonly SceneCandidate[], ref: string): string
   return candidates.find((candidate) => candidate.ref === ref)?.labels[0] ?? null;
 }
 
+function choiceLabelForRef(candidates: readonly SceneCandidate[], ref: string): string | null {
+  const candidate = candidates.find((entry) => entry.ref === ref);
+  if (!candidate) return null;
+  if (!candidate.disambiguator) return candidate.labels[0] ?? null;
+  return `${candidate.labels[0] ?? "Человек"} — ${candidate.disambiguator}`.slice(0, 80);
+}
+
 function hasRef(candidates: readonly SceneCandidate[], ref: string): boolean {
   return candidates.some((candidate) => candidate.ref === ref);
 }
 
-function ambiguityFor(labels: readonly string[], candidates: readonly SceneCandidate[], refs: readonly string[]): QuestionPlanBindingOutcome {
-  const named = labels.slice(0, 3);
+function ambiguityFor(labels: readonly string[], candidates: readonly SceneCandidate[], refs: readonly string[]): Extract<QuestionPlanBindingOutcome, { readonly status: "clarification" }> {
+  const named = refs.slice(0, 3).map((ref, index) => choiceLabelForRef(candidates, ref) ?? labels[index] ?? "Неизвестная цель");
   const onlyPeople = refs.every((ref) => candidates.find((candidate) => candidate.ref === ref)?.person === true);
   const onlyThings = refs.every((ref) => candidates.find((candidate) => candidate.ref === ref)?.thing === true);
   const classified = onlyPeople
@@ -119,13 +138,13 @@ function ambiguityFor(labels: readonly string[], candidates: readonly SceneCandi
       : multipleReferents(named, false);
   const candidateOptions: readonly ClarificationOption[] = refs.slice(0, 3).map((ref, index) => ({
     optionId: `candidate-${index + 1}`,
-    label: labelForRef(candidates, ref) ?? ref,
+    label: named[index] ?? labelForRef(candidates, ref) ?? "Неизвестная цель",
     referentRefs: [ref],
   }));
   return {
     status: "clarification",
     question: classified.question,
-    options: [...candidateOptions, ...classified.options],
+    options: candidateOptions,
   };
 }
 
@@ -183,7 +202,7 @@ function findRememberedGroup(state: BindState, surface: string): ConversationMem
 function bindSubject(
   subject: ProposedQuestionPlan["subjects"][number],
   state: BindState,
-): { readonly binding: SubjectBinding } | { readonly clarification: QuestionPlanBindingOutcome } {
+): { readonly binding: SubjectBinding } | { readonly clarification: Extract<QuestionPlanBindingOutcome, { readonly status: "clarification" }> } {
   const { candidates, scene, conversation } = state;
 
   if (subject.kind === "self") {
@@ -333,7 +352,7 @@ export function resolveQuestionPlanBindings(
   const bindings: SubjectBinding[] = [];
   for (const subject of plan.subjects) {
     const outcome = bindSubject(subject, state);
-    if ("clarification" in outcome) return outcome.clarification;
+    if ("clarification" in outcome) return { ...outcome.clarification, subjectId: subject.id };
     bindings.push(outcome.binding);
   }
   return { status: "resolved", bindings: Object.freeze(bindings) };
