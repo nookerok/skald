@@ -62,8 +62,10 @@ describe("scene engagement actions", () => {
       await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "approach" });
       expect(runtime.projection.getSnapshot().sceneEngagement?.state).toBe("near");
 
-      await handleWorldCommand(runtime, { input: "отдать обломок перевозчику", idempotencyKey: "give" });
+      const given = parse(await handleWorldCommand(runtime, { input: "отдать обломок перевозчику", idempotencyKey: "give" }));
       expect(runtime.projection.getSnapshot().sceneEngagement?.state).toBe("engaged");
+      expect(given.presentation.primary?.text).toContain("передаёшь");
+      expect(given.conversationTurn.responseText).toContain("передаёшь");
 
       const eventCount = runtime.bus.query().length;
       const response = parse(await handleWorldCommand(runtime, { input: "прошептать", idempotencyKey: "whisper" }));

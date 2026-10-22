@@ -2,7 +2,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { PresentationTemplate, PresentationCandidate } from "./types.js";
 import type { EpistemicClass } from "./types.js";
 import { WORLD_WIDTH, WORLD_HEIGHT } from "../map.js";
-import { consequenceLabel, observationLabel, relationTargetLabel, relationKindLabel, situationLabel, relationTargetLabelOrRaw } from "../game-shell/player-facing.js";
+import { consequenceLabel, observationLabel, relationTargetLabel, relationKindLabel, situationLabel, relationTargetLabelOrRaw, localizedPlayerText } from "../game-shell/player-facing.js";
 import { actionFallbackText } from "./action-fallback.js";
 
 const ACTION_REJECTION_TEXT: Readonly<Record<string, string>> = {
@@ -251,6 +251,28 @@ export const ACTION_RESOLVED: PresentationTemplate = {
   },
 };
 
+/** Describes a completed player handover without exposing recipient identity. */
+export const ITEM_GIVEN: PresentationTemplate = {
+  id: "item_given", listens: ["ItemMoved"],
+  present: (event, world) => {
+    const p = event.payload as {
+      reason?: string;
+      subjectId?: string;
+      itemId?: string;
+      from?: { kind?: string; holderId?: string };
+      to?: { kind?: string; holderId?: string };
+    };
+    if (p.reason !== "given" || p.subjectId !== "player"
+      || p.from?.kind !== "carried" || p.from.holderId !== "player"
+      || p.to?.kind !== "carried" || typeof p.to.holderId !== "string"
+      || p.to.holderId === "player") return null;
+    const name = typeof p.itemId === "string" ? world.objects.get(p.itemId)?.name : undefined;
+    const fallback = "Ты передаёшь предмет.";
+    const text = name ? localizedPlayerText("Ты передаёшь «" + name + "».", fallback) : fallback;
+    return cand("item_given", "action", "primary", 100, text, event);
+  },
+};
+
 export const ACTION_BLOCKED: PresentationTemplate = {
   id: "action_blocked", listens: ["ActionBlocked"],
   present: (event, _world) => {
@@ -472,6 +494,7 @@ export const ALL_TEMPLATES: PresentationTemplate[] = [
   JOURNEY_COMPLETED,
   ACTION_ATTEMPTED,
   ACTION_RESOLVED,
+  ITEM_GIVEN,
   ACTION_BLOCKED,
   OBJECT_OBSERVED,
   ENTITY_EXAMINED,

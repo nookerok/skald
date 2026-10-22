@@ -11,12 +11,19 @@ export interface PresentationSelectionOptions {
 type BatchKind = "player_command" | "offline_tick" | "autonomous_world" | "empty_initial_state";
 
 const TERMINAL_REJECTION_EVENTS = new Set(["ActionRejected", "CommandRejected", "ActionBlocked", "MovementBlocked", "JourneyBlocked"]);
-const TERMINAL_OUTCOME_EVENTS = new Set(["ActionResolved", "MovementSucceeded", "JourneyStarted", "JourneyCompleted", "ObjectObserved", "EntityExamined", "SoundObserved", "ActionHadNoObservableEffect", "CriticalCheckResolved", "RelationChanged", "RumorHeard", "TestimonyReceived"]);
+const TERMINAL_OUTCOME_EVENTS = new Set(["ItemMoved", "ActionResolved", "MovementSucceeded", "JourneyStarted", "JourneyCompleted", "ObjectObserved", "EntityExamined", "SoundObserved", "ActionHadNoObservableEffect", "CriticalCheckResolved", "RelationChanged", "RumorHeard", "TestimonyReceived"]);
 const PLAYER_COMMAND_EVENTS = new Set(["ActionAttempted", "ActionResolved", "ActionRejected", "CommandRejected", "ActionBlocked", "MovementSucceeded", "MovementBlocked", "JourneyRequested", "JourneyStarted", "JourneyBlocked", "JourneyCompleted", "ObjectObserved", "EntityExamined", "SoundObserved", "ActionHadNoObservableEffect", "RelationChanged", "RumorHeard", "TestimonyReceived"]);
+
+function isPlayerCommandEvent(event: DomainEvent): boolean {
+  if (PLAYER_COMMAND_EVENTS.has(event.type)) return true;
+  if (event.type !== "ItemMoved") return false;
+  const payload = event.payload as { reason?: string; subjectId?: string };
+  return payload.reason === "given" && payload.subjectId === "player";
+}
 
 function classifyBatch(events: readonly DomainEvent[]): BatchKind {
   if (events.length === 0) return "empty_initial_state";
-  if (events.some((event) => PLAYER_COMMAND_EVENTS.has(event.type))) return "player_command";
+  if (events.some(isPlayerCommandEvent)) return "player_command";
   if (events.some((event) => event.type === "TickPassed" && (event.payload as { playerOffline?: boolean }).playerOffline === true)) return "offline_tick";
   return "autonomous_world";
 }
@@ -162,7 +169,7 @@ export function selectTurnPresentation(
             discoveryMark: null, epistemicClass: "established_fact",
             text: actionFallbackText(operation),
             timestamp: events[0]?.timestamp ?? world.time,
-            sourceEventIds: events.filter((event) => PLAYER_COMMAND_EVENTS.has(event.type)).map((event) => event.eventId),
+            sourceEventIds: events.filter(isPlayerCommandEvent).map((event) => event.eventId),
             groupKey: null, threadKey: null, threadLabel: null,
           };
     }
