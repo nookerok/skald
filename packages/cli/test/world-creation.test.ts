@@ -3,6 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startServer } from "../src/http-server.js";
+import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 
 let server: Awaited<ReturnType<typeof startServer>> | null = null;
 const dbDir = mkdtempSync(join(tmpdir(), "skald-wc-test-"));
@@ -358,5 +359,28 @@ describe("World creation", () => {
     // Verify no scoped state exists
     const stateRes = await api("/api/worlds/orphan-test-001/state");
     expect(stateRes.status).toBe(404);
+  });
+
+  it("archived world leaves the player catalog but keeps its Event Log", async () => {
+    const store = createMultiWorldStore(join(dbDir, "events.sqlite"));
+    const eventsBefore = await api(`/api/worlds/${worldId}/events?limit=1`);
+    try {
+      store.setWorldStatus(worldId, "archived");
+
+      const { status, body } = await api("/api/worlds");
+      expect(status).toBe(200);
+      expect(body.worlds.find((w: any) => w.worldId === worldId)).toBeUndefined();
+      expect(body.worlds.every((w: any) => w.status !== "archived")).toBe(true);
+
+      // The runtime refuses an archived world; the log itself is untouched.
+      const presence = await api(`/api/worlds/${worldId}/presence`);
+      expect(presence.status).toBe(409);
+      expect(store.listWorlds().find((w) => w.worldId === worldId)?.status).toBe("archived");
+    } finally {
+      store.setWorldStatus(worldId, "active");
+      store.close();
+    }
+    const eventsAfter = await api(`/api/worlds/${worldId}/events?limit=1`);
+    expect(eventsAfter.body).toEqual(eventsBefore.body);
   });
 });

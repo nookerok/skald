@@ -20,7 +20,11 @@ function error(code: string, message: string, statusCode = 400): JsonResponse {
 // --- Catalog ---
 
 export function handleWorlds(runtimes: WorldRuntimeManager) {
-  const worlds = runtimes["store"].listWorlds();
+  // Archived worlds are the retention action (§ "Scratch-world retention"):
+  // their Event Log stays append-only and recoverable, but the player catalog
+  // must not offer them. Corrupt worlds stay visible so the shell can explain
+  // that the save needs a backup restore.
+  const worlds = runtimes["store"].listWorlds().filter((world) => world.status !== "archived");
   return json({ worlds });
 }
 
