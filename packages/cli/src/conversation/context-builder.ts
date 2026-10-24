@@ -435,8 +435,8 @@ function collectFocus(window: readonly ConversationTurn[], scene: MasterTurnScen
       }
       continue;
     }
-    if ((turn.inputClass !== "action" && turn.inputClass !== "mixed")
-      || (turn.responseKind !== "action_outcome" && turn.responseKind !== "mixed_outcome")) continue;
+    if ((turn.inputClass !== "action" && turn.inputClass !== "mixed" && turn.inputClass !== "speech")
+      || (turn.responseKind !== "action_outcome" && turn.responseKind !== "mixed_outcome" && turn.responseKind !== "speech_reaction")) continue;
     const candidate = focusFromPlayerText(turn.playerText, turn.turnSeq, scene);
     if (!candidate) continue;
     push(candidate);

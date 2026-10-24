@@ -212,6 +212,16 @@ export function isUnresolvedFocusSurface(surface: string): boolean {
  */
 const DISAMBIGUATION_MARKER = /(?:имею|имеешь)\s+в\s*виду|имею\s+ввиду|говорю\s+про|под\s+\S+\s+я\s+имею|значит\s+под/i;
 
+/**
+ * True when the replica is an explicit conversational referent disambiguation
+ * («когда я говорю архивист, я имею в виду Архивиста Речного Стража»,
+ * «я имею в виду первого», «я говорю про архивиста»). Pure string check.
+ */
+export function isReferentDisambiguationInput(input: string): boolean {
+  const normalized = normalizeQuestion(input);
+  return DISAMBIGUATION_MARKER.test(normalized);
+}
+
 /** Deterministic spatial-focus patterns for explicit-noun questions. `beyond` has no deterministic producer yet and arrives via validated proposals. */
 const SPATIAL_FOCUS_PATTERNS: readonly [InquiryRelation, RegExp][] = [
   ["behind", /^(?:а\s+)?что\s+(?:там\s+)?за\s+(.+)$/iu],

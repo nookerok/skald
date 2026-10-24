@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MasterTurnSceneContext } from "@skald/world";
 import type { ModelRouter } from "@skald/world";
 import { buildGmContext } from "../src/conversation/gm-context.js";
-import { interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight } from "../src/runtime/conversation-director.js";
+import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight, gmDirectorLiveEnabled } from "../src/runtime/conversation-director.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
@@ -609,5 +609,115 @@ describe("gm prompt", () => {
     const userPrompt = buildGmDecisionPrompt(fixture.input, context);
     for (const actor of context.actors) expect(userPrompt).toContain(actor.handle);
     expect(userPrompt).not.toContain("<HANDLE");
+  });
+});
+
+describe("applyGmDirectorDecision (P3 bridge)", () => {
+  const fixture = GM_CORPUS[1]; // two visible people
+  const sceneContext = sceneOf(fixture);
+  const references = new Map<string, { kind: "person"; internalId: string; label: string }>([
+    ["person_1", { kind: "person", internalId: "contact:ferryman", label: ferrymanLabel }],
+    ["person_2", { kind: "person", internalId: "contact:gatekeeper", label: "Смотритель речных ворот" }],
+  ]);
+  const snapshot = {
+    events: [],
+    world: { time: 4, eventNumber: 12 } as any,
+    scene: { context: sceneContext, references } as any,
+    conversation: conversationOf(fixture),
+  };
+
+  it("maps a gm conversation repeat request to repeat_last_answer meta plan", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const outcome = applyGmDirectorDecision(
+      { schemaVersion: 1, addressee: { kind: "gm" }, kind: "conversation" },
+      bundle,
+      "Повтори, что ты только что сказал.",
+      snapshot,
+    );
+    expect(outcome).toMatchObject({
+      status: "plan",
+      plan: {
+        kind: "meta",
+        execution: null,
+        metaInquiry: { type: "MetaRequest", operation: "repeat_last_answer" },
+      },
+    });
+  });
+
+  it("maps an npc conversation to a speech plan with bound addressee focus", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const ferryHandle = stableActorHandle("person_1");
+    const outcome = applyGmDirectorDecision(
+      { schemaVersion: 1, addressee: { kind: "npc", handle: ferryHandle }, kind: "conversation" },
+      bundle,
+      "Здравствуй, перевезёшь на тот берег?",
+      snapshot,
+    );
+    expect(outcome).toMatchObject({
+      status: "plan",
+      plan: {
+        kind: "speech",
+        execution: {
+          intent: {
+            type: "ActionIntentCommand",
+            operation: "speak",
+            target: { raw: ferrymanLabel },
+          },
+        },
+        focus: [{ observerRef: "person_1", surface: ferrymanLabel, kind: "addressee" }],
+      },
+    });
+  });
+
+  it("maps a world_question with subjectHandle to a focused read-only inquiry", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const ferryHandle = stableActorHandle("person_1");
+    const outcome = applyGmDirectorDecision(
+      { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: ferryHandle },
+      bundle,
+      "Как он выглядит?",
+      snapshot,
+    );
+    expect(outcome).toMatchObject({
+      status: "inquiry",
+      inquiry: {
+        queryId: "visible_scene",
+        focus: { observerRef: "person_1", surface: ferrymanLabel },
+      },
+    });
+  });
+
+  it("maps a clarification with candidateHandles to selectable candidate options with referentRefs", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const h1 = stableActorHandle("person_1");
+    const h2 = stableActorHandle("person_2");
+    const outcome = applyGmDirectorDecision(
+      {
+        schemaVersion: 1,
+        addressee: { kind: "gm" },
+        kind: "clarification",
+        clarification: { question: "О ком именно речь?", candidateHandles: [h1, h2] },
+      },
+      bundle,
+      "Кто ведёт журнал?",
+      snapshot,
+    );
+    expect(outcome).toMatchObject({
+      status: "clarification",
+      question: "О ком именно речь?",
+    });
+    if (outcome?.status === "clarification") {
+      expect(outcome.options[0]).toEqual({
+        optionId: "candidate-1",
+        label: ferrymanLabel,
+        referentRefs: ["person_1"],
+      });
+      expect(outcome.options[1]).toEqual({
+        optionId: "candidate-2",
+        label: "Смотритель речных ворот",
+        referentRefs: ["person_2"],
+      });
+    }
+    expect(typeof gmDirectorLiveEnabled()).toBe("boolean");
   });
 });

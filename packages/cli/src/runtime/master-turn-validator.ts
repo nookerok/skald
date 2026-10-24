@@ -30,6 +30,7 @@ import {
   inferAmbiguitySlot,
   isInquiryQueryId,
   multipleReferents,
+  splitPlayerClauses,
   stemRussianToken,
   validateActionProposal,
   type AmbiguitySlot,
@@ -575,7 +576,13 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
   const mapped = mapPrimaryAction(primary, proposal, scene, world, rawText, track);
   if (mapped.status !== "accepted") return mapped;
   // Structural scope is the primary span (see the speech branch above).
-  const structural = validateActionProposal({ ...mapped.intent, rawText: primary.sourceText });
+  // When the model already split a second clause into supportingClauses or
+  // question, trim any copied compound tail from primary.sourceText so
+  // SECOND_ACTION does not reject a properly split TurnProposalV2.
+  const primarySpanText = (proposal.supportingClauses.length > 0 || proposal.question !== undefined)
+    ? (splitPlayerClauses(primary.sourceText)?.head ?? primary.sourceText)
+    : primary.sourceText;
+  const structural = validateActionProposal({ ...mapped.intent, rawText: primarySpanText });
   if (!structural.ok) {
     return { status: "clarification", question: structural.clarification, options: [{ optionId: "rephrase", label: "Переформулировать" }] };
   }

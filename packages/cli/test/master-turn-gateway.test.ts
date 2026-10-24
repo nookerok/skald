@@ -1749,4 +1749,80 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(result.framed).toBeUndefined();
   });
 
+  it("replays the failing live session end-to-end without losing the referent or looping", async () => {
+    const snap = citySnapshot();
+    const dead = routerReturning("не разбираем");
+
+    // Step 1: compound replica "подхожу к архивисту и приветствую его"
+    const step1 = await interpretMasterTurn("подхожу к архивисту и приветствую его", snap, dead);
+    expect(step1.status).toBe("clarification");
+    if (step1.status !== "clarification") return;
+    expect(step1.options.every((opt) => Boolean(opt.intentPatch?.actionText))).toBe(true);
+
+    // Step 2: player answers naturally "я же сказал, к архивисту" — resolves
+    // directly to the approach intent via the compound option's intentPatch!
+    const storedTurn1 = {
+      turnSeq: 1,
+      worldId: "test-world",
+      correlationId: "c1",
+      idempotencyKey: "k1",
+      playerText: "подхожу к архивисту и приветствую его",
+      inputClass: "clarification",
+      worldTimeBefore: 0,
+      worldTimeAfter: 0,
+      responseKind: "clarification",
+      responseText: step1.question,
+      createdAt: 1,
+      contextMetadata: buildTurnMemoryMetadata({
+        clarification: { question: step1.question, options: step1.options },
+      }),
+    } as any;
+    const convAfter1 = buildMasterConversationContext([storedTurn1], "test-world", { scene: snap.scene.context });
+    const step2 = await interpretMasterTurn("я же сказал, к архивисту", { ...snap, conversation: convAfter1 }, dead);
+    expect(step2.status).toBe("deterministic");
+    if (step2.status === "deterministic") {
+      expect(step2.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach" });
+      expect(step2.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 1 });
+    }
+
+    // Step 3: explicit referent disambiguation "когда я говорю архивист, я имею ввиду Архивиста Речного Стража"
+    // resolves to a focused read-only inquiry on the archivist (never character_identity).
+    const step3 = await interpretMasterTurn(
+      "когда я говорю архивист, я имею ввиду Архивиста Речного Стража",
+      snap,
+      dead,
+    );
+    expect(step3.status).toBe("inquiry");
+    if (step3.status === "inquiry") {
+      expect(step3.inquiry.queryId).toBe("visible_scene");
+      expect(step3.inquiry.focus?.surface).toBe("Архивист Речного Стража");
+    }
+
+    // Step 4: ordinal frame selection ("первое" / "к первому") and conversational cancel ("ладно, забудь")
+    const step2Ordinal = await interpretMasterTurn("давай первое", { ...snap, conversation: convAfter1 }, dead);
+    expect(step2Ordinal.status).toBe("deterministic");
+
+    const step2Cancel = await interpretMasterTurn("ладно, забудь", { ...snap, conversation: convAfter1 }, dead);
+    expect(step2Cancel.status).toBe("inquiry");
+    if (step2Cancel.status === "inquiry") {
+      expect(step2Cancel.pendingLink).toEqual({ relation: "resolves", clarificationTurnSeq: 1 });
+    }
+
+    // Step 5: natural Master conversational check-ins and meta requests
+    const greeting = await interpretMasterTurn("привет, мастер", snap, dead);
+    expect(greeting.status).toBe("inquiry");
+
+    const repeat = await interpretMasterTurn("Повтори, что ты только что сказал.", snap, dead);
+    expect(repeat.status).toBe("plan");
+    if (repeat.status === "plan") {
+      expect(repeat.plan.metaInquiry?.operation).toBe("repeat_last_answer");
+    }
+
+    const advice = await interpretMasterTurn("что посоветуешь?", snap, dead);
+    expect(advice.status).toBe("plan");
+    if (advice.status === "plan") {
+      expect(advice.plan.metaInquiry?.operation).toBe("explain_available_actions");
+    }
+  });
+
 });

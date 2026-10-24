@@ -1,4 +1,14 @@
-# Current work (2026-10-22 - read-only question continuation and review fixes; repository validated)
+# Current work (2026-10-24 - conversational continuity, compound frame action patches, referent disambiguation & P3 director bridge; repository validated)
+
+- Fixed compound-clarification continuation (`clarificationFromDeterministic` / `fallbackForDeterministic` in `packages/cli/src/runtime/intent-gateway.ts` and `mapLegacyFallback` in `packages/cli/src/runtime/master-turn-gateway.ts`): `compound-*` options now carry `intentPatch: { actionText: label }`, and `interpretFramedInput` also resolves compound sub-options when a referent-framed original input splits into action alternatives, so natural replies like «я же сказал, к архивисту» execute the intended clause immediately instead of re-asking.
+- Expanded `matchFrameOption` and `frameOptionRefs` (`packages/cli/src/runtime/master-turn-gateway.ts`): ordinal selections («первое», «давай первый вариант», «ко второму», «последний») and conversational cancellations («ладно, забудь», «неважно», «отбой») resolve pending clarifications without a model call, and label-only options fall back to `bindSceneSurface` stem/phrase matching.
+- Added explicit referent disambiguation (`isReferentDisambiguationInput` in `packages/intent-parser/src/inquiry.ts`, `resolveExplicitReferentStatement` in `packages/cli/src/runtime/master-turn-gateway.ts`), natural Master check-ins/meta patterns («привет, мастер», «повтори, что ты только что сказал», «что посоветуешь?», «с чего начать?»), conversational speech verbs (`поговорить`, `расспросить`, `побеседовать`, `пообщаться`), speech-turn focus recovery in `packages/cli/src/conversation/context-builder.ts`, and `primarySpanText` trimming in `packages/cli/src/runtime/master-turn-validator.ts`.
+- Implemented the pure, deterministic P3 bridge `applyGmDirectorDecision` (`packages/cli/src/runtime/conversation-director.ts`) mapping validated `GmTurnDecision` + `GmContextBundle` handles to `MasterTurnGatewayOutcome` (`conversation`, `world_question` with `subjectHandle`, `clarification` with `candidateHandles`, and `action`/`mixed` NPC turns).
+- Validation: `npm run validate` PASS — 250 test files, 3077 passed, 1 skipped.
+
+---
+
+# Previous snapshot (2026-10-22 - read-only question continuation and review fixes; repository validated)
 
 - Implemented a bounded, read-only QuestionPlan continuation for model question-subject ambiguity. The unresolved subject and exact original replica are framed with observer-safe candidate refs; the answer binds the selected scene identity and resumes the same question without a second model call.
 - Persistence is covered through a real SQLite close/reopen and context reconstruction. Identical public labels are disambiguated with observer-safe portrait details; semantic alternatives that are not scene people remain clarification. The accepted plan has execution: null, preserves both question parts/readings, and does not add events or advance world time. Oversized input is not truncated into a different question; it receives no persisted continuation frame.

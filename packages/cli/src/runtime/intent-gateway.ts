@@ -6,6 +6,7 @@ import {
   validateActionProposal,
   validateInquiryProposal,
   validateIntentProposal,
+  type ClarificationOption,
   type ExecutableIntent,
   type InquiryRequest,
   type IntentResult,
@@ -20,7 +21,7 @@ export type IntentGatewayMode = "off" | "fallback";
 export type IntentGatewayResult =
   | { readonly status: "inquiry"; readonly inquiry: InquiryRequest }
   | { readonly status: "accepted"; readonly intent: ExecutableIntent; readonly source: "deterministic" | "llm" }
-  | { readonly status: "clarification"; readonly question: string; readonly options: readonly { readonly optionId: string; readonly label: string }[] }
+  | { readonly status: "clarification"; readonly question: string; readonly options: readonly ClarificationOption[] }
   | { readonly status: "unsupported"; readonly message: string }
   | { readonly status: "unavailable"; readonly message: string };
 
@@ -424,17 +425,31 @@ function isQuestionLikeForFastPath(input: string): boolean {
 
 export function clarificationFromDeterministic(result: IntentResult): IntentGatewayResult | null {
   if (result.type !== "ClarificationRequired") return null;
+  const isCompound = result.clarificationId.startsWith("compound-");
   return {
     status: "clarification",
     question: result.question,
-    options: result.interpretations.map((label, index) => ({ optionId: `deterministic-${index + 1}`, label })),
+    options: result.interpretations.map((label, index) => ({
+      optionId: `deterministic-${index + 1}`,
+      label,
+      ...(isCompound ? { intentPatch: { actionText: label } } : {}),
+    })),
   };
 }
 
 export function fallbackForDeterministic(result: IntentResult, message = "Я не уверен, что правильно понял действие. Скажи, что ты хочешь сделать в первую очередь."): IntentGatewayResult {
   if (result.type === "UnsupportedButUnderstood") return { status: "unsupported", message: result.message };
   if (result.type === "ClarificationRequired") {
-    return { status: "clarification", question: result.question, options: result.interpretations.map((label, index) => ({ optionId: `deterministic-${index + 1}`, label })) };
+    const isCompound = result.clarificationId.startsWith("compound-");
+    return {
+      status: "clarification",
+      question: result.question,
+      options: result.interpretations.map((label, index) => ({
+        optionId: `deterministic-${index + 1}`,
+        label,
+        ...(isCompound ? { intentPatch: { actionText: label } } : {}),
+      })),
+    };
   }
   return { status: "unavailable", message };
 }

@@ -265,6 +265,15 @@ const VERBS: readonly VerbEntry[] = [
   { verb: "здорова", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "поблагодар", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "благодар", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "поговорить", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "поговор", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "расспросить", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "расспрос", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "расспрашива", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "побеседовать", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "побеседова", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "пообщаться", mode: "communicate", operation: "speak", target: "optional" },
+  { verb: "пообща", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "сказать", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "говорю", mode: "communicate", operation: "speak", target: "optional" },
   { verb: "говоришь", mode: "communicate", operation: "speak", target: "optional" },
@@ -679,7 +688,7 @@ function compoundClarification(
  * A single-action parser cannot silently execute only the first part.
  */
 function hasCompoundConjunction(text: string): boolean {
-  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|беру|берет|берёт|берем|берём|берете|берёте|берут|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|смотр|взгляд|наблюд|ищ|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп|приветств|поздорова|здорова|благодар)/iu.test(text)
+  return /(?:^|\s)(?:и|а|но|или)\s+(?:иду|идти|пойти|направиться|двига|отправ|выбр|обойти|подойти|приблиз|войти|проник|залез|влез|пролез|попад|лезу|взять|беру|берет|берёт|берем|берём|берете|берёте|берут|поднять|забрать|достать|собрать|открыть|закрыть|отдать|передать|вручить|положить|поставить|разместить|оставить|класть|использовать|применить|воспользов|толкнуть|толка|удар|навали|выбить|сломать|пнуть|броса|вбить|вырвать|отодвинуть|нагреть|греть|поджечь|расплав|раскалить|остудить|охладить|нарисовать|написать|нацарапать|сказать|спросить|прошептать|позвать|крик|оклик|осматр|осмотр|рассмотр|огля|посмотр|смотр|взгляд|наблюд|ищ|провер|слуш|прислуш|подслуш|вслуш|трон|трог|прикосн|пощуп|приветств|поздорова|здорова|благодар|поговор|расспрос|расспрашива|побеседова|пообща)/iu.test(text)
     || /(?:^|\s)(?:потом|затем|после|одновременно)\s+/iu.test(text);
 }
 

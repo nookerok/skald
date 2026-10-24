@@ -17,6 +17,7 @@ import {
   classifyPlayerInput,
   classifyReplicaClauses,
   conflictingActions,
+  isReferentDisambiguationInput,
   isUnresolvedFocusSurface,
   missingReferent,
   multipleReferents,
@@ -47,7 +48,7 @@ import { describeConversationContext, type MasterConversationContext } from "../
 import { CONVERSATION_MEMORY_MAX_QUESTION, type FramedClarification } from "../conversation/types.js";
 import { bindTurnPronouns, pronounNumber, type PronounBinding } from "../conversation/focus-stack.js";
 import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-prompt.js";
-import { resolveAmbiguityAgainstScene, validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
+import { bindSceneSurface, resolveAmbiguityAgainstScene, validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
 import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
 import { emitMasterTurnDiagnostic, type MasterTurnDiagnosticDimensions } from "./master-turn-diagnostics.js";
 import {
@@ -226,6 +227,8 @@ function frameStems(value: string): readonly string[] {
  * nothing. Selection is checked by option data (labels, refs, patches),
  * never by id prefix. Pure and total.
  */
+const ORDINAL_FRAME_CHOICE = /^(?:(?:я\s+)?(?:выбираю|имею\s+в\s*виду|имею\s+ввиду|говорю\s+про|хочу|давай|пусть\s+будет|к|ко|на|про|о|об|с|со)\s+)?(перв(?:ый|ого|ому|ым|ом|ая|ой|ую|ое|ые)|втор(?:ой|ого|ому|ым|ом|ая|ую|ое|ые)|трет(?:ий|ьего|ьему|ьим|ьем|ья|ьей|ью|ье)|последн(?:ий|его|ему|им|ем|яя|ей|юю|ее))(?:\s+(?:вариант|пункт|человек|человека|человеку|объект|предмет|действие))?$/iu;
+
 export function matchFrameOption(
   input: string,
   options: readonly ClarificationOption[],
@@ -261,7 +264,20 @@ export function matchFrameOption(
       tied = true;
     }
   }
-  if (!best || bestHits === 0) return { status: "none" };
+  if (!best || bestHits === 0) {
+    const ordinalMatch = ORDINAL_FRAME_CHOICE.exec(norm);
+    if (ordinalMatch?.[1] && unique.length >= 2) {
+      const token = ordinalMatch[1].toLowerCase();
+      const index = token.startsWith("перв") ? 0
+        : token.startsWith("втор") ? 1
+        : token.startsWith("трет") ? 2
+        : token.startsWith("последн") ? unique.length - 1
+        : -1;
+      const selected = index >= 0 && index < unique.length ? unique[index] : undefined;
+      if (selected) return { status: "matched", option: selected };
+    }
+    return { status: "none" };
+  }
   if (tied) return { status: "ambiguous" };
   return { status: "matched", option: best };
 }
@@ -422,7 +438,16 @@ function frameOptionRefs(label: string, scene: MasterTurnSceneContext): readonly
   for (const object of scene.visibleObjects) consider(object.observerRef, [object.label, ...object.knownAs]);
   for (const item of scene.accessibleItems) consider(item.observerRef, [item.label, ...item.knownAs]);
   for (const route of scene.knownRoutes) consider(route.observerRef, [route.label, ...route.knownAs]);
-  return freeze(refs);
+  if (refs.length > 0) return freeze(refs);
+  const entries = [
+    ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+  ];
+  const bound = bindSceneSurface(label, entries);
+  if (bound.status === "unique") return freeze([bound.entry.observerRef]);
+  return freeze([]);
 }
 
 /**
@@ -1177,6 +1202,8 @@ function tryResolveFramed(
  * Anything else falls through untouched so standalone replicas proceed
  * under the legacy close rules. Returns null when no frame applies.
  */
+const CANCEL_CLARIFICATION_PATTERN = /^(?:(?:ладно|хорошо|ну\s+и\s+ладно|окей)\s*[,—-]?\s*)?(?:забудь(?:\s+об\s+этом|\s+про\s+это)?|неважно|не\s+важно|проехали|оставим\s+это|отбой|ничего\s*[,—-]?\s*забудь)$/iu;
+
 async function interpretFramedInput(
   input: string,
   snapshot: MasterTurnSnapshot,
@@ -1185,6 +1212,28 @@ async function interpretFramedInput(
 ): Promise<MasterTurnGatewayOutcome | null> {
   const pending = snapshot.conversation.pendingClarification ?? null;
   if (!pending || !pending.originalInput) return null;
+  const norm = normalizeFrameText(input);
+  if (CANCEL_CLARIFICATION_PATTERN.test(norm)) {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "clarification_resolved",
+      outcome: "inquiry",
+      phase: "routing",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+      referentCount: 0,
+    });
+    return {
+      status: "inquiry",
+      inquiry: Object.freeze({
+        type: "InquiryRequest" as const,
+        queryId: "current_location" as const,
+        rawText: input,
+        confidence: 1,
+        source: "deterministic" as const,
+      }),
+      pendingLink: resolvesLink(pending.turnSeq),
+    };
+  }
   const selectable = (pending.options ?? []).filter(isFrameSelectable);
   if (selectable.length === 0) return null;
   const match = matchFrameOption(input, selectable);
@@ -1230,6 +1279,31 @@ async function interpretFramedInput(
   const forced = restrictSceneToRefs(snapshot, new Set(refs));
   const inner = await interpretMasterTurn(pending.originalInput, forced, router, { ...options, suppressFrame: true });
   if (inner.status === "unsupported" || inner.status === "unavailable") return inner;
+  // When the original input was a compound that now split into action options
+  // («подхожу к архивисту» / «приветствую его») and the player's current reply
+  // already names one of those action options («я же сказал, к архивисту»),
+  // execute that matched action option immediately instead of asking a second
+  // clarification.
+  if (inner.status === "clarification") {
+    const innerSelectable = inner.options.filter((opt) => isFrameSelectable(opt) && Boolean(opt.intentPatch?.actionText));
+    if (innerSelectable.length > 0) {
+      const subMatch = matchFrameOption(input, innerSelectable);
+      if (subMatch.status === "matched" && subMatch.option.intentPatch?.actionText) {
+        const subInner = await interpretMasterTurn(subMatch.option.intentPatch.actionText, forced, router, { ...options, suppressFrame: true });
+        if (subInner.status === "deterministic" || subInner.status === "inquiry" || subInner.status === "plan") {
+          emitMasterTurnDiagnostic(options?.diagnostics, {
+            category: "clarification_resolved",
+            outcome: subInner.status,
+            phase: "routing",
+            correlationId: options?.correlationId,
+            worldTime: options?.worldTime,
+            referentCount: refs.length,
+          });
+          return { ...subInner, pendingLink: resolvesLink(pending.turnSeq) };
+        }
+      }
+    }
+  }
   emitMasterTurnDiagnostic(options?.diagnostics, {
     category: "clarification_resolved",
     outcome: inner.status,
@@ -1327,11 +1401,100 @@ function resolveDeterministicCompound(
  * recognised meta request.
  */
 const DETERMINISTIC_META_PATTERNS: readonly (readonly [TurnMetaOperation, RegExp])[] = [
-  ["repeat_last_answer", /^(?:повтори|повторить|скажи\s+заново)\s+(?:последний\s+)?ответ/iu],
-  ["explain_available_actions", /^(?:какие\s+действия|что\s+я\s+умею|что\s+можно\s+сделать)/iu],
+  ["repeat_last_answer", /^(?:(?:повтори|повторить|скажи\s+заново|скажи\s+еще\s+раз)(?:\s*,?\s*(?:что\s+(?:ты\s+)?(?:только\s+что\s+|сейчас\s+)?(?:сказал|говорил|ответил)|(?:последний\s+|свой\s+)?ответ|еще\s+раз|пожалуйста))?|что\s+ты\s+(?:только\s+что\s+|сейчас\s+)?(?:сказал|говорил|ответил))\s*[.!?]*$/iu],
+  ["explain_available_actions", /^(?:какие\s+действия|что\s+я\s+(?:умею|могу\s+(?:делать|сделать))|что\s+(?:мне\s+|тут\s+|здесь\s+|сейчас\s+)?можно\s+сделать|что\s+(?:мне\s+)?(?:тут\s+|здесь\s+|сейчас\s+)?(?:делать|предпринять)|с\s+чего\s+(?:мне\s+|лучше\s+)?начать|что\s+посоветуешь|какие\s+(?:у\s+меня\s+)?варианты)/iu],
   ["open_map_hint", /^(?:открой|открыть|покажи|показать)\s+карт/iu],
   ["explain_interface", /^(?:объясни|как\s+пользоваться)\s+(?:интерфейс|управление)/iu],
 ];
+
+const MASTER_CHECKIN_PATTERN = /^(?:(?:привет|здравствуй|здравствуйте|добрый\s+день|добрый\s+вечер|эй|слушай)\s*[,!]?\s*(?:мастер|ведущий)|(?:мастер|ведущий)\s*[,!]?\s*(?:ты\s+(?:тут|здесь)|слышишь(?:\s+меня)?|привет|здравствуй))\s*[.!?]*$/iu;
+
+const DISAMBIGUATION_TAIL_PATTERN = /(?:(?:имею|имеешь)\s+в\s*виду|имею\s+ввиду|говорю\s+про|под\s+\S+\s+я\s+имею(?:\s+в\s*виду|\s+ввиду)?|значит\s+под\s+\S+)\s+(.+)$/iu;
+
+function resolveMasterConversationalCheckIn(
+  input: string,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  const normalized = input.trim().toLowerCase().replace(/ё/gu, "е");
+  if (!MASTER_CHECKIN_PATTERN.test(normalized)) return null;
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "deterministic_fast_path",
+    outcome: "accepted",
+    phase: "fast_path",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+    queryId: "visible_scene",
+  });
+  return {
+    status: "inquiry",
+    inquiry: Object.freeze({
+      type: "InquiryRequest" as const,
+      queryId: "visible_scene" as const,
+      rawText: input,
+      confidence: 1,
+      source: "deterministic" as const,
+    }),
+  };
+}
+
+/**
+ * Resolves an explicit referent disambiguation («когда я говорю архивист, я
+ * имею в виду Архивиста Речного Стража», «я имею в виду первого архивиста»):
+ * binds the named tail against the current scene and returns a read-only
+ * focused inquiry (0 events, 0 ticks) that confirms the referent and records
+ * it in conversation focus for subsequent pronouns.
+ */
+function resolveExplicitReferentStatement(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  if (!isReferentDisambiguationInput(input)) return null;
+  const tailMatch = DISAMBIGUATION_TAIL_PATTERN.exec(input.trim());
+  const targetPhrase = (tailMatch?.[1] ?? input).trim().replace(/[?!.,;:]+$/u, "").trim();
+  if (!targetPhrase) return null;
+  const context = snapshot.scene.context;
+  const entries = [
+    ...context.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+  ];
+  const bound = bindSceneSurface(targetPhrase, entries);
+  const pending = snapshot.conversation.pendingClarification;
+  if (bound.status === "unique") {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "deterministic_fast_path",
+      outcome: "accepted",
+      phase: "fast_path",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+      queryId: "visible_scene",
+      referentCount: 1,
+    });
+    return {
+      status: "inquiry",
+      inquiry: Object.freeze({
+        type: "InquiryRequest" as const,
+        queryId: "visible_scene" as const,
+        rawText: input,
+        confidence: 1,
+        source: "deterministic" as const,
+        focus: Object.freeze({ observerRef: bound.entry.observerRef, surface: bound.entry.label }),
+      }),
+      ...(pending ? { pendingLink: resolvesLink(pending.turnSeq) } : {}),
+    };
+  }
+  if (bound.status === "ambiguous") {
+    const classified = multipleReferents(bound.labels, true);
+    return {
+      status: "clarification",
+      question: classified.question,
+      options: classified.options,
+    };
+  }
+  return null;
+}
 
 function resolveDeterministicMeta(
   input: string,
@@ -1459,6 +1622,10 @@ export async function interpretMasterTurn(
   }
   const meta = resolveDeterministicMeta(input, snapshot, options);
   if (meta) return meta;
+  const checkIn = resolveMasterConversationalCheckIn(input, options);
+  if (checkIn) return checkIn;
+  const disambiguated = resolveExplicitReferentStatement(input, snapshot, options);
+  if (disambiguated) return disambiguated;
   let classification = classifyPlayerInput(input, parseIntent);
   const modelUnavailable = (options?.mode ?? readMode()) === "off" || router === null;
   // Deterministic compound (plan_9 §1): when no model is available, one safe
@@ -1855,7 +2022,7 @@ function fallbackAfterModelFailure(
   return speakAddresseeFallback(deterministic, snapshot, options) ?? genericFallback(options);
 }
 
-function mapLegacyFallback(result: { readonly status: string; readonly question?: string; readonly options?: readonly { readonly optionId: string; readonly label: string }[]; readonly message?: string; readonly intent?: ExecutableIntent }): MasterTurnGatewayOutcome | null {
+function mapLegacyFallback(result: { readonly status: string; readonly question?: string; readonly options?: readonly ClarificationOption[]; readonly message?: string; readonly intent?: ExecutableIntent }): MasterTurnGatewayOutcome | null {
   if (result.status === "clarification" && result.question) {
     return { status: "clarification", question: result.question, options: result.options ?? [{ optionId: "rephrase", label: "Уточнить намерение" }] };
   }

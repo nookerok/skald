@@ -58,10 +58,10 @@ export type {
   ProposalValidation,
 } from "./types.js";
 export { INTERACTION_VERBS } from "./types.js";
-export { INQUIRY_QUERY_IDS, classifyPlayerInput, isInquiryQueryId, isQuestionLikeInput, isUnresolvedFocusSurface } from "./inquiry.js";
+export { INQUIRY_QUERY_IDS, classifyPlayerInput, isInquiryQueryId, isQuestionLikeInput, isReferentDisambiguationInput, isUnresolvedFocusSurface } from "./inquiry.js";
 export type { InquiryFocus, InquiryQueryId, InquiryRelation, InquiryRequest, PlayerInputClassification, PlayerInputKind } from "./inquiry.js";
 
-export { interpretIntent, targetRequirementForInteraction, targetRequirementForOperation } from "./deterministic-interpreter.js";
+export { interpretIntent, splitCompoundTarget, splitPlayerClauses, targetRequirementForInteraction, targetRequirementForOperation } from "./deterministic-interpreter.js";
 export type { InterpreterOptions } from "./deterministic-interpreter.js";
 export { isJourneyContinuation, isContinuingJourneyTo } from "./journey-continuation.js";
 export { splitReplicaClauses, classifyReplicaClauses } from "./replica-clauses.js";
