@@ -1,5 +1,5 @@
 /**
- * Conversation Director (SKALD S0 / P1 — shadow only).
+ * Conversation Director (SKALD S0 / P3 bridge).
  *
  * Interprets one player replica into a validated `GmTurnDecision` by asking
  * the model with an observer-safe `GmContext`. It NEVER executes: no Events, no
@@ -11,8 +11,8 @@ import { createHash } from "node:crypto";
 import type { ChatMessage, ModelRouter } from "@skald/world";
 import {
   GM_CONTRACT_VERSION,
+  classifyReplicaClauses,
   parseIntent,
-  validateActionProposal,
   validateGmTurnDecision,
   type ClarificationOption,
   type GmContext,
@@ -22,6 +22,7 @@ import {
 import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../conversation/gm-prompt.js";
 import type { GmContextBundle } from "../conversation/gm-context.js";
 import type { MasterTurnGatewayOutcome, MasterTurnSnapshot } from "./master-turn-gateway.js";
+import { bindSceneSurface } from "./master-turn-validator.js";
 
 /** Sanitized operational trace of one director call (no prompts, no snapshot). */
 export interface GmDirectorTrace {
@@ -257,15 +258,15 @@ export function gmDirectorLiveEnabled(): boolean {
 const REPEAT_REQUEST_PATTERN = /(?:повтори|повторить|скажи\s+заново|скажи\s+еще\s+раз|что\s+ты\s+(?:только\s+что\s+|сейчас\s+)?(?:сказал|говорил|ответил))/iu;
 
 /**
- * Pure, deterministic bridge from a validated `GmTurnDecision` + server-side
- * handle map (`GmContextBundle`) to a `MasterTurnGatewayOutcome` (P3).
+ * Conservative P3 bridge from a validated Director decision into the existing
+ * read-only gateway contract. The current GmTurnDecision schema has no
+ * QuestionPlan or executable action payload, so unsupported decisions fall
+ * through to the legacy V2 planner rather than inventing missing structure.
  *
- * - Never invents entities, handles or events.
- * - Maps opaque handles (`e<12hex>`) back to scene `observerRef` and display
- *   labels from `snapshot.scene.context.knownPeople`.
- * - Read-only kinds (`conversation` to gm/meta, `world_question`, `clarification`)
- *   produce zero-event outcomes; `npc` speech/action plans go through the
- *   normal validated command pipeline.
+ * - Clarifications may expose only scene-allowed observer refs.
+ * - Questions reuse one deterministic registered query; model-selected
+ *   subjectHandle can only focus a currently visible person.
+ * - Actions, mixed turns and NPC-directed conversation are not bridged here.
  */
 export function applyGmDirectorDecision(
   decision: GmTurnDecision,
@@ -277,6 +278,13 @@ export function applyGmDirectorDecision(
     worldTime: snapshot.world.time,
     eventNumber: snapshot.world.eventNumber,
   });
+  const clauses = classifyReplicaClauses(input, parseIntent);
+  const singleInquiry = clauses.actions.length === 0
+    && clauses.unknown.length === 0
+    && clauses.inquiries.length === 1
+    ? clauses.inquiries[0]!.inquiry
+    : null;
+
   const resolveHandlePerson = (handle: VisibleActorKey | undefined) => {
     if (!handle) return null;
     const observerRef = bundle.handleToObserverRef.get(handle);
@@ -286,188 +294,99 @@ export function applyGmDirectorDecision(
     return { observerRef: person.observerRef, label: person.label };
   };
 
-  if (decision.kind === "clarification" && decision.clarification) {
-    const candidateOptions: ClarificationOption[] = [];
-    for (const [index, handle] of (decision.clarification.candidateHandles ?? []).entries()) {
-      const resolved = resolveHandlePerson(handle);
-      if (!resolved) continue;
-      candidateOptions.push(Object.freeze({
-        optionId: `candidate-${index + 1}`,
-        label: resolved.label,
-        referentRefs: Object.freeze([resolved.observerRef]),
-      }));
-    }
-    const options: readonly ClarificationOption[] = candidateOptions.length > 0
-      ? Object.freeze([...candidateOptions, Object.freeze({ optionId: "rephrase", label: "Уточнить намерение" })])
-      : Object.freeze([Object.freeze({ optionId: "rephrase", label: "Уточнить намерение" })]);
-    return {
-      status: "clarification",
-      question: decision.clarification.question,
-      options,
-    };
-  }
-
-  if (decision.kind === "conversation") {
-    if (decision.addressee.kind === "gm" || decision.addressee.kind === "meta") {
-      if (REPEAT_REQUEST_PATTERN.test(input.toLowerCase().replace(/ё/gu, "е"))) {
-        return {
-          status: "plan",
-          plan: Object.freeze({
-            contextRevision: revision,
-            kind: "meta" as const,
-            execution: null,
-            postActionInquiries: Object.freeze([]),
-            metaInquiry: Object.freeze({ type: "MetaRequest" as const, operation: "repeat_last_answer" as const }),
-            deferredClauses: Object.freeze([]),
-            focus: Object.freeze([]),
-            goal: null,
-            conversationRelation: null,
-          }),
-          scene: snapshot.scene,
-        };
-      }
-      return {
-        status: "inquiry",
-        inquiry: Object.freeze({
-          type: "InquiryRequest" as const,
-          queryId: "visible_scene" as const,
-          rawText: input,
-          confidence: 1,
-          source: "llm" as const,
-        }),
-      };
-    }
-    const npc = resolveHandlePerson(decision.addressee.handle);
-    if (!npc) return null;
-    const intent = Object.freeze({
-      type: "ActionIntentCommand" as const,
-      mode: "communicate" as const,
-      operation: "speak" as const,
-      target: Object.freeze({ raw: npc.label }),
-      utterance: input,
-      rawText: input,
-      interpretation: Object.freeze({ source: "llm" as const, confidence: 1, ambiguities: Object.freeze([]) }),
-    });
-    return {
-      status: "plan",
-      plan: Object.freeze({
-        contextRevision: revision,
-        kind: "speech" as const,
-        execution: Object.freeze({ intent }),
-        postActionInquiries: Object.freeze([]),
-        metaInquiry: null,
-        deferredClauses: Object.freeze([]),
-        focus: Object.freeze([Object.freeze({ observerRef: npc.observerRef, surface: npc.label, kind: "addressee" as const })]),
-        goal: null,
-        conversationRelation: null,
-      }),
-      scene: snapshot.scene,
-    };
-  }
-
-  if (decision.kind === "world_question") {
-    const subject = resolveHandlePerson(decision.subjectHandle);
-    if (subject) {
-      return {
-        status: "inquiry",
-        inquiry: Object.freeze({
-          type: "InquiryRequest" as const,
-          queryId: "visible_scene" as const,
-          rawText: input,
-          confidence: 1,
-          source: "llm" as const,
-          focus: Object.freeze({ observerRef: subject.observerRef, surface: subject.label }),
-        }),
-      };
-    }
-    const npc = decision.addressee.kind === "npc" ? resolveHandlePerson(decision.addressee.handle) : null;
-    if (npc) {
-      return {
-        status: "inquiry",
-        inquiry: Object.freeze({
-          type: "InquiryRequest" as const,
-          queryId: "visible_scene" as const,
-          rawText: input,
-          confidence: 1,
-          source: "llm" as const,
-          focus: Object.freeze({ observerRef: npc.observerRef, surface: npc.label }),
-        }),
-      };
+  const asReadOnlyInquiry = (subjectHandle?: VisibleActorKey): MasterTurnGatewayOutcome | null => {
+    if (!singleInquiry) return null;
+    const subject = subjectHandle ? resolveHandlePerson(subjectHandle) : null;
+    if (subjectHandle && !subject) return null;
+    if (subjectHandle) {
+      const explicitFocus = singleInquiry.focus?.surface;
+      if (!explicitFocus) return null;
+      const boundFocus = bindSceneSurface(explicitFocus, snapshot.scene.context.knownPeople.map((person) => ({
+        observerRef: person.observerRef,
+        label: person.label,
+        knownAs: person.knownAs,
+      })));
+      if (boundFocus.status !== "unique" || boundFocus.entry.observerRef !== subject?.observerRef) return null;
     }
     return {
       status: "inquiry",
       inquiry: Object.freeze({
-        type: "InquiryRequest" as const,
-        queryId: "visible_scene" as const,
+        ...singleInquiry,
         rawText: input,
-        confidence: 1,
         source: "llm" as const,
+        ...(subject
+          ? { focus: Object.freeze({ observerRef: subject?.observerRef, surface: subject.label }) }
+          : {}),
       }),
     };
+  };
+
+  if (decision.kind === "clarification" && decision.clarification) {
+    if (clauses.actions.length > 0 || clauses.inquiries.length > 1) return null;
+    const question = decision.clarification.question.trim();
+    // Do not forward malformed or internal-looking text into the player UI.
+    if (!question || question.length > 360 || /(?:person|object|route|location)_[a-z0-9_-]+|\be[a-f0-9]{12}\b/iu.test(question)) return null;
+    const handles = decision.clarification.candidateHandles ?? [];
+    if (new Set(handles).size !== handles.length) return null;
+    const candidates: { readonly handle: VisibleActorKey; readonly observerRef: string; readonly label: string; readonly description: string }[] = [];
+    for (const handle of handles) {
+      const person = resolveHandlePerson(handle);
+      if (!person) return null;
+      const actor = bundle.context.actors.find((entry) => entry.handle === handle);
+      candidates.push({
+        handle,
+        observerRef: person.observerRef,
+        label: person.label,
+        description: actor?.visibleDescription.trim() ?? "",
+      });
+    }
+    const labelCounts = new Map<string, number>();
+    for (const candidate of candidates) {
+      const key = candidate.label.trim().toLowerCase().replace(/ё/gu, "е");
+      labelCounts.set(key, (labelCounts.get(key) ?? 0) + 1);
+    }
+    const options: ClarificationOption[] = candidates.map((candidate, index) => {
+      const key = candidate.label.trim().toLowerCase().replace(/ё/gu, "е");
+      const duplicate = (labelCounts.get(key) ?? 0) > 1;
+      const sameDescription = candidates.filter((other) => other.label === candidate.label && other.description === candidate.description).length > 1;
+      const label = duplicate
+        ? candidate.description && !sameDescription
+          ? candidate.label + " — " + candidate.description
+          : candidate.label + " (вариант " + (index + 1) + ")"
+        : candidate.label;
+      return Object.freeze({
+        optionId: "candidate-" + (index + 1),
+        label,
+        referentRefs: Object.freeze([candidate.observerRef]),
+      });
+    });
+    options.push(Object.freeze({ optionId: "rephrase", label: "Уточнить намерение" }));
+    return { status: "clarification", question, options: Object.freeze(options) };
   }
 
-  if (decision.kind === "action" || decision.kind === "mixed") {
-    const npc = decision.addressee.kind === "npc" ? resolveHandlePerson(decision.addressee.handle) : null;
-    if (npc) {
-      const parsed = parseIntent(input);
-      if (parsed.type === "ActionIntentCommand" || parsed.type === "InteractionCommand") {
-        const patched = Object.freeze({
-          ...parsed,
-          target: Object.freeze({ raw: npc.label }),
-        });
-        if (validateActionProposal(patched).ok) {
-          return {
-            status: "plan",
-            plan: Object.freeze({
-              contextRevision: revision,
-              kind: decision.kind === "mixed" ? ("mixed" as const) : ("action" as const),
-              execution: Object.freeze({ intent: patched }),
-              postActionInquiries: decision.kind === "mixed"
-                ? Object.freeze([Object.freeze({
-                  type: "InquiryRequest" as const,
-                  queryId: "visible_scene" as const,
-                  rawText: input,
-                  confidence: 1,
-                  source: "llm" as const,
-                  focus: Object.freeze({ observerRef: npc.observerRef, surface: npc.label }),
-                })])
-                : Object.freeze([]),
-              metaInquiry: null,
-              deferredClauses: Object.freeze([]),
-              focus: Object.freeze([Object.freeze({ observerRef: npc.observerRef, surface: npc.label, kind: "target" as const })]),
-              goal: null,
-              conversationRelation: null,
-            }),
-            scene: snapshot.scene,
-          };
-        }
-      }
-      // Speech-shaped demand or mixed address to NPC
-      const speakIntent = Object.freeze({
-        type: "ActionIntentCommand" as const,
-        mode: "communicate" as const,
-        operation: "speak" as const,
-        target: Object.freeze({ raw: npc.label }),
-        utterance: input,
-        rawText: input,
-        interpretation: Object.freeze({ source: "llm" as const, confidence: 1, ambiguities: Object.freeze([]) }),
-      });
+  if (decision.kind === "world_question") {
+    return asReadOnlyInquiry(decision.subjectHandle);
+  }
+
+  if (decision.kind === "conversation" && (decision.addressee.kind === "gm" || decision.addressee.kind === "meta")) {
+    if (REPEAT_REQUEST_PATTERN.test(input.toLowerCase().replace(/ё/gu, "е"))) {
       return {
         status: "plan",
         plan: Object.freeze({
           contextRevision: revision,
-          kind: "speech" as const,
-          execution: Object.freeze({ intent: speakIntent }),
+          kind: "meta" as const,
+          execution: null,
           postActionInquiries: Object.freeze([]),
-          metaInquiry: null,
+          metaInquiry: Object.freeze({ type: "MetaRequest" as const, operation: "repeat_last_answer" as const }),
           deferredClauses: Object.freeze([]),
-          focus: Object.freeze([Object.freeze({ observerRef: npc.observerRef, surface: npc.label, kind: "addressee" as const })]),
+          focus: Object.freeze([]),
           goal: null,
           conversationRelation: null,
         }),
         scene: snapshot.scene,
       };
     }
+    return asReadOnlyInquiry();
   }
 
   return null;

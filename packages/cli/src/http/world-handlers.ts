@@ -83,7 +83,7 @@ import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { buildGmContext } from "../conversation/gm-context.js";
-import { interpretGmDecision, gmDirectorShadowEnabled } from "../runtime/conversation-director.js";
+import { interpretGmDecision, gmDirectorLiveEnabled, gmDirectorShadowEnabled } from "../runtime/conversation-director.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
 import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js";
 import { splitTargetCompound } from "../runtime/master-turn-validator.js";
@@ -1183,7 +1183,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
     // replica IN PARALLEL and never executes. Fire-and-forget with a short
     // timeout so the player is never delayed; the legacy path below remains the
     // only path that may change the world (G1).
-    if (gmDirectorShadowEnabled() && runtime.router) {
+    if (gmDirectorShadowEnabled() && !gmDirectorLiveEnabled() && runtime.router) {
       const shadowSnapshot = snapshot;
           // Opaque correlation: the player's replica and the idempotency key
           // must never enter the diagnostic stream (revise P1). Scoped by
@@ -1275,10 +1275,40 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       && (isJourneyContinuation(input) || isContinuingJourneyTo(input, activeDestination))) {
       journeyContinue = true;
     } else {
+      const inputClassification = classifyPlayerInput(input, parseIntent);
+      const liveDirectorEnabled = gmDirectorLiveEnabled()
+        && runtime.router !== null
+        && process.env["SKALD_INTENT_LLM_MODE"] !== "off"
+        && (inputClassification.kind === "inquiry" || inputClassification.kind === "inquiry_candidate");
+      let gmContextBundle: ReturnType<typeof buildGmContext> | undefined;
+      if (liveDirectorEnabled) {
+        try {
+          const knowledge = buildPlayerKnowledgePresentation(
+            snapshot.events,
+            snapshot.world,
+            buildBeliefModel(snapshot.events, snapshot.world),
+            { startup: false, maxEntries: 8 },
+          );
+          gmContextBundle = buildGmContext({
+            scene: snapshot.scene.context,
+            conversation: snapshot.conversation,
+            sceneEngagement: sceneEngagementView(snapshot.world),
+            knowledgeTexts: knowledge.entries.map((entry) => entry.text),
+          });
+        } catch {
+          // The gateway retries with the minimal observer-safe context and
+          // falls through to V2 if context construction is still impossible.
+        }
+      }
       const interpretation = await interpretMasterTurn(input, snapshot, runtime.router, {
         diagnostics: runtime.diagnostics,
         correlationId: `intent-${idempotencyKey}`,
         worldTime: snapshot.world.time,
+        ...(liveDirectorEnabled && gmContextBundle ? {
+          gmContextBundle,
+          gmDirectorFlight: runtime.gmDirectorFlight,
+          gmDirectorTurnKey: "intent-" + conversationRequestHash(`${runtime.worldId}|${idempotencyKey}|${input}`),
+        } : {}),
       });
     if (interpretation.status === "inquiry") {
       const inquiryRequest = interpretation.inquiry;

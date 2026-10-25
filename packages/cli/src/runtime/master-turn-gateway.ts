@@ -12,10 +12,12 @@
  * - Returns a transient plan; execution + revalidation happen inside the queue.
  */
 
+import { createHash } from "node:crypto";
 import type { DomainEvent } from "@skald/event-bus";
 import {
   classifyPlayerInput,
   classifyReplicaClauses,
+  splitReplicaClauses,
   conflictingActions,
   isReferentDisambiguationInput,
   isUnresolvedFocusSurface,
@@ -51,6 +53,8 @@ import { MASTER_TURN_SYSTEM_PROMPT, buildMasterTurnPrompt } from "./master-turn-
 import { bindSceneSurface, resolveAmbiguityAgainstScene, validateMasterTurnPlan, type ValidatedMasterTurnPlan } from "./master-turn-validator.js";
 import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
 import { emitMasterTurnDiagnostic, type MasterTurnDiagnosticDimensions } from "./master-turn-diagnostics.js";
+import { buildGmContext, type GmContextBundle } from "../conversation/gm-context.js";
+import { applyGmDirectorDecision, gmDirectorLiveEnabled, interpretGmDecision, type GmDirectorFlight } from "./conversation-director.js";
 import {
   clarificationFromDeterministic,
   fallbackForDeterministic,
@@ -83,6 +87,12 @@ export interface MasterTurnGatewayOptions {
   readonly diagnostics?: AIDiagnosticSink;
   readonly correlationId?: string;
   readonly worldTime?: number;
+  /** Rich observer-safe context prepared by the request handler for P3. */
+  readonly gmContextBundle?: GmContextBundle | undefined;
+  /** Runtime-owned single-flight registry for live Director requests. */
+  readonly gmDirectorFlight?: GmDirectorFlight | undefined;
+  /** Opaque world/request/input scope; never a raw idempotency key. */
+  readonly gmDirectorTurnKey?: string | undefined;
   /**
    * Frame mechanics, set only while resolving a pending clarification:
    * suppressFrame skips frame matching so the re-interpreted original
@@ -1450,12 +1460,20 @@ function resolveExplicitReferentStatement(
   options?: MasterTurnGatewayOptions,
 ): MasterTurnGatewayOutcome | null {
   if (!isReferentDisambiguationInput(input)) return null;
+  // This fast path is only a standalone referent answer. If the replica also
+  // asks a question or carries another clause, preserve the whole input path.
+  if (replicaAsksQuestion(input) || splitReplicaClauses(input).length > 1) return null;
   const tailMatch = DISAMBIGUATION_TAIL_PATTERN.exec(input.trim());
   const targetPhrase = (tailMatch?.[1] ?? input).trim().replace(/[?!.,;:]+$/u, "").trim();
   if (!targetPhrase) return null;
   const context = snapshot.scene.context;
   const entries = [
-    ...context.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.knownPeople.map((entry) => ({
+      observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+      ...((entry.portrait?.publicRole ?? entry.portrait?.distinguishingFeatures?.slice(0, 2).join("; "))
+        ? { disambiguator: entry.portrait.publicRole ?? entry.portrait.distinguishingFeatures?.slice(0, 2).join("; ") }
+        : {}),
+    })),
     ...context.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...context.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...context.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
@@ -1486,11 +1504,17 @@ function resolveExplicitReferentStatement(
     };
   }
   if (bound.status === "ambiguous") {
-    const classified = multipleReferents(bound.labels, true);
+    const personOnly = bound.entries.every((entry) => snapshot.scene.references.get(entry.observerRef)?.kind === "person");
+    const nounPhrase = personOnly ? "К кому именно" : "Кого или что именно";
+    const options: ClarificationOption[] = bound.entries.map((entry, index) => ({
+      optionId: `candidate-${index + 1}`,
+      label: bound.labels[index] ?? entry.label,
+      referentRefs: Object.freeze([entry.observerRef]),
+    }));
     return {
       status: "clarification",
-      question: classified.question,
-      options: classified.options,
+      question: `${nounPhrase} — ${bound.labels.join(" или ")}?`,
+      options: Object.freeze([...options, { optionId: "rephrase", label: "Уточнить намерение" }]),
     };
   }
   return null;
@@ -1603,6 +1627,99 @@ function buildQuestionRound(
 }
 
 /**
+ * Runs the live Director only for read-only question candidates. A validated
+ * decision is still bridged through the closed P3 adapter; unsupported shapes,
+ * provider errors and bridge failures return null so the existing V2 planner
+ * remains the compatibility path.
+ */
+async function tryLiveGmDirector(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  router: ModelRouter,
+  options?: MasterTurnGatewayOptions,
+): Promise<MasterTurnGatewayOutcome | null> {
+  let bundle: GmContextBundle;
+  try {
+    bundle = options?.gmContextBundle ?? buildGmContext({
+      scene: snapshot.scene.context,
+      conversation: snapshot.conversation,
+    });
+  } catch {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "gm_director",
+      outcome: "fallback",
+      phase: "live",
+      failureCategory: "context_build_failed",
+      correlationId: "gm-" + createHash("sha256").update(input).digest("hex").slice(0, 24),
+      worldTime: snapshot.world.time,
+    });
+    return null;
+  }
+  const scopedKey = options?.gmDirectorTurnKey
+    ?? "gm-" + createHash("sha256")
+      .update(snapshot.world.time + "|" + snapshot.world.eventNumber + "|" + input)
+      .digest("hex").slice(0, 24);
+  const diagnosticCorrelation = "gm-" + createHash("sha256").update(scopedKey).digest("hex").slice(0, 24);
+  let result;
+  try {
+    result = await interpretGmDecision({
+      input,
+      context: bundle.context,
+      handleKeys: [...bundle.handleToObserverRef.keys()],
+      router,
+      turnKey: scopedKey,
+      timeoutMs: Math.min(options?.timeoutMs ?? 4_000, 4_000),
+      ...(options?.gmDirectorFlight ? { flight: options.gmDirectorFlight } : {}),
+    });
+  } catch {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "gm_director",
+      outcome: "fallback",
+      phase: "live",
+      failureCategory: "director_unexpected_error",
+      correlationId: diagnosticCorrelation,
+      worldTime: snapshot.world.time,
+    });
+    return null;
+  }
+
+  const bridged = result.status === "decision"
+    ? applyGmDirectorDecision(result.decision, bundle, input, snapshot)
+    : null;
+  const outcome = result.shared
+    ? "shared"
+    : result.status === "fallback"
+      ? "fallback"
+      : bridged
+        ? "accepted"
+        : "unbridged";
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "gm_director",
+    outcome,
+    phase: "live",
+    correlationId: diagnosticCorrelation,
+    worldTime: snapshot.world.time,
+    durationMs: result.trace.totalLatencyMs,
+    providerLatencyMs: result.trace.providerLatencyMs,
+    ...(result.trace.provider ? { provider: result.trace.provider } : {}),
+    ...(result.trace.model ? { model: result.trace.model } : {}),
+    ...(result.trace.decisionKind ? { decisionKind: result.trace.decisionKind } : {}),
+    ...(result.trace.addresseeKind ? { addresseeKind: result.trace.addresseeKind } : {}),
+    schemaValid: result.trace.schemaValid,
+    rawSchemaValid: result.trace.rawSchemaValid,
+    decisionAccepted: result.trace.decisionAccepted,
+    ...(result.trace.replyShape ? { replyShape: result.trace.replyShape } : {}),
+    ...(result.trace.validationErrors.length > 0 ? { validationErrors: result.trace.validationErrors.slice(0, 6).join(" | ") } : {}),
+    ...(result.status === "fallback"
+      ? { failureCategory: result.reason }
+      : !bridged
+        ? { failureCategory: "unsupported_bridge" }
+        : {}),
+    ...(bridged?.status === "inquiry" ? { queryId: bridged.inquiry.queryId } : {}),
+  });
+  return bridged;
+}
+/**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
  */
@@ -1628,6 +1745,7 @@ export async function interpretMasterTurn(
   if (disambiguated) return disambiguated;
   let classification = classifyPlayerInput(input, parseIntent);
   const modelUnavailable = (options?.mode ?? readMode()) === "off" || router === null;
+  const liveDirectorAvailable = !modelUnavailable && gmDirectorLiveEnabled();
   // Deterministic compound (plan_9 §1): when no model is available, one safe
   // primary plus every understood question must still resolve — and this runs
   // before the whole-replica inquiry shortcut so a second question is never
@@ -1637,22 +1755,22 @@ export async function interpretMasterTurn(
     if (compound) return compound;
   }
   if (classification.kind === "inquiry") {
-    // Whole-replica completeness (ADR-0028 amendment 2026-09-27): a
-    // recognized inquiry may return early ONLY when it covers the whole
-    // replica. Two or more clauses mean the deterministic layer recognized
-    // only a part of it (an unknown companion clause is never dropped), so a
-    // live model owns the full turn as an inquiry candidate. Offline keeps
-    // the honest single-query answer — there is no interpreter to defer to.
-    if (modelUnavailable || inquiryCoversWholeReplica(input)) {
+    // Preserve the deterministic read-only fast path unless P3 is explicitly
+    // enabled. In live mode the Director sees the complete replica before
+    // the legacy V2 proposal route.
+    const coversWholeReplica = inquiryCoversWholeReplica(input);
+    if (modelUnavailable || (coversWholeReplica && !liveDirectorAvailable)) {
       return { status: "inquiry", inquiry: classification.inquiry };
     }
-    emitMasterTurnDiagnostic(options?.diagnostics, {
-      category: "inquiry_fast_path",
-      outcome: "incomplete_replica",
-      phase: "fast_path",
-      correlationId: options?.correlationId,
-      worldTime: options?.worldTime,
-    });
+    if (!coversWholeReplica) {
+      emitMasterTurnDiagnostic(options?.diagnostics, {
+        category: "inquiry_fast_path",
+        outcome: "incomplete_replica",
+        phase: "fast_path",
+        correlationId: options?.correlationId,
+        worldTime: options?.worldTime,
+      });
+    }
     classification = { kind: "inquiry_candidate", rawText: input };
   }
   let deterministic = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
@@ -1666,8 +1784,19 @@ export async function interpretMasterTurn(
   // diagnostics; promptInput carries the resolved text into the LLM prompt.
   let promptInput = input;
   let pronounRewritten = false;
+  let liveDirectorAttempted = false;
   const pronounStep = resolvePronounsDeterministic(input, classification, deterministic, snapshot, options);
-  if (pronounStep.kind === "clarification") return pronounStep.outcome;
+  if (pronounStep.kind === "clarification") {
+    if (liveDirectorAvailable && classification.kind === "inquiry_candidate"
+      && classifyReplicaClauses(input, parseIntent).actions.length === 0) {
+      liveDirectorAttempted = true;
+      const liveOutcome = await tryLiveGmDirector(input, snapshot, router!, options);
+      if (liveOutcome) return liveOutcome;
+      // The P3 bridge declined this shape; let the existing V2 path try it.
+    } else {
+      return pronounStep.outcome;
+    }
+  }
   if (pronounStep.kind === "inquiry") return { status: "inquiry", inquiry: pronounStep.inquiry };
   if (pronounStep.kind === "rewritten") {
     promptInput = pronounStep.input;
@@ -1697,6 +1826,14 @@ export async function interpretMasterTurn(
     }
   }
 
+  if (liveDirectorAvailable && !liveDirectorAttempted && classification.kind === "inquiry_candidate") {
+    const clauses = classifyReplicaClauses(input, parseIntent);
+    if (clauses.actions.length === 0 && clauses.inquiries.length <= 1) {
+      liveDirectorAttempted = true;
+      const liveOutcome = await tryLiveGmDirector(input, snapshot, router!, options);
+      if (liveOutcome) return liveOutcome;
+    }
+  }
   if (deterministic.type === "UnsupportedButUnderstood" && (options?.mode ?? readMode()) === "off") {
     return { status: "unsupported", message: deterministic.message };
   }

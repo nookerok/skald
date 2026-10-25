@@ -114,15 +114,35 @@ interface SceneBindEntry {
   readonly observerRef: string;
   readonly label: string;
   readonly knownAs: readonly string[];
+  /** Observer-safe distinguishing detail used only when public labels collide. */
+  readonly disambiguator?: string;
 }
 
 type SceneBindResult =
   | { readonly status: "unique"; readonly entry: SceneBindEntry }
-  | { readonly status: "ambiguous"; readonly labels: readonly string[] }
+  | { readonly status: "ambiguous"; readonly entries: readonly SceneBindEntry[]; readonly labels: readonly string[] }
   | { readonly status: "absent" };
 
 function normalizeBindText(value: string): string {
   return value.trim().toLowerCase().replace(/ё/gu, "е").replace(/[?!.,;:]+$/u, "").trim();
+}
+
+function ambiguousBindResult(entries: readonly SceneBindEntry[]): Extract<SceneBindResult, { status: "ambiguous" }> {
+  const groups = new Map<string, SceneBindEntry[]>();
+  for (const entry of entries) {
+    const key = normalizeBindText(entry.label);
+    const group = groups.get(key) ?? [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+  const labels = entries.map((entry, index) => {
+    const group = groups.get(normalizeBindText(entry.label)) ?? [];
+    if (group.length < 2) return entry.label;
+    const hint = entry.disambiguator?.trim();
+    if (hint && group.filter((candidate) => candidate.disambiguator?.trim() === hint).length === 1) return entry.label + " — " + hint;
+    return entry.label + " (вариант " + (index + 1) + ")";
+  });
+  return { status: "ambiguous", entries: Object.freeze([...entries]), labels: Object.freeze(labels) };
 }
 
 /**
@@ -135,21 +155,14 @@ export function bindSceneSurface(
 ): SceneBindResult {
   const norm = normalizeBindText(surface);
   if (!norm) return { status: "absent" };
-  const byLabel = new Map<string, SceneBindEntry[]>();
-  for (const entry of entries) {
-    const key = normalizeBindText(entry.label);
-    if (key.length === 0) continue;
-    const list = byLabel.get(key) ?? [];
-    list.push(entry);
-    byLabel.set(key, list);
-  }
-  // Identical display labels collapse to the first entry (one role).
-  const distinct = [...byLabel.values()].map((list) => list[0]!);
+  // Distinct observer identities must not collapse on an equal public label.
+  const distinct = [...new Map(entries.map((entry) => [entry.observerRef, entry])).values()];
   const exact = distinct.filter((entry) =>
     normalizeBindText(entry.label) === norm
     || entry.knownAs.some((alias) => normalizeBindText(alias) === norm),
   );
-  if (exact.length > 0) return { status: "unique", entry: exact[0]! };
+  if (exact.length === 1) return { status: "unique", entry: exact[0]! };
+  if (exact.length > 1) return ambiguousBindResult(exact);
   const stemWord = (word: string): string | null => {
     const stemmed = stemRussianToken(word);
     return stemmed.length >= 3 ? stemmed : null;
@@ -176,6 +189,7 @@ export function bindSceneSurface(
     }),
   );
   if (phrased.length === 1) return { status: "unique", entry: phrased[0]! };
+  if (phrased.length > 1) return ambiguousBindResult(phrased);
   const inputStems = new Set(
     norm.split(/[^a-zа-я0-9]+/iu).filter((word) => word.length > 0)
       .map((word) => stemWord(word))
@@ -201,14 +215,8 @@ export function bindSceneSurface(
   }
   if (!best || bestHits === 0) return { status: "absent" };
   if (tied) {
-    const labels: string[] = [];
-    for (const entry of distinct) {
-      if (vocabOf(entry).filter((word) => inputStems.has(word)).length === bestHits && !labels.includes(entry.label)) {
-        labels.push(entry.label);
-      }
-      if (labels.length >= 3) break;
-    }
-    return { status: "ambiguous", labels };
+    const candidates = distinct.filter((entry) => vocabOf(entry).filter((word) => inputStems.has(word)).length === bestHits).slice(0, 3);
+    return ambiguousBindResult(candidates);
   }
   return { status: "unique", entry: best };
 }
@@ -514,6 +522,9 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
     if (!addressee.ref?.observerRef && proposal.addressedEntity?.surface) {
       const people = scene.context.knownPeople.map((entry) => ({
         observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+        ...((entry.portrait?.publicRole ?? entry.portrait?.distinguishingFeatures?.slice(0, 2).join("; "))
+          ? { disambiguator: entry.portrait.publicRole ?? entry.portrait.distinguishingFeatures?.slice(0, 2).join("; ") }
+          : {}),
       }));
       const bound = bindSceneSurface(proposal.addressedEntity.surface, people);
       if (bound.status === "ambiguous") {
@@ -521,7 +532,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
         return {
           status: "clarification",
           question: classified.question,
-          options: [...frameCandidateOptions(bound.labels, scene), ...classified.options],
+          options: [...frameCandidateOptionsForEntries(bound.entries, bound.labels), ...classified.options],
           framed: framedCandidate(proposal, "addressee", scene),
         };
       }
@@ -575,13 +586,14 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
 
   const mapped = mapPrimaryAction(primary, proposal, scene, world, rawText, track);
   if (mapped.status !== "accepted") return mapped;
-  // Structural scope is the primary span (see the speech branch above).
-  // When the model already split a second clause into supportingClauses or
-  // question, trim any copied compound tail from primary.sourceText so
-  // SECOND_ACTION does not reject a properly split TurnProposalV2.
-  const primarySpanText = (proposal.supportingClauses.length > 0 || proposal.question !== undefined)
-    ? (splitPlayerClauses(primary.sourceText)?.head ?? primary.sourceText)
-    : primary.sourceText;
+  const splitPrimary = splitPlayerClauses(primary.sourceText);
+  const normalizeClause = (value: string): string => value.trim().toLowerCase().replace(/ё/gu, "е").replace(/[?!.,;:]+$/u, "").replace(/\s+/gu, " ");
+  const retainedActionTail = splitPrimary !== null && proposal.supportingClauses.some((clause) =>
+    clause.kind === "deferred_action" && normalizeClause(clause.summary) === normalizeClause(splitPrimary.tail),
+  );
+  // A question or unrelated supporting clause does not authorize silently
+  // dropping an action tail. Trim only the exact action retained as deferred.
+  const primarySpanText = retainedActionTail ? splitPrimary.head : primary.sourceText;
   const structural = validateActionProposal({ ...mapped.intent, rawText: primarySpanText });
   if (!structural.ok) {
     return { status: "clarification", question: structural.clarification, options: [{ optionId: "rephrase", label: "Переформулировать" }] };
@@ -692,7 +704,7 @@ function mapPrimaryAction(
       return {
         status: "clarification",
         question: classified.question,
-        options: [...frameCandidateOptions(bound.labels, scene), ...classified.options],
+        options: [...frameCandidateOptionsForEntries(bound.entries, bound.labels), ...classified.options],
         framed: framedCandidate(proposal, "target", scene),
       };
     }
@@ -763,7 +775,12 @@ function sceneBindEntries(scene: MasterTurnSceneSnapshot): SceneBindEntry[] {
   const context = scene.context;
   return [
     ...context.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
-    ...context.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...context.knownPeople.map((entry) => ({
+      observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+      ...((entry.portrait?.publicRole ?? entry.portrait?.distinguishingFeatures?.slice(0, 2).join("; "))
+        ? { disambiguator: entry.portrait.publicRole ?? entry.portrait.distinguishingFeatures?.slice(0, 2).join("; ") }
+        : {}),
+    })),
     ...context.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...context.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
   ];
@@ -771,7 +788,7 @@ function sceneBindEntries(scene: MasterTurnSceneSnapshot): SceneBindEntry[] {
 
 type ProposalTargetBind =
   | { readonly status: "bound"; readonly observerRef: string; readonly label: string }
-  | { readonly status: "ambiguous"; readonly labels: readonly string[] }
+  | { readonly status: "ambiguous"; readonly entries: readonly SceneBindEntry[]; readonly labels: readonly string[] }
   | { readonly status: "compound"; readonly head: string; readonly tail: string }
   | { readonly status: "absent" };
 
@@ -792,7 +809,7 @@ function bindProposalTarget(
   if (bound.status === "unique") {
     return { status: "bound", observerRef: bound.entry.observerRef, label: bound.entry.label };
   }
-  if (bound.status === "ambiguous") return { status: "ambiguous", labels: bound.labels };
+  if (bound.status === "ambiguous") return { status: "ambiguous", entries: bound.entries, labels: bound.labels };
   return { status: "absent" };
 }
 
@@ -808,6 +825,17 @@ function frameCandidateOptions(
       ...(refs.length > 0 ? { referentRefs: refs } : {}),
     });
   }));
+}
+
+function frameCandidateOptionsForEntries(
+  entries: readonly SceneBindEntry[],
+  labels: readonly string[],
+): readonly MasterTurnClarificationOption[] {
+  return Object.freeze(entries.slice(0, 3).map((entry, index) => Object.freeze({
+    optionId: `candidate-${index + 1}`,
+    label: labels[index] ?? entry.label,
+    referentRefs: Object.freeze([entry.observerRef]),
+  })));
 }
 
 /**
