@@ -8,6 +8,7 @@ import { RuleEngine } from "@skald/rule-engine";
 import { isGenericFallbackText } from "@skald/intent-parser";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
 import { buildReadSideConversationTurn, buildTurnMemoryMetadata } from "../src/conversation/builder.js";
+import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { LEGACY_WORLD_ID } from "../src/persistence/types.js";
 import { interpretMasterTurn, matchFrameOption, sharedSinglePronounSurface, type MasterTurnSnapshot } from "../src/runtime/master-turn-gateway.js";
@@ -121,6 +122,52 @@ describe("master turn gateway V2", () => {
     expect(router.chat).not.toHaveBeenCalled();
   });
 
+  it("routes a whole read-only inquiry through GM_DIRECTOR_LIVE when explicitly enabled", async () => {
+    const previous = process.env["GM_DIRECTOR_LIVE"];
+    process.env["GM_DIRECTOR_LIVE"] = "1";
+    try {
+      const router = routerReturning(JSON.stringify({
+        schemaVersion: 1,
+        addressee: { kind: "gm" },
+        kind: "world_question",
+      }));
+      const diagnostics: any[] = [];
+      const result = await interpretMasterTurn("Кто рядом?", citySnapshot(), router, {
+        mode: "fallback",
+        diagnostics: (entry) => { diagnostics.push(entry); },
+        gmDirectorTurnKey: "intent-test-opaque-key",
+      });
+
+      expect(result).toMatchObject({
+        status: "inquiry",
+        inquiry: { queryId: "who_is_nearby", source: "llm" },
+      });
+      expect(router.chat).toHaveBeenCalledTimes(1);
+      expect((router.chat.mock.calls[0] as any[])[0]).toBe("interpret");
+      const directorRows = diagnostics.filter((entry) => entry.category === "gm_director");
+      expect(directorRows).toHaveLength(1);
+      expect(directorRows[0]).toMatchObject({ outcome: "accepted", phase: "live", decisionAccepted: true });
+      expect(JSON.stringify(directorRows)).not.toContain("Кто рядом?");
+      expect(JSON.stringify(directorRows)).not.toContain("test-opaque-key");
+    } finally {
+      if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
+      else process.env["GM_DIRECTOR_LIVE"] = previous;
+    }
+  });
+
+  it("keeps the live Director off by default", async () => {
+    const previous = process.env["GM_DIRECTOR_LIVE"];
+    process.env["GM_DIRECTOR_LIVE"] = "0";
+    try {
+      const router = routerReturning("{}");
+      const result = await interpretMasterTurn("Кто рядом?", citySnapshot(), router, { mode: "fallback" });
+      expect(result.status).toBe("inquiry");
+      expect(router.chat).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
+      else process.env["GM_DIRECTOR_LIVE"] = previous;
+    }
+  });
   it("falls back honestly when the model is unavailable", async () => {
     const result = await interpretMasterTurn("сделай нечто странное", snapshot(), null);
 
@@ -128,6 +175,20 @@ describe("master turn gateway V2", () => {
     // as a natural clarification, never as a technical error.
     expect(["clarification", "unsupported", "unavailable"]).toContain(result.status);
   });
+  it("does not route a deterministic action through GM_DIRECTOR_LIVE", async () => {
+    const previous = process.env["GM_DIRECTOR_LIVE"];
+    process.env["GM_DIRECTOR_LIVE"] = "1";
+    try {
+      const router = routerReturning("{}");
+      const result = await interpretMasterTurn("осмотреться", snapshot(), router, { mode: "fallback" });
+      expect(result.status).toBe("deterministic");
+      expect(router.chat).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
+      else process.env["GM_DIRECTOR_LIVE"] = previous;
+    }
+  });
+
 
   it("maps a valid TurnProposalV2 to a validated plan", async () => {
     const snap = snapshot();
@@ -706,6 +767,38 @@ describe("master turn gateway V2", () => {
   });
 });
 
+  it("does not swallow a compound referent answer as a read-only focus", async () => {
+    const router = routerReturning("{}");
+    const result = await interpretMasterTurn(
+      "Я имею в виду Архивиста и подойду к нему.",
+      citySnapshot(),
+      router,
+    );
+    expect(result.status).not.toBe("inquiry");
+  });
+
+  it("keeps identical public labels as separate referent options", async () => {
+    const base = citySnapshot();
+    const knownPeople = base.scene.context.knownPeople.map((person, index) => ({
+      ...person,
+      label: "Незнакомый человек",
+      knownAs: [],
+      portrait: { publicRole: index === 0 ? "Хранитель записей" : "Смотритель ворот" } as any,
+    }));
+    const duplicateSnapshot = {
+      ...base,
+      scene: { ...base.scene, context: { ...base.scene.context, knownPeople } },
+    } as MasterTurnSnapshot;
+    const result = await interpretMasterTurn("Я имею в виду незнакомого человека.", duplicateSnapshot, null);
+
+    expect(result.status).toBe("clarification");
+    if (result.status === "clarification") {
+      const candidates = result.options.filter((option) => option.referentRefs?.length === 1);
+      expect(candidates).toHaveLength(2);
+      expect(candidates.map((option) => option.referentRefs?.[0])).toEqual(["person_1", "person_2"]);
+      expect(new Set(candidates.map((option) => option.label)).size).toBe(2);
+    }
+  });
 describe("deterministic compound resolution (plan_9 §1)", () => {
   /** No model configured: the pure deterministic path. */
   const noModel = null;
@@ -713,6 +806,28 @@ describe("deterministic compound resolution (plan_9 §1)", () => {
   function dead() {
     return { chat: vi.fn(() => { throw new Error("model down"); }) } as any;
   }
+describe("P3 live gateway safeguards", () => {
+  it("does not invoke the live Director twice when its pronoun bridge declines", async () => {
+    const previous = process.env["GM_DIRECTOR_LIVE"];
+    process.env["GM_DIRECTOR_LIVE"] = "1";
+    try {
+      const directorReply = JSON.stringify({
+        schemaVersion: 1,
+        addressee: { kind: "gm" },
+        kind: "world_question",
+        subjectHandle: stableActorHandle("person_1"),
+      });
+      const router = { chat: vi.fn(async (category: string) => ({ text: category === "interpret" ? directorReply : "{}" })) } as any;
+      const diagnostics: any[] = [];
+      const result = await interpretMasterTurn("Что на нём одето?", citySnapshot(), router, { mode: "fallback", diagnostics: (entry) => { diagnostics.push(entry); } });
+      expect(result.status).toBe("clarification");
+      expect(diagnostics.filter((entry) => entry.category === "gm_director")).toHaveLength(1);
+    } finally {
+      if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
+      else process.env["GM_DIRECTOR_LIVE"] = previous;
+    }
+  });
+});
 
   it("resolves the flagship replica into one action plus both questions", async () => {
     const result = await interpretMasterTurn(

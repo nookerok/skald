@@ -644,7 +644,7 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     });
   });
 
-  it("maps an npc conversation to a speech plan with bound addressee focus", () => {
+  it("does not bridge an npc conversation into executable speech", () => {
     const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
     const ferryHandle = stableActorHandle("person_1");
     const outcome = applyGmDirectorDecision(
@@ -653,29 +653,16 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
       "Здравствуй, перевезёшь на тот берег?",
       snapshot,
     );
-    expect(outcome).toMatchObject({
-      status: "plan",
-      plan: {
-        kind: "speech",
-        execution: {
-          intent: {
-            type: "ActionIntentCommand",
-            operation: "speak",
-            target: { raw: ferrymanLabel },
-          },
-        },
-        focus: [{ observerRef: "person_1", surface: ferrymanLabel, kind: "addressee" }],
-      },
-    });
+    expect(outcome).toBeNull();
   });
 
-  it("maps a world_question with subjectHandle to a focused read-only inquiry", () => {
+  it("bridges a registered focused question only to its matching scene handle", () => {
     const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
     const ferryHandle = stableActorHandle("person_1");
     const outcome = applyGmDirectorDecision(
       { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: ferryHandle },
       bundle,
-      "Как он выглядит?",
+      "Как выглядит Перевозчик у переправы?",
       snapshot,
     );
     expect(outcome).toMatchObject({
@@ -685,6 +672,28 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
         focus: { observerRef: "person_1", surface: ferrymanLabel },
       },
     });
+  });
+
+  it("does not let a model add a subject to an unfocused generic question", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const outcome = applyGmDirectorDecision(
+      { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: stableActorHandle("person_1") },
+      bundle,
+      "Кто рядом?",
+      snapshot,
+    );
+    expect(outcome).toBeNull();
+  });
+
+  it("does not let a model override an explicit question subject with another scene handle", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const outcome = applyGmDirectorDecision(
+      { schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question", subjectHandle: stableActorHandle("person_2") },
+      bundle,
+      "Как выглядит Архивист Речного Стража?",
+      snapshot,
+    );
+    expect(outcome).toBeNull();
   });
 
   it("maps a clarification with candidateHandles to selectable candidate options with referentRefs", () => {

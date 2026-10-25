@@ -270,6 +270,37 @@ describe("master turn contextual validation", () => {
     expect(result.plan.deferredClauses).toEqual([{ text: "осмотреть лагерь", reason: "secondary_action" }]);
   });
 
+  it("does not drop a second action hidden in primary sourceText", () => {
+    const { world, scene, target } = campWithPlacedTorch();
+    const primaryIntent = { kind: "interaction" as const, verb: "observe" as const, sourceText: "осматриваю факел и осматриваюсь" };
+    const dropped = validateMasterTurnPlan({
+      proposal: actionProposal(target, {
+        primaryIntent,
+        question: { queryId: "visible_scene" },
+      }),
+      scene,
+      world,
+      rawText: "осматриваю факел и осматриваюсь, что вокруг?",
+    });
+    expect(dropped.status).toBe("clarification");
+
+    const retained = validateMasterTurnPlan({
+      proposal: actionProposal(target, {
+        kind: "mixed",
+        primaryIntent,
+        question: { queryId: "visible_scene" },
+        supportingClauses: [{ kind: "deferred_action", summary: "осматриваюсь" }],
+      }),
+      scene,
+      world,
+      rawText: "осматриваю факел и осматриваюсь, что вокруг?",
+    });
+    expect(retained.status).toBe("accepted");
+    if (retained.status === "accepted") {
+      expect(retained.plan.deferredClauses).toEqual([{ text: "осматриваюсь", reason: "secondary_action" }]);
+      expect(retained.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
+    }
+  });
   it("answers pure inquiry without execution", () => {
     const { world, scene } = livingWorld();
     const result = validateMasterTurnPlan({
@@ -692,6 +723,22 @@ describe("bindSceneSurface", () => {
     expect([...tied.labels].sort()).toEqual(["Дневной перевозчик", "Ночной перевозчик"]);
     expect(bindSceneSurface("дракон", entries)).toEqual({ status: "absent" });
     expect(bindSceneSurface("", entries)).toEqual({ status: "absent" });
+  });
+
+  it("keeps distinct observer identities when public labels are identical", () => {
+    const twins = [
+      { observerRef: "person_1", label: "Незнакомый человек", knownAs: [], disambiguator: "Хранитель записей" },
+      { observerRef: "person_2", label: "Незнакомый человек", knownAs: [], disambiguator: "Смотритель ворот" },
+    ];
+    const result = bindSceneSurface("незнакомого человека", twins);
+    expect(result.status).toBe("ambiguous");
+    if (result.status !== "ambiguous") return;
+    expect(result.entries.map((entry) => entry.observerRef)).toEqual(["person_1", "person_2"]);
+    expect(new Set(result.labels).size).toBe(2);
+    expect(result.labels).toEqual([
+      "Незнакомый человек — Хранитель записей",
+      "Незнакомый человек — Смотритель ворот",
+    ]);
   });
 });
 

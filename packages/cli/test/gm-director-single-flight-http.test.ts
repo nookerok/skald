@@ -177,6 +177,30 @@ describe("gm director single-flight over the real HTTP handler", () => {
     expect(gmShared(b.manager)).toHaveLength(0);
     expect(chat.mock.calls.length).toBe(2);
   });
+  it("GM_DIRECTOR_LIVE bridges an inquiry through the real handler without changing the world", async () => {
+    vi.stubEnv("GM_DIRECTOR_LIVE", "1");
+    const chat = vi.fn(async (category: string) => {
+      expect(category).toBe("interpret");
+      return {
+        text: JSON.stringify({ schemaVersion: 1, addressee: { kind: "gm" }, kind: "world_question" }),
+        provider: "test_provider",
+        model: "test-model",
+        usedFallback: false,
+      };
+    });
+    const { manager, runtime, store } = await freshManager("live", "sf-world-live", { apiKey: "", chat } as any);
+    const beforeTime = runtime.projection.getSnapshot().time;
+    const beforeEvents = runtime.bus.query().length;
+    const response = await handleWorldCommand(runtime, { input: "Кто рядом?", idempotencyKey: "sf-live" });
+    expect(parse(response).ok).toBe(true);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(chat.mock.calls[0]?.[0]).toBe("interpret");
+    expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+    expect(runtime.bus.query()).toHaveLength(beforeEvents);
+    const turn = store.listRecentConversationTurns(runtime.worldId, { limit: 1 }).at(-1);
+    expect(turn).toMatchObject({ responseKind: "inquiry_answer", worldTimeBefore: beforeTime, worldTimeAfter: beforeTime });
+    expect(gmRows(manager)).toMatchObject([{ outcome: "accepted", phase: "live", decisionAccepted: true }]);
+  });
 
   it("provider ERROR at the handler level → one failed provider call, one gm_director diagnostic", async () => {
     vi.stubEnv("GM_DIRECTOR_SHADOW", "1");
