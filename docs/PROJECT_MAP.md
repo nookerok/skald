@@ -47,9 +47,11 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     idempotent) -> observer session -> first Presence acknowledge -> #/world/:id
 
     Browser/REPL -> Master Turn Gateway / Interpretation Gateway
-    (deterministic fast path for simple commands, otherwise closed LLM
-    TurnProposalV2 in bounded observer-safe scene + ConversationContext
-    with pronoun bindings)
+    (deterministic fast path; GM_DIRECTOR_LIVE=1 routes eligible read-only
+    inquiry candidates through the bounded Conversation Director P3 bridge,
+    which emits no actions or Domain Events; unsupported decisions/provider
+    failures fall through to closed TurnProposalV2 in bounded observer-safe
+    scene + ConversationContext with pronoun bindings)
     -> static schema + contextual referent validation + stale-revision
     recheck -> at most one primary command handler / read-only Inquiry
     -> RuleEngine -> staged Domain Events -> EventBus + Projection
