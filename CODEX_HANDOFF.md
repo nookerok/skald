@@ -1,39 +1,50 @@
-# Current work (2026-11-01 - Ollama primary/backup released and hardware-verified)
+# Current work (2026-11-02 - Ollama narration routes quality-screened and deployed)
 
 ## Release outcome
 
-- Release commits `fefa34a` (Ollama routes) and `f2e6385` (recognize Ollama's
-  real string-shaped `model not found` response) are pushed and deployed. Orange
-  Pi `HEAD == origin/main == f2e638563da1bda111b672e98f52bbfec5aa7c76`;
-  service and both timers are active; `/api/health`, `/api/continue` and the
-  current world's scoped state return successfully. The updater's second
-  pre-update backup is
-  `backup-fefa34a0231919704a45fe61ce2382ffb05957e9-pre-update-20261101-233235.sqlite`.
-- Remote updater validation PASS: 250 test files, 3098 passed, 1 skipped;
-  canon, simulation, eval and adventure acceptance PASS; build, manifest,
-  health and live intent/narration contract PASS.
-- Fresh loopback AI readiness is `ready` / playable. Effective `interpret` and
-  `narrate` routes use Ollama Cloud, with `gemma4:31b-cloud` primary and
-  `nemotron-3-nano:30b` backup; both candidates passed both route probes.
-  `opencode_run` is absent from active routes. Zen catalogue discovery still
-  reports `api_key_expired`, but it does not make the active Ollama routes
-  unavailable.
-- Hardware fallback regression PASS: a deliberately missing Ollama primary
-  model returned the provider's real 404 string error; the same router call
-  recovered through `nemotron-3-nano:30b` (`live_backup`, `usedFallback=true`,
-  non-empty text). No credentials or raw provider response were logged.
-- Post-deploy `COMMAND_TIME_LIVE_V1` acceptance PASS on a scratch world:
-  10-command ledger, inquiry purity, approach/engagement, journey timing,
-  in-travel rejection, interrupt, arrival, absent-contact rejection, blocked
-  journey, idempotent replay purity and conflicting-key 409 purity all passed.
-  Scratch world ended at time 6 / event 114. The canonical world was not used.
+- Runtime, tests, and quality-screen evidence are pushed in `2de5715`,
+  `e4f6883`, and `b88647c`. Orange Pi now runs
+  `HEAD == origin/main == b88647c2634396c86ad8e6cfd1768795b573abbc`.
+  The updater backup is
+  `backup-f2e638563da1bda111b672e98f52bbfec5aa7c76-pre-update-20261102-000353.sqlite`.
+- Pi updater: full validation PASS (250 files, 3098 passed, 1 skipped);
+  canon, simulation, eval, adventure, build, manifest, health, and live
+  intent/narration contract all passed. `skald.service` and both timers are
+  active; exact Node v22.23.1; repository clean.
+- Post-deploy health and current-world scoped state returned HTTP 200. A fresh
+  loopback AI probe returned `ready` / playable with Ollama routes:
+  `gemma4:31b-cloud` primary, `gemma4:31b` backup,
+  `nemotron-3-ultra` final fallback, for both interpret and narrate. All three
+  passed authenticated route probes. Zen catalog still reports HTTP 401
+  `api_key_expired`; this does not affect active Ollama routes.
+- Hardware fallback proof PASS: an in-process router call intentionally used a
+  nonexistent primary; the actual provider 404 was classified and the call
+  returned nonempty text through `gemma4:31b` (`live_backup`,
+  `usedFallback=true`, 63 characters). Only sanitized metadata was printed.
+- `COMMAND_TIME_LIVE_V1` PASS against deployed SHA `b88647c`: scratch-only
+  10-command ledger plus same-key replay and conflicting-key 409. Inquiry and
+  absent-contact rejection stayed at zero time/events; approach, journey,
+  arrival, and blocked-journey contracts passed. Scratch ID is redacted in the
+  runner output (`...15c145dd`); the current world was not mutated.
+- The bounded six-model, ten-package manual event-to-prose screen is recorded
+  at `docs/acceptance/ollama-event-to-prose-screen-2026-11-01.md`. Default
+  candidates are Gemma Cloud, Gemma 31B, and Nemotron Ultra. Nano, Super, and
+  Beam are excluded based on observed unsupported content or response-shape
+  failures. Raw per-case outputs were not archived; this is a summarized,
+  one-pass screen, not a reproducible benchmark.
 - `npm ci` reported 9 dependency audit advisories (3 moderate, 4 high,
-  2 critical); not auto-fixed in this release. Browser QA was not run because
-  this slice changed routing/backend behavior, not UI.
-- The pre-release handoff and `plan_1.md` through `plan_9.md` were restored from
-  a temporary preservation stash. The plan files' original SHA-256 hashes match;
-  the handoff was then updated with this release record. Planning files remain
-  untracked and excluded from commits.
+  2 critical); not auto-fixed. Browser QA and human playability review were not
+  run because this release changed backend model routing only.
+- Planning files `plan_1.md` through `plan_9.md` remain user-owned and
+  untracked; none were committed.
+
+## Next
+
+- Repeat the same event corpus at least three times per retained candidate and
+  archive sanitized per-case outputs with actual provider/model attribution.
+- Keep live provider availability, factual grounding, browser acceptance, and
+  human playability as separate gates.
+- Review the 9 dependency advisories in a separate, risk-scoped task.
 
 ## Pre-release investigation notes (superseded by the release outcome above)
 
