@@ -1,4 +1,98 @@
-# Current work (2026-10-25 - conservative P3 live read-only bridge; repository validated)
+# Current work (2026-11-01 - Ollama primary/backup released and hardware-verified)
+
+## Release outcome
+
+- Release commits `fefa34a` (Ollama routes) and `f2e6385` (recognize Ollama's
+  real string-shaped `model not found` response) are pushed and deployed. Orange
+  Pi `HEAD == origin/main == f2e638563da1bda111b672e98f52bbfec5aa7c76`;
+  service and both timers are active; `/api/health`, `/api/continue` and the
+  current world's scoped state return successfully. The updater's second
+  pre-update backup is
+  `backup-fefa34a0231919704a45fe61ce2382ffb05957e9-pre-update-20261101-233235.sqlite`.
+- Remote updater validation PASS: 250 test files, 3098 passed, 1 skipped;
+  canon, simulation, eval and adventure acceptance PASS; build, manifest,
+  health and live intent/narration contract PASS.
+- Fresh loopback AI readiness is `ready` / playable. Effective `interpret` and
+  `narrate` routes use Ollama Cloud, with `gemma4:31b-cloud` primary and
+  `nemotron-3-nano:30b` backup; both candidates passed both route probes.
+  `opencode_run` is absent from active routes. Zen catalogue discovery still
+  reports `api_key_expired`, but it does not make the active Ollama routes
+  unavailable.
+- Hardware fallback regression PASS: a deliberately missing Ollama primary
+  model returned the provider's real 404 string error; the same router call
+  recovered through `nemotron-3-nano:30b` (`live_backup`, `usedFallback=true`,
+  non-empty text). No credentials or raw provider response were logged.
+- Post-deploy `COMMAND_TIME_LIVE_V1` acceptance PASS on a scratch world:
+  10-command ledger, inquiry purity, approach/engagement, journey timing,
+  in-travel rejection, interrupt, arrival, absent-contact rejection, blocked
+  journey, idempotent replay purity and conflicting-key 409 purity all passed.
+  Scratch world ended at time 6 / event 114. The canonical world was not used.
+- `npm ci` reported 9 dependency audit advisories (3 moderate, 4 high,
+  2 critical); not auto-fixed in this release. Browser QA was not run because
+  this slice changed routing/backend behavior, not UI.
+- The pre-release handoff and `plan_1.md` through `plan_9.md` were restored from
+  a temporary preservation stash. The plan files' original SHA-256 hashes match;
+  the handoff was then updated with this release record. Planning files remain
+  untracked and excluded from commits.
+
+## Pre-release investigation notes (superseded by the release outcome above)
+
+- Production LAN API is live: `/api/health`, `/api/continue` and the current
+  world's scoped state all returned HTTP 200; current world was at time 2,
+  event 72 with `routerAvailable: true`. The loopback-only
+  `/api/ops/ai-probe` returning 404 from LAN is intentional, not an API outage.
+- Fresh loopback `POST /api/ops/ai-probe` on Orange Pi returned HTTP 503,
+  readiness `degraded`, `playable: true`. `ollama_cloud/gemma4:31b-cloud`
+  passed interpret (1031ms) and narrate (663ms); the active route also tried
+  `opencode_run/opencode/muse-spark-1.3-contributor-free` and narration failed
+  after 15752ms. Current readiness has only one verified Ollama route. The Zen
+  `api_key_expired` catalog result is stale (`checkedAt` 2026-10-31), so it is
+  not evidence for changing the key. Direct Pi probes verified both
+  `gemma4:31b-cloud` and `nemotron-3-nano:30b` for interpret+narrate.
+- Local uncommitted changes add an ordered Ollama preference list with live
+  dual-category probes and primary/backup routes; Ollama requests disable
+  thinking (`think:false`). The local `opencode_run` subprocess is excluded
+  from active narration fallback unless the separate
+  `SKALD_OPENCODE_RUN_NARRATE_FALLBACK=1` opt-in is set.
+- `GM_DIRECTOR_LIVE=1` was exercised on an isolated Pi process/database: a
+  live Ollama decision accepted `Кто рядом?` as `world_question` with
+  worldTime/eventNumber unchanged (0/60). A subsequent approach action on
+  that scratch world advanced only it from time 0 to 1. The scratch process and
+  its exact temporary DB/log were stopped and removed; production service was
+  not changed.
+- Repository gate: `bash scripts/validate.sh` PASS on the current working
+  tree; `git diff --check` PASS. Local `HEAD == origin/main == fe2a368`; these
+  15 runtime/test-file changes plus this handoff entry remain uncommitted.
+  Pi remains at `fe2a368`; no commit, push, deploy or production flag change
+  has been done for this slice.
+- Next: after explicit release authorization, commit/push/deploy this tree;
+  then verify the deployed commit, active backup routes, absence of
+  `opencode_run` from the default active route, health/scoped state and a
+  scratch idempotent smoke. Re-run the loopback AI probe and report its
+  readiness separately from basic API health.
+
+- Follow-up live check at 2026-11-01T19:23:37Z: the loopback probe took
+  16,552ms and returned 503/degraded while playable; Ollama interpret/narrate
+  both passed (882/644ms). The active opencode_run Muse Spark narration
+  attempt failed after 15,666ms. Zen catalogue auth failure remains cached
+  from 2026-10-31, so no Zen-key refresh was attempted; Ollama is sufficient
+  for the intended route.
+- The account's 25-model screen selected six candidates only after both
+  interpret and narrate probes passed: gemma4:31b-cloud,
+  nemotron-3-nano:30b, gemma4:31b, nemotron-3-super,
+  nemotron-3-ultra, beam. Local code now retains this ordered list as
+  primary/backup/fallback; production is still on the old single-model route.
+- Repeated GM_DIRECTOR_LIVE=1 on a separate Pi scratch process, localhost
+  port 32187, and temporary SQLite DB: the live Ollama Director accepted the
+  read-only inquiry "Кто рядом?"; worldTime/eventNumber remained 0/60.
+  Post-check: production service/timers active, health 200, scratch port
+  closed, and no matching temporary directory remained.
+- Current focused tests: 7 files / 109 passed. Full npm run validate then
+  completed with exit 0 and [validate] PASS.
+
+---
+
+# Previous current work (2026-10-25 - conservative P3 live read-only bridge; repository validated)
 
 - Closed review regressions in master-turn-validator.ts and master-turn-gateway.ts: an action tail is retained unless the exact clause is represented as deferred, and distinct observer identities with identical public labels remain separate/disambiguated options.
 - Implemented GM_DIRECTOR_LIVE as an explicit opt-in before the legacy V2 planner for eligible whole read-only questions and unresolved question candidates; deterministic fast paths still win.
