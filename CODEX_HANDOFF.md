@@ -3,8 +3,9 @@
 ## Release outcome
 
 - Runtime, tests, and quality-screen evidence are pushed in `2de5715`,
-  `e4f6883`, and `b88647c`. Orange Pi now runs
-  `HEAD == origin/main == b88647c2634396c86ad8e6cfd1768795b573abbc`.
+  `e4f6883`, and `b88647c`. Orange Pi runs deployed runtime commit
+  `b88647c2634396c86ad8e6cfd1768795b573abbc`; repository main has since moved
+  forward with handoff-only documentation commits, which are not deployed.
   The updater backup is
   `backup-f2e638563da1bda111b672e98f52bbfec5aa7c76-pre-update-20261102-000353.sqlite`.
 - Pi updater: full validation PASS (250 files, 3098 passed, 1 skipped);
