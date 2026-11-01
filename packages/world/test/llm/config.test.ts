@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   LLM_CONFIG,
+  OLLAMA_CLOUD_BACKUP_MODEL,
+  OLLAMA_CLOUD_PREFERRED_MODELS,
   OPENROUTER_PREFERRED_MODELS,
   llmConfigFingerprint,
   providersWithKeys,
@@ -23,6 +25,18 @@ describe("LLM provider registry", () => {
       expect(model.endsWith(":free")).toBe(true);
     }
     expect(OPENROUTER_PREFERRED_MODELS[0]).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+  });
+  it("pins a verified ordered Ollama Cloud preference list with a legacy primary alias", () => {
+    expect(OLLAMA_CLOUD_PREFERRED_MODELS).toEqual([
+      "gemma4:31b-cloud",
+      "nemotron-3-nano:30b",
+      "gemma4:31b",
+      "nemotron-3-super",
+      "nemotron-3-ultra",
+      "beam",
+    ]);
+    expect(Object.isFrozen(OLLAMA_CLOUD_PREFERRED_MODELS)).toBe(true);
+    expect(OLLAMA_CLOUD_BACKUP_MODEL).toBe(OLLAMA_CLOUD_PREFERRED_MODELS[0]);
   });
 
   it("detects the OpenRouter key without exposing its value", () => {

@@ -235,6 +235,7 @@ export async function chatOnce(
         model,
         messages: messages as unknown as Array<{ role: string; content: string }>,
         stream: false,
+        think: false,
         options: {
           num_predict: opts.maxTokens ?? 600,
           ...(category === "interpret" ? { temperature: 0 } : {}),

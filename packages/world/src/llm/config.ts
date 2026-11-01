@@ -71,14 +71,22 @@ export function openCodeProtocolForModel(model: string): ProviderProtocol {
 }
 
 /**
- * Provisional Ollama Cloud backup model. Ollama's catalogue separates cloud
- * tags from local tags, so the cloud endpoint needs the `-cloud` tag rather
- * than the local `gemma4:31b`.
- *
- * TODO: confirm the exact cloud tag with a live `POST /api/chat` probe before
- * production rollout and replace this provisional id with the verified one.
+ * Ordered Ollama Cloud preferences. Discovery activates each model only after
+ * authenticated interpret and narrate probes; these identifiers are not an
+ * availability claim. The order preserves the selected Director model first,
+ * then uses current Pi probe latency/availability as fallback ordering.
  */
-export const OLLAMA_CLOUD_BACKUP_MODEL = "gemma4:31b-cloud";
+export const OLLAMA_CLOUD_PREFERRED_MODELS: readonly string[] = Object.freeze([
+  "gemma4:31b-cloud",
+  "nemotron-3-nano:30b",
+  "gemma4:31b",
+  "nemotron-3-super",
+  "nemotron-3-ultra",
+  "beam",
+]);
+
+/** Backward-compatible alias for the preferred primary Ollama model. */
+export const OLLAMA_CLOUD_BACKUP_MODEL = OLLAMA_CLOUD_PREFERRED_MODELS[0]!;
 
 /**
  * Pinned OpenRouter free-model preferences, last-resort rung after Ollama.

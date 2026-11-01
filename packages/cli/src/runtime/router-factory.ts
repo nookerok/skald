@@ -23,6 +23,7 @@ import {
   OPENCODE_RUN_TRANSPORT_VERSION,
   OpenCodeRunProvider,
   isOpenCodeRunEnabled,
+  isOpenCodeRunNarrateFallbackEnabled,
   loadAgentManifestSnapshot,
   openCodeRunCandidate,
 } from "./opencode-run-provider.js";
@@ -40,6 +41,7 @@ export interface LiveRouterConfigurationOptions {
   readonly timeoutMs?: number;
   readonly preferredModels?: readonly string[];
   readonly openrouterModels?: readonly string[];
+  readonly ollamaModels?: readonly string[];
   readonly fetchImpl?: typeof fetch;
   readonly probe?: LiveModelSelectionOptions["probe"];
 }
@@ -63,8 +65,9 @@ function routerMaterial(
 }
 
 /**
- * Secret-free transport identity for the local-subprocess narrate backup:
- * flag, model, agent, home-isolation mode, manifest content hash and contract
+ * Secret-free transport identity for the local-subprocess narrate transport:
+ * transport and fallback opt-ins, model, agent, home-isolation mode, manifest
+ * content hash and contract
  * version. Key values and paths never enter the digest. Without this,
  * toggling the transport (or swapping its model, isolation or manifest)
  * would keep the fingerprint — and any health cache keyed by it — stale
@@ -72,6 +75,7 @@ function routerMaterial(
  */
 export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env, manifestDigest?: string | null): string {
   const enabled = isOpenCodeRunEnabled(env);
+  const narrateFallbackEnabled = isOpenCodeRunNarrateFallbackEnabled(env);
   const model = env[OPENCODE_RUN_MODEL_ENV] ?? OPENCODE_RUN_DEFAULT_MODEL;
   const agent = env[OPENCODE_RUN_AGENT_ENV] ?? OPENCODE_RUN_DEFAULT_AGENT;
   const isolate = env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? "shared" : "isolated";
@@ -80,7 +84,16 @@ export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env, manife
   // bytes. Without one, fall back to reading the file — same file the
   // provider will load when none exists yet.
   const digest = manifestDigest === undefined ? openCodeRunManifestIdentity(env) : manifestDigest;
-  return `opencode_run:${enabled ? "enabled" : "disabled"}:${model}:${agent}:${isolate}:${digest ?? "missing"}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
+  return `opencode_run:${enabled ? "enabled" : "disabled"}:narrate-fallback:${narrateFallbackEnabled ? "enabled" : "disabled"}:${model}:${agent}:${isolate}:${digest ?? "missing"}:v${OPENCODE_RUN_TRANSPORT_VERSION}`;
+}
+
+function withOpenCodeRunNarrateFallback(
+  selection: LiveModelSelectionReport,
+  env: NodeJS.ProcessEnv,
+): LiveModelSelectionReport {
+  const narrate = selection.routes.narrate.filter((candidate) => candidate.provider !== "opencode_run");
+  if (isOpenCodeRunNarrateFallbackEnabled(env)) narrate.push(openCodeRunCandidate(env));
+  return { ...selection, routes: { ...selection.routes, narrate } };
 }
 
 /**
@@ -149,20 +162,9 @@ export function refreshRouterSelection(
   selection: LiveModelSelectionReport,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  // The local transport is discovery-independent, so a refresh would wipe
-  // its candidate. Re-append here (same rule as startup) to keep one code
-  // path for the effective narrate route; skip when already present so a
-  // previously-effective selection never gains a duplicate.
-  const hasRunCandidate = selection.routes.narrate.some((candidate) => candidate.provider === "opencode_run");
-  const effective = isOpenCodeRunEnabled(env) && !hasRunCandidate
-    ? {
-      ...selection,
-      routes: {
-        ...selection.routes,
-        narrate: [...selection.routes.narrate, openCodeRunCandidate(env)],
-      },
-    }
-    : selection;
+  // The subprocess is not trusted as an active fallback by default. Refresh
+  // mirrors startup and removes stale candidates unless both opt-ins hold.
+  const effective = withOpenCodeRunNarrateFallback(selection, env);
   // Fingerprint what the live router actually serves: prefer its pinned
   // manifest digest over re-reading the file, so a checkout change after
   // startup cannot desync reporting from serving.
@@ -270,6 +272,7 @@ export async function createLiveRouterConfiguration(
     ...(ollamaKey ? { ollamaKey } : {}),
     ...(openrouterKey ? { openrouterKey } : {}),
     ...(options.openrouterModels ? { openrouterModels: options.openrouterModels } : {}),
+    ...(options.ollamaModels ? { ollamaModels: options.ollamaModels } : {}),
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options.preferredModels ? { preferredModels: options.preferredModels } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
@@ -284,19 +287,8 @@ export async function createLiveRouterConfiguration(
   const transportSnapshot = isOpenCodeRunEnabled(env)
     ? loadAgentManifestSnapshot(env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH)
     : null;
-  // Build one effective selection first: the opencode_run backup belongs to
-  // the narrate route from boot (same rule as refresh), and the fingerprint,
-  // the applied routes and the reported live selection must all derive from
-  // it — otherwise startup and refresh disagree about the same state.
-  const effectiveSelection: LiveModelSelectionReport = isOpenCodeRunEnabled(env)
-    ? {
-      ...selectionReport,
-      routes: {
-        ...selectionReport.routes,
-        narrate: [...selectionReport.routes.narrate, openCodeRunCandidate(env)],
-      },
-    }
-    : selectionReport;
+  // Startup and refresh share the same fail-closed fallback policy.
+  const effectiveSelection = withOpenCodeRunNarrateFallback(selectionReport, env);
   const configFingerprint = selectionConfigFingerprint(env, effectiveSelection, transportSnapshot?.sha256 ?? null);
   // opencode_run goes last on narrate only: it is the newest, slowest
   // transport, so existing candidates keep priority until data says otherwise.

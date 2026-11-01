@@ -45,6 +45,7 @@ export interface DiscoveryRefresherOptions {
   readonly ollamaKey?: string;
   /** Override for the pinned Ollama Cloud backup model id. */
   readonly ollamaModel?: string;
+  readonly ollamaModels?: readonly string[];
   /** OpenRouter credential for the last-resort path; omitted when unconfigured. */
   readonly openrouterKey?: string;
   /** Override for the pinned OpenRouter free-model preference order. */
@@ -169,6 +170,7 @@ export class DiscoveryRefresher {
         ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
         ...(this.options.ollamaKey ? { ollamaKey: this.options.ollamaKey } : {}),
         ...(this.options.ollamaModel ? { ollamaModel: this.options.ollamaModel } : {}),
+        ...(this.options.ollamaModels ? { ollamaModels: this.options.ollamaModels } : {}),
         ...(this.options.openrouterKey ? { openrouterKey: this.options.openrouterKey } : {}),
         ...(this.options.openrouterModels ? { openrouterModels: this.options.openrouterModels } : {}),
       });

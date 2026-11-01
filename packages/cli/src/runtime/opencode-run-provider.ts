@@ -172,6 +172,9 @@ export const OPENCODE_RUN_ENV_ALLOWLIST: readonly string[] = Object.freeze([
 /** Explicit opt-in; the transport is never on by default. */
 export const OPENCODE_RUN_ENABLE_ENV = "SKALD_OPENCODE_RUN";
 
+/** Separate opt-in for placing the local subprocess on the active narrate fallback route. */
+export const OPENCODE_RUN_NARRATE_FALLBACK_ENABLE_ENV = "SKALD_OPENCODE_RUN_NARRATE_FALLBACK";
+
 /** Binary override (required when `opencode` is not on the service PATH). */
 export const OPENCODE_RUN_BINARY_ENV = "SKALD_OPENCODE_BIN";
 
@@ -274,6 +277,14 @@ export interface OpenCodeRunProviderOptions extends ModelRouterOptions {
  */
 export function isOpenCodeRunEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env[OPENCODE_RUN_ENABLE_ENV] === "1";
+}
+
+/**
+ * Whether the local subprocess may be attempted after validated remote narrate routes.
+ * Both transport enablement and this explicit fallback opt-in are required.
+ */
+export function isOpenCodeRunNarrateFallbackEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isOpenCodeRunEnabled(env) && env[OPENCODE_RUN_NARRATE_FALLBACK_ENABLE_ENV] === "1";
 }
 
 /** Route candidate for the local transport (backup tier by convention). */

@@ -245,7 +245,7 @@ describe("Ollama Cloud fallback discovery", () => {
         eval_count: 2,
       });
     });
-    const report = await discoverOllamaRoutes({ apiKey: "ollama-key", fetchImpl });
+    const report = await discoverOllamaRoutes({ apiKey: "ollama-key", model: GEMMA, fetchImpl });
     expect(report.provider).toBe("ollama_cloud");
     expect(report.status).toBe("degraded");
     expect(report.activeModel).toBe(GEMMA);
@@ -265,10 +265,61 @@ describe("Ollama Cloud fallback discovery", () => {
     }));
     expect(budgets).toEqual({ interpret: 256, narrate: 64 });
   });
+  it("retains every fully verified preference as an ordered route candidate", async () => {
+    const expectedModels = ["gemma4:31b-cloud", "nemotron-3-nano:30b", "gemma4:31b", "nemotron-3-super", "nemotron-3-ultra", "beam"];
+    const seen: Array<{ body: Record<string, any> }> = [];
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      seen.push({ body });
+      const marker = body.messages?.[1]?.content ?? body.messages?.[0]?.content ?? "";
+      const content = String(marker).includes("SKALD_PROBE_OK")
+        ? "SKALD_PROBE_OK"
+        : '{"schemaVersion":1,"probe":true}';
+      return response({ message: { content }, model: body.model });
+    });
+    const report = await discoverOllamaRoutes({ apiKey: "ollama-key", fetchImpl });
+
+    expect(report.status).toBe("ready");
+    expect(report.activeModel).toBe(GEMMA);
+    expect(report.backupModel).toBe(expectedModels[1]);
+    expect(report.routes.interpret.map((route) => [route.model, route.tier])).toEqual([
+      ...expectedModels.map((model, index) => [
+        model,
+        index === 0 ? "live_primary" : index === 1 ? "live_backup" : "live_fallback",
+      ]),
+    ]);
+    expect(report.routes.narrate).toEqual(report.routes.interpret);
+    expect(seen).toHaveLength(expectedModels.length * 2);
+    expect(new Set(seen.map(({ body }) => body.model))).toEqual(new Set(expectedModels));
+    expect(seen.every(({ body }) => body.think === false && body.stream === false)).toBe(true);
+  });
+
+  it("promotes the first fully working model when the preferred primary is unavailable", async () => {
+    const NANO = "nemotron-3-nano:30b";
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      if (body.model === GEMMA) return response({ error: { message: "Model unavailable" } }, 404);
+      const marker = body.messages?.[1]?.content ?? body.messages?.[0]?.content ?? "";
+      const content = String(marker).includes("SKALD_PROBE_OK")
+        ? "SKALD_PROBE_OK"
+        : '{"schemaVersion":1,"probe":true}';
+      return response({ message: { content }, model: body.model });
+    });
+    const report = await discoverOllamaRoutes({ apiKey: "ollama-key", models: [GEMMA, NANO], fetchImpl });
+
+    expect(report.status).toBe("degraded");
+    expect(report.activeModel).toBe(NANO);
+    expect(report.backupModel).toBeUndefined();
+    expect(report.routes.interpret).toEqual([
+      { provider: "ollama_cloud", model: NANO, protocol: "ollama_chat", tier: "live_primary" },
+    ]);
+    expect(report.excluded).toEqual([{ model: GEMMA, reason: "model_unavailable" }]);
+  });
 
   it("classifies credential rejection as misconfigured and probe failures as unavailable", async () => {
     const denied = await discoverOllamaRoutes({
       apiKey: "bad-key",
+      model: GEMMA,
       fetchImpl: vi.fn(async () => response({ error: { message: "Unauthorized" } }, 401)),
     });
     expect(denied.status).toBe("misconfigured");
@@ -276,6 +327,7 @@ describe("Ollama Cloud fallback discovery", () => {
 
     const failing = await discoverOllamaRoutes({
       apiKey: "ollama-key",
+      model: GEMMA,
       fetchImpl: vi.fn(async () => response({ error: { message: "Nope" } }, 500)),
     });
     expect(failing.status).toBe("unavailable");
@@ -434,6 +486,7 @@ describe("provider-ordered live discovery", () => {
     const report = await discoverLiveRoutes({
       apiKey: "zen-key",
       ollamaKey: "ollama-key",
+      ollamaModel: GEMMA,
       preferredModels: ["big-pickle"],
       fetchImpl,
     });

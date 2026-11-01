@@ -138,6 +138,7 @@ export class WorldRuntimeManager {
     apiKey?: string;
     ollamaKey?: string;
     ollamaModel?: string;
+    ollamaModels?: readonly string[];
     openrouterKey?: string;
     openrouterModels?: readonly string[];
     intervalMs?: number;
@@ -153,6 +154,7 @@ export class WorldRuntimeManager {
       apiKey: options?.apiKey ?? (envName ? process.env[envName] ?? "" : ""),
       ollamaKey: options?.ollamaKey ?? (ollamaEnvName ? process.env[ollamaEnvName] ?? "" : ""),
       ...(options?.ollamaModel !== undefined ? { ollamaModel: options.ollamaModel } : {}),
+      ...(options?.ollamaModels !== undefined ? { ollamaModels: options.ollamaModels } : {}),
       openrouterKey: options?.openrouterKey ?? (openrouterEnvName ? process.env[openrouterEnvName] ?? "" : ""),
       ...(options?.openrouterModels !== undefined ? { openrouterModels: options.openrouterModels } : {}),
       router: this.sharedRouter,

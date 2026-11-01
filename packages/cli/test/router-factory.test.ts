@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -165,6 +165,92 @@ describe("router factory", () => {
     expect(JSON.stringify(config)).not.toContain("zen-secret");
     expect(JSON.stringify(config)).not.toContain("ollama-secret");
   });
+  it("wires a second verified Ollama model as backup without enabling the local fallback", async () => {
+    const preferred = ["gemma4:31b-cloud", "nemotron-3-nano:30b"];
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.startsWith("https://ollama.com/")) {
+        return { ok: false, status: 404, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      const marker = body.messages?.[1]?.content ?? body.messages?.[0]?.content ?? "";
+      const content = String(marker).includes("SKALD_PROBE_OK") ? "SKALD_PROBE_OK" : '{"schemaVersion":1,"probe":true}';
+      return { ok: true, status: 200, json: async () => ({ message: { content }, model: body.model }) } as unknown as Response;
+    };
+    const config = await createLiveRouterConfiguration({
+      SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
+      SKALD_AI_REQUIRED: "1",
+      SKALD_OPENCODE_RUN: "1",
+    }, { ollamaModels: preferred, fetchImpl });
+
+    expect(config.selectionReport).toMatchObject({
+      provider: "ollama_cloud",
+      status: "ready",
+      activeModel: preferred[0],
+      backupModel: preferred[1],
+    });
+    expect(config.router?.routeCandidates("interpret").map(({ model, tier }) => [model, tier])).toEqual([
+      [preferred[0], "live_primary"],
+      [preferred[1], "live_backup"],
+    ]);
+    expect(config.router?.routeCandidates("narrate")).toEqual(config.router?.routeCandidates("interpret"));
+    expect(JSON.stringify(config)).not.toContain("ollama-secret");
+  });
+
+  it("uses the discovered Ollama backup for live failover without enabling opencode_run", async () => {
+    const GEMMA = "gemma4:31b-cloud";
+    const NANO = "nemotron-3-nano:30b";
+    const runtimeModels: string[] = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.startsWith("https://ollama.com/")) {
+        return { ok: false, status: 404, json: async () => ({}), text: async () => "{}" } as unknown as Response;
+      }
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+      const isProbe = String(body.messages?.[0]?.content ?? "").includes("Skald readiness probe");
+      if (isProbe) {
+        const isNarrate = String(body.messages?.[1]?.content ?? "").includes("SKALD_PROBE_OK");
+        const content = isNarrate ? "SKALD_PROBE_OK" : '{"schemaVersion":1,"probe":true}';
+        return { ok: true, status: 200, json: async () => ({ message: { content }, model: body.model }) } as unknown as Response;
+      }
+      runtimeModels.push(body.model);
+      if (body.model === GEMMA) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: { code: "model_not_found" } }),
+          text: async () => JSON.stringify({ error: { code: "model_not_found" } }),
+        } as unknown as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({ message: { content: "A traveler waits by the river." }, model: body.model }) } as unknown as Response;
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+    try {
+      const config = await createLiveRouterConfiguration({
+        SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
+        SKALD_AI_REQUIRED: "0",
+        SKALD_OPENCODE_RUN: "1",
+      }, { ollamaModels: [GEMMA, NANO] });
+
+      expect(config.router).toBeInstanceOf(OpenCodeRunProvider);
+      expect(config.router?.routeCandidates("narrate").map(({ provider, model, tier }) => [provider, model, tier])).toEqual([
+        ["ollama_cloud", GEMMA, "live_primary"],
+        ["ollama_cloud", NANO, "live_backup"],
+      ]);
+      const result = await config.router!.chat("narrate", [{ role: "user", content: "Describe the riverbank." }]);
+      expect(result).toMatchObject({
+        provider: "ollama_cloud",
+        model: NANO,
+        configuredModel: GEMMA,
+        usedFallback: true,
+        tier: "live_backup",
+        text: "A traveler waits by the river.",
+      });
+      expect(runtimeModels).toEqual([GEMMA, NANO]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it("falls through to OpenRouter when Zen and Ollama both activate nothing", async () => {
     const NEMO = "nvidia/nemotron-3-super-120b-a12b:free";
@@ -216,6 +302,7 @@ describe("router factory", () => {
     const enabled = await createLiveRouterConfiguration({
       SKALD_AI_REQUIRED: "0",
       SKALD_OPENCODE_RUN: "1",
+      SKALD_OPENCODE_RUN_NARRATE_FALLBACK: "1",
     }, { fetchImpl });
     expect(enabled.router).toBeInstanceOf(OpenCodeRunProvider);
     expect(enabled.router?.routeCandidates("narrate")).toEqual([
@@ -232,12 +319,17 @@ describe("router factory", () => {
     expect(disabled.router).not.toBeInstanceOf(OpenCodeRunProvider);
   });
 
-  it("keeps the opencode_run backup across selection refresh when enabled", async () => {    const fetchImpl = async () => ({
+  it("keeps the opencode_run backup across selection refresh when enabled", async () => {
+    const fetchImpl = async () => ({
       ok: true,
       status: 200,
       json: async () => ({ data: [] }),
     } as unknown as Response);
-    const env = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1" };
+    const env = {
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+      SKALD_OPENCODE_RUN_NARRATE_FALLBACK: "1",
+    };
     const config = await createLiveRouterConfiguration(env, { fetchImpl });
     const router = config.router!;
     const refreshed = {
@@ -246,6 +338,48 @@ describe("router factory", () => {
     };
     refreshRouterSelection(router, refreshed as any, env);
     expect(router.routeCandidates("narrate").map((candidate) => candidate.provider)).toEqual(["opencode_run"]);
+  });
+
+  it("keeps an enabled opencode_run transport out of the route unless fallback is separately opted in", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const env = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1" };
+    const config = await createLiveRouterConfiguration(env, { fetchImpl });
+    expect(config.router).toBeInstanceOf(OpenCodeRunProvider);
+    expect(config.router?.routeCandidates("narrate")).toEqual([]);
+
+    const staleCandidate = {
+      provider: "opencode_run",
+      model: "opencode/muse-spark-1.3-contributor-free",
+      protocol: "opencode_run",
+      tier: "catalog_candidate",
+    } as const;
+    refreshRouterSelection(config.router!, {
+      ...config.selectionReport!,
+      routes: { ...config.selectionReport!.routes, narrate: [staleCandidate] },
+    }, env);
+    expect(config.router?.routeCandidates("narrate")).toEqual([]);
+  });
+
+  it("changes the fingerprint when the opencode_run fallback opt-in changes", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+    const transportOnly = await createLiveRouterConfiguration({
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+    }, { fetchImpl });
+    const withFallback = await createLiveRouterConfiguration({
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+      SKALD_OPENCODE_RUN_NARRATE_FALLBACK: "1",
+    }, { fetchImpl });
+    expect(withFallback.configFingerprint).not.toBe(transportOnly.configFingerprint);
   });
 
   it("keeps Zen behavior identical when no Ollama credential is configured", async () => {
@@ -305,7 +439,11 @@ describe("router factory", () => {
       status: 200,
       json: async () => ({ data: [] }),
     } as unknown as Response);
-    const env = { SKALD_AI_REQUIRED: "0", SKALD_OPENCODE_RUN: "1" };
+    const env = {
+      SKALD_AI_REQUIRED: "0",
+      SKALD_OPENCODE_RUN: "1",
+      SKALD_OPENCODE_RUN_NARRATE_FALLBACK: "1",
+    };
     const config = await createLiveRouterConfiguration(env, { fetchImpl });
     const second = refreshRouterSelection(config.router!, config.selectionReport!, env);
     expect(second).toBe(config.configFingerprint);

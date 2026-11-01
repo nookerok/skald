@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { LLM_CONFIG, OLLAMA_CLOUD_BACKUP_MODEL, OPENCODE_PREFERRED_MODELS, OPENROUTER_PREFERRED_MODELS, openCodeProtocolForModel } from "./config.js";
+import { LLM_CONFIG, OLLAMA_CLOUD_PREFERRED_MODELS, OPENCODE_PREFERRED_MODELS, OPENROUTER_PREFERRED_MODELS, openCodeProtocolForModel } from "./config.js";
 import { chatOnce, readProviderErrorCode } from "./http.js";
 import { isProviderScopedFailure, toProviderFailure } from "./errors.js";
 import type { ChatMessage, ProviderId, ProviderPhase, ProviderProtocol, RouteCandidate } from "./types.js";
@@ -320,6 +320,7 @@ const OLLAMA_NARRATE_MAX_TOKENS = 64;
 export interface OllamaDiscoveryOptions {
   readonly apiKey?: string;
   readonly model?: string;
+  readonly models?: readonly string[];
   readonly baseUrl?: string;
   readonly timeoutMs?: number;
   readonly fetchImpl?: typeof fetch;
@@ -357,71 +358,87 @@ async function probeOllamaModel(category: "interpret" | "narrate", model: string
   }
 }
 
-function ollamaRoute(model: string): readonly RouteCandidate[] {
-  return Object.freeze([{
-    provider: "ollama_cloud" as const,
+function ollamaRoutes(models: readonly string[]): readonly RouteCandidate[] {
+  return Object.freeze(models.map((model, index): RouteCandidate => ({
+    provider: "ollama_cloud",
     model,
-    protocol: "ollama_chat" as const,
-    tier: "live_primary" as const,
-  }]);
+    protocol: "ollama_chat",
+    tier: index === 0 ? "live_primary" : index === 1 ? "live_backup" : "live_fallback",
+  })));
 }
 
 /**
- * Probe the operator-pinned Ollama Cloud backup model for both routes.
- * Unlike Zen there is no catalogue gate: cloud tags use local names and the
- * tags endpoint is unreliable, so the dual probes are authoritative and
- * `inCatalog` only records whether the id was seen in a tag list.
- * A single model can never satisfy the primary+backup contract, so full
- * success reports `degraded` (works, no redundancy), never `ready`.
+ * Probe preferred Ollama Cloud models in order. Every model that passes both
+ * authenticated no-world probes is retained as an ordered route candidate:
+ * primary, backup, then failover candidates. Catalog visibility alone never
+ * makes a model routable.
  */
 export async function discoverOllamaRoutes(options: OllamaDiscoveryOptions = {}): Promise<LiveModelSelectionReport> {
   const startedAt = performance.now();
   const checkedAt = options.checkedAt ?? (() => new Date().toISOString());
   const timeoutMs = boundedTimeout(options.timeoutMs);
   const apiKey = options.apiKey ?? "";
-  const model = options.model ?? OLLAMA_CLOUD_BACKUP_MODEL;
+  const requestedModels = options.models ?? (options.model ? [options.model] : OLLAMA_CLOUD_PREFERRED_MODELS);
+  const models = Object.freeze([...new Set(requestedModels)]);
   const baseUrl = (options.baseUrl ?? LLM_CONFIG.providers.ollama_cloud?.baseUrl ?? OLLAMA_BASE_URL).replace(/\/+$/, "");
-  const fail = (status: LiveModelSelectionReport["status"], interpret: CandidateProbeResult, narrate: CandidateProbeResult, exclusionReason: ModelExclusionReason): LiveModelSelectionReport => ({
+  const inactive = { status: "not_run" as const, phase: "configuration" as const };
+  if (!apiKey) {
+    const candidates: ModelCandidateReport[] = models.map((model) => ({
+      model,
+      inCatalog: false,
+      interpret: inactive,
+      narrate: inactive,
+      active: false,
+      exclusionReason: "missing_credential",
+    }));
+    return {
+      provider: "ollama_cloud",
+      status: "misconfigured",
+      checkedAt: checkedAt(),
+      durationMs: Math.round(performance.now() - startedAt),
+      candidates: Object.freeze(candidates),
+      excluded: Object.freeze(candidates.map(({ model }) => ({ model, reason: "missing_credential" as const }))),
+      routes: { interpret: Object.freeze([]), narrate: Object.freeze([]) },
+    };
+  }
+  const candidates: ModelCandidateReport[] = [];
+  for (const model of models) {
+    const runner = (category: "interpret" | "narrate") => options.probe
+      ? options.probe(category, model, { apiKey, baseUrl, timeoutMs })
+      : probeOllamaModel(category, model, { apiKey, baseUrl, timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
+    const [interpret, narrate] = await Promise.all([runner("interpret"), runner("narrate")]);
+    const active = interpret.status === "ok" && narrate.status === "ok";
+    const exclusionReason = active
+      ? undefined
+      : interpret.status === "auth_failure" || narrate.status === "auth_failure"
+        ? "auth_failure"
+        : interpret.status === "model_unavailable" || narrate.status === "model_unavailable"
+          ? "model_unavailable"
+          : interpret.status !== "ok" ? "interpret_probe_failed" : "narrate_probe_failed";
+    candidates.push({ model, inCatalog: false, interpret, narrate, active, ...(exclusionReason ? { exclusionReason } : {}) });
+  }
+  const activeModels = candidates.filter((candidate) => candidate.active).map((candidate) => candidate.model);
+  const excluded = candidates.filter((candidate) => !candidate.active && candidate.exclusionReason)
+    .map((candidate) => ({ model: candidate.model, reason: candidate.exclusionReason! }));
+  const status: LiveModelSelectionReport["status"] = activeModels.length >= 2
+    ? "ready"
+    : activeModels.length === 1
+      ? "degraded"
+      : candidates.some((candidate) => candidate.interpret.status === "auth_failure" || candidate.narrate.status === "auth_failure")
+        ? "misconfigured"
+        : "unavailable";
+  const routes = ollamaRoutes(activeModels);
+  return {
     provider: "ollama_cloud",
     status,
     checkedAt: checkedAt(),
     durationMs: Math.round(performance.now() - startedAt),
-    candidates: Object.freeze([{ model, inCatalog: false, interpret, narrate, active: false, exclusionReason }]),
-    excluded: Object.freeze([{ model, reason: exclusionReason }]),
-    routes: { interpret: Object.freeze([]), narrate: Object.freeze([]) },
-  });
-  if (!apiKey) {
-    const inactive = { status: "not_run" as const, phase: "configuration" as const };
-    return fail("misconfigured", inactive, inactive, "missing_credential");
-  }
-  const runner = options.probe
-    ? (category: "interpret" | "narrate") => options.probe!(category, model, { apiKey, baseUrl, timeoutMs })
-    : (category: "interpret" | "narrate") => probeOllamaModel(category, model, { apiKey, baseUrl, timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
-  const [interpret, narrate] = await Promise.all([runner("interpret"), runner("narrate")]);
-  if (interpret.status === "ok" && narrate.status === "ok") {
-    const routes = ollamaRoute(model);
-    return {
-      provider: "ollama_cloud",
-      status: "degraded",
-      checkedAt: checkedAt(),
-      durationMs: Math.round(performance.now() - startedAt),
-      activeModel: model,
-      candidates: Object.freeze([{ model, inCatalog: false, interpret, narrate, active: true }]),
-      excluded: Object.freeze([]),
-      routes: { interpret: routes, narrate: routes },
-    };
-  }
-  const exclusionReason = interpret.status === "auth_failure" || narrate.status === "auth_failure"
-    ? "auth_failure"
-    : interpret.status === "model_unavailable" || narrate.status === "model_unavailable"
-      ? "model_unavailable"
-      : interpret.status !== "ok" ? "interpret_probe_failed" : "narrate_probe_failed";
-  return fail(
-    interpret.status === "auth_failure" || narrate.status === "auth_failure" ? "misconfigured" : "unavailable",
-    interpret,
-    narrate,
-    exclusionReason,
-  );
+    ...(activeModels[0] ? { activeModel: activeModels[0] } : {}),
+    ...(activeModels[1] ? { backupModel: activeModels[1] } : {}),
+    candidates: Object.freeze(candidates),
+    excluded: Object.freeze(excluded),
+    routes: { interpret: routes, narrate: routes },
+  };
 }
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
@@ -553,8 +570,10 @@ export async function discoverOpenRouterRoutes(options: OpenRouterDiscoveryOptio
 export interface LiveRouteDiscoveryOptions extends LiveModelSelectionOptions {
   /** Ollama Cloud credential for the fallback path; Zen discovery never sees it. */
   readonly ollamaKey?: string;
-  /** Override for the pinned Ollama Cloud backup model id. */
+  /** Legacy single-model override; takes precedence only when no list is supplied. */
   readonly ollamaModel?: string;
+  /** Ordered Ollama Cloud preference list for authenticated dual-probe selection. */
+  readonly ollamaModels?: readonly string[];
   /** OpenRouter credential for the last-resort path; earlier rungs never see it. */
   readonly openrouterKey?: string;
   /** Override for the pinned OpenRouter free-model preference order. */
@@ -582,6 +601,7 @@ export async function discoverLiveRoutes(options: LiveRouteDiscoveryOptions = {}
   if (ollamaKey) {
     const ollama = await discoverOllamaRoutes({
       apiKey: ollamaKey,
+      ...(options.ollamaModels ? { models: options.ollamaModels } : {}),
       ...(options.ollamaModel ? { model: options.ollamaModel } : {}),
       ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),

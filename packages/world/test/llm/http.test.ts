@@ -386,6 +386,8 @@ describe("per-model Zen wire protocol", () => {
 
     expect(seen).toHaveLength(2);
     expect(seen[0]!.url).toBe("https://ollama.com/api/chat");
+    expect(seen[0]!.body.think).toBe(false);
+    expect(seen[1]!.body.think).toBe(false);
     expect(seen[0]!.body.options).toMatchObject({ num_predict: 64, temperature: 0 });
     expect(seen[1]!.body.options).toMatchObject({ num_predict: 16 });
     expect(seen[1]!.body.options).not.toHaveProperty("temperature");

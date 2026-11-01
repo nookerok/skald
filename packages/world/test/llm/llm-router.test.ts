@@ -264,6 +264,34 @@ describe("ModelRouter", () => {
     }
   });
 
+  it("fails over to the verified Ollama backup when the primary model disappears", async () => {
+    const previousKey = process.env.SKALD_OLLAMA_CLOUD_API_KEY;
+    process.env.SKALD_OLLAMA_CLOUD_API_KEY = "ollama-key";
+    const primary = candidate("ollama_cloud", "gemma4:31b-cloud", "live_primary");
+    const backup = candidate("ollama_cloud", "nemotron-3-nano:30b", "live_backup");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 404, text: async () => JSON.stringify({ error: { code: "model_not_found" } }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ model: backup.model, message: { content: "backup prose" } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const router = new ModelRouter({
+        apiKey: "ollama-key",
+        providerId: "ollama_cloud",
+        availableProviders: ["ollama_cloud"],
+        routeCandidates: { narrate: [primary, backup] },
+      });
+      const result = await router.chat("narrate", msg("hello"));
+      expect(result.provider).toBe("ollama_cloud");
+      expect(result.model).toBe(backup.model);
+      expect(result.tier).toBe("live_backup");
+      expect(result.usedFallback).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousKey === undefined) delete process.env.SKALD_OLLAMA_CLOUD_API_KEY;
+      else process.env.SKALD_OLLAMA_CLOUD_API_KEY = previousKey;
+    }
+  });
   it("supports Ollama-only routing without selecting Zen models", () => {
     const router = new ModelRouter({
       apiKey: "ollama-key",
