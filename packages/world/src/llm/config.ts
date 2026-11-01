@@ -73,16 +73,15 @@ export function openCodeProtocolForModel(model: string): ProviderProtocol {
 /**
  * Ordered Ollama Cloud preferences. Discovery activates each model only after
  * authenticated interpret and narrate probes; these identifiers are not an
- * availability claim. The order preserves the selected Director model first,
- * then uses current Pi probe latency/availability as fallback ordering.
+ * availability claim. The order is based on the 2026-11-01 Pi event-to-prose
+ * screen: the two Gemma routes and Nemotron Ultra had no material factual
+ * invention in ten sampled event packages each. This is a bounded quality
+ * screen, not a general model-quality guarantee.
  */
 export const OLLAMA_CLOUD_PREFERRED_MODELS: readonly string[] = Object.freeze([
   "gemma4:31b-cloud",
-  "nemotron-3-nano:30b",
   "gemma4:31b",
-  "nemotron-3-super",
   "nemotron-3-ultra",
-  "beam",
 ]);
 
 /** Backward-compatible alias for the preferred primary Ollama model. */
