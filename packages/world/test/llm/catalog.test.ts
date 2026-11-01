@@ -265,8 +265,8 @@ describe("Ollama Cloud fallback discovery", () => {
     }));
     expect(budgets).toEqual({ interpret: 256, narrate: 64 });
   });
-  it("retains every fully verified preference as an ordered route candidate", async () => {
-    const expectedModels = ["gemma4:31b-cloud", "nemotron-3-nano:30b", "gemma4:31b", "nemotron-3-super", "nemotron-3-ultra", "beam"];
+  it("retains every quality-screened preference as an ordered route candidate", async () => {
+    const expectedModels = ["gemma4:31b-cloud", "gemma4:31b", "nemotron-3-ultra"];
     const seen: Array<{ body: Record<string, any> }> = [];
     const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");

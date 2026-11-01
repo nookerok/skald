@@ -26,14 +26,11 @@ describe("LLM provider registry", () => {
     }
     expect(OPENROUTER_PREFERRED_MODELS[0]).toBe("nvidia/nemotron-3-super-120b-a12b:free");
   });
-  it("pins a verified ordered Ollama Cloud preference list with a legacy primary alias", () => {
+  it("pins the quality-screened ordered Ollama Cloud list with a legacy primary alias", () => {
     expect(OLLAMA_CLOUD_PREFERRED_MODELS).toEqual([
       "gemma4:31b-cloud",
-      "nemotron-3-nano:30b",
       "gemma4:31b",
-      "nemotron-3-super",
       "nemotron-3-ultra",
-      "beam",
     ]);
     expect(Object.isFrozen(OLLAMA_CLOUD_PREFERRED_MODELS)).toBe(true);
     expect(OLLAMA_CLOUD_BACKUP_MODEL).toBe(OLLAMA_CLOUD_PREFERRED_MODELS[0]);

@@ -166,7 +166,7 @@ describe("router factory", () => {
     expect(JSON.stringify(config)).not.toContain("ollama-secret");
   });
   it("wires a second verified Ollama model as backup without enabling the local fallback", async () => {
-    const preferred = ["gemma4:31b-cloud", "nemotron-3-nano:30b"];
+    const preferred = ["gemma4:31b-cloud", "gemma4:31b"];
     const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (!url.startsWith("https://ollama.com/")) {
@@ -199,7 +199,7 @@ describe("router factory", () => {
 
   it("uses the discovered Ollama backup for live failover without enabling opencode_run", async () => {
     const GEMMA = "gemma4:31b-cloud";
-    const NANO = "nemotron-3-nano:30b";
+    const BACKUP = "gemma4:31b";
     const runtimeModels: string[] = [];
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -230,23 +230,23 @@ describe("router factory", () => {
         SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
         SKALD_AI_REQUIRED: "0",
         SKALD_OPENCODE_RUN: "1",
-      }, { ollamaModels: [GEMMA, NANO] });
+      }, { ollamaModels: [GEMMA, BACKUP] });
 
       expect(config.router).toBeInstanceOf(OpenCodeRunProvider);
       expect(config.router?.routeCandidates("narrate").map(({ provider, model, tier }) => [provider, model, tier])).toEqual([
         ["ollama_cloud", GEMMA, "live_primary"],
-        ["ollama_cloud", NANO, "live_backup"],
+        ["ollama_cloud", BACKUP, "live_backup"],
       ]);
       const result = await config.router!.chat("narrate", [{ role: "user", content: "Describe the riverbank." }]);
       expect(result).toMatchObject({
         provider: "ollama_cloud",
-        model: NANO,
+        model: BACKUP,
         configuredModel: GEMMA,
         usedFallback: true,
         tier: "live_backup",
         text: "A traveler waits by the river.",
       });
-      expect(runtimeModels).toEqual([GEMMA, NANO]);
+      expect(runtimeModels).toEqual([GEMMA, BACKUP]);
     } finally {
       vi.unstubAllGlobals();
     }
