@@ -117,9 +117,13 @@ export async function readProviderErrorCode(
     // server-side call fails 400 with MissingSessionID regardless of shape.
     if (normalizedType === "missingsessionid") return "free_tier_session_required";
   }
-  const message = error !== null && typeof error === "object"
-    ? (error as { message?: unknown }).message
-    : (parsed as { message?: unknown }).message;
+  // Ollama Cloud uses a string error such as "model 'x' not found, try pulling it first".
+  // Keep the provider text local to this classifier and return only an allowlisted code.
+  const message = typeof error === "string"
+    ? error
+    : error !== null && typeof error === "object"
+      ? (error as { message?: unknown }).message
+      : (parsed as { message?: unknown }).message;
   if (typeof message !== "string") return undefined;
   if (/not available in your country/i.test(message)) return "region_unavailable";
   if (/free tier can only be used/i.test(message)) return "free_tier_session_required";
@@ -129,7 +133,7 @@ export async function readProviderErrorCode(
   if (/insufficient credit/i.test(message)) return "insufficient_credits";
   const normalized = message.trim().toLowerCase();
   if (/^model\s+unavailable$/.test(normalized)) return "model_unavailable";
-  if (/^model\s+not\s+found$/.test(normalized)) return "model_not_found";
+  if (/^model\s+not\s+found$/.test(normalized) || /^model\s+.{1,120}?\s+not\s+found\b/i.test(normalized)) return "model_not_found";
   if (/^model\s+not\s+supported$/.test(normalized)) return "model_not_supported";
   return undefined;
 }

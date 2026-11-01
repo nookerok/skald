@@ -270,7 +270,7 @@ describe("ModelRouter", () => {
     const primary = candidate("ollama_cloud", "gemma4:31b-cloud", "live_primary");
     const backup = candidate("ollama_cloud", "nemotron-3-nano:30b", "live_backup");
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: false, status: 404, text: async () => JSON.stringify({ error: { code: "model_not_found" } }) })
+      .mockResolvedValueOnce({ ok: false, status: 404, text: async () => JSON.stringify({ error: "model 'gemma4:31b-cloud' not found, try pulling it first" }) })
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ model: backup.model, message: { content: "backup prose" } }) });
     vi.stubGlobal("fetch", fetchMock);
     try {

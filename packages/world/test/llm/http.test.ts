@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_PROVIDER_ERROR_BODY_CHARS,
   chatOnce,
+  readProviderErrorCode,
   shouldRetrySameCandidate,
   shouldTryNextCandidate,
 } from "../../src/llm/http.js";
@@ -57,6 +58,14 @@ describe("provider HTTP transport", () => {
     expect(error.message).not.toContain("secret");
     expect(JSON.stringify(toProviderFailure(error))).not.toContain("secret");
     expect(shouldRetrySameCandidate(error)).toBe([429, 500, 502, 503, 504].includes(status));
+  });
+
+  it("maps Ollama string-shaped missing-model errors without leaking the provider text", async () => {
+    const code = await readProviderErrorCode({
+      text: async () => JSON.stringify({ error: "model 'missing-model' not found, try pulling it first" }),
+    });
+    expect(code).toBe("model_not_found");
+    expect(code).not.toContain("missing-model");
   });
 
   it("bounds provider error-body parsing and rejects unsafe codes", async () => {
