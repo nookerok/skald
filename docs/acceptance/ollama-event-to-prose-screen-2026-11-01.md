@@ -91,8 +91,10 @@ excluding the observed failures and choosing a conservative default; it does
 not establish that the retained models are safe on all narration inputs, nor
 does it compare latency under production load. Raw per-case outputs were not
 archived with this note, so this is a summarized observation, not a fully
-reproducible benchmark. The next quality step should repeat the same corpus at
-least three times per candidate, preserve sanitized per-case outputs and
-provider/model attribution, and add a separate human review of coherence and
-style. Readiness, factual grounding, UI acceptance, and human playability must
-continue to be reported separately.
+reproducible benchmark. The original sanitized event-package payloads and raw
+responses were not archived, so an exact repeat cannot be reconstructed from
+this note. First capture a new versioned corpus from a fresh scratch Event Log,
+including explicit sanitized prompts and expected facts; then run at least three
+rounds per retained candidate and preserve per-case outputs and provider/model
+attribution. Add a separate human review of coherence and style. Readiness,
+factual grounding, UI acceptance, and human playability must remain separate.

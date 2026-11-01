@@ -41,8 +41,11 @@
 
 ## Next
 
-- Repeat the same event corpus at least three times per retained candidate and
-  archive sanitized per-case outputs with actual provider/model attribution.
+- The original screen's sanitized event-package payloads and raw responses were
+  not archived, so an exact repeat is not reproducible from the current note.
+  First capture a new versioned corpus from a fresh scratch Event Log, including
+  explicit sanitized prompts and expected facts; then run three rounds per
+  retained candidate and archive per-case outputs with provider/model attribution.
 - Keep live provider availability, factual grounding, browser acceptance, and
   human playability as separate gates.
 - Review the 9 dependency advisories in a separate, risk-scoped task.
