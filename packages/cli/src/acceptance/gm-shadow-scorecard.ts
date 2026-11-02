@@ -88,6 +88,7 @@ function sceneOf(fixture: GmFixture): MasterTurnSceneContext {
       label: person.label,
       knownAs: [],
       known: person.known,
+      ...(person.publicRole ? { portrait: { publicRole: person.publicRole } } : {}),
     })),
     knownRoutes: [],
     accessibleItems: [],

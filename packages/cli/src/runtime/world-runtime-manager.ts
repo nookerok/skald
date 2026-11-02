@@ -29,6 +29,7 @@ import type { AIReadinessReport } from "@skald/world";
 import { probeLiveIntentContract, type LiveIntentContractReport } from "../acceptance/live-intent-contract.js";
 import { buildMasterConversationContext } from "../conversation/context-builder.js";
 import type { MasterTurnSnapshot } from "./master-turn-gateway.js";
+import type { JsonResponse } from "../http/world-handlers.js";
 
 export interface WorldRuntime {
   worldId: WorldId;
@@ -49,6 +50,8 @@ export interface WorldRuntime {
    * global. Operational state only — never game state.
    */
   gmDirectorFlight: GmDirectorFlight;
+  /** Live requests share interpretation THROUGH durable envelope publication. */
+  gmLiveRequests: Map<string, { readonly requestHash: string; readonly response: Promise<JsonResponse> }>;
 }
 
 export class WorldRuntimeManager {
@@ -251,6 +254,7 @@ export class WorldRuntimeManager {
       store: this.store, queue, narration: new NarrationScheduler(8, 2, this.diagnosticSink, worldId),
       diagnostics: this.diagnosticSink,
       gmDirectorFlight: createGmDirectorFlight(),
+      gmLiveRequests: new Map(),
     };
 
     // Crash recovery: roll any pending critical checks

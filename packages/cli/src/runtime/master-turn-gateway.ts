@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import type { DomainEvent } from "@skald/event-bus";
 import {
   classifyPlayerInput,
+  bindGmProposal,
   classifyReplicaClauses,
   splitReplicaClauses,
   conflictingActions,
@@ -114,6 +115,14 @@ export interface PendingClarificationLink {
 }
 
 export type MasterTurnGatewayOutcome =
+  | {
+    readonly status: "conversation";
+    readonly pendingLink?: PendingClarificationLink | undefined;
+    readonly text: string;
+    readonly revision: { readonly worldTime: number; readonly eventNumber: number };
+    /** Server-only identity, never serialized in the HTTP response. */
+    readonly speaker?: { readonly observerRef: string; readonly label: string; readonly internalId: string };
+  }
   | { readonly status: "deterministic"; readonly intent: ExecutableIntent; readonly pendingLink?: PendingClarificationLink | undefined }
   | { readonly status: "inquiry"; readonly inquiry: InquiryRequest; readonly pendingLink?: PendingClarificationLink | undefined }
   | {
@@ -1627,10 +1636,10 @@ function buildQuestionRound(
 }
 
 /**
- * Runs the live Director only for read-only question candidates. A validated
- * decision is still bridged through the closed P3 adapter; unsupported shapes,
- * provider errors and bridge failures return null so the existing V2 planner
- * remains the compatibility path.
+ * Runs the live Director before broad legacy classification. Its proposed
+ * single-action/question plan uses the same semantic validator as legacy V2;
+ * conversation drafts remain read-only. Unsupported shapes retain legacy
+ * compatibility, and a dead provider falls back without a second network call.
  */
 async function tryLiveGmDirector(
   input: string,
@@ -1683,9 +1692,15 @@ async function tryLiveGmDirector(
     return null;
   }
 
-  const bridged = result.status === "decision"
-    ? applyGmDirectorDecision(result.decision, bundle, input, snapshot)
-    : null;
+  let bridged: MasterTurnGatewayOutcome | null = null;
+  if (result.status === "decision") {
+    if (result.decision.proposal) {
+      const proposal = bindGmProposal(result.decision.proposal, bundle.handleToObserverRef);
+      if (proposal) bridged = resolveProposedMasterTurn(proposal, input, snapshot, options, parseIntent(input));
+    } else {
+      bridged = applyGmDirectorDecision(result.decision, bundle, input, snapshot);
+    }
+  }
   const outcome = result.shared
     ? "shared"
     : result.status === "fallback"
@@ -1717,6 +1732,23 @@ async function tryLiveGmDirector(
         : {}),
     ...(bridged?.status === "inquiry" ? { queryId: bridged.inquiry.queryId } : {}),
   });
+  if (!bridged && result.status === "fallback" && result.reason === "provider_error") {
+    // A dead provider is not repaired by calling it again through legacy V2.
+    const fallbackClassification = classifyPlayerInput(input, parseIntent);
+    if (fallbackClassification.kind === "inquiry" && inquiryCoversWholeReplica(input)) {
+      return { status: "inquiry", inquiry: fallbackClassification.inquiry };
+    }
+    const intent = parseIntent(input);
+    if ((intent.type === "ActionIntentCommand" && intent.operation === "speak")
+      || /^(?:привет|здравствуй(?:те)?|добрый (?:день|вечер))(?:[\s,!?.]|$)/iu.test(input.trim())) {
+      return {
+        status: "conversation", text: "Сейчас не удаётся продолжить разговор. Попробуй ещё раз позже.",
+        revision: { worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber },
+      };
+    }
+    return resolveDeterministicCompound(input, snapshot, options)
+      ?? fallbackAfterModelFailure(input, intent, snapshot, options);
+  }
   return bridged;
 }
 /**
@@ -1743,9 +1775,19 @@ export async function interpretMasterTurn(
   if (checkIn) return checkIn;
   const disambiguated = resolveExplicitReferentStatement(input, snapshot, options);
   if (disambiguated) return disambiguated;
+  const liveAvailable = router !== null && (options?.mode ?? readMode()) !== "off" && gmDirectorLiveEnabled();
+  if (liveAvailable) {
+    const exact = parseIntent(input);
+    // A closed exact command may bypass interpretation, not free-form actions.
+    if (!isSimpleSafeDeterministic(input, exact)
+      || (exact.type === "ActionIntentCommand" && (exact.operation === "speak" || exact.operation === "call"))) {
+      const live = await tryLiveGmDirector(input, snapshot, router, options);
+      if (live) return live;
+    }
+  }
   let classification = classifyPlayerInput(input, parseIntent);
   const modelUnavailable = (options?.mode ?? readMode()) === "off" || router === null;
-  const liveDirectorAvailable = !modelUnavailable && gmDirectorLiveEnabled();
+  const liveDirectorAvailable = liveAvailable;
   // Deterministic compound (plan_9 §1): when no model is available, one safe
   // primary plus every understood question must still resolve — and this runs
   // before the whole-replica inquiry shortcut so a second question is never
@@ -1784,19 +1826,8 @@ export async function interpretMasterTurn(
   // diagnostics; promptInput carries the resolved text into the LLM prompt.
   let promptInput = input;
   let pronounRewritten = false;
-  let liveDirectorAttempted = false;
   const pronounStep = resolvePronounsDeterministic(input, classification, deterministic, snapshot, options);
-  if (pronounStep.kind === "clarification") {
-    if (liveDirectorAvailable && classification.kind === "inquiry_candidate"
-      && classifyReplicaClauses(input, parseIntent).actions.length === 0) {
-      liveDirectorAttempted = true;
-      const liveOutcome = await tryLiveGmDirector(input, snapshot, router!, options);
-      if (liveOutcome) return liveOutcome;
-      // The P3 bridge declined this shape; let the existing V2 path try it.
-    } else {
-      return pronounStep.outcome;
-    }
-  }
+  if (pronounStep.kind === "clarification") return pronounStep.outcome;
   if (pronounStep.kind === "inquiry") return { status: "inquiry", inquiry: pronounStep.inquiry };
   if (pronounStep.kind === "rewritten") {
     promptInput = pronounStep.input;
@@ -1826,14 +1857,7 @@ export async function interpretMasterTurn(
     }
   }
 
-  if (liveDirectorAvailable && !liveDirectorAttempted && classification.kind === "inquiry_candidate") {
-    const clauses = classifyReplicaClauses(input, parseIntent);
-    if (clauses.actions.length === 0 && clauses.inquiries.length <= 1) {
-      liveDirectorAttempted = true;
-      const liveOutcome = await tryLiveGmDirector(input, snapshot, router!, options);
-      if (liveOutcome) return liveOutcome;
-    }
-  }
+
   if (deterministic.type === "UnsupportedButUnderstood" && (options?.mode ?? readMode()) === "off") {
     return { status: "unsupported", message: deterministic.message };
   }
@@ -1949,6 +1973,19 @@ export async function interpretMasterTurn(
     ...proposalStructureDims(parsed),
   });
 
+  return resolveProposedMasterTurn(parsed, input, snapshot, options, deterministic, promptInput, pronounRewritten);
+}
+
+/** Both Director and legacy proposals pass exactly the same semantic gates. */
+function resolveProposedMasterTurn(
+  parsed: unknown,
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options: MasterTurnGatewayOptions | undefined,
+  deterministic: ReturnType<typeof parseIntent>,
+  promptInput = input,
+  pronounRewritten = false,
+): MasterTurnGatewayOutcome {
   // The model may hedge about a referent, but the SERVER owns referent
   // binding. When the current scene names exactly one candidate for the
   // unresolved slot, the hedge is resolved here instead of asking the

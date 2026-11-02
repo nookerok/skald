@@ -36,11 +36,18 @@ import type {
 
 /**
  * True for turns that change the world: their idempotency keys replay as
- * duplicate_request instead of a read-side replay. Speech mutates through
- * the communicate pipeline; meta/clarification/inquiry never do.
+ * duplicate_request instead of a read-side replay. Legacy speech actions
+ * mutate through communicate; a persisted zero-time pure conversation does
+ * not. Omit turn times only for legacy classification-only callers.
  */
-export function isWorldChangingTurn(inputClass: ConversationInputClass): boolean {
-  return inputClass === "action" || inputClass === "mixed" || inputClass === "speech";
+export function isWorldChangingTurn(
+  inputClass: ConversationInputClass,
+  turn?: { readonly worldTimeBefore: number; readonly worldTimeAfter: number },
+): boolean {
+  // Legacy speech actions still change the world; a pure conversation is
+  // stored using the same speech vocabulary, but has no time or Events.
+  return inputClass === "action" || inputClass === "mixed"
+    || (inputClass === "speech" && (!turn || turn.worldTimeAfter !== turn.worldTimeBefore));
 }
 
 /** Stable hash used to reject re-use of an idempotency key with other text. */
@@ -145,8 +152,8 @@ export function buildReadSideConversationTurn(params: {
   worldId: string;
   idempotencyKey: string;
   playerText: string;
-  inputClass: Exclude<ConversationInputClass, "mixed" | "speech">;
-  responseKind: Exclude<ConversationResponseKind, "action_outcome" | "mixed_outcome" | "speech_reaction">;
+  inputClass: Exclude<ConversationInputClass, "mixed">;
+  responseKind: Exclude<ConversationResponseKind, "action_outcome" | "mixed_outcome">;
   responseText: string;
   worldTime: number;
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;

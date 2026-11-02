@@ -1,7 +1,7 @@
 /**
  * Fixed evaluation corpus for the Conversation Director (SKALD S0).
  *
- * Exactly seven problematic replicas with the structural expectations a
+ * Versioned contrasting replicas with the structural expectations a
  * decision must satisfy: the addressee, the turn kind and the never-leakable
  * surfaces. This is the single, versioned corpus the shadow scorecard runs —
  * so two runs of one version are comparable and a result can never be judged
@@ -14,6 +14,8 @@ import { stableActorHandle } from "../conversation/gm-context.js";
 export interface GmFixturePerson {
   readonly label: string;
   readonly known: boolean;
+  /** Publicly observable role, never a hidden canonical identity. */
+  readonly publicRole?: string;
 }
 
 export interface GmFixtureTurn {
@@ -47,8 +49,10 @@ export interface GmFixture {
  * v2 (2026-10-12): `pronoun-after-mention` moved from npc-addressee to
  * gm-addressee + subjectLabel under the `subjectHandle` contract; no other
  * fixture changed.
+ * v3: distinguish list/role questions from genuinely ambiguous addressees;
+ * add multi-actor focus, and carry the observable roles used by role questions.
  */
-export const GM_CORPUS_VERSION = "gm-corpus-v2";
+export const GM_CORPUS_VERSION = "gm-corpus-v3";
 
 /**
  * The handle the npc expectation names. The corpus stores `npcLabel` and the
@@ -75,8 +79,8 @@ export function expectedSubjectHandle(fixture: GmFixture): string | undefined {
   return index === -1 ? undefined : stableActorHandle(`person_${index + 1}`);
 }
 
-const ferryman: GmFixturePerson = { label: "Перевозчик у переправы", known: true };
-const gatekeeper: GmFixturePerson = { label: "Смотритель речных ворот", known: false };
+const ferryman: GmFixturePerson = { label: "Перевозчик у переправы", known: true, publicRole: "Перевозит людей через реку" };
+const gatekeeper: GmFixturePerson = { label: "Смотритель речных ворот", known: false, publicRole: "Ведёт журнал проходов у ворот" };
 
 export const GM_CORPUS: readonly GmFixture[] = [
   {
@@ -94,7 +98,7 @@ export const GM_CORPUS: readonly GmFixture[] = [
   },
   {
     id: "ambiguous-recipient",
-    input: "Кто ведёт журнал проходов?",
+    input: "Хочу поговорить с ним.",
     people: [ferryman, gatekeeper],
     recentTurns: [],
     expected: { addresseeKind: "gm", kind: "clarification" },
@@ -139,5 +143,32 @@ export const GM_CORPUS: readonly GmFixture[] = [
     recentTurns: [],
     expected: { addresseeKind: "npc", kind: "mixed", npcLabel: ferryman.label },
     forbidden: ["contact:waystation-keeper"],
+  },
+  {
+    id: "people-list-multiple-actors",
+    input: "Кто рядом?",
+    people: [ferryman, gatekeeper],
+    recentTurns: [],
+    expected: { addresseeKind: "gm", kind: "world_question" },
+    forbidden: ["contact:", gatekeeper.label],
+  },
+  {
+    id: "identify-person-by-visible-role",
+    input: "Кто ведёт журнал проходов?",
+    people: [ferryman, gatekeeper],
+    recentTurns: [],
+    expected: { addresseeKind: "gm", kind: "world_question", subjectLabel: gatekeeper.label },
+    forbidden: ["contact:", gatekeeper.label],
+  },
+  {
+    id: "pronoun-with-multiple-actors-and-focus",
+    input: "Как он выглядит?",
+    people: [ferryman, gatekeeper],
+    recentTurns: [
+      { speaker: "player", text: "Подойду к перевозчику", turnSeq: 1 },
+      { speaker: "master", text: "Перед тобой — Перевозчик у переправы.", turnSeq: 2 },
+    ],
+    expected: { addresseeKind: "gm", kind: "world_question", subjectLabel: ferryman.label },
+    forbidden: ["contact:", gatekeeper.label],
   },
 ];

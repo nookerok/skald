@@ -228,11 +228,11 @@ async function interpretGmDecisionOnce(input: GmDirectorInput): Promise<GmDirect
 
   // Raw compliance (no server-side alias applied) vs compliance after the
   // closed normalization; only the normalized form may become a decision.
-  const rawValidation = validateGmTurnDecision(parsed, { allowedHandles: input.handleKeys });
+  const rawValidation = validateGmTurnDecision(parsed, { allowedHandles: input.handleKeys, allowedActorHandles: input.context.actors.map((actor) => actor.handle), allowedFactIds: input.context.knownFacts.map((fact) => fact.factId) });
   trace.rawSchemaValid = rawValidation.ok;
 
   const normalized = normalizeDecisionShape(parsed);
-  const validated = validateGmTurnDecision(normalized, { allowedHandles: input.handleKeys });
+  const validated = validateGmTurnDecision(normalized, { allowedHandles: input.handleKeys, allowedActorHandles: input.context.actors.map((actor) => actor.handle), allowedFactIds: input.context.knownFacts.map((fact) => fact.factId) });
   trace.schemaValid = validated.ok;
   if (!validated.ok) {
     trace.validationErrors = [...validated.errors];
@@ -258,15 +258,11 @@ export function gmDirectorLiveEnabled(): boolean {
 const REPEAT_REQUEST_PATTERN = /(?:повтори|повторить|скажи\s+заново|скажи\s+еще\s+раз|что\s+ты\s+(?:только\s+что\s+|сейчас\s+)?(?:сказал|говорил|ответил))/iu;
 
 /**
- * Conservative P3 bridge from a validated Director decision into the existing
- * read-only gateway contract. The current GmTurnDecision schema has no
- * QuestionPlan or executable action payload, so unsupported decisions fall
- * through to the legacy V2 planner rather than inventing missing structure.
- *
- * - Clarifications may expose only scene-allowed observer refs.
- * - Questions reuse one deterministic registered query; model-selected
- *   subjectHandle can only focus a currently visible person.
- * - Actions, mixed turns and NPC-directed conversation are not bridged here.
+ * Read-only P3 adapter. Structured action/question proposals are bound and
+ * validated by the gateway through the existing V2 pipeline, not here.
+ * Clarifications expose only scene-allowed candidates; conversation drafts
+ * render a closed fact selection or non-factual social acts without a second
+ * model call. NPC knowledge/disclosure remains a separate P4/P5 capability.
  */
 export function applyGmDirectorDecision(
   decision: GmTurnDecision,
@@ -366,6 +362,40 @@ export function applyGmDirectorDecision(
 
   if (decision.kind === "world_question") {
     return asReadOnlyInquiry(decision.subjectHandle);
+  }
+
+  if (decision.kind === "conversation" && decision.response) {
+    const speaker = decision.addressee.kind === "npc" ? resolveHandlePerson(decision.addressee.handle) : null;
+    if (decision.addressee.kind === "npc" && !speaker) return null;
+    const phrases = {
+      greeting: "Здравствуй.",
+      farewell: "До встречи.",
+      thanks: "Спасибо.",
+      acknowledge: "Я тебя слышу.",
+      ask_topic: "О чём ты хочешь поговорить?",
+      no_knowledge: "У меня нет подтверждённых сведений об этом.",
+      no_commitment: "Я не могу обещать, что это будет сделано.",
+    } as const;
+    const parts: string[] = [];
+    for (const segment of decision.response.segments) {
+      if (segment.kind === "social") parts.push(phrases[segment.act]);
+      else {
+        if (speaker) return null; // NPC knowledge needs P4/P5 disclosure.
+        const fact = bundle.context.knownFacts.find((entry) => entry.factId === segment.factId);
+        if (!fact) return null;
+        parts.push(fact.text);
+      }
+    }
+    const text = parts.join(" ");
+    if (!text || /(?:person|object|route|location)_[a-z0-9_-]+|\be[a-f0-9]{12}\b/iu.test(text)) return null;
+    const reference = speaker ? snapshot.scene.references.get(speaker.observerRef) : null;
+    if (speaker && !reference) return null;
+    return {
+      status: "conversation",
+      text: speaker ? speaker.label + ": «" + text + "»" : text,
+      revision,
+      ...(speaker && reference ? { speaker: { observerRef: speaker.observerRef, label: speaker.label, internalId: reference.internalId } } : {}),
+    };
   }
 
   if (decision.kind === "conversation" && (decision.addressee.kind === "gm" || decision.addressee.kind === "meta")) {

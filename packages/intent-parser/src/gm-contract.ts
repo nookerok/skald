@@ -7,15 +7,17 @@
  * operations, no arbitrary handles — so an invalid structure never reaches the
  * authoritative World Engine.
  *
- * This module is pure and changes nothing on the live path; P0 only fixes the
- * contract and its validator.
+ * V2 adds an optional closed proposal and one-call response draft for P3.
+ * Legacy V1 classifications remain readable, but cannot carry V2 payloads.
+ * This module remains pure; execution authority stays with the World Engine.
  */
 
 import { INTENT_CAPABILITIES } from "./intent-proposal.js";
-import { TURN_LEGACY_OPERATIONS } from "./turn-proposal.js";
+import { TURN_LEGACY_OPERATIONS, type TurnProposalV2 } from "./turn-proposal.js";
+import { parseGmProposal } from "./gm-proposal.js";
 
 /** Contract version carried on every context and decision. */
-export const GM_CONTRACT_VERSION = 1;
+export const GM_CONTRACT_VERSION = 2;
 
 /** An opaque, server-assigned actor handle (e.g. "e1"). Never a domain ID. */
 export type VisibleActorKey = string;
@@ -56,9 +58,11 @@ export interface SupportedOperationDescriptor {
 
 /** The observer-safe context the model receives. Never the whole World. */
 export interface GmContext {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   scene: GmSceneContext;
   actors: readonly GmActor[];
+  /** Non-person scene candidates; handles are opaque, just like actor handles. */
+  referents?: readonly { readonly handle: VisibleActorKey; readonly kind: "object" | "route" | "topic"; readonly label: string }[];
   recentTurns: readonly GmHistoryTurn[];
   pendingQuestion: { question: string; candidateHandles?: readonly VisibleActorKey[] } | null;
   knownFacts: readonly GmKnownFact[];
@@ -72,13 +76,25 @@ export type GmAddressee =
 
 export type GmTurnKind = "conversation" | "world_question" | "clarification" | "action" | "mixed";
 
-/** The structured interpretation result. Executable steps stay absent until
- * their closed schema and authority handoff are implemented. */
+/**
+ * A one-call conversation draft: facts are selected by ID, never rewritten.
+ * Social acts carry no asserted world fact, NPC permission or commitment.
+ * Free NPC knowledge/voice requires the separate dossier/disclosure contract.
+ */
+export type GmResponseSegment =
+  | { readonly kind: "social"; readonly act: "greeting" | "farewell" | "thanks" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment" }
+  | { readonly kind: "fact"; readonly factId: string };
+
+/** Structured interpretation. Plans are proposals, never executable authority. */
 export interface GmTurnDecision {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   /** Who RESPONDS: master, a visible NPC, or the system. */
   addressee: GmAddressee;
   kind: GmTurnKind;
+  /** V2 proposal with opaque handles in ref slots; server binds and revalidates. */
+  proposal?: TurnProposalV2;
+  /** Validated and rendered by the server in the same call as interpretation. */
+  response?: { readonly segments: readonly GmResponseSegment[] };
   /**
    * WHO the decision is ABOUT (the question's topic), when that differs from
    * who responds: «Как он выглядит?» is addressed to the master with the NPC
@@ -123,27 +139,32 @@ function validateHandle(handle: unknown, path: string, errors: string[]): handle
  */
 export function validateGmTurnDecision(
   raw: unknown,
-  options: { readonly allowedHandles?: readonly VisibleActorKey[] } = {},
+  options: { readonly allowedHandles?: readonly VisibleActorKey[]; readonly allowedActorHandles?: readonly VisibleActorKey[]; readonly allowedFactIds?: readonly string[] } = {},
 ): GmValidationResult {
   const errors: string[] = [];
+  const actorHandles = options.allowedActorHandles ?? options.allowedHandles;
   if (!isPlainObject(raw)) {
     return { ok: false, errors: ["decision: not an object"] };
   }
-  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "clarification"], "decision", errors);
+  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "clarification", "proposal", "response"], "decision", errors);
 
-  if (raw["schemaVersion"] !== GM_CONTRACT_VERSION) {
-    errors.push(`decision: schemaVersion must be ${GM_CONTRACT_VERSION}`);
+  if (raw["schemaVersion"] !== 1 && raw["schemaVersion"] !== GM_CONTRACT_VERSION) {
+    errors.push(`decision: schemaVersion must be 1 (legacy classification) or ${GM_CONTRACT_VERSION}`);
+  }
+  if (raw["schemaVersion"] === 1 && ("proposal" in raw || "response" in raw)) {
+    errors.push("decision: live payload requires schemaVersion 2");
   }
 
   const addressee = raw["addressee"];
   if (!isPlainObject(addressee)) {
     errors.push("addressee: missing or not an object");
   } else {
-    collectExtraKeys(addressee, ["kind", "handle"], "addressee", errors);
     const addresseeKind = addressee["kind"];
+    // A handle belongs ONLY to npc, even when it names a visible actor.
+    collectExtraKeys(addressee, addresseeKind === "npc" ? ["kind", "handle"] : ["kind"], "addressee", errors);
     if (addresseeKind === "npc") {
       if (!validateHandle(addressee["handle"], "addressee.handle", errors)) { /* recorded */ }
-      else if (options.allowedHandles && !options.allowedHandles.includes(addressee["handle"] as VisibleActorKey)) {
+      else if (actorHandles && !actorHandles.includes(addressee["handle"] as VisibleActorKey)) {
         errors.push(`addressee.handle: "${String(addressee["handle"])}" is not a visible actor in this scene`);
       }
     } else if (addresseeKind !== "gm" && addresseeKind !== "meta") {
@@ -163,7 +184,7 @@ export function validateGmTurnDecision(
       errors.push("subjectHandle: only allowed for kind world_question, clarification or mixed");
     }
     if (validateHandle(raw["subjectHandle"], "subjectHandle", errors)) {
-      if (options.allowedHandles && !options.allowedHandles.includes(raw["subjectHandle"] as VisibleActorKey)) {
+      if (actorHandles && !actorHandles.includes(raw["subjectHandle"] as VisibleActorKey)) {
         errors.push(`subjectHandle: "${String(raw["subjectHandle"])}" is not a visible actor in this scene`);
       }
     }
@@ -187,12 +208,49 @@ export function validateGmTurnDecision(
           if (!validateHandle(handle, "clarification.candidateHandles[]", errors)) continue;
           // The scene allowlist applies to EVERY handle, not just the addressee:
           // a candidate that is not visible in this scene is a fabricated actor.
-          if (options.allowedHandles && !options.allowedHandles.includes(handle as VisibleActorKey)) {
+          if (actorHandles && !actorHandles.includes(handle as VisibleActorKey)) {
             errors.push(`clarification.candidateHandles[]: "${String(handle)}" is not a visible actor in this scene`);
           }
         }
       }
       if (kind !== "clarification") errors.push("clarification: only allowed when kind is clarification");
+    }
+  }
+
+  if ("proposal" in raw) {
+    const proposal = parseGmProposal(raw["proposal"], options.allowedHandles);
+    if (!proposal) errors.push("proposal: invalid closed plan or invisible handle");
+    else if (!(kind === "action" && proposal.kind === "action")
+      && !(kind === "mixed" && proposal.kind === "mixed")
+      && !(kind === "world_question" && proposal.kind === "inquiry")
+      && !(kind === "clarification" && proposal.ambiguity)) {
+      errors.push("proposal: kind does not agree with decision");
+    }
+  }
+  if ("response" in raw) {
+    const response = raw["response"];
+    if (kind !== "conversation") errors.push("response: only allowed for conversation");
+    if (!isPlainObject(response)) errors.push("response: must be an object");
+    else {
+      collectExtraKeys(response, ["segments"], "response", errors);
+      const segments = response["segments"];
+      if (!Array.isArray(segments) || segments.length < 1 || segments.length > 8) {
+        errors.push("response.segments: expected 1..8 segments");
+      } else for (const segment of segments) {
+        if (!isPlainObject(segment)) { errors.push("response.segment: not an object"); continue; }
+        if (segment["kind"] === "social") {
+          collectExtraKeys(segment, ["kind", "act"], "response.segment", errors);
+          if (typeof segment["act"] !== "string" || !["greeting", "farewell", "thanks", "acknowledge", "ask_topic", "no_knowledge", "no_commitment"].includes(segment["act"])) {
+            errors.push("response.segment: unsupported social act");
+          }
+        } else if (segment["kind"] === "fact") {
+          collectExtraKeys(segment, ["kind", "factId"], "response.segment", errors);
+          if (typeof segment["factId"] !== "string"
+            || !options.allowedFactIds?.includes(segment["factId"])) errors.push("response.segment: unknown fact");
+          // Knowing a player fact does not grant an NPC knowledge of it.
+          if (isPlainObject(addressee) && addressee["kind"] === "npc") errors.push("response.segment: NPC disclosure requires a dossier");
+        } else errors.push("response.segment: unknown kind");
+      }
     }
   }
 

@@ -69,6 +69,8 @@ function primaryOf(intent: { readonly type: string } | null | undefined): Primar
 /** Maps a gateway outcome onto a sanitized observation. Pure and total. */
 export function classifyOutcome(outcome: MasterTurnGatewayOutcome): InterpretationObservation {
   switch (outcome.status) {
+    case "conversation":
+      return { status: outcome.status, kind: "speech", primary: null, queryId: null, genericFallback: false };
     case "deterministic":
       return { status: outcome.status, kind: "action", primary: "action", queryId: null, genericFallback: false };
     case "inquiry":

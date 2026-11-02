@@ -141,8 +141,8 @@ function persistReadSideTurn(
   runtime: WorldRuntime,
   input: string,
   idempotencyKey: string,
-  inputClass: "inquiry" | "meta" | "clarification" | "action",
-  responseKind: "inquiry_answer" | "meta_answer" | "clarification" | "action_rejection",
+  inputClass: "speech" | "inquiry" | "meta" | "clarification" | "action",
+  responseKind: "speech_reaction" | "inquiry_answer" | "meta_answer" | "clarification" | "action_rejection",
   responseText: string,
   contextMetadata?: ConversationMemoryMetadataV1 | null,
 ): ReturnType<typeof toConversationTurnDTO> {
@@ -284,7 +284,7 @@ function duplicateConversationResponse(runtime: WorldRuntime, input: string, ide
   // Preserve the ORIGINAL turn kind on a recovery replay: a pure conversation,
   // speech or inquiry must not come back as a clarification (P2/revise #5).
   const masterTurn = masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: masterTurnKindOf(existing.responseKind), deterministicText: conversationTurn.responseText }, false);
-  if (isWorldChangingTurn(existing.inputClass)) {
+  if (isWorldChangingTurn(existing.inputClass, existing)) {
     return json({ ok: false, error: { code: "idempotency_conflict", message: "duplicate idempotencyKey" }, conversationTurn, masterTurn }, 409);
   }
   return json({ ok: true, replayed: true, status: existing.inputClass, conversationTurn, masterTurn });
@@ -1117,6 +1117,26 @@ export async function handleWorldCommand(runtime: WorldRuntime, body: unknown): 
   const replayed = checkCommandReplay(runtime, idempotencyKey, requestHash);
   if (replayed) return replayed;
 
+  // Director single-flight alone ends when inference settles. A second HTTP
+  // request can still have an old snapshot BEFORE the first turn commits.
+  // The live request flight covers that gap through envelope publication.
+  if (gmDirectorLiveEnabled()) {
+    const existing = runtime.gmLiveRequests.get(idempotencyKey);
+    if (existing) {
+      if (existing.requestHash !== requestHash) return error("idempotency_conflict", "duplicate idempotencyKey", 409);
+      const response = await existing.response;
+      return checkCommandReplay(runtime, idempotencyKey, requestHash) ?? response;
+    }
+    const response = executeAndRecordCommand(runtime, input, idempotencyKey, requestHash);
+    runtime.gmLiveRequests.set(idempotencyKey, { requestHash, response });
+    try { return await response; }
+    finally { runtime.gmLiveRequests.delete(idempotencyKey); }
+  }
+  return executeAndRecordCommand(runtime, input, idempotencyKey, requestHash);
+}
+
+/** The existing execution + recoverable replay publication, shared by both routes. */
+async function executeAndRecordCommand(runtime: WorldRuntime, input: string, idempotencyKey: string, requestHash: string): Promise<JsonResponse> {
   const response = await handleWorldCommandInner(runtime, input, idempotencyKey);
   try {
     recordCommandReplay(runtime, idempotencyKey, requestHash, response);
@@ -1275,11 +1295,9 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
       && (isJourneyContinuation(input) || isContinuingJourneyTo(input, activeDestination))) {
       journeyContinue = true;
     } else {
-      const inputClassification = classifyPlayerInput(input, parseIntent);
       const liveDirectorEnabled = gmDirectorLiveEnabled()
         && runtime.router !== null
-        && process.env["SKALD_INTENT_LLM_MODE"] !== "off"
-        && (inputClassification.kind === "inquiry" || inputClassification.kind === "inquiry_candidate");
+        && process.env["SKALD_INTENT_LLM_MODE"] !== "off";
       let gmContextBundle: ReturnType<typeof buildGmContext> | undefined;
       if (liveDirectorEnabled) {
         try {
@@ -1310,6 +1328,32 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
           gmDirectorTurnKey: "intent-" + conversationRequestHash(`${runtime.worldId}|${idempotencyKey}|${input}`),
         } : {}),
       });
+    if (interpretation.status === "conversation") {
+      return runtime.queue.enqueue(async () => {
+        const duplicate = duplicateConversationResponse(runtime, input, idempotencyKey);
+        if (duplicate) return duplicate;
+        const world = runtime.projection.getSnapshot();
+        // Network happened outside the queue; stale speech must not survive a
+        // scene change, reveal an absent speaker or reuse changed fact IDs.
+        if (world.time !== interpretation.revision.worldTime || world.eventNumber !== interpretation.revision.eventNumber) {
+          return withClarificationConversation(runtime, input, idempotencyKey,
+            json({ ok: true, status: "clarification", question: "Сцена изменилась. К кому ты обращаешься сейчас?", options: [{ optionId: "rephrase", label: "Уточнить обращение" }] }));
+        }
+        const metadata = buildTurnMemoryMetadata({
+          ...(interpretation.speaker ? { focus: [{
+            kind: "addressee" as const, observerRef: interpretation.speaker.observerRef, surface: interpretation.speaker.label,
+            identity: { kind: "person" as const, internalId: interpretation.speaker.internalId },
+          }] } : {}),
+          ...(interpretation.pendingLink ? { continuationLink: interpretation.pendingLink } : {}),
+        });
+        const turn = persistReadSideTurn(runtime, input, idempotencyKey, "speech", "speech_reaction", interpretation.text, metadata);
+        emitCommandOutcome(runtime.diagnostics, readOnlyCommandDiagnostics({ worldTime: world.time, outcome: "none" }), { phase: "read_only" });
+        return json({
+          ok: true, status: "conversation", conversationTurn: turn,
+          masterTurn: masterTurnFromTurn(runtime, idempotencyKey, turn, { kind: "speech_reaction", deterministicText: turn.responseText }, false),
+        });
+      });
+    }
     if (interpretation.status === "inquiry") {
       const inquiryRequest = interpretation.inquiry;
       return runtime.queue.enqueue(async () => {
@@ -1492,8 +1536,8 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
     const existingTurn = toConversationTurnDTO(existingConversation);
     return json({
       ok: true,
-      resolution: isWorldChangingTurn(existingConversation.inputClass) ? "already_processed" : existingConversation.inputClass,
-      message: isWorldChangingTurn(existingConversation.inputClass) ? "Это намерение уже было обработано." : null,
+      resolution: isWorldChangingTurn(existingConversation.inputClass, existingConversation) ? "already_processed" : existingConversation.inputClass,
+      message: isWorldChangingTurn(existingConversation.inputClass, existingConversation) ? "Это намерение уже было обработано." : null,
       reason: null,
       conversationTurn: existingTurn,
       masterTurn: masterTurnFromTurn(runtime, idempotencyKey, existingTurn, { kind: "contextual_clarification", deterministicText: existingTurn.responseText }, false),

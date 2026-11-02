@@ -11,7 +11,7 @@
 import type { MasterTurnSceneContext, SceneEngagementView } from "@skald/world";
 import type { MasterConversationContext } from "./context-builder.js";
 import { createHash } from "node:crypto";
-import { supportedOperations, type GmContext, type VisibleActorKey } from "@skald/intent-parser";
+import { GM_CONTRACT_VERSION, supportedOperations, type GmContext, type VisibleActorKey } from "@skald/intent-parser";
 
 /** Hard cap on the known-facts slice; the builder owns the bound. */
 export const MAX_KNOWN_FACTS = 8;
@@ -68,14 +68,32 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
     } as const;
   });
 
+  const nonPeople = [
+    ...inputs.scene.visibleObjects,
+    ...inputs.scene.knownRoutes,
+    ...inputs.scene.accessibleItems.map((item) => ({ ...item, kind: "object" as const })),
+    ...inputs.scene.knownTopics.map((topic) => ({ observerRef: topic.observerRef, kind: "topic" as const, label: topic.text })),
+  ];
+  const seenRefs = new Set<string>();
+  const referents = nonPeople.flatMap((entry) => {
+    if (seenRefs.has(entry.observerRef)) return [];
+    seenRefs.add(entry.observerRef);
+    const handle = stableActorHandle(entry.observerRef);
+    const existing = handleToObserverRef.get(handle);
+    if (existing !== undefined && existing !== entry.observerRef) throw new Error("gm-context: handle collision");
+    handleToObserverRef.set(handle, entry.observerRef);
+    return [{ handle, kind: entry.kind as "object" | "route" | "topic", label: entry.label }];
+  });
+
   const context: GmContext = {
-    schemaVersion: 1,
+    schemaVersion: GM_CONTRACT_VERSION,
     scene: {
       locationDescription: inputs.scene.currentSituation?.description ?? inputs.scene.currentLocation.description,
       worldTime: String(inputs.scene.revision.worldTime),
       sceneEngagement: inputs.sceneEngagement ?? null,
     },
     actors,
+    referents,
     recentTurns: inputs.conversation.recentTurns.map((turn) => ({
       speaker: turn.speaker,
       text: turn.text,
