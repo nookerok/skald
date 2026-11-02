@@ -16,10 +16,13 @@
   in-flight bodies return 409, stale conversation snapshots clarify, and a dead
   model does not get called again through legacy V2. Persisted QuestionPlan
   continuation now has the same SQLite-restart test under BOTH entry routes.
-- Validated: full npm run validate PASS (252 files, 3123 passed, 1 skipped),
-  including canon/simulation/eval/adventure and diff check. No external acceptance yet.
-- Production remains the earlier b88647c runtime with live flag off. The
-  implementation in this milestone is NOT yet deployed; do not infer a live PASS.
+- Validated: full npm run validate PASS (252 files, 3124 passed, 1 skipped),
+  including canon/simulation/eval/adventure and diff check. A follow-up regression
+  pins that conversation drafts cannot erase understood questions/actions.
+- First updater completed at 4bf1d24 with on-device validate PASS (252/3123/1),
+  health, AI readiness and intent/narration contract PASS. The follow-up
+  whole-replica guard is validated locally but still pending delivery.
+  Production live remains off; no P3 live/provider/browser acceptance claimed.
 - Still required for the active goal: full gate; real provider corpus and free
   20–30-replica acceptance with reload/retry/refusal/changed decision/model loss;
   actual browser evidence and separate human verdict. Do not mark P3 complete

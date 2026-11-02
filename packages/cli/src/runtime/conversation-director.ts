@@ -365,6 +365,11 @@ export function applyGmDirectorDecision(
   }
 
   if (decision.kind === "conversation" && decision.response) {
+    // A draft cannot erase a deterministically understood question/action.
+    // Keep the same whole-replica discipline as the V2 proposal path.
+    if (singleInquiry) return asReadOnlyInquiry();
+    if (clauses.inquiries.length > 0 || clauses.actions.some(({ intent }) =>
+      intent.type !== "ActionIntentCommand" || (intent.operation !== "unknown" && intent.operation !== "speak" && intent.operation !== "call"))) return null;
     const speaker = decision.addressee.kind === "npc" ? resolveHandlePerson(decision.addressee.handle) : null;
     if (decision.addressee.kind === "npc" && !speaker) return null;
     const phrases = {

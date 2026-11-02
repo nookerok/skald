@@ -643,6 +643,19 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     conversation: conversationOf(fixture),
   };
 
+  it("does not let a conversation draft drop a registered question or a physical action", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const decision = {
+      schemaVersion: 2 as const, addressee: { kind: "gm" as const }, kind: "conversation" as const,
+      response: { segments: [{ kind: "social" as const, act: "greeting" as const }] },
+    };
+    expect(applyGmDirectorDecision(decision, bundle, "Кто рядом?", snapshot)).toMatchObject({
+      status: "inquiry", inquiry: { queryId: "who_is_nearby" },
+    });
+    expect(applyGmDirectorDecision(decision, bundle, "Подойти к перевозчику", snapshot)).toBeNull();
+    expect(applyGmDirectorDecision(decision, bundle, "Где я? И кто рядом?", snapshot)).toBeNull();
+  });
+
   it("rejects an opaque handle embedded in a selected knowledge fact", () => {
     const bundle = buildGmContext({
       scene: sceneContext, conversation: snapshot.conversation, knowledgeTexts: ["e0123456789ab"],
