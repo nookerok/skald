@@ -28,6 +28,7 @@ function sceneOf(fixture: GmFixture): MasterTurnSceneContext {
       label: person.label,
       knownAs: [],
       known: person.known,
+      ...(person.publicRole ? { portrait: { publicRole: person.publicRole } } : {}),
     })),
     knownRoutes: [],
     accessibleItems: [],
@@ -602,6 +603,22 @@ describe("interpretGmDecision — single-flight", () => {
 });
 
 describe("gm prompt", () => {
+  it("contrasts real addressee ambiguity with lists, roles and settled focus", () => {
+    expect(GM_DIRECTOR_SYSTEM_PROMPT).not.toContain("Это ВСЕГДА clarification");
+    for (const id of ["ambiguous-recipient", "people-list-multiple-actors", "identify-person-by-visible-role", "pronoun-with-multiple-actors-and-focus"]) {
+      const fixture = GM_CORPUS.find((entry) => entry.id === id)!;
+      expect(fixture).toBeDefined();
+      const built = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      expect(built.context.actors).toHaveLength(2);
+      if (id === "identify-person-by-visible-role") {
+        const subject = built.context.actors.find((actor) => actor.handle === expectedSubjectHandle(fixture));
+        expect(subject?.visibleDescription).toContain("журнал");
+        expect(subject?.displayName).toBeUndefined();
+      }
+      expect(fixture.expected.kind).toBe(id === "ambiguous-recipient" ? "clarification" : "world_question");
+    }
+  });
+
   it("carries no literal placeholder handles and embeds the scene's real ones", async () => {
     expect(GM_DIRECTOR_SYSTEM_PROMPT).not.toContain("<HANDLE");
     const fixture = GM_CORPUS[1]; // two visible people
@@ -625,6 +642,16 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     scene: { context: sceneContext, references } as any,
     conversation: conversationOf(fixture),
   };
+
+  it("rejects an opaque handle embedded in a selected knowledge fact", () => {
+    const bundle = buildGmContext({
+      scene: sceneContext, conversation: snapshot.conversation, knowledgeTexts: ["e0123456789ab"],
+    });
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "conversation",
+      response: { segments: [{ kind: "fact", factId: "k1" }] },
+    }, bundle, "Расскажи мне известное.", snapshot)).toBeNull();
+  });
 
   it("maps a gm conversation repeat request to repeat_last_answer meta plan", () => {
     const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });

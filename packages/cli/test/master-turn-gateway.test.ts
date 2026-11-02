@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+afterEach(() => { vi.unstubAllEnvs(); });
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -1690,7 +1691,8 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(result.options.length).toBeGreaterThanOrEqual(2);
     expect((result as { questionRound?: unknown }).questionRound).toBeUndefined();
   });
-  it("continues a model question ambiguity through a persisted read-only QuestionPlan", async () => {
+  it.each(["legacy", "director"])("continues a %s question ambiguity through a persisted read-only QuestionPlan", async (route) => {
+    vi.stubEnv("GM_DIRECTOR_LIVE", route === "director" ? "1" : "0");
     const snap = snapshot();
     const references = new Map(snap.scene.references);
     references.set("person_1", { kind: "person", internalId: "contact:first", label: "Guard" });
@@ -1701,7 +1703,7 @@ describe("whole-replica inquiry completeness (T3)", () => {
     ];
     const scene = { ...snap.scene, references, context: { ...snap.scene.context, knownPeople: people } };
     const input = "Что на нём одето и как он себя ведёт?";
-    const router = routerReturning(JSON.stringify({
+    const proposal = {
       schemaVersion: 2,
       kind: "inquiry",
       primaryIntent: null,
@@ -1719,7 +1721,11 @@ describe("whole-replica inquiry completeness (T3)", () => {
         { partId: "clothes", source: "person" },
         { partId: "reaction", source: "scene" },
       ],
-    }));
+    };
+    const router = routerReturning(JSON.stringify(route === "director"
+      ? { schemaVersion: 2, kind: "clarification", addressee: { kind: "gm" },
+          clarification: { question: "Which guard do you mean?" }, proposal }
+      : proposal));
     const first = await interpretMasterTurn(input, { ...snap, scene }, router);
     expect(first.status).toBe("clarification");
     if (first.status !== "clarification") return;

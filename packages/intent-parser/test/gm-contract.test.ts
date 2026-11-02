@@ -81,6 +81,17 @@ describe("validateGmTurnDecision — rejected", () => {
     if (!invisible.ok) expect(invisible.errors.join("\n")).toContain("not a visible actor");
   });
 
+  it.each(["gm", "meta"])("rejects handles on the %s addressee variant, visible or fabricated", (kind) => {
+    for (const schemaVersion of [1, GM_CONTRACT_VERSION]) for (const handle of ["e1", "fabricated-outside-scene"]) {
+      const result = validateGmTurnDecision(
+        { ...base, schemaVersion, addressee: { kind, handle }, kind: "world_question" },
+        { allowedHandles: ["e1"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors).toContain('addressee: unknown field "handle"');
+    }
+  });
+
   it("rejects a fabricated clarification candidate against the scene allowlist", () => {
     // Visible candidates pass; one invisible candidate poisons the whole list.
     const visible = validateGmTurnDecision(
