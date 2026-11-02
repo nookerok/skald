@@ -18,6 +18,7 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
 | Production world entrypoint and Pilot Region cutover | docs/adr/0029-production-world-entrypoint.md; packages/cli/src/admin/world-cutover.ts |
 | UX-0 product contract | docs/ux/UX_PRODUCT_CONTRACT.md |
 | Full validation | scripts/validate.sh |
+| Conversation Director live contract | packages/intent-parser/src/gm-contract.ts; packages/intent-parser/src/gm-proposal.ts; packages/cli/src/runtime/conversation-director.ts; packages/cli/test/gm-director-live-http.test.ts |
 | Orange Pi operations | .agents/skills/skald-orange-pi-deploy/SKILL.md |
 | Browser and visual QA (fixed Codex runner) | .agents/skills/skald-ntfs-browser-qa/SKILL.md |
 | Browser and visual QA (non-Codex Traycer session) | .agents/skills/skald-traycer-browser-qa/SKILL.md |
@@ -47,11 +48,13 @@ This is a stable navigation map, not an exhaustive file listing. Verify paths ag
     idempotent) -> observer session -> first Presence acknowledge -> #/world/:id
 
     Browser/REPL -> Master Turn Gateway / Interpretation Gateway
-    (deterministic fast path; GM_DIRECTOR_LIVE=1 routes eligible read-only
-    inquiry candidates through the bounded Conversation Director P3 bridge,
-    which emits no actions or Domain Events; unsupported decisions/provider
-    failures fall through to closed TurnProposalV2 in bounded observer-safe
-    scene + ConversationContext with pronoun bindings)
+    (exact deterministic action fast path; GM_DIRECTOR_LIVE=1 first interprets
+    free conversation, questions, single actions and supported mixed turns
+    as GmTurnDecision V2 over opaque observer-safe scene handles;
+    pure conversation drafts persist without Events/time or a second LLM call;
+    proposed action/question payloads bind server-side to TurnProposalV2;
+    unsupported shapes retain legacy compatibility, provider failure degrades
+    without a second call to the dead model)
     -> static schema + contextual referent validation + stale-revision
     recheck -> at most one primary command handler / read-only Inquiry
     -> RuleEngine -> staged Domain Events -> EventBus + Projection

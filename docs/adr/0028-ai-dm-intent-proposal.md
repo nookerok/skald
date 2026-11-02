@@ -18,6 +18,37 @@ to the pending clarification (`conversationRelation`), which the server
 resolves into a durable continuation link. Nothing here becomes World
 State: Rules never read the transcript.
 
+## Implementation amendment: Conversation Director P3 (2026-11-02)
+
+The opt-in `GM_DIRECTOR_LIVE` route interprets free replicas before broad
+legacy classification. Exact deterministic actions and persisted clarification
+continuations keep their existing paths. `GmTurnDecision` V2 may contain a
+closed `TurnProposalV2` payload: its reference slots carry opaque scene handles,
+which the server maps to transient observer refs before the SAME static and
+contextual validators used by the legacy planner. No new execution authority,
+Domain Event, Rule, persistence table or multi-step coordinator is added.
+Legacy V1 classification decisions remain readable but cannot carry V2 payloads.
+
+A pure conversation drafts its response during the interpretation call. The
+first implementation selects existing fact IDs or closed non-factual social
+acts; it does not publish arbitrary unverified prose, NPC knowledge, permission
+or commitments. NPC dossier disclosure and voice remain P4/P5, not claimed by
+this implementation. The existing `speech/speech_reaction` transcript vocabulary
+stores these zero-event, zero-time turns; it does NOT route them through
+`communicate` or a durable world commit. Persisted speech times distinguish them
+from legacy world-changing speech during crash-window replay.
+
+A per-world live request flight spans inference THROUGH durable replay-envelope
+publication. A concurrent identical key shares the completed response; a changed
+body conflicts before another inference. This closes the inference-settled /
+turn-not-yet-committed window without serializing network calls in the world
+queue. Director-level single-flight remains operational state, not a cache or
+world state.
+
+Repository tests do not constitute live-model, browser or human acceptance.
+The free 20–30-replica session remains an explicit release gate; P3 is not closed
+merely because the bridge compiles or scripted models pass.
+
 ## Context
 
 The deterministic intent parser handles the registered grammar well, but a

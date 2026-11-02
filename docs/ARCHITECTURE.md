@@ -829,6 +829,10 @@ Projection несёт `eventNumber` (порядковый номер после�
 Это распространяется и на Master Turn Gateway (ADR-0028): deterministic
 fast path обслуживает только простую уверенную команду, иначе свободный
 текст целой реплики переводит в transient plan закрытый LLM TurnProposalV2.
+Опциональный `GM_DIRECTOR_LIVE` принимает его внутри `GmTurnDecision` V2:
+непрозрачные хэндлы связывает сервер, а чистый разговор сохраняется только
+в read-side transcript (без Events и времени); свободный ответ не получает
+полномочий создавать факты или договорённости.
 Статическая schema-валидация, контекстная referent-валидация по
 observer-safe кандидатам и повторная проверка revision
 (`worldTime/eventNumber`) внутри world queue выполняются до authoritative
