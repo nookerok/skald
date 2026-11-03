@@ -34,7 +34,9 @@ export interface GmFixture {
     readonly kind: string;
     readonly npcLabel?: string;
     /** The question's topic when it differs from who responds (subjectHandle). */
-    readonly subjectLabel?: string;
+    readonly subjectLabel?: string | null;
+    readonly queryId?: string;
+    readonly candidateLabels?: readonly string[];
   };
   /** Substrings that must never appear in the serialized context. */
   readonly forbidden: readonly string[];
@@ -51,8 +53,9 @@ export interface GmFixture {
  * fixture changed.
  * v3: distinguish list/role questions from genuinely ambiguous addressees;
  * add multi-actor focus, and carry the observable roles used by role questions.
+ * v4: assert the exact nearby query, exact clarification candidates and absent subject.
  */
-export const GM_CORPUS_VERSION = "gm-corpus-v3";
+export const GM_CORPUS_VERSION = "gm-corpus-v4";
 
 /**
  * The handle the npc expectation names. The corpus stores `npcLabel` and the
@@ -72,11 +75,25 @@ export function expectedNpcHandle(fixture: GmFixture): string | undefined {
  * a label absent from the scene is caught by `corpusConfigErrors` before
  * scoring rather than silently weakening the check.
  */
-export function expectedSubjectHandle(fixture: GmFixture): string | undefined {
+export function expectedSubjectHandle(fixture: GmFixture): string | null | undefined {
   const label = fixture.expected.subjectLabel;
   if (label === undefined) return undefined;
+  if (label === null) return null;
   const index = fixture.people.findIndex((person) => person.label === label);
   return index === -1 ? undefined : stableActorHandle(`person_${index + 1}`);
+}
+
+/** Exact opaque candidate handles expected for one clarification fixture. */
+export function expectedCandidateHandles(fixture: GmFixture): readonly string[] | undefined {
+  const labels = fixture.expected.candidateLabels;
+  if (labels === undefined) return undefined;
+  const handles: string[] = [];
+  for (const label of labels) {
+    const index = fixture.people.findIndex((person) => person.label === label);
+    if (index === -1) return undefined;
+    handles.push(stableActorHandle("person_" + (index + 1)));
+  }
+  return Object.freeze(handles);
 }
 
 const ferryman: GmFixturePerson = { label: "Перевозчик у переправы", known: true, publicRole: "Перевозит людей через реку" };
@@ -101,7 +118,7 @@ export const GM_CORPUS: readonly GmFixture[] = [
     input: "Хочу поговорить с ним.",
     people: [ferryman, gatekeeper],
     recentTurns: [],
-    expected: { addresseeKind: "gm", kind: "clarification" },
+    expected: { addresseeKind: "gm", kind: "clarification", candidateLabels: [ferryman.label, gatekeeper.label] },
     forbidden: ["contact:"],
   },
   {
@@ -149,7 +166,7 @@ export const GM_CORPUS: readonly GmFixture[] = [
     input: "Кто рядом?",
     people: [ferryman, gatekeeper],
     recentTurns: [],
-    expected: { addresseeKind: "gm", kind: "world_question" },
+    expected: { addresseeKind: "gm", kind: "world_question", subjectLabel: null, queryId: "who_is_nearby" },
     forbidden: ["contact:", gatekeeper.label],
   },
   {

@@ -7,6 +7,7 @@
  * never degrade into a silent "pass".
  */
 
+import { isInquiryQueryId } from "@skald/intent-parser";
 import type { GmFixture } from "./gm-corpus.js";
 
 /** Only these untracked paths are tolerated in a scorecard worktree. */
@@ -64,9 +65,26 @@ export function corpusConfigErrors(corpus: readonly GmFixture[]): string[] {
       ["npcLabel", fixture.expected.npcLabel],
       ["subjectLabel", fixture.expected.subjectLabel],
     ] as const) {
-      if (label === undefined) continue;
+      if (label === undefined || label === null) continue;
       if (!fixture.people.some((person) => person.label === label)) {
         errors.push(`${fixture.id}: ${field} "${label}" is not in fixture.people`);
+      }
+    }
+  }
+  for (const fixture of corpus) {
+    const queryId = fixture.expected.queryId;
+    if (queryId !== undefined) {
+      if (fixture.expected.kind !== "world_question") errors.push(fixture.id + ": queryId requires kind world_question");
+      if (!isInquiryQueryId(queryId)) errors.push(fixture.id + ": queryId " + queryId + " is not a registered inquiry");
+    }
+    const candidateLabels = fixture.expected.candidateLabels;
+    if (candidateLabels !== undefined) {
+      if (candidateLabels.length === 0) errors.push(fixture.id + ": candidateLabels must not be empty");
+      if (fixture.expected.kind !== "clarification") errors.push(fixture.id + ": candidateLabels requires kind clarification");
+      if (new Set(candidateLabels).size !== candidateLabels.length) errors.push(fixture.id + ": candidateLabels contains duplicates");
+      for (const label of candidateLabels) {
+        const matches = fixture.people.filter((person) => person.label === label).length;
+        if (matches !== 1) errors.push(fixture.id + ": candidateLabel " + label + " must name exactly one fixture person");
       }
     }
   }

@@ -45,14 +45,14 @@ import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../conversatio
 import { scoreGmCorpus, type GmScoreEntry } from "../conversation/gm-scorecard.js";
 import { createLiveRouterConfiguration, refreshRouterSelection } from "../runtime/router-factory.js";
 import { applyServiceEnv } from "./service-env.js";
-import { GM_CORPUS, GM_CORPUS_VERSION, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "./gm-corpus.js";
+import { GM_CORPUS, GM_CORPUS_VERSION, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "./gm-corpus.js";
 import { corpusConfigErrors, dirtyOffenders, parseGmRuns } from "./scorecard-env.js";
 
 const OUT = process.env["OUT"] ?? "eval-out/gm-shadow-scorecard.json";
 const RUNS = parseGmRuns(process.env["GM_RUNS"]);
 
 function blocked(reason: string, extra: Record<string, unknown> = {}): never {
-  console.error(JSON.stringify({ schema: "GM_SHADOW_SCORECARD_V1", overall: "BLOCKED", reason, ...extra }));
+  console.error(JSON.stringify({ schema: "GM_SHADOW_SCORECARD_V2", overall: "BLOCKED", reason, ...extra }));
   process.exit(2);
 }
 
@@ -182,6 +182,7 @@ const prepared = GM_CORPUS.map((fixture) => {
     userPrompt: buildGmDecisionPrompt(fixture.input, context),
     expectedHandle: expectedNpcHandle(fixture),
     expectedSubjectHandle: expectedSubjectHandle(fixture),
+    expectedCandidateHandles: expectedCandidateHandles(fixture),
   };
 });
 
@@ -220,6 +221,8 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
         allowedHandles: item.allowedHandles,
         expectedHandle: item.expectedHandle,
         expectedSubjectHandle: item.expectedSubjectHandle,
+        expectedQueryId: item.fixture.expected.queryId,
+        expectedCandidateHandles: item.expectedCandidateHandles,
       },
       contextJson: item.contextJson,
       forbidden: item.fixture.forbidden,
@@ -236,7 +239,7 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
       ]))
     : null;
   const report = {
-    schema: "GM_SHADOW_SCORECARD_V1",
+    schema: "GM_SHADOW_SCORECARD_V2",
     run: { index: runIndex, of: RUNS },
     corpus: { version: GM_CORPUS_VERSION, size: GM_CORPUS.length, scenarios: GM_CORPUS.map((f) => f.id), digest: corpusDigest },
     actualCommit: commit,

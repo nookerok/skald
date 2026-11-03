@@ -29,7 +29,9 @@ export interface GmScoreExpectation {
    * (`GmTurnDecision.subjectHandle`) — the topic, which may differ from the
    * addressee. When set, a decision without the right subject fails.
    */
-  readonly expectedSubjectHandle?: string | undefined;
+  readonly expectedSubjectHandle?: string | null | undefined;
+  readonly expectedQueryId?: string | undefined;
+  readonly expectedCandidateHandles?: readonly string[] | undefined;
 }
 
 export interface GmScoreEntry {
@@ -64,7 +66,9 @@ export interface GmCaseFact {
     /** The ONE handle an npc expectation must target, when specified. */
     readonly expectedHandle?: string | undefined;
     /** The subject handle a question-shaped expectation requires. */
-    readonly expectedSubjectHandle?: string | undefined;
+    readonly expectedSubjectHandle?: string | null | undefined;
+    readonly expectedQueryId?: string | undefined;
+    readonly expectedCandidateHandles?: readonly string[] | undefined;
     /** Scene allowlist the decision was validated against. */
     readonly allowedHandles?: readonly string[] | undefined;
   };
@@ -74,6 +78,7 @@ export interface GmCaseFact {
     readonly handle?: string | undefined;
     readonly subjectHandle?: string | undefined;
     readonly candidateHandles?: readonly string[] | undefined;
+    readonly queryId?: string | undefined;
   };
   readonly passes: {
     readonly decisionAccepted: boolean;
@@ -82,6 +87,7 @@ export interface GmCaseFact {
     readonly kind: boolean;
     readonly handles: boolean;
     readonly subject: boolean;
+    readonly question: boolean;
     readonly privacy: boolean;
   };
   readonly fallbackReason?: string | undefined;
@@ -134,7 +140,14 @@ function handlesPass(entry: GmScoreEntry, decision: GmTurnDecision): boolean {
     const candidates = decision.clarification?.candidateHandles ?? [];
     // A clarification with no candidates, or with an invisible one, fails.
     if (candidates.length === 0) return false;
-    return candidates.every((handle) => allowed.includes(handle));
+    if (!candidates.every((handle) => allowed.includes(handle))) return false;
+    const expected = entry.expected.expectedCandidateHandles;
+    if (expected === undefined) return true;
+    if (new Set(candidates).size !== candidates.length || new Set(expected).size !== expected.length) return false;
+    const actualSorted = [...candidates].sort();
+    const expectedSorted = [...expected].sort();
+    return actualSorted.length === expectedSorted.length
+      && actualSorted.every((handle, index) => handle === expectedSorted[index]);
   }
   return true;
 }
@@ -145,10 +158,20 @@ function subjectPass(entry: GmScoreEntry, decision: GmTurnDecision | undefined):
   if (expected === undefined) return true;
   if (decision === undefined) return false;
   const subject = decision.subjectHandle;
+  if (expected === null) return subject === undefined;
   if (typeof subject !== "string") return false;
   const allowed = entry.expected.allowedHandles;
   if (allowed !== undefined && !allowed.includes(subject)) return false;
   return subject === expected;
+}
+
+/** Require the actual closed inquiry proposal when a corpus case expects one. */
+function questionPass(entry: GmScoreEntry, decision: GmTurnDecision | undefined): boolean {
+  const expectedQueryId = entry.expected.expectedQueryId;
+  if (expectedQueryId === undefined) return true;
+  if (decision === undefined) return false;
+  const primary = decision.proposal?.primaryIntent;
+  return primary?.kind === "inquiry" && primary.queryId === expectedQueryId;
 }
 
 /** Every string leaf of a decision (question, handle fields, free text). */
@@ -189,6 +212,7 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     kind: { total, passed: 0, failures: [] },
     handles: { total, passed: 0, failures: [] },
     subject: { total, passed: 0, failures: [] },
+    question: { total, passed: 0, failures: [] },
     privacy: { total, passed: 0, failures: [] },
   };
   const latencies: number[] = [];
@@ -213,6 +237,9 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     const subjectOk = subjectPass(entry, decisionValue);
     if (subjectOk) dims.subject.passed += 1;
     else dims.subject.failures.push(entry.input);
+    const questionOk = questionPass(entry, decisionValue);
+    if (questionOk) dims.question.passed += 1;
+    else dims.question.failures.push(entry.input);
 
     if (decisionValue !== undefined) {
       dims.decisionAccepted.passed += 1;
@@ -236,6 +263,8 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
         kind: entry.expected.kind,
         expectedHandle: entry.expected.expectedHandle,
         expectedSubjectHandle: entry.expected.expectedSubjectHandle,
+        expectedQueryId: entry.expected.expectedQueryId,
+        expectedCandidateHandles: entry.expected.expectedCandidateHandles !== undefined ? Object.freeze([...entry.expected.expectedCandidateHandles]) : undefined,
         allowedHandles: entry.expected.allowedHandles !== undefined ? Object.freeze([...entry.expected.allowedHandles]) : undefined,
       },
       actual: {
@@ -244,8 +273,9 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
         handle: decisionValue?.addressee.kind === "npc" ? decisionValue.addressee.handle : undefined,
         subjectHandle: decisionValue?.subjectHandle,
         candidateHandles: decisionValue?.kind === "clarification" ? decisionValue.clarification?.candidateHandles : undefined,
+        queryId: decisionValue?.proposal?.primaryIntent?.kind === "inquiry" ? decisionValue.proposal.primaryIntent.queryId : undefined,
       },
-      passes: { decisionAccepted: decisionValue !== undefined, schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, privacy: privacyOk },
+      passes: { decisionAccepted: decisionValue !== undefined, schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, question: questionOk, privacy: privacyOk },
       fallbackReason: entry.trace.fallbackReason,
       provider: entry.trace.provider,
       model: entry.trace.model,

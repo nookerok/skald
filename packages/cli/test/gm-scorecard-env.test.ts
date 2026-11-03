@@ -73,4 +73,30 @@ describe("corpusConfigErrors", () => {
     expect(subjectErrors).toHaveLength(1);
     expect(subjectErrors[0]).toContain("subjectLabel");
   });
+  it("rejects invalid query ids and clarification candidate labels", () => {
+    const listQuestion = GM_CORPUS.find((fixture) => fixture.id === "people-list-multiple-actors")!;
+    const badQuery = [{
+      ...listQuestion,
+      expected: { ...listQuestion.expected, queryId: "not_registered" },
+    }];
+    expect(corpusConfigErrors(badQuery).join("\n")).toContain("queryId");
+
+    const clarification = GM_CORPUS.find((fixture) => fixture.id === "ambiguous-recipient")!;
+    const missingCandidate = [{
+      ...clarification,
+      expected: { ...clarification.expected, candidateLabels: ["Nobody"] },
+    }];
+    expect(corpusConfigErrors(missingCandidate).join("\n")).toContain("candidateLabel");
+    const emptyCandidates = [{
+      ...clarification,
+      expected: { ...clarification.expected, candidateLabels: [] },
+    }];
+    expect(corpusConfigErrors(emptyCandidates).join("\n")).toContain("candidateLabels must not be empty");
+
+    const duplicateCandidates = [{
+      ...clarification,
+      expected: { ...clarification.expected, candidateLabels: ["Перевозчик у переправы", "Перевозчик у переправы"] },
+    }];
+    expect(corpusConfigErrors(duplicateCandidates).join("\n")).toContain("candidateLabels contains duplicates");
+  });
 });

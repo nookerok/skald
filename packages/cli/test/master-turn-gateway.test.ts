@@ -1545,7 +1545,7 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
   });
 
-  it("a stubborn question-dropper degrades to the deterministic action, never speech", async () => {
+  it("a stubborn question-dropper clarifies rather than silently dropping the question", async () => {
     const snap = snapshot();
     // Same focus precondition as above: «она» must continue the confirmed
     // mention instead of clarifying between person and objects.
@@ -1567,16 +1567,12 @@ describe("whole-replica inquiry completeness (T3)", () => {
       diagnostics: (event: any) => seen.push(event),
     });
 
-    // Round 1 corrected, round 2 hit the hard guard — the degraded path is
-    // honest: the deterministic approach (the replica's action) when the
-    // parse is clean, otherwise the pronoun-aware clarification (the parsed
-    // target carries «она»). The model's speech never produces a plan.
+    // Round 1 corrected, round 2 hit the hard guard. The question is not
+    // represented by a registered deterministic inquiry, so executing only
+    // the parsed approach would silently discard part of the replica.
     expect(router.chat).toHaveBeenCalledTimes(2);
     expect(seen.filter((event) => event.category === "proposal_schema_rejected" && event.failureCategory === "question_dropped").length).toBeGreaterThanOrEqual(1);
-    expect(["clarification", "deterministic"]).toContain(result.status);
-    if (result.status === "deterministic") {
-      expect(result.intent).toMatchObject({ type: "ActionIntentCommand", operation: "approach" });
-    }
+    expect(result.status).toBe("clarification");
     expect(result.status).not.toBe("plan");
   });
 

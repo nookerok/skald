@@ -12,7 +12,7 @@ import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normal
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
-import { GM_CORPUS, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
+import { GM_CORPUS, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
 import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../src/conversation/gm-prompt.js";
 
 const ferrymanLabel = "Перевозчик у переправы";
@@ -153,7 +153,7 @@ describe("interpretGmDecision — seven problematic replicas", () => {
       const npcHandle = fixture.expected.addresseeKind === "npc" ? expectedNpcHandle(fixture) : undefined;
       const subjectHandle = expectedSubjectHandle(fixture);
       expect(npcHandle === undefined || [...handleToObserverRef.keys()].includes(npcHandle)).toBe(true);
-      expect(subjectHandle === undefined || [...handleToObserverRef.keys()].includes(subjectHandle)).toBe(true);
+      expect(subjectHandle === undefined || subjectHandle === null || [...handleToObserverRef.keys()].includes(subjectHandle)).toBe(true);
       const decision = {
         schemaVersion: 1,
         addressee: fixture.expected.addresseeKind === "npc"
@@ -161,7 +161,7 @@ describe("interpretGmDecision — seven problematic replicas", () => {
           : { kind: fixture.expected.addresseeKind },
         kind: fixture.expected.kind,
         ...(fixture.expected.kind === "clarification" ? { clarification: { question: "Which one?" } } : {}),
-        ...(subjectHandle !== undefined ? { subjectHandle } : {}),
+        ...(typeof subjectHandle === "string" ? { subjectHandle } : {}),
       };
       const result = await interpretGmDecision({
         input: fixture.input,
@@ -327,6 +327,32 @@ describe("scoreGmCorpus", () => {
     expect(fabricated.dimensions.find((d) => d.dimension === "handles")!.passed).toBe(0);
   });
 
+  it("requires the exact clarification candidate set when specified", () => {
+    const expected = {
+      addresseeKind: "clarification" as const,
+      kind: "clarification",
+      allowedHandles: ["eaaa111", "ebbb222", "eccc333"],
+      expectedCandidateHandles: ["eaaa111", "ebbb222"],
+    };
+    const score = (candidateHandles: string[]) => scoreGmCorpus([{
+      input: "Хочу поговорить с ним.",
+      expected,
+      trace: trace(true),
+      decision: {
+        schemaVersion: 1,
+        addressee: { kind: "gm" },
+        kind: "clarification",
+        clarification: { question: "Кого именно?", candidateHandles },
+      } as never,
+    }]);
+    const passed = (candidateHandles: string[]) => score(candidateHandles).dimensions.find((d) => d.dimension === "handles")!.passed;
+
+    expect(passed(["eaaa111", "ebbb222"])).toBe(1);
+    expect(passed(["ebbb222", "eaaa111"])).toBe(1);
+    expect(passed(["eaaa111"])).toBe(0);
+    expect(passed(["eaaa111", "ebbb222", "eccc333"])).toBe(0);
+    expect(passed(["eaaa111", "eaaa111", "ebbb222"])).toBe(0);
+  });
   it("requires the SPECIFIC npc handle when the expectation names one", () => {
     const wrongVisibleNpc = scoreGmCorpus([{
       input: "bad-target",
@@ -454,6 +480,51 @@ describe("scoreGmCorpus", () => {
     expect(leakedAnswer.dimensions.find((d) => d.dimension === "privacy")!.passed).toBe(0);
   });
 
+  it("requires the expected primary inquiry and explicit no-subject expectation", () => {
+    const expected = {
+      addresseeKind: "gm" as const,
+      kind: "world_question",
+      expectedQueryId: "who_is_nearby",
+      expectedSubjectHandle: null,
+    };
+    const score = (decision: unknown) => scoreGmCorpus([{
+      input: "Кто рядом?",
+      expected,
+      trace: trace(true),
+      decision: decision as never,
+    }]);
+    const decision = (queryId: string, subjectHandle?: string) => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+      ...(subjectHandle === undefined ? {} : { subjectHandle }),
+      proposal: {
+        schemaVersion: 2,
+        kind: "inquiry",
+        primaryIntent: { kind: "inquiry", queryId, sourceText: "Кто рядом?" },
+        supportingClauses: [],
+      },
+    });
+
+    const good = score(decision("who_is_nearby"));
+    expect(good.dimensions.find((d) => d.dimension === "question")!.passed).toBe(1);
+    expect(good.dimensions.find((d) => d.dimension === "subject")!.passed).toBe(1);
+    expect(good.cases[0]?.actual.queryId).toBe("who_is_nearby");
+
+    const wrongQuery = score(decision("visible_scene"));
+    expect(wrongQuery.dimensions.find((d) => d.dimension === "question")!.passed).toBe(0);
+
+    const fabricatedSubject = score(decision("who_is_nearby", "eaaa111"));
+    expect(fabricatedSubject.dimensions.find((d) => d.dimension === "subject")!.passed).toBe(0);
+    expect(fabricatedSubject.dimensions.find((d) => d.dimension === "question")!.passed).toBe(1);
+
+    const noPlan = score({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+    });
+    expect(noPlan.dimensions.find((d) => d.dimension === "question")!.passed).toBe(0);
+  });
   it("scores the subject dimension end-to-end (missing or wrong topic fails)", () => {
     const base = { allowedHandles: ["eaaa111", "ebbb222"], expectedSubjectHandle: "eaaa111" };
     const right = scoreGmCorpus([{
@@ -507,6 +578,19 @@ describe("expectedNpcHandle", () => {
     const handle = expectedSubjectHandle(fixture)!; // …the NPC is the subject
     expect(handle).toBe(stableActorHandle(`person_${fixture.people.findIndex((p) => p.label === fixture.expected.subjectLabel) + 1}`));
     expect(expectedSubjectHandle(GM_CORPUS[2])).toBeUndefined();
+  });
+  it("maps exact clarification labels and null subjects to observer-handle expectations", () => {
+    const clarification = GM_CORPUS.find((fixture) => fixture.expected.candidateLabels !== undefined)!;
+    expect(expectedCandidateHandles(clarification)).toEqual(
+      clarification.people.map((_, index) => stableActorHandle("person_" + (index + 1))),
+    );
+    expect(expectedCandidateHandles({
+      ...clarification,
+      expected: { ...clarification.expected, candidateLabels: ["Nobody"] },
+    })).toBeUndefined();
+
+    const listQuestion = GM_CORPUS.find((fixture) => fixture.id === "people-list-multiple-actors")!;
+    expect(expectedSubjectHandle(listQuestion)).toBeNull();
   });
 });
 
@@ -704,6 +788,33 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     });
     expect(applyGmDirectorDecision(decision, bundle, "Подойти к перевозчику", snapshot)).toBeNull();
     expect(applyGmDirectorDecision(decision, bundle, "Где я? И кто рядом?", snapshot)).toBeNull();
+  });
+
+  it("preserves a safe clarification for an unresolved speech addressee", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const h1 = stableActorHandle("person_1");
+    const h2 = stableActorHandle("person_2");
+    const outcome = applyGmDirectorDecision({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "clarification",
+      clarification: { question: "С кем именно ты хочешь поговорить?", candidateHandles: [h1, h2] },
+    }, bundle, "Хочу поговорить с ним.", snapshot);
+    expect(outcome).toMatchObject({ status: "clarification", question: "С кем именно ты хочешь поговорить?" });
+    if (outcome?.status === "clarification") {
+      expect(outcome.options.slice(0, 2).map((option) => option.referentRefs)).toEqual([["person_1"], ["person_2"]]);
+    }
+  });
+
+  it("does not let a social draft erase an indirect topic-shift question", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const question = "Не об этом — лучше расскажи, кто ходит через реку ночью.";
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "conversation",
+      response: { segments: [{ kind: "social", act: "greeting" }] },
+    }, bundle, question, snapshot)).toBeNull();
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "conversation",
+      response: { segments: [{ kind: "social", act: "no_knowledge" }] },
+    }, bundle, question, snapshot)).toMatchObject({ status: "conversation", text: "У меня нет подтверждённых сведений об этом." });
   });
 
   it("rejects an opaque handle embedded in a selected knowledge fact", () => {

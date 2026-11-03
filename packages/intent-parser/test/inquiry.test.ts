@@ -43,6 +43,11 @@ describe("player input inquiry classification", () => {
     expect(result.kind === "inquiry" ? result.inquiry.queryId : null).toBe(queryId);
   });
 
+  it("recognizes corrective topic shifts as questions without a question mark", () => {
+    const input = "Не об этом — лучше расскажи, кто ходит через реку ночью.";
+    expect(classifyPlayerInput(input, parseIntent)).toEqual({ kind: "inquiry_candidate", rawText: input });
+  });
+
   it("accepts a direct question without a question mark", () => {
     const result = classifyPlayerInput("где я", parseIntent);
     expect(result).toMatchObject({ kind: "inquiry", inquiry: { queryId: "current_location", confidence: 1 } });

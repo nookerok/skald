@@ -134,6 +134,118 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("keeps a bare greeting read-side when the Director mislabels it as speak action", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+    decision = {
+      schemaVersion: 2, addressee: { kind: "npc", handle: person.handle }, kind: "action",
+      proposal: {
+        schemaVersion: 2, kind: "action",
+        primaryIntent: { kind: "legacy", operation: "speak", sourceText: "Привет, перевозчик" },
+        addressedEntity: { role: "addressee", surface: "перевозчику", observerRef: person.handle },
+        supportingClauses: [], referents: [{ role: "addressee", surface: "перевозчику", observerRef: person.handle }],
+      },
+    };
+    const count = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input: "Привет, перевозчик", idempotencyKey: "bare-greeting" }));
+      expect(body).toMatchObject({ status: "conversation", conversationTurn: { inputClass: "speech", responseKind: "speech_reaction", worldTimeBefore: 0, worldTimeAfter: 0 } });
+      expect(body.masterTurn.deterministicText).toContain(person.label);
+      expect(body.masterTurn.deterministicText).toContain("Здравствуй.");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("does not turn an unsupported factual question into a speech apology when the provider is down", async () => {
+    const chat = vi.fn(async () => { throw new Error("provider down"); });
+    const { store, runtime } = await fresh({ apiKey: "", chat });
+    const count = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input: "Что именно известно о ночном следе?", idempotencyKey: "offline-question" }));
+      expect(body.masterTurn.kind).not.toBe("speech_reaction");
+      expect(body.masterTurn.kind).not.toBe("action_outcome");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+      expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
+
+  it("does not execute a speak proposal that drops a corrective topic question", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+    const input = "Не об этом — лучше расскажи, кто ходит через реку ночью.";
+    decision = {
+      schemaVersion: 2, addressee: { kind: "npc", handle: person.handle }, kind: "action",
+      proposal: {
+        schemaVersion: 2, kind: "action",
+        primaryIntent: { kind: "legacy", operation: "speak", sourceText: input },
+        addressedEntity: { role: "addressee", surface: person.label, observerRef: person.handle },
+        supportingClauses: [], referents: [{ role: "addressee", surface: person.label, observerRef: person.handle }],
+      },
+    };
+    const count = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "topic-shift-question" }));
+      expect(["clarification", "contextual_clarification"]).toContain(body.masterTurn.kind);
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("allows only a closed no-knowledge answer to an unresolved non-explicit question", async () => {
+    const { router } = routerFor(() => ({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "conversation",
+      response: { segments: [{ kind: "social", act: "no_knowledge" }] },
+    }));
+    const { store, runtime } = await fresh(router);
+    const count = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Не об этом — лучше расскажи, кто ходит через реку ночью.", idempotencyKey: "topic-shift-no-knowledge",
+      }));
+      expect(body).toMatchObject({ status: "conversation", conversationTurn: { worldTimeBefore: 0, worldTimeAfter: 0 } });
+      expect(body.masterTurn.deterministicText).toBe("У меня нет подтверждённых сведений об этом.");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+    } finally { store.close(); }
+  });
+
+  it("fails closed when the live proposal drops the question after an action", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+    decision = {
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "action",
+      proposal: {
+        schemaVersion: 2, kind: "action",
+        primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойти к Перевозчику у переправы" },
+        target: { role: "target", surface: person.label, observerRef: person.handle },
+        supportingClauses: [], referents: [{ role: "target", surface: person.label, observerRef: person.handle }],
+      },
+    };
+    const count = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Подойти к Перевозчику у переправы и спроси: кто рядом?", idempotencyKey: "dropped-question",
+      }));
+      expect(["clarification", "contextual_clarification"]).toContain(body.masterTurn.kind);
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
   it("answers both QuestionPlan-only parts through the real handler with no invented queryId", async () => {
     let decision: unknown;
     const { router, chat } = routerFor(() => decision);
