@@ -76,6 +76,7 @@ export interface GmCaseFact {
     readonly candidateHandles?: readonly string[] | undefined;
   };
   readonly passes: {
+    readonly decisionAccepted: boolean;
     readonly schema: boolean;
     readonly addressee: boolean;
     readonly kind: boolean;
@@ -221,6 +222,11 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
       else dims.kind.failures.push(entry.input);
       if (handlesOk) dims.handles.passed += 1;
       else dims.handles.failures.push(entry.input);
+    } else {
+      dims.decisionAccepted.failures.push(entry.input);
+      dims.addressee.failures.push(entry.input);
+      dims.kind.failures.push(entry.input);
+      dims.handles.failures.push(entry.input);
     }
 
     cases.push(Object.freeze({
@@ -239,7 +245,7 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
         subjectHandle: decisionValue?.subjectHandle,
         candidateHandles: decisionValue?.kind === "clarification" ? decisionValue.clarification?.candidateHandles : undefined,
       },
-      passes: { schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, privacy: privacyOk },
+      passes: { decisionAccepted: decisionValue !== undefined, schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, privacy: privacyOk },
       fallbackReason: entry.trace.fallbackReason,
       provider: entry.trace.provider,
       model: entry.trace.model,

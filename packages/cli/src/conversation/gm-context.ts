@@ -63,6 +63,7 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
     return {
       handle,
       ...(person.known ? { displayName: person.label } : {}),
+      displayLabel: person.known ? person.label : "Незнакомый человек",
       visibleDescription: person.portrait?.publicRole ?? person.portrait?.distinguishingFeatures?.join("; ") ?? "",
       familiarityTier: familiarityOf(person.known),
     } as const;

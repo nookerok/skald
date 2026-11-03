@@ -2460,7 +2460,7 @@ async function runValidatedMasterTurnResponse(
       return json({ ok: true, status: "meta", meta: { operation: plan.metaInquiry.operation, answer: answer.text }, conversationTurn, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "meta_answer", deterministicText: answer.text }, false) });
     }
     const inquiryRequests = plan.postActionInquiries;
-    if (inquiryRequests.length === 0) {
+    if (inquiryRequests.length === 0 && !questionRound) {
       return withClarificationConversation(runtime, input, idempotencyKey, json({ ok: true, status: "clarification", question: "Уточни, что именно ты хочешь узнать.", options: [{ optionId: "rephrase", label: "Уточнить вопрос" }] }));
     }
     const events = runtime.bus.query();
@@ -2488,6 +2488,12 @@ async function runValidatedMasterTurnResponse(
       answerPlan?.statements.join(" ") ?? "",
       answerPlan?.narrowClarification ?? "",
     ].filter((piece) => piece.length > 0).join(" ");
+    if (!answerText.trim()) {
+      return withClarificationConversation(runtime, input, idempotencyKey, json({
+        ok: true, status: "clarification", question: "Не удалось получить наблюдения для этого вопроса. Что именно ты хочешь узнать?",
+        options: [{ optionId: "rephrase", label: "Уточнить вопрос" }],
+      }));
+    }
     // T5 memory capture: the SHOWN answer's confirmed subjects, group links
     // and ordered lists ride the same turn metadata as the player-side focus.
     const shown = collectShownAnswerMemory({ questionReadings, inquiries, scene, references: sceneSnapshot.references });

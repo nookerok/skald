@@ -6,6 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MasterTurnSceneContext } from "@skald/world";
 import type { ModelRouter } from "@skald/world";
+import { validateGmTurnDecision } from "@skald/intent-parser";
 import { buildGmContext } from "../src/conversation/gm-context.js";
 import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight, gmDirectorLiveEnabled } from "../src/runtime/conversation-director.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
@@ -254,6 +255,11 @@ describe("interpretGmDecision — fallbacks", () => {
 });
 
 describe("extractJsonObject", () => {
+  it("ignores braces and escaped quotes inside JSON string values", () => {
+    const reply = { text: 'Кавычка " и скобки } {', escaped: String.fromCharCode(92, 34) + "}" };
+    expect(extractJsonObject("json: " + JSON.stringify(reply) + " конец")).toEqual(reply);
+    expect(extractJsonObject('{"text":"unterminated }')).toBeNull();
+  });
   it("extracts a JSON object and tolerates surrounding prose", () => {
     expect(extractJsonObject('Вот ответ: {"a":1} окончательно')).toEqual({ a: 1 });
     expect(extractJsonObject("no braces")).toBeNull();
@@ -296,6 +302,10 @@ describe("scoreGmCorpus", () => {
     expect(dim("addressee").passed).toBe(2);
     expect(dim("kind").passed).toBe(2);
     expect(dim("handles").passed).toBe(2);
+    expect(dim("decisionAccepted").failures).toEqual(["c"]);
+    expect(dim("addressee").failures).toEqual(["c"]);
+    expect(dim("kind").failures).toEqual(["c"]);
+    expect(dim("handles").failures).toEqual(["c"]);
     expect(card.p50LatencyMs).toBe(100);
   });
 
@@ -394,7 +404,7 @@ describe("scoreGmCorpus", () => {
       scenario: "case-npc",
       expected: { addresseeKind: "npc", kind: "action", expectedHandle: "eaaa111", allowedHandles: ["eaaa111"] },
       actual: { addresseeKind: "npc", kind: "action", handle: "eaaa111" },
-      passes: { schema: true, addressee: true, kind: true, handles: true, privacy: true },
+      passes: { decisionAccepted: true, schema: true, addressee: true, kind: true, handles: true, privacy: true },
       provider: "ollama_cloud",
       model: "gemma4:31b-cloud",
       usedFallback: false,
@@ -403,7 +413,7 @@ describe("scoreGmCorpus", () => {
     expect(fb.expected.allowedHandles).toBeUndefined();
     expect(fb).toMatchObject({
       scenario: "case-fallback",
-      passes: { schema: false, addressee: false, kind: false, handles: false, subject: true, privacy: true },
+      passes: { decisionAccepted: false, schema: false, addressee: false, kind: false, handles: false, subject: true, privacy: true },
       fallbackReason: "schema:invalid",
       provider: "ollama_cloud",
     });
@@ -626,6 +636,46 @@ describe("gm prompt", () => {
     const userPrompt = buildGmDecisionPrompt(fixture.input, context);
     for (const actor of context.actors) expect(userPrompt).toContain(actor.handle);
     expect(userPrompt).not.toContain("<HANDLE");
+  });
+
+  it("provides a schema-valid QuestionPlan-only example with an observer-safe subject surface", () => {
+    const fixture = GM_CORPUS[0];
+    const { context } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+    const userPrompt = buildGmDecisionPrompt(fixture.input, context);
+    const line = userPrompt.split("\n").find((value) => value.startsWith("7) "));
+    expect(line).toBeDefined();
+    const raw = JSON.parse(line!.slice(line!.indexOf("{")));
+    const actorHandles = context.actors.map((actor) => actor.handle);
+    const result = validateGmTurnDecision(raw, {
+      allowedHandles: [...actorHandles, ...(context.referents ?? []).map((referent) => referent.handle)],
+      allowedActorHandles: actorHandles,
+      allowedFactIds: context.knownFacts.map((fact) => fact.factId),
+    });
+    expect(result.ok).toBe(true);
+    expect(raw.proposal.primaryIntent).toBeNull();
+    expect(raw.proposal.supportingClauses).toEqual([]);
+    expect(raw.proposal.referents).toEqual([]);
+    expect(raw.proposal.questionPlan.subjects[0].surface).toBe(context.actors[0]?.displayLabel);
+    expect(raw.subjectHandle).toBe(context.actors[0]?.handle);
+
+    const listLine = GM_DIRECTOR_SYSTEM_PROMPT.split("\n").find((value) => value.startsWith("3) Игрок:"));
+    expect(listLine).toBeDefined();
+    const listRaw = JSON.parse(listLine!.slice(listLine!.indexOf("{"), listLine!.lastIndexOf("}") + 1));
+    const listValidation = validateGmTurnDecision(listRaw, { allowedHandles: [], allowedActorHandles: [], allowedFactIds: [] });
+    expect(listValidation.ok).toBe(true);
+    expect(listRaw.proposal.primaryIntent.queryId).toBe("who_is_nearby");
+  });
+
+  it("never uses an unknown actor's canonical name as a prompt reference surface", () => {
+    const baseFixture = GM_CORPUS.find((entry) => entry.id === "identify-person-by-visible-role")!;
+    const hiddenPerson = baseFixture.people.find((person) => !person.known)!;
+    const fixture = { ...baseFixture, people: [hiddenPerson] };
+    const { context } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+    const userPrompt = buildGmDecisionPrompt(fixture.input, context);
+    expect(context.actors).toHaveLength(1);
+    expect(context.actors[0]?.displayLabel).toBe("Незнакомый человек");
+    expect(userPrompt).not.toContain("Смотритель речных ворот");
+    expect(userPrompt).toContain("\"surface\":\"Незнакомый человек\"");
   });
 });
 

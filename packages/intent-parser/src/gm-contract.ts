@@ -34,6 +34,8 @@ export interface GmSceneContext {
 export interface GmActor {
   readonly handle: VisibleActorKey;
   readonly displayName?: string;
+  /** Observer-safe label for reference surfaces; not a hidden name. */
+  readonly displayLabel?: string;
   readonly visibleDescription: string;
   readonly familiarityTier: FamiliarityTier;
   readonly conversationalState?: string;

@@ -2,9 +2,10 @@
  * Conversation Director (SKALD S0 / P3 bridge).
  *
  * Interprets one player replica into a validated `GmTurnDecision` by asking
- * the model with an observer-safe `GmContext`. It NEVER executes: no Events, no
- * ConversationTurn, no Projection change. In shadow mode its result is compared
- * against the legacy path; only the legacy path may change the world.
+ * the model with an observer-safe `GmContext`. The Director itself never
+ * executes an operation or writes state: the gateway revalidates and routes
+ * accepted proposals through the deterministic engine, or persists a bounded
+ * zero-event ConversationTurn for pure speech. Shadow mode remains observational.
  */
 
 import { createHash } from "node:crypto";
@@ -89,8 +90,18 @@ export function extractJsonObject(text: string): unknown | null {
   const start = text.indexOf("{");
   if (start < 0) return null;
   let depth = 0;
+  let quoted = false;
+  let escaped = false;
   for (let i = start; i < text.length; i += 1) {
-    if (text[i] === "{") depth += 1;
+    const char = text[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+      continue;
+    }
+    if (char === '"') { quoted = true; continue; }
+    if (char === "{") depth += 1;
     else if (text[i] === "}") {
       depth -= 1;
       if (depth === 0) {

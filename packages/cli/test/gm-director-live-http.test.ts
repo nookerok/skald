@@ -134,6 +134,44 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("answers both QuestionPlan-only parts through the real handler with no invented queryId", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const appearance = scene.context.knownPeople.find((entry) => stableActorHandle(entry.observerRef) === person.handle)?.portrait?.visibleAppearance[0];
+    expect(appearance).toBeTruthy();
+    decision = {
+      schemaVersion: 2, kind: "world_question", addressee: { kind: "gm" }, subjectHandle: person.handle,
+      proposal: {
+        schemaVersion: 2, kind: "inquiry", primaryIntent: null, supportingClauses: [], referents: [],
+        questionPlan: {
+          subjects: [{ id: "person", kind: "entity", surface: person.label, observerRef: person.handle }],
+          parts: [
+            { id: "clothes", subjectRefs: ["person"], aspect: "appearance", time: "current", purpose: "describe" },
+            { id: "reaction", subjectRefs: ["person"], aspect: "observed_reaction", time: "current", purpose: "describe" },
+          ],
+        },
+        readings: [{ partId: "clothes", source: "person" }, { partId: "reaction", source: "scene" }],
+      },
+    };
+    const count = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input: "Что на нём одето и как он себя ведёт?", idempotencyKey: "parts-only" }));
+      expect(body.masterTurn.kind).toBe("inquiry_answer");
+      expect(body.inquiries).toEqual([]);
+      expect(body.masterTurn.deterministicText).toContain(appearance);
+      expect(body.masterTurn.deterministicText).toContain("По доступным наблюдениям");
+      expect(body.questionReadings.results.map((result: any) => result.request.partId)).toEqual(["clothes", "reaction"]);
+      expect(body.masterTurn.deterministicText).not.toMatch(/доволен|радост|сердит|одобряет/iu);
+      expect(runtime.bus.query()).toHaveLength(count);
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
+
   it("keeps the mixed question and answers from the post-action snapshot", async () => {
     let decision: unknown;
     const { router, chat } = routerFor(() => decision);
