@@ -42,6 +42,7 @@ import {
   type InquiryRequest,
   type PlayerInputClassification,
   type QuestionPlan,
+  type GmTurnDecision,
   type TurnConversationRelation,
   type TurnMetaOperation,
   type TurnProposalV2,
@@ -1694,16 +1695,22 @@ async function tryLiveGmDirector(
 
   let bridged: MasterTurnGatewayOutcome | null = null;
   if (result.status === "decision") {
-    if (result.decision.proposal) {
+    const greeting = routeBareGreetingReadSide(input, bundle, snapshot);
+    if (greeting) bridged = greeting;
+    else if (result.decision.proposal) {
       const proposal = bindGmProposal(result.decision.proposal, bundle.handleToObserverRef);
       if (proposal) bridged = resolveProposedMasterTurn(proposal, input, snapshot, options, parseIntent(input));
     } else {
       bridged = applyGmDirectorDecision(result.decision, bundle, input, snapshot);
     }
   }
+  const questionGuardFallback = !bridged
+    && replicaAsksQuestion(input)
+    && !(result.status === "fallback" && result.reason === "provider_error");
+  if (questionGuardFallback) bridged = fallbackAfterModelFailure(input, parseIntent(input), snapshot, options);
   const outcome = result.shared
     ? "shared"
-    : result.status === "fallback"
+    : result.status === "fallback" || questionGuardFallback
       ? "fallback"
       : bridged
         ? "accepted"
@@ -1739,6 +1746,9 @@ async function tryLiveGmDirector(
       return { status: "inquiry", inquiry: fallbackClassification.inquiry };
     }
     const intent = parseIntent(input);
+    if (replicaAsksQuestion(input)) {
+      return fallbackAfterModelFailure(input, intent, snapshot, options);
+    }
     if ((intent.type === "ActionIntentCommand" && intent.operation === "speak")
       || /^(?:привет|здравствуй(?:те)?|добрый (?:день|вечер))(?:[\s,!?.]|$)/iu.test(input.trim())) {
       return {
@@ -1746,11 +1756,61 @@ async function tryLiveGmDirector(
         revision: { worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber },
       };
     }
-    return resolveDeterministicCompound(input, snapshot, options)
-      ?? fallbackAfterModelFailure(input, intent, snapshot, options);
+    return fallbackAfterModelFailure(input, intent, snapshot, options);
   }
   return bridged;
 }
+
+/**
+ * A bare greeting is conversation, not an implicit world-changing speak
+ * action. Bind a named recipient deterministically; do not trust a model-picked
+ * speaker for this narrow read-side response.
+ */
+function routeBareGreetingReadSide(
+  input: string,
+  bundle: GmContextBundle,
+  snapshot: MasterTurnSnapshot,
+): MasterTurnGatewayOutcome | null {
+  const normalized = input.trim().replace(/[.!]+$/gu, "");
+  const match = /^(?:привет|здравствуй(?:те)?|добрый\s+(?:день|вечер))(?:\s*[,!]\s*|\s+)?(.*)$/iu.exec(normalized);
+  if (!match || /[?;:—–]/u.test(normalized) || splitReplicaClauses(input).length !== 1) return null;
+  const suffix = match[1]?.trim() ?? "";
+  let addressee: GmTurnDecision["addressee"] = { kind: "gm" };
+  if (suffix) {
+    const bound = bindSceneSurface(suffix, snapshot.scene.context.knownPeople.map((person) => ({
+      observerRef: person.observerRef, label: person.label, knownAs: person.knownAs,
+    })));
+    if (bound.status === "ambiguous") {
+      return {
+        status: "clarification",
+        question: "К кому именно ты обращаешься — " + bound.labels.join(" или ") + "?",
+        options: bound.entries.map((entry, index) => ({
+          optionId: "candidate-" + (index + 1), label: bound.labels[index] ?? entry.label,
+          referentRefs: [entry.observerRef],
+        })),
+      };
+    }
+    if (bound.status !== "unique") {
+      return { status: "clarification", question: "К кому ты обращаешься?", options: [{ optionId: "rephrase", label: "Уточнить адресата" }] };
+    }
+    const words = suffix.toLowerCase().replace(/ё/gu, "е").match(/[а-яa-z0-9]+/giu) ?? [];
+    const nameWords = new Set([bound.entry.label, ...bound.entry.knownAs]
+      .flatMap((name) => name.toLowerCase().replace(/ё/gu, "е").match(/[а-яa-z0-9]+/giu) ?? [])
+      .map(stemRussianToken).filter((word) => word.length >= 3));
+    const recipientWords = words.map(stemRussianToken).filter((word) => word.length >= 3);
+    if (!recipientWords.length || recipientWords.some((word) => !nameWords.has(word))) return null;
+    const handle = [...bundle.handleToObserverRef].find(([, ref]) => ref === bound.entry.observerRef)?.[0];
+    if (!handle) return { status: "clarification", question: "К кому ты обращаешься?", options: [{ optionId: "rephrase", label: "Уточнить адресата" }] };
+    addressee = { kind: "npc", handle };
+  }
+  const greeting: GmTurnDecision = {
+    schemaVersion: 2, addressee, kind: "conversation",
+    response: { segments: [{ kind: "social", act: "greeting" }] },
+  };
+  return applyGmDirectorDecision(greeting, bundle, input, snapshot)
+    ?? { status: "clarification", question: "Кому ты хочешь адресовать приветствие?", options: [{ optionId: "rephrase", label: "Уточнить адресата" }] };
+}
+
 /**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
@@ -2141,12 +2201,10 @@ function fallbackAfterModelFailure(
   pronounRewritten = false,
 ): MasterTurnGatewayOutcome {
   if (deterministicHasUnresolvedPronoun(deterministic)) return pronounFallbackClarification();
-  // A PURE question replica never falls back into an action (T6): after a
-  // failed or rejected reply it may still answer deterministically from an
-  // inquiry compound, and otherwise clarifies honestly — it must never
-  // reach the speak/legacy execution branches («Что делает первый
-  // перевозчик?» must not become an addressed speech turn with a tick).
-  if (isPureQuestionReplica(input)) {
+  // A question-bearing replica cannot partially execute its action after the
+  // model drops the question. Resolve only a fully supported compound;
+  // otherwise clarify without advancing time.
+  if (replicaAsksQuestion(input)) {
     const questionCompound = resolveDeterministicCompound(input, snapshot, options);
     if (questionCompound) return questionCompound;
     return genericFallback(options);

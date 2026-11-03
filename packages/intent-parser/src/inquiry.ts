@@ -170,6 +170,10 @@ function isExplicitSpeech(text: string): boolean {
  */
 const REQUEST_VERBS = /^(?:расскажи|скажи|подскажи|напомни|объясни|покажи|уточни|опиши)[,;:\s]+/iu;
 
+/** A corrective topic shift may introduce a question without ending in ? */
+const DISCOURSE_QUESTION_REQUEST = /^(?:(?:не\s+(?:об|про)\s+эт(?:ом|о)|ладно|тогда)\s*[,—–-]?\s*)?(?:(?:а|но)\s+)?(?:лучше|теперь|тогда)?\s*(?:расскажи|скажи|подскажи|напомни|объясни|покажи|уточни|опиши)\s*[,;:—–-]?\s*(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)(?:\s|$)/iu;
+
+
 /** The remainder that turns a request verb into a topic question. */
 const REQUEST_TOPIC_LEAD = /^(?:(?:про|обо|об|о|насчет)\s+|(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)(?:\s|$))/iu;
 
@@ -317,6 +321,7 @@ function knowledgeFocusInquiry(input: string): InquiryRequest | null {
 export function isQuestionLikeInput(input: string): boolean {
   const normalized = normalizeQuestion(input);
   if (isExplicitSpeech(normalized)) return false;
+  if (DISCOURSE_QUESTION_REQUEST.test(normalized)) return true;
   if (/[?]$/u.test(input.trim())) return true;
   if (/^(?:кто|что|где|куда|почему|зачем|как|какие|какая|какой|сколько)/iu.test(normalized)) return true;
   // A topic request («Расскажи про первого перевозчика», «Расскажи о первом»)
@@ -330,8 +335,8 @@ export function isQuestionLikeInput(input: string): boolean {
 export function classifyPlayerInput(input: string, parseAction: (value: string) => IntentResult): PlayerInputClassification {
   const inquiry = directInquiry(input);
   if (inquiry) return { kind: "inquiry", inquiry };
-  if (isQuestionLikeInput(input)) return { kind: "inquiry_candidate", rawText: input };
   const intent = parseAction(input);
+  if (isQuestionLikeInput(input)) return { kind: "inquiry_candidate", rawText: input };
   if ((intent.type === "ActionIntentCommand" && (intent.operation === "speak" || intent.operation === "call"))
     || (intent.type === "InteractionCommand" && intent.verb === "give")) {
     return { kind: "speech", intent };

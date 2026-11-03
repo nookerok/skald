@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import type { ChatMessage, ModelRouter } from "@skald/world";
 import {
   GM_CONTRACT_VERSION,
+  classifyPlayerInput,
   classifyReplicaClauses,
   parseIntent,
   validateGmTurnDecision,
@@ -267,6 +268,7 @@ export function gmDirectorLiveEnabled(): boolean {
 }
 
 const REPEAT_REQUEST_PATTERN = /(?:повтори|повторить|скажи\s+заново|скажи\s+еще\s+раз|что\s+ты\s+(?:только\s+что\s+|сейчас\s+)?(?:сказал|говорил|ответил))/iu;
+const EXPLICIT_SPEECH_DIRECTIVE = /^(?:спроси|спросить|спрошу|спросишь|спросит|спросим|скажи|сказать|обратись|обратиться|позови|позвать|окликни|окликнуть)\b/iu;
 
 /**
  * Read-only P3 adapter. Structured action/question proposals are bound and
@@ -329,7 +331,9 @@ export function applyGmDirectorDecision(
   };
 
   if (decision.kind === "clarification" && decision.clarification) {
-    if (clauses.actions.length > 0 || clauses.inquiries.length > 1) return null;
+    const unsupportedAction = clauses.actions.some(({ intent }) =>
+      intent.type !== "ActionIntentCommand" || (intent.operation !== "speak" && intent.operation !== "call"));
+    if (unsupportedAction || clauses.inquiries.length > 1) return null;
     const question = decision.clarification.question.trim();
     // Do not forward malformed or internal-looking text into the player UI.
     if (!question || question.length > 360 || /(?:person|object|route|location)_[a-z0-9_-]+|\be[a-f0-9]{12}\b/iu.test(question)) return null;
@@ -379,6 +383,16 @@ export function applyGmDirectorDecision(
     // A draft cannot erase a deterministically understood question/action.
     // Keep the same whole-replica discipline as the V2 proposal path.
     if (singleInquiry) return asReadOnlyInquiry();
+    const classification = classifyPlayerInput(input, parseIntent);
+    const explicitSpeechAction = clauses.actions.some(({ intent }) =>
+      intent.type === "ActionIntentCommand" && (intent.operation === "speak" || intent.operation === "call"));
+    if (explicitSpeechAction && EXPLICIT_SPEECH_DIRECTIVE.test(input.trim())) return null;
+    if (classification.kind === "inquiry_candidate") {
+      const hasBoundAnswer = decision.response.segments.length > 0
+        && decision.response.segments.every((segment) => segment.kind === "fact"
+          || (segment.kind === "social" && segment.act === "no_knowledge"));
+      if (decision.addressee.kind !== "gm" || !hasBoundAnswer) return null;
+    }
     if (clauses.inquiries.length > 0 || clauses.actions.some(({ intent }) =>
       intent.type !== "ActionIntentCommand" || (intent.operation !== "unknown" && intent.operation !== "speak" && intent.operation !== "call"))) return null;
     const speaker = decision.addressee.kind === "npc" ? resolveHandlePerson(decision.addressee.handle) : null;
