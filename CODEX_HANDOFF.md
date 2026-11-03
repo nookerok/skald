@@ -1,34 +1,36 @@
-# Current work (2026-11-02 - Conversation Director P0/P1 fixes and P3 extension)
+# Current work (2026-11-03 - Conversation Director P3 question-safety follow-up)
 
-- P0: gm/meta reject ANY handle (legacy V1 and V2), including otherwise visible
-  handles. P1: replaced the blanket multi-NPC “Кто…” clarification rule with
-  list/role/focus contrasts. Corpus is now gm-corpus-v3 (10 cases); role fixtures
-  include the actual observer-safe public role, not hidden names.
-- Implemented: optional GmTurnDecision V2 payload reuses TurnProposalV2 for one
-  action/question/mixed plan, with server-only opaque-handle binding and the
-  existing full semantic/contextual validators. Legacy V1 classification stays
-  compatible; V1 cannot carry the new live payload.
-- Implemented: pure gm/NPC conversation draft (closed social acts / allowed
-  fact selection) persists as zero-time speech_reaction, without Domain Events,
-  communicate, or a second narration call. NPC fact disclosure is NOT allowed
-  merely because the player knows a fact; P4/P5 dossier/voice remain open.
-- Implemented: full live-request dedup through replay publication, conflicting
-  in-flight bodies return 409, stale conversation snapshots clarify, and a dead
-  model does not get called again through legacy V2. Persisted QuestionPlan
-  continuation now has the same SQLite-restart test under BOTH entry routes.
-- Validated: full npm run validate PASS (252 files, 3124 passed, 1 skipped),
-  including canon/simulation/eval/adventure and diff check. A follow-up regression
-  pins that conversation drafts cannot erase understood questions/actions.
-- First updater completed at 4bf1d24 with on-device validate PASS (252/3123/1),
-  health, AI readiness and intent/narration contract PASS. The follow-up
-  whole-replica guard is validated locally but still pending delivery.
-  Production live remains off; no P3 live/provider/browser acceptance claimed.
-- Still required for the active goal: full gate; real provider corpus and free
-  20–30-replica acceptance with reload/retry/refusal/changed decision/model loss;
-  actual browser evidence and separate human verdict. Do not mark P3 complete
-  from the scripted tests. Then P4/P5; P6 needs an explicit revision of the
-  accepted one-primary-intent constraint before coordinator/journal work; P7
-  must consolidate actual outcomes rather than trust fact-citing prose.
+- P0/P1 contracts, shadow scorecard and P2 persistence remain implemented. The
+  scorecard corpus is now v4: exact registered query IDs, exact clarification
+  candidate handles and an explicit no-subject expectation are validated and
+  recorded per case.
+- P3 remains opt-in. Pure conversation drafts use the accepted zero-event,
+  zero-time read-side path; explicit speak/call directives remain on the
+  authoritative action path.
+- Follow-up to the latest scratch browser report: corrective topic-shift
+  questions without a final question mark are now classified as question
+  candidates. If the Director drops such a question or proposes only an
+  unrepresented action, the gateway clarifies instead of executing a partial
+  turn. Closed no-knowledge/fact-only answers remain allowed.
+- Safe model clarifications for unresolved speech addressees can be bridged only
+  when candidate handles bind to current scene identities. Bare addressed
+  greetings are kept read-side even if the model mislabels them as speak
+  actions; this narrow rule does not rewrite explicit speech commands.
+- Corrected the T3 fallback contract: an unsupported embedded question is not
+  silently discarded by executing only its understood action.
+- Validation: focused P3/parser suite PASS (183 tests); full
+  `npm run validate` PASS after the handoff update (2026-11-03), including
+  typecheck, all tests, canon, simulation, eval, adventure and diff check.
+- Release state: local `HEAD == origin/main == 143ff2c`; implementation and
+  corpus-v4 changes are uncommitted. `plan_1.md` through `plan_9.md` remain
+  user-owned and untracked. Orange Pi was read-only verified reachable at
+  `143ff2c`, with service/timers active and health 200. No code was deployed
+  and no production live flag was changed in this slice.
+- Next: rerun the full gate after the handoff update, review/stage only the
+  intended source, tests and docs (never the planning files), then commit/push
+  and deploy. Run a new fixed-runner browser QA on a scratch world with
+  corrected scene assumptions; keep repository, API, browser, visual, provider
+  and human verdicts separate. P3 is not yet externally accepted.
 
 ## Previous release (historical snapshot; unchanged production runtime)
 

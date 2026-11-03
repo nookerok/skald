@@ -34,9 +34,20 @@ turn and is not persisted as a Domain Event.
 
 ## Invariants
 
+The Conversation Director P3 amendment in ADR-0028 also permits a closed,
+non-authoritative pure-conversation draft to be stored in the existing
+`speech_reaction` transcript vocabulary with zero Events and zero world-time
+cost. This is a read-side conversation response, not the `communicate`/`speak`
+action pipeline. Explicit speak/call actions remain on that pipeline. If a
+question-bearing replica cannot be fully represented by a registered inquiry
+or a validated P3 conversation decision, the degraded path clarifies rather
+than executing only an understood action or inventing an answer.
+
 - Event Log, Projection and world time are unchanged by Inquiry.
 - Unknown routes, objects, contacts and coordinates do not cross the observer boundary.
-- A question addressed to an NPC remains in-world speech.
+- An explicit player command to speak to or question an NPC remains in-world
+  speech; a closed P3 pure-conversation draft follows the zero-time,
+  zero-Event boundary above.
 - LLM failures produce a natural clarification, never a technical parser message.
 
 ## Consequences
