@@ -811,3 +811,13 @@ describe("referent rejection diagnostics (full-master Stage 1)", () => {
     }
   });
 });
+
+describe("observer-safe address forms", () => {
+  it("binds an authored form without replacing an unknown person's safe display label", () => {
+    const entry = { observerRef: "person_1", label: "Незнакомый человек", knownAs: [], addressForms: ["смотритель", "страж ворот"] };
+    expect(bindSceneSurface("смотрителя", [entry])).toMatchObject({
+      status: "unique",
+      entry: { observerRef: "person_1", label: "Незнакомый человек" },
+    });
+  });
+});

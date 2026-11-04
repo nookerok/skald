@@ -9,6 +9,7 @@
  * `GM_CORPUS_VERSION`.
  */
 
+import type { MasterTurnSceneContext } from "@skald/world";
 import { stableActorHandle } from "../conversation/gm-context.js";
 
 export interface GmFixturePerson {
@@ -16,6 +17,8 @@ export interface GmFixturePerson {
   readonly known: boolean;
   /** Publicly observable role, never a hidden canonical identity. */
   readonly publicRole?: string;
+  /** Publicly authored ways the player may address an unfamiliar person. */
+  readonly addressForms?: readonly string[];
 }
 
 export interface GmFixtureTurn {
@@ -42,6 +45,37 @@ export interface GmFixture {
   readonly forbidden: readonly string[];
 }
 
+
+/** Build the shared observer-safe scene fixture used by Director tests and the live scorecard. */
+export function buildGmFixtureScene(fixture: GmFixture): MasterTurnSceneContext {
+  return {
+    schemaVersion: 1,
+    revision: { worldTime: 0, eventNumber: 0 },
+    currentLocation: { name: "\u041f\u0435\u0440\u0435\u043f\u0440\u0430\u0432\u0430", description: "\u041c\u0435\u0441\u0442\u043e \u0443 \u0432\u043e\u0434\u044b" },
+    visibleObjects: [],
+    knownPeople: fixture.people.map((person, index) => ({
+      observerRef: `person_${index + 1}`,
+      kind: "person" as const,
+      label: person.label,
+      knownAs: [],
+      known: person.known,
+      ...((person.publicRole || person.addressForms?.length)
+        ? { portrait: {
+          visibleAppearance: [],
+          distinguishingFeatures: [],
+          publicRole: person.publicRole ?? null,
+          addressForms: person.addressForms ?? [],
+        } }
+        : {}),
+    })),
+    knownRoutes: [],
+    accessibleItems: [],
+    availableActions: [],
+    currentSituation: null,
+    knownTopics: [],
+  } as unknown as MasterTurnSceneContext;
+}
+
 /**
  * Versioned baseline identity of this corpus. A scorecard is only comparable
  * across runs that carry the SAME `GM_CORPUS_VERSION`; changing any fixture
@@ -54,8 +88,9 @@ export interface GmFixture {
  * v3: distinguish list/role questions from genuinely ambiguous addressees;
  * add multi-actor focus, and carry the observable roles used by role questions.
  * v4: assert the exact nearby query, exact clarification candidates and absent subject.
+ * v5 (2026-11-04): exercise observer-safe public address forms for an unfamiliar NPC.
  */
-export const GM_CORPUS_VERSION = "gm-corpus-v4";
+export const GM_CORPUS_VERSION = "gm-corpus-v5";
 
 /**
  * The handle the npc expectation names. The corpus stores `npcLabel` and the
@@ -144,6 +179,14 @@ export const GM_CORPUS: readonly GmFixture[] = [
     recentTurns: [],
     expected: { addresseeKind: "npc", kind: "action", npcLabel: ferryman.label },
     forbidden: ["contact:"],
+  },
+  {
+    id: "unknown-contact-public-address",
+    input: "Привет, смотритель",
+    people: [{ ...gatekeeper, addressForms: ["смотритель", "страж ворот"] }],
+    recentTurns: [],
+    expected: { addresseeKind: "npc", kind: "conversation", npcLabel: gatekeeper.label },
+    forbidden: ["contact:riverwatch-gatekeeper", gatekeeper.label],
   },
   {
     id: "retry-request",

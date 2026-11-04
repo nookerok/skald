@@ -4,7 +4,6 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import type { MasterTurnSceneContext } from "@skald/world";
 import type { ModelRouter } from "@skald/world";
 import { validateGmTurnDecision } from "@skald/intent-parser";
 import { buildGmContext } from "../src/conversation/gm-context.js";
@@ -12,32 +11,10 @@ import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normal
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import type { MasterConversationContext } from "../src/conversation/context-builder.js";
-import { GM_CORPUS, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
+import { buildGmFixtureScene, GM_CORPUS, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
 import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../src/conversation/gm-prompt.js";
 
 const ferrymanLabel = "Перевозчик у переправы";
-
-function sceneOf(fixture: GmFixture): MasterTurnSceneContext {
-  return {
-    schemaVersion: 1,
-    revision: { worldTime: 0, eventNumber: 0 },
-    currentLocation: { name: "Переправа", description: "Место у воды" },
-    visibleObjects: [],
-    knownPeople: fixture.people.map((person, index) => ({
-      observerRef: `person_${index + 1}`,
-      kind: "person" as const,
-      label: person.label,
-      knownAs: [],
-      known: person.known,
-      ...(person.publicRole ? { portrait: { publicRole: person.publicRole } } : {}),
-    })),
-    knownRoutes: [],
-    accessibleItems: [],
-    availableActions: [],
-    currentSituation: null,
-    knownTopics: [],
-  } as unknown as MasterTurnSceneContext;
-}
 
 function conversationOf(fixture: GmFixture): MasterConversationContext {
   return {
@@ -61,7 +38,7 @@ function routerReturning(decision: unknown): ModelRouter {
 describe("buildGmContext", () => {
   it("assigns opaque hash handles and keeps internal ids out of the context", () => {
     const fixture = GM_CORPUS[1];
-    const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+    const { context, handleToObserverRef } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
     expect(context.actors).toHaveLength(2);
     for (const handle of handleToObserverRef.keys()) expect(handle).toMatch(/^e[0-9a-f]{12}$/);
     const ferryHandle = [...handleToObserverRef.entries()].find(([, ref]) => ref === "person_1")![0];
@@ -74,7 +51,7 @@ describe("buildGmContext", () => {
 
   it("keeps a person's handle stable across reorder AND actor insertion", () => {
     const fixture = GM_CORPUS[1];
-    const scene = sceneOf(fixture);
+    const scene = buildGmFixtureScene(fixture);
     const first = buildGmContext({ scene, conversation: conversationOf(fixture) });
     const ferryHandle = [...first.handleToObserverRef.entries()].find(([, ref]) => ref === "person_1")![0];
 
@@ -95,7 +72,7 @@ describe("buildGmContext", () => {
   it("caps known facts at the builder-owned bound", () => {
     const fixture = GM_CORPUS[0];
     const { context } = buildGmContext({
-      scene: sceneOf(fixture),
+      scene: buildGmFixtureScene(fixture),
       conversation: conversationOf(fixture),
       knowledgeTexts: Array.from({ length: 20 }, (_, i) => `Факт ${i + 1}`),
     });
@@ -103,10 +80,20 @@ describe("buildGmContext", () => {
     expect(context.knownFacts[0]).toMatchObject({ factId: "k1" });
   });
 
+  it("passes corpus-authored public address forms without leaking an unknown canonical name", () => {
+    const fixture = GM_CORPUS.find((entry) => entry.id === "unknown-contact-public-address")!;
+    const { context } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
+    const unknownActor = context.actors[0]!;
+    expect(unknownActor.displayLabel).toBe("Незнакомый человек");
+    expect(unknownActor.visibleDescription).toContain("смотритель");
+    expect(unknownActor.visibleDescription).toContain("страж ворот");
+    expect(JSON.stringify(context)).not.toContain(fixture.people[0]!.label);
+  });
+
   it("carries the real sceneEngagement and bounded known facts", () => {
     const fixture = GM_CORPUS[0];
     const { context } = buildGmContext({
-      scene: sceneOf(fixture),
+      scene: buildGmFixtureScene(fixture),
       conversation: conversationOf(fixture),
       sceneEngagement: { state: "near", label: ferrymanLabel },
       knowledgeTexts: ["Ты знаешь дорогу к городу", "Ты видел ночной след"],
@@ -120,7 +107,7 @@ describe("buildGmContext", () => {
 describe("interpretGmDecision — prompt carries the scene (scenario-conditioned router)", () => {
   it("the router sees the replica and the history, and its answer decides", async () => {
     for (const fixture of [GM_CORPUS[0], GM_CORPUS[1]]) {
-      const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      const { context, handleToObserverRef } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
       const npcHandle = [...handleToObserverRef.keys()][0];
       const seen = { replica: false, history: fixture.recentTurns.length === 0 };
       const router = {
@@ -146,10 +133,10 @@ describe("interpretGmDecision — prompt carries the scene (scenario-conditioned
   });
 });
 
-describe("interpretGmDecision — seven problematic replicas", () => {
+describe("interpretGmDecision — versioned contrasting replicas", () => {
   for (const fixture of GM_CORPUS) {
     it(`${fixture.id} → ${fixture.expected.addresseeKind}/${fixture.expected.kind}`, async () => {
-      const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      const { context, handleToObserverRef } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
       const npcHandle = fixture.expected.addresseeKind === "npc" ? expectedNpcHandle(fixture) : undefined;
       const subjectHandle = expectedSubjectHandle(fixture);
       expect(npcHandle === undefined || [...handleToObserverRef.keys()].includes(npcHandle)).toBe(true);
@@ -188,7 +175,7 @@ describe("interpretGmDecision — seven problematic replicas", () => {
 describe("interpretGmDecision — fallbacks", () => {
   const base = {
     input: "Привет",
-    context: buildGmContext({ scene: sceneOf(GM_CORPUS[2]), conversation: conversationOf(GM_CORPUS[2]) }).context,
+    context: buildGmContext({ scene: buildGmFixtureScene(GM_CORPUS[2]), conversation: conversationOf(GM_CORPUS[2]) }).context,
     handleKeys: ["e1"],
     turnKey: "intent-fb",
   };
@@ -211,7 +198,7 @@ describe("interpretGmDecision — fallbacks", () => {
 
   it("falls back on a clarification candidate that is invisible in this scene", async () => {
     const twoPeople = GM_CORPUS[1]; // two visible people
-    const built = buildGmContext({ scene: sceneOf(twoPeople), conversation: conversationOf(twoPeople) });
+    const built = buildGmContext({ scene: buildGmFixtureScene(twoPeople), conversation: conversationOf(twoPeople) });
     const [first] = [...built.handleToObserverRef.keys()];
     const result = await interpretGmDecision({
       input: twoPeople.input,
@@ -595,7 +582,7 @@ describe("expectedNpcHandle", () => {
 });
 
 describe("interpretGmDecision — single-flight", () => {
-  const built = buildGmContext({ scene: sceneOf(GM_CORPUS[2]), conversation: conversationOf(GM_CORPUS[2]) });
+  const built = buildGmContext({ scene: buildGmFixtureScene(GM_CORPUS[2]), conversation: conversationOf(GM_CORPUS[2]) });
   const base = {
     input: "Привет",
     context: built.context,
@@ -702,7 +689,7 @@ describe("gm prompt", () => {
     for (const id of ["ambiguous-recipient", "people-list-multiple-actors", "identify-person-by-visible-role", "pronoun-with-multiple-actors-and-focus"]) {
       const fixture = GM_CORPUS.find((entry) => entry.id === id)!;
       expect(fixture).toBeDefined();
-      const built = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+      const built = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
       expect(built.context.actors).toHaveLength(2);
       if (id === "identify-person-by-visible-role") {
         const subject = built.context.actors.find((actor) => actor.handle === expectedSubjectHandle(fixture));
@@ -716,7 +703,7 @@ describe("gm prompt", () => {
   it("carries no literal placeholder handles and embeds the scene's real ones", async () => {
     expect(GM_DIRECTOR_SYSTEM_PROMPT).not.toContain("<HANDLE");
     const fixture = GM_CORPUS[1]; // two visible people
-    const { context } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+    const { context } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
     const userPrompt = buildGmDecisionPrompt(fixture.input, context);
     for (const actor of context.actors) expect(userPrompt).toContain(actor.handle);
     expect(userPrompt).not.toContain("<HANDLE");
@@ -724,7 +711,7 @@ describe("gm prompt", () => {
 
   it("provides a schema-valid QuestionPlan-only example with an observer-safe subject surface", () => {
     const fixture = GM_CORPUS[0];
-    const { context } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+    const { context } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
     const userPrompt = buildGmDecisionPrompt(fixture.input, context);
     const line = userPrompt.split("\n").find((value) => value.startsWith("7) "));
     expect(line).toBeDefined();
@@ -754,7 +741,7 @@ describe("gm prompt", () => {
     const baseFixture = GM_CORPUS.find((entry) => entry.id === "identify-person-by-visible-role")!;
     const hiddenPerson = baseFixture.people.find((person) => !person.known)!;
     const fixture = { ...baseFixture, people: [hiddenPerson] };
-    const { context } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+    const { context } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
     const userPrompt = buildGmDecisionPrompt(fixture.input, context);
     expect(context.actors).toHaveLength(1);
     expect(context.actors[0]?.displayLabel).toBe("Незнакомый человек");
@@ -765,7 +752,7 @@ describe("gm prompt", () => {
 
 describe("applyGmDirectorDecision (P3 bridge)", () => {
   const fixture = GM_CORPUS[1]; // two visible people
-  const sceneContext = sceneOf(fixture);
+  const sceneContext = buildGmFixtureScene(fixture);
   const references = new Map<string, { kind: "person"; internalId: string; label: string }>([
     ["person_1", { kind: "person", internalId: "contact:ferryman", label: ferrymanLabel }],
     ["person_2", { kind: "person", internalId: "contact:gatekeeper", label: "Смотритель речных ворот" }],

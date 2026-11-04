@@ -37,7 +37,6 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { MasterTurnSceneContext } from "@skald/world";
 import type { MasterConversationContext } from "../conversation/context-builder.js";
 import { buildGmContext } from "../conversation/gm-context.js";
 import { interpretGmDecision } from "../runtime/conversation-director.js";
@@ -45,7 +44,7 @@ import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../conversatio
 import { scoreGmCorpus, type GmScoreEntry } from "../conversation/gm-scorecard.js";
 import { createLiveRouterConfiguration, refreshRouterSelection } from "../runtime/router-factory.js";
 import { applyServiceEnv } from "./service-env.js";
-import { GM_CORPUS, GM_CORPUS_VERSION, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "./gm-corpus.js";
+import { buildGmFixtureScene, GM_CORPUS, GM_CORPUS_VERSION, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "./gm-corpus.js";
 import { corpusConfigErrors, dirtyOffenders, parseGmRuns } from "./scorecard-env.js";
 
 const OUT = process.env["OUT"] ?? "eval-out/gm-shadow-scorecard.json";
@@ -74,28 +73,6 @@ function actualCommit(): string | null {
   } catch {
     return null;
   }
-}
-
-function sceneOf(fixture: GmFixture): MasterTurnSceneContext {
-  return {
-    schemaVersion: 1,
-    revision: { worldTime: 0, eventNumber: 0 },
-    currentLocation: { name: "Переправа", description: "Место у воды" },
-    visibleObjects: [],
-    knownPeople: fixture.people.map((person, index) => ({
-      observerRef: `person_${index + 1}`,
-      kind: "person" as const,
-      label: person.label,
-      knownAs: [],
-      known: person.known,
-      ...(person.publicRole ? { portrait: { publicRole: person.publicRole } } : {}),
-    })),
-    knownRoutes: [],
-    accessibleItems: [],
-    availableActions: [],
-    currentSituation: null,
-    knownTopics: [],
-  } as unknown as MasterTurnSceneContext;
 }
 
 function conversationOf(fixture: GmFixture): MasterConversationContext {
@@ -171,7 +148,7 @@ if (pinnedProvider !== null) {
 // Build the per-fixture scenes ONCE: the same contexts feed the model, the
 // privacy check and the digest, so all three describe the same run.
 const prepared = GM_CORPUS.map((fixture) => {
-  const { context, handleToObserverRef } = buildGmContext({ scene: sceneOf(fixture), conversation: conversationOf(fixture) });
+  const { context, handleToObserverRef } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
   const allowedHandles = [...handleToObserverRef.keys()];
   const contextJson = JSON.stringify(context);
   return {

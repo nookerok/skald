@@ -25,17 +25,25 @@ function routerFor(getDecision: () => unknown) {
   });
   return { router: { apiKey: "", chat } as any, chat };
 }
-async function fresh(router: any) {
+async function fresh(router: any, entrypointId?: string, unfamiliarContactRef?: string) {
   vi.stubEnv("GM_DIRECTOR_LIVE", "1");
   vi.stubEnv("GM_DIRECTOR_SHADOW", "0");
   vi.stubEnv("SKALD_INTENT_LLM_MODE", "fallback");
   const path = join(mkdtempSync(join(tmpdir(), "skald-director-live-")), "events.sqlite");
   const store = createMultiWorldStore(path);
+  const bootstrapEvents = entrypointId
+    ? buildBootstrapEvents({ templateId: "living_region", entrypointId })
+    : buildBootstrapEvents("living_region");
+  const worldBootstrapEvents = unfamiliarContactRef
+    ? bootstrapEvents.filter((event) =>
+        event.type !== "RelationChanged"
+        || (event.payload as { to?: string }).to !== unfamiliarContactRef)
+    : bootstrapEvents;
   store.createWorld({
     worldId: WORLD, idempotencyKey: "create", requestHash: "create", saveLabel: "Director live",
     characterName: "Tester", characterPresetId: "wanderer", worldTemplateId: "living_region",
     characterWound: "none", characterPromise: "observe", characterPrinciple: "care", characterProfileVersion: 1,
-    bootstrapEvents: buildBootstrapEvents("living_region"),
+    bootstrapEvents: worldBootstrapEvents,
   });
   const runtime = await new WorldRuntimeManager(store, router).get(WORLD);
   return { path, store, runtime };
@@ -85,6 +93,28 @@ describe("P3 Director production path", () => {
       expect(reopened.loadEvents(WORLD)).toHaveLength(count);
       expect((await handleWorldCommand(restarted, { input: "другая реплика", idempotencyKey: "conversation" })).statusCode).toBe(409);
     } finally { reopened.close(); }
+  });
+
+  it("binds an unknown NPC's authored address form for a greeting without revealing their name", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const gatekeeper = scene.context.knownPeople.find((person) => person.portrait?.addressForms.includes("смотритель"));
+    expect(gatekeeper).toBeDefined();
+    expect(gatekeeper).toMatchObject({ label: "Незнакомый человек", known: false });
+    const eventCount = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input: "Привет, смотритель", idempotencyKey: "unknown-address-form" }));
+      expect(body.status).toBe("conversation");
+      expect(body.masterTurn.deterministicText).toContain("Незнакомый человек");
+      expect(body.masterTurn.deterministicText).toContain("Здравствуй.");
+      expect(body.masterTurn.deterministicText).not.toContain("Смотритель речных ворот");
+      expect(JSON.stringify(body)).not.toMatch(/person_|contact:|targetRef|internalId|Смотритель речных ворот/iu);
+      expect(JSON.stringify(chat.mock.calls)).toContain("смотритель");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(eventCount);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+    } finally { store.close(); }
   });
 
   it("recovers a pure speech turn without its envelope, without another provider call", async () => {
