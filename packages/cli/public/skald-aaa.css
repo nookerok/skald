@@ -328,3 +328,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,[role=button]:fo
 .map-detail-card img{filter:brightness(.78) saturate(.82)}
 
 .map-approximation-haze{fill:rgba(200,210,206,.18);stroke:rgba(200,210,206,.5);stroke-width:1;stroke-dasharray:3 4;filter:blur(2px)}
+
+/* Long return summaries must remain reachable on short mobile viewports. */
+@media(max-width:760px){#panel-presence-entry{place-items:start center;overflow:visible}}

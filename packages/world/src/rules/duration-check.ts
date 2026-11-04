@@ -33,8 +33,11 @@ export const durationCheck: Rule<ReadonlyWorld> = {
       }];
     }
 
-    // Block all other actions while traveling.
-    if (world.activeJourneyId != null && event.type !== "TickPassed") {
+    // Waiting is the command that advances an active journey. Other actions
+    // remain unavailable until the journey completes or is interrupted.
+    const isJourneyWait = event.type === "ActionAttempted"
+      && (event.payload as { operation?: unknown }).operation === "wait";
+    if (world.activeJourneyId != null && event.type !== "TickPassed" && !isJourneyWait) {
       return [
         {
           eventId: ruleEventId(event.eventId, "ActionRejected", 0),

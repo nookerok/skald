@@ -3,7 +3,7 @@ import type { DomainEvent } from "@skald/event-bus";
 import type { ReadonlyWorld } from "@skald/world";
 import { durationCheck } from "@skald/world";
 
-function world(lastActionTick = 0): ReadonlyWorld {
+function world(lastActionTick = 0, activeJourneyId: string | null = null): ReadonlyWorld {
   return Object.freeze({
     player: Object.freeze({ x: 0, y: 0 }),
     walls: new Set<string>(),
@@ -18,6 +18,7 @@ function world(lastActionTick = 0): ReadonlyWorld {
     lastActionTick,
     eventNumber: 0,
     time: 0,
+    activeJourneyId,
   }) as unknown as ReadonlyWorld;
 }
 
@@ -87,6 +88,30 @@ describe("simulation.duration_check", () => {
     const w = world(0);
     durationCheck.handle(event, w);
     expect(w.lastActionTick).toBe(0);
+  });
+
+  it("validates wait while traveling so the journey can advance", () => {
+    const event = evt("ActionAttempted", "wait-journey-1", { mode: "social", operation: "wait" }, 5);
+    const out = durationCheck.handle(event, world(0, "journey-1"));
+
+    expect(out).toEqual([expect.objectContaining({
+      type: "ActionValidated",
+      payload: {
+        actionType: "ActionAttempted",
+        originalEventId: "wait-journey-1",
+        originalPayload: { mode: "social", operation: "wait" },
+      },
+    })]);
+  });
+
+  it("continues rejecting non-wait actions while traveling", () => {
+    const event = evt("ActionAttempted", "look-journey-1", { mode: "observe", operation: "look" }, 5);
+    const out = durationCheck.handle(event, world(0, "journey-1"));
+
+    expect(out).toEqual([expect.objectContaining({
+      type: "ActionRejected",
+      payload: { reason: "traveling" },
+    })]);
   });
 });
 

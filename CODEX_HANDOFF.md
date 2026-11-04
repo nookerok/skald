@@ -1,4 +1,33 @@
-# Current work (2026-11-03 - Conversation Director P3 question-safety follow-up)
+# Current work (2026-11-04 - post-deploy browser QA follow-up)
+
+- The fixed NTFS QA runner completed job `gmdirector-public-address-20261104-1`
+  against deployed `a92406f`; the immutable receipt is verified and the
+  result is **FAIL**, not a blended pass. Report SHA-256:
+  `2e599ccc8f21fca9003330337a556abf52beddec092e8231912587894788fd07`.
+- The report's Event Log proves that `ждать` during a journey emitted
+  `ActionRejected(reason=traveling)` in the same pulse as
+  `JourneyCompleted`/`PlayerLocationChanged`. Rejection precedence then
+  narrated a stale in-travel refusal over arrival. Current source/test fix
+  allows only `ActionAttempted[operation=wait]` during a journey; other
+  actions remain rejected. The characterization pins arrival text, no
+  rejection event and +1 time.
+- The same report found the mobile Return screen heading clipped above the
+  390x844 viewport by the later-loaded AAA stylesheet's centered, clipped
+  root. Current CSS aligns the entry content at the top and permits vertical
+  page scrolling below 760px; the stylesheet query version was bumped.
+- Focused checks: 4 files / 69 tests PASS. Full `npm run validate` PASS on
+  the source changes. Browser verification of the fixes is still pending.
+- Read-only Pi preflight after network restoration: remote `HEAD=a92406f`,
+  clean main, service and both timers active, health 200, restricted restart
+  permission present. The current working tree contains only this scoped fix
+  plus the pre-existing user-owned untracked `plan_1.md`-`plan_9.md` and
+  `CODEX_HANDOFF.md.orig`; those files are preserved and excluded.
+- Next: commit/push this fix, deploy with the Orange Pi updater, then dispatch
+  a **new** fixed-runner QA job on a scratch world to verify arrival narration
+  and mobile Return scrolling. Browser/visual, provider and human verdicts
+  remain separate; no human acceptance is claimed.
+
+## Previous current work (2026-11-03 - Conversation Director P3 question-safety follow-up)
 
 - P0/P1 contracts, shadow scorecard and P2 persistence remain implemented. The
   scorecard corpus is now v4: exact registered query IDs, exact clarification

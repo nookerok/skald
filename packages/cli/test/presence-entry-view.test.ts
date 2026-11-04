@@ -195,6 +195,15 @@ describe("presence-entry.css", () => {
   });
 });
 
+describe("mobile return screen layout", () => {
+  it("keeps long presence summaries reachable instead of clipping them in the viewport", () => {
+    const css = code("skald-aaa.css");
+    const mobileRule = css.slice(css.lastIndexOf("@media(max-width:760px){#panel-presence-entry"));
+    expect(mobileRule).toContain("place-items:start center");
+    expect(mobileRule).toContain("overflow:visible");
+  });
+});
+
 describe("menu.css hidden panel", () => {
   it("removes the hidden menu from the layout", () => {
     expect(code("menu.css")).toContain("#panel-menu[hidden] { display:none; }");

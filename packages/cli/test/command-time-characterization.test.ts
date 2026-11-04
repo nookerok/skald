@@ -222,6 +222,11 @@ describe("command time & movement characterization (T1)", () => {
     });
     expect(row.tickCount).toBe(1);
     expect(row.timeAfter).toBe(row.timeBefore + 1);
+    expect(row.delta).toContain("JourneyCompleted");
+    expect(row.delta).not.toContain("ActionRejected");
+    const responseText = String(row.reply.presentation?.response?.text ?? row.reply.presentation?.primary?.text ?? "");
+    expect(responseText).toContain("Ты добрался");
+    expect(responseText).not.toContain("пока следующий этап не завершится");
     row.store.close();
   });
 
