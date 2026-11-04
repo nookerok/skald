@@ -18,19 +18,40 @@
   actions; this narrow rule does not rewrite explicit speech commands.
 - Corrected the T3 fallback contract: an unsupported embedded question is not
   silently discarded by executing only its understood action.
-- Validation: focused P3/parser suite PASS (183 tests); full
-  `npm run validate` PASS after the handoff update (2026-11-03), including
-  typecheck, all tests, canon, simulation, eval, adventure and diff check.
-- Release state: local `HEAD == origin/main == 143ff2c`; implementation and
-  corpus-v4 changes are uncommitted. `plan_1.md` through `plan_9.md` remain
-  user-owned and untracked. Orange Pi was read-only verified reachable at
-  `143ff2c`, with service/timers active and health 200. No code was deployed
-  and no production live flag was changed in this slice.
-- Next: rerun the full gate after the handoff update, review/stage only the
-  intended source, tests and docs (never the planning files), then commit/push
-  and deploy. Run a new fixed-runner browser QA on a scratch world with
-  corrected scene assumptions; keep repository, API, browser, visual, provider
-  and human verdicts separate. P3 is not yet externally accepted.
+- Isolated P3 API exploration on a scratch world against deployed `bfbeee8`
+  exercised 20 turns plus restart/replay/idempotency. It found a concrete
+  negated-travel bug: “не хочу идти внутрь” could start a journey to “внутрь”.
+  The same run exposed remaining quality gaps: “Привет, смотритель” did not bind
+  to an observer-safe unknown-person label, and some factual replies were
+  awkward or generic. This was API exploration, not browser, visual, provider-
+  attribution or human acceptance.
+- Local parser fix maps only a complete, non-question, non-compound travel
+  cancellation to the existing zero-time `interrupt` command. Positive
+  replacement travel remains a JourneyIntent. Parser and P3 handler tests cover
+  cancellation, mixed/question inputs, interruption event, no new journey or
+  tick, and no interpret-model call.
+- Validation: focused P3/parser suite PASS (36 tests); full
+  `npm run validate` PASS after the local source and handoff updates (2026-11-04).
+- Fresh live corpus-v4 scorecard on the Pi (commit `bfbeee8`, 6 immutable runs,
+  10 cases each, effective route `ollama_cloud/gemma4:31b-cloud`):
+  schema/accepted/addressee/kind/handles **57/60**; subject/question/privacy
+  **60/60**. The only miss was `retry-request` with `schema:invalid` in 3/6
+  runs; provider attribution was present and the safe fallback was used. Files
+  remain in the Pi's ignored `eval-out/gm-corpus-v4-live-20261103.*` and
+  `eval-out/gm-corpus-v4-repeat-20261103.*` paths. This is a measured
+  reliability gap; S0 is not fully green.
+- Release state: deployed runtime remains at `bfbeee8`; this local slice
+  is based on that commit. The last successful Pi check at `bfbeee8` showed
+  service/timers active, health 200 and loopback probe `ready/pass`.
+  On 2026-11-04, Windows and WSL TCP probes to `192.168.0.5:22` and
+  `:3000` timed out; Pi is not freshly verified. Production flag remains disabled.
+  Source/test commits exist locally; push is unconfirmed because Git SSH timed
+  out. `plan_1.md` through `plan_9.md` remain user-owned and untracked.
+  No production deployment occurred; `CODEX_HANDOFF.md.orig` is a local backup.
+- Next: decide whether to accept the isolated `retry-request` reliability gap
+  or tune it; then finish the P3 alias/addressing and real question-continuation
+  acceptance. Commit/push/deploy and scratch browser/human acceptance remain
+  separate gates; P3 is not yet externally accepted.
 
 ## Previous release (historical snapshot; unchanged production runtime)
 
