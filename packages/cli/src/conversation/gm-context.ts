@@ -64,7 +64,12 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
       handle,
       ...(person.known ? { displayName: person.label } : {}),
       displayLabel: person.known ? person.label : "Незнакомый человек",
-      visibleDescription: person.portrait?.publicRole ?? person.portrait?.distinguishingFeatures?.join("; ") ?? "",
+      visibleDescription: [
+        person.portrait?.publicRole ?? person.portrait?.distinguishingFeatures?.join("; "),
+        person.portrait?.addressForms?.length
+          ? "Публичные формы обращения: " + person.portrait.addressForms.join(", ")
+          : undefined,
+      ].filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(". "),
       familiarityTier: familiarityOf(person.known),
     } as const;
   });

@@ -114,6 +114,8 @@ interface SceneBindEntry {
   readonly observerRef: string;
   readonly label: string;
   readonly knownAs: readonly string[];
+  /** Explicitly authored observer-safe forms of address for a person. */
+  readonly addressForms?: readonly string[];
   /** Observer-safe distinguishing detail used only when public labels collide. */
   readonly disambiguator?: string;
 }
@@ -159,7 +161,7 @@ export function bindSceneSurface(
   const distinct = [...new Map(entries.map((entry) => [entry.observerRef, entry])).values()];
   const exact = distinct.filter((entry) =>
     normalizeBindText(entry.label) === norm
-    || entry.knownAs.some((alias) => normalizeBindText(alias) === norm),
+    || [...entry.knownAs, ...(entry.addressForms ?? [])].some((alias) => normalizeBindText(alias) === norm),
   );
   if (exact.length === 1) return { status: "unique", entry: exact[0]! };
   if (exact.length > 1) return ambiguousBindResult(exact);
@@ -176,7 +178,7 @@ export function bindSceneSurface(
   // label is actually named. Mirrors the gateway speak binder.
   const inputSequence = sequenceOf(surface);
   const phrased = distinct.filter((entry) =>
-    [entry.label, ...entry.knownAs].some((text) => {
+    [entry.label, ...entry.knownAs, ...(entry.addressForms ?? [])].some((text) => {
       const phrase = sequenceOf(text);
       if (phrase.length === 0 || inputSequence.length < phrase.length) return false;
       outer: for (let start = 0; start + phrase.length <= inputSequence.length; start += 1) {
@@ -195,7 +197,7 @@ export function bindSceneSurface(
       .map((word) => stemWord(word))
       .filter((word): word is string => word !== null),
   );
-  const vocabOf = (entry: SceneBindEntry): readonly string[] => [entry.label, ...entry.knownAs]
+  const vocabOf = (entry: SceneBindEntry): readonly string[] => [entry.label, ...entry.knownAs, ...(entry.addressForms ?? [])]
     .flatMap((text) => normalizeBindText(text).split(/[^a-zа-я0-9]+/iu))
     .filter((word) => word.length > 0)
     .map((word) => stemWord(word))
@@ -522,6 +524,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
     if (!addressee.ref?.observerRef && proposal.addressedEntity?.surface) {
       const people = scene.context.knownPeople.map((entry) => ({
         observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+        addressForms: entry.portrait?.addressForms ?? [],
         ...((entry.portrait?.publicRole ?? entry.portrait?.distinguishingFeatures?.slice(0, 2).join("; "))
           ? { disambiguator: entry.portrait.publicRole ?? entry.portrait.distinguishingFeatures?.slice(0, 2).join("; ") }
           : {}),
@@ -777,6 +780,7 @@ function sceneBindEntries(scene: MasterTurnSceneSnapshot): SceneBindEntry[] {
     ...context.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...context.knownPeople.map((entry) => ({
       observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+      addressForms: entry.portrait?.addressForms ?? [],
       ...((entry.portrait?.publicRole ?? entry.portrait?.distinguishingFeatures?.slice(0, 2).join("; "))
         ? { disambiguator: entry.portrait.publicRole ?? entry.portrait.distinguishingFeatures?.slice(0, 2).join("; ") }
         : {}),

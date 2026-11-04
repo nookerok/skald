@@ -257,7 +257,7 @@ function rankCandidates(
   const routes = wantsPlace ? scene.knownRoutes : [];
 
   const eligible = [
-    ...people.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs] })),
+    ...people.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs, ...(entry.portrait?.addressForms ?? [])] })),
     ...objects.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs] })),
     ...topics.map((entry) => ({ ref: entry.observerRef, labels: [entry.text] })),
     ...routes.map((entry) => ({ ref: entry.observerRef, labels: [entry.label, ...entry.knownAs] })),
@@ -295,7 +295,7 @@ function rankCandidates(
       // the antecedent — fall through to the ordinary ranking below, which
       // still finds the lone carrier.
       const sceneEntries = [
-        ...scene.knownPeople.map((entry) => [entry.label, ...entry.knownAs]),
+        ...scene.knownPeople.map((entry) => [entry.label, ...entry.knownAs, ...(entry.portrait?.addressForms ?? [])]),
         ...scene.visibleObjects.map((entry) => [entry.label, ...entry.knownAs]),
         ...scene.knownTopics.map((entry) => [entry.text]),
         ...scene.knownRoutes.map((entry) => [entry.label, ...entry.knownAs]),

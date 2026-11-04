@@ -314,6 +314,7 @@ export function applyGmDirectorDecision(
         observerRef: person.observerRef,
         label: person.label,
         knownAs: person.knownAs,
+        addressForms: person.portrait?.addressForms ?? [],
       })));
       if (boundFocus.status !== "unique" || boundFocus.entry.observerRef !== subject?.observerRef) return null;
     }

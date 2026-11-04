@@ -490,9 +490,9 @@ function namedSceneFocus(
   );
   if (words.size === 0) return null;
   const candidates: { kind: ConversationReferent["kind"]; surface: string; matched: Set<string> }[] = [];
-  const consider = (kind: ConversationReferent["kind"], entries: readonly { label: string; knownAs: readonly string[] }[]): void => {
+  const consider = (kind: ConversationReferent["kind"], entries: readonly { label: string; knownAs: readonly string[]; addressForms?: readonly string[] }[]): void => {
     for (const entry of entries) {
-      const labels = [entry.label, ...entry.knownAs];
+      const labels = [entry.label, ...entry.knownAs, ...(entry.addressForms ?? [])];
       const matched = new Set<string>();
       for (const label of labels) {
         const labelStems = new Set(
@@ -509,7 +509,7 @@ function namedSceneFocus(
       if (matched.size > 0) candidates.push({ kind, surface: entry.label, matched });
     }
   };
-  consider("target", scene.knownPeople.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
+  consider("target", scene.knownPeople.map((entry) => ({ label: entry.label, knownAs: entry.knownAs, addressForms: entry.portrait?.addressForms ?? [] })));
   consider("target", scene.visibleObjects.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   consider("target", scene.accessibleItems.map((entry) => ({ label: entry.label, knownAs: entry.knownAs })));
   if (candidates.length === 0) return null;
@@ -613,7 +613,7 @@ function matchSceneMention(
     kind: ConversationMemoryMentionKind;
     entries: ReadonlyArray<{ observerRef: string; labels: readonly string[] }>;
   }> = [
-    { kind: "person", entries: scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, labels: entry.knownAs })) },
+    { kind: "person", entries: scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, labels: [entry.label, ...entry.knownAs, ...(entry.portrait?.addressForms ?? [])] })) },
     {
       kind: "object",
       entries: [

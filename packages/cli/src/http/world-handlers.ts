@@ -2190,7 +2190,7 @@ function sceneFocusForSurface(
   const scene = sceneSnapshot.context;
   const entries = [
     ...scene.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
-    ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs, addressForms: entry.portrait?.addressForms ?? [] })),
     ...scene.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...scene.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
   ];

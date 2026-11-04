@@ -454,13 +454,13 @@ function frameOptionRefs(label: string, scene: MasterTurnSceneContext): readonly
     if (refs.includes(observerRef)) return;
     if (labels.some((entry) => entry.trim().toLowerCase().replace(/ё/gu, "е") === wanted)) refs.push(observerRef);
   };
-  for (const person of scene.knownPeople) consider(person.observerRef, [person.label, ...person.knownAs]);
+  for (const person of scene.knownPeople) consider(person.observerRef, [person.label, ...person.knownAs, ...(person.portrait?.addressForms ?? [])]);
   for (const object of scene.visibleObjects) consider(object.observerRef, [object.label, ...object.knownAs]);
   for (const item of scene.accessibleItems) consider(item.observerRef, [item.label, ...item.knownAs]);
   for (const route of scene.knownRoutes) consider(route.observerRef, [route.label, ...route.knownAs]);
   if (refs.length > 0) return freeze(refs);
   const entries = [
-    ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
+    ...scene.knownPeople.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs, addressForms: entry.portrait?.addressForms ?? [] })),
     ...scene.visibleObjects.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...scene.accessibleItems.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
     ...scene.knownRoutes.map((entry) => ({ observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs })),
@@ -1480,6 +1480,7 @@ function resolveExplicitReferentStatement(
   const entries = [
     ...context.knownPeople.map((entry) => ({
       observerRef: entry.observerRef, label: entry.label, knownAs: entry.knownAs,
+      addressForms: entry.portrait?.addressForms ?? [],
       ...((entry.portrait?.publicRole ?? entry.portrait?.distinguishingFeatures?.slice(0, 2).join("; "))
         ? { disambiguator: entry.portrait.publicRole ?? entry.portrait.distinguishingFeatures?.slice(0, 2).join("; ") }
         : {}),
@@ -1779,6 +1780,7 @@ function routeBareGreetingReadSide(
   if (suffix) {
     const bound = bindSceneSurface(suffix, snapshot.scene.context.knownPeople.map((person) => ({
       observerRef: person.observerRef, label: person.label, knownAs: person.knownAs,
+      addressForms: person.portrait?.addressForms ?? [],
     })));
     if (bound.status === "ambiguous") {
       return {
@@ -1794,7 +1796,7 @@ function routeBareGreetingReadSide(
       return { status: "clarification", question: "К кому ты обращаешься?", options: [{ optionId: "rephrase", label: "Уточнить адресата" }] };
     }
     const words = suffix.toLowerCase().replace(/ё/gu, "е").match(/[а-яa-z0-9]+/giu) ?? [];
-    const nameWords = new Set([bound.entry.label, ...bound.entry.knownAs]
+    const nameWords = new Set([bound.entry.label, ...bound.entry.knownAs, ...(bound.entry.addressForms ?? [])]
       .flatMap((name) => name.toLowerCase().replace(/ё/gu, "е").match(/[а-яa-z0-9]+/giu) ?? [])
       .map(stemRussianToken).filter((word) => word.length >= 3));
     const recipientWords = words.map(stemRussianToken).filter((word) => word.length >= 3);
