@@ -64,7 +64,7 @@ function actionOutcomeText(
   playerText: string,
   stagedEvents: readonly DomainEvent[],
   projectedWorld: ReadonlyWorld,
-): { readonly text: string; readonly rejected: boolean } {
+): { readonly text: string; readonly rejected: boolean; readonly responseCorrelationId?: string } {
   const presentation = selectTurnPresentation(stagedEvents, projectedWorld);
   const response = presentation.response;
   const rejected = response?.kind === "action_rejection";
@@ -72,7 +72,15 @@ function actionOutcomeText(
   const text = candidateText && !isGenericActionFallback(candidateText)
     ? candidateText
     : actionFallbackText(playerText, rejected ? "rejection" : "outcome");
-  return { text, rejected };
+  const responseEventIds = new Set(response?.sourceEventIds ?? []);
+  const responseCorrelations = [...new Set(stagedEvents
+    .filter((event) => responseEventIds.has(event.eventId))
+    .map((event) => event.correlationId))];
+  return {
+    text,
+    rejected,
+    ...(responseCorrelations.length === 1 ? { responseCorrelationId: responseCorrelations[0] } : {}),
+  };
 }
 
 /**
@@ -97,12 +105,14 @@ export function buildActionConversationTurn(params: {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
   const responseKind: ConversationResponseKind = outcome.rejected ? "action_rejection" : "action_outcome";
   const responseText = ensureGameMomentum(outcome.text, params.continuationHint ?? null);
-  // Wait requests have a request correlation but their committed ticks carry
-  // their own correlations. Pair the answer with the final actual tick, not
-  // with a request identifier that never occurred in the Event Log.
-  const correlationId = params.stagedEvents.some((event) => event.correlationId === params.correlationId)
-    ? params.correlationId
-    : params.stagedEvents[params.stagedEvents.length - 1]?.correlationId ?? params.correlationId;
+  // Pair the transcript with the event(s) that produced its selected answer.
+  // A wait request may contain both a root command event and a derived tick;
+  // the journal uses the response source, so preferring the request root here
+  // would give the transcript and journal different narration handles.
+  const correlationId = outcome.responseCorrelationId
+    ?? (params.stagedEvents.some((event) => event.correlationId === params.correlationId)
+      ? params.correlationId
+      : params.stagedEvents[params.stagedEvents.length - 1]?.correlationId ?? params.correlationId);
   return {
     worldId: params.worldId,
     correlationId,
@@ -130,9 +140,10 @@ export function buildSpeechConversationTurn(params: {
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
   const outcome = actionOutcomeText(params.playerText, params.stagedEvents, params.projectedWorld);
-  const correlationId = params.stagedEvents.some((event) => event.correlationId === params.correlationId)
-    ? params.correlationId
-    : params.stagedEvents[params.stagedEvents.length - 1]?.correlationId ?? params.correlationId;
+  const correlationId = outcome.responseCorrelationId
+    ?? (params.stagedEvents.some((event) => event.correlationId === params.correlationId)
+      ? params.correlationId
+      : params.stagedEvents[params.stagedEvents.length - 1]?.correlationId ?? params.correlationId);
   return {
     worldId: params.worldId,
     correlationId,

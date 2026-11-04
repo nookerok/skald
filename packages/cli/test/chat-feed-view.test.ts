@@ -448,6 +448,37 @@ describe("Chronicle Feed — one command, one MasterTurn (chain grouping)", () =
     expect(doc.feed.children[1].attributes["data-turn-key"]).toBe("tk-j");
   });
 
+  it("pairs wait-arrival narration with its transcript in one master bubble", async () => {
+    const mod = await import("../public/chat-feed-view.js");
+    const arrival = "Ты добрался до «Речного Стража».";
+    const start = chainTurn(1, "Ты отправляешься к «Речному Стражу».", "mt-arrival");
+    const completed = {
+      ...chainTurn(2, arrival, "mt-arrival"),
+      presentation: {
+        response: { kind: "action_outcome", text: arrival, sourceEventIds: ["event-2"] },
+        primary: { text: arrival, discoveryMark: null, sourceEventIds: ["event-2"] },
+        notable: [],
+        background: [],
+      },
+    };
+    const conversation = {
+      ...journeyConversation(),
+      idempotencyKey: "key-wait",
+      playerText: "ждать",
+      responseText: arrival + " Можно расспросить смотрителя.",
+      correlationId: "tick-2",
+      narrationHandle: "nh-2",
+      turnKey: "tk-wait",
+    };
+    mod.renderChatFeed([start, completed], [conversation], [], null);
+    expect(doc.feed.children).toHaveLength(2);
+    expect(allText(doc.feed.children[0])).toContain("ждать");
+    expect(allText(doc.feed.children[1]).match(/Ты добрался/g)).toHaveLength(1);
+    expect(allText(doc.feed.children[1])).toContain("Можно расспросить смотрителя.");
+    expect(doc.feed.children[0].attributes["data-turn-key"]).toBe("tk-wait");
+    expect(doc.feed.children[1].attributes["data-turn-key"]).toBe("tk-wait");
+  });
+
   it("renders an unpaired chain as one master bubble keyed by masterTurnKey", async () => {
     const mod = await import("../public/chat-feed-view.js");
     mod.renderChatFeed(

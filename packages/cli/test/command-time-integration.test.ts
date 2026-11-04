@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { buildBootstrapEvents, rebuildProjection } from "@skald/world";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager } from "../src/runtime/world-runtime-manager.js";
-import { handleWorldCommand } from "../src/http/world-handlers.js";
+import { handleWorldCommand, handleWorldJournal } from "../src/http/world-handlers.js";
 import type { WorldRuntime } from "../src/runtime/world-runtime-manager.js";
 
 const deadRouter = () => ({ apiKey: "", chat: vi.fn(() => { throw new Error("model down"); }) }) as any;
@@ -98,6 +98,11 @@ describe("command time & movement integration matrix (T7.1)", () => {
       const s8 = await run("ждать", "m8");
       expect(s8.timeAfter).toBe(s8.timeBefore + 1);
       expect(s8.after.currentLocationId).toBe("riverwatch_city");
+      const arrivalJournal = JSON.parse(handleWorldJournal(runtime, new URL("http://test/journal?limit=20")).body);
+      const arrivalTurn = arrivalJournal.turns.find((turn: any) =>
+        turn.worldTime === s8.timeAfter && turn.presentation.primary?.text.includes("Ты добрался"));
+      expect(arrivalTurn).toBeDefined();
+      expect(s8.reply.conversationTurn.narrationHandle).toBe(arrivalTurn.narrationHandle);
 
       const s9 = await run("Подойти к перевозчику", "m9");
       expect(s9.kind).toBe("action_rejection");
