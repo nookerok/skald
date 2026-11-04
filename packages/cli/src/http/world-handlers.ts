@@ -54,7 +54,7 @@ import type { ObserverThreadDelta, ObserverThreadJournalDTO, NarrativeAdapterCon
 import type { QuestionReadingRound, QuestionRoundSpec } from "@skald/world";
 import type { AnswerPlan } from "@skald/world";
 import type { InquiryAnswerDTO, MasterTurnSceneContext } from "@skald/world";
-import type { AnswerNarrationKind, TurnNarration } from "@skald/world";
+import type { AnswerNarrationKind } from "@skald/world";
 import type { AllowedNarrativeFacts } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createHash } from "node:crypto";
@@ -739,10 +739,8 @@ function scheduleNarration(
 }
 
 /**
- * Read-side answer narration (full-master Stage 3): the exact answer is shown
- * immediately; when a provider is available a safe literary rephrase of the
- * SAME answer settles into the same bubble. Returns true when a job was
- * scheduled, so the caller marks the envelope `pending`.
+ * Read-side narration for question answers is disabled until a relevance
+ * proof ties every narrated fact to the player's actual question.
  */
 function scheduleAnswerNarration(
   runtime: WorldRuntime,
@@ -753,9 +751,8 @@ function scheduleAnswerNarration(
   allowed?: AllowedNarrativeFacts,
   preserveShownAnswer = false,
 ): boolean {
-  // Shown-memory order and subjects are authoritative read-side evidence.
-  // A free paraphrase cannot replace that evidence until structural coverage is verified.
-  if (preserveShownAnswer) return false;
+  // Structural fact coverage does not prove relevance to the player's question.
+  if (preserveShownAnswer || kind === "inquiry_answer" || kind === "meta_answer") return false;
   const router = runtime.router;
   if (!router || input.trim().length === 0 || answerText.trim().length === 0) return false;
   const worldId = runtime.worldId;
@@ -917,22 +914,14 @@ function collectShownAnswerMemory(params: {
 }
 
 /**
- * Read-side narration lifecycle for a persisted conversation turn. Only the
- * kinds that get a rephrase carry it; action/speech/mixed ride the journal.
- * Returns null for every other kind so the DTO stays byte-identical.
+ * Question answers stay exact until free narration has a relevance proof.
+ * Ignore legacy narration rows and never advertise a pending rephrase.
  */
 function readSideNarration(
-  runtime: WorldRuntime,
-  turn: { readonly responseKind: ConversationResponseKind; readonly worldTimeAfter: number; readonly correlationId: string },
-  narrations: ReadonlyMap<number | string, TurnNarration>,
-): { readonly state: "pending" | "ready" | "unavailable" | "not_requested"; readonly text?: string } | null {
+  turn: { readonly responseKind: ConversationResponseKind },
+): { readonly state: "not_requested" } | null {
   if (turn.responseKind !== "inquiry_answer" && turn.responseKind !== "meta_answer") return null;
-  const row = narrations.get(narrationKey(turn.worldTimeAfter, turn.correlationId));
-  const state = resolveNarrationState(
-    { hasNonFallback: Boolean(row && !row.usedFallback) },
-    runtime.narration.statusOf(turn.worldTimeAfter, turn.correlationId),
-  );
-  return state === "ready" && row ? { state, text: row.text } : { state };
+  return { state: "not_requested" };
 }
 
 /**
@@ -1708,10 +1697,8 @@ export function handleWorldJournal(runtime: WorldRuntime, url: URL): JsonRespons
   });
   const conversationTurns = conversationRows.map((row) => {
     const dto = toConversationTurnDTO(row);
-    const narration = readSideNarration(runtime, dto, narrations);
-    return narration
-      ? { ...dto, narrationState: narration.state, ...(narration.text ? { narrationText: narration.text } : {}) }
-      : dto;
+    const narration = readSideNarration(dto);
+    return narration ? { ...dto, narrationState: narration.state } : dto;
   });
   const conversationHasMore = conversationRows.length === conversationLimitP.value;
   const conversationNextBefore = conversationHasMore ? conversationRows[0]?.turnSeq ?? null : null;

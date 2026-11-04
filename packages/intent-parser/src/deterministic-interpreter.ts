@@ -356,6 +356,24 @@ function normalizeForMatch(text: string): string {
   return text.toLowerCase().replace(/ё/g, "е");
 }
 
+/**
+ * Recognizes a complete travel cancellation before verb matching can mistake
+ * the negated destination phrase for a new journey.
+ */
+function isTravelCancellation(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || /[?]\s*$/u.test(trimmed)) return false;
+
+  const normalized = normalizeForMatch(trimmed).replace(/[.!]+$/u, "").trim();
+  const cancellationPrefix = /^(?:(?:подожди|стой|стоп)\s*[,—-]\s*)?(?:я\s+)?передумал(?:а|и)?(?:\s*[,—-]\s*)?/u;
+  const negatedTravelOnly = /^(?:(?:подожди|стой|стоп)\s*[,—-]\s*)?(?:не\s+(?:хочу|буду|стану)\s+(?:идти|пойти|ехать|поехать|двигаться|направляться)|не\s+(?:пойду|поеду|двинусь|направлюсь))(?:\s+[^,;.!?—]+)?$/u;
+  const remainder = normalized.replace(cancellationPrefix, "").trim();
+
+  if (remainder.length === 0) return true;
+  if (/(?:^|\s)(?:и|а|но|затем|потом|после|лучше|теперь)\s+/u.test(remainder)) return false;
+  return negatedTravelOnly.test(remainder);
+}
+
 /** Length-sorted verb table used for longest-stem-first matching. */
 const NORMALIZED_VERBS: readonly VerbEntry[] = [...VERBS]
   .map((entry) => ({ ...entry, verb: normalizeForMatch(entry.verb) }))
@@ -1106,6 +1124,16 @@ export function interpretIntent(
       operation: "wait",
       rawText,
       interpretation: { source: "deterministic", confidence: 0, ambiguities: ["empty input"] },
+    };
+  }
+
+  if (isTravelCancellation(trimmed)) {
+    return {
+      type: "ActionIntentCommand",
+      mode: "travel",
+      operation: "interrupt",
+      rawText,
+      interpretation: { source: "deterministic", confidence: 0.9, ambiguities: [] },
     };
   }
 
