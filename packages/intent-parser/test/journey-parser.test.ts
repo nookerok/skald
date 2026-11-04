@@ -96,6 +96,32 @@ describe("interpretIntent — travel (ADR-0015)", () => {
     expect(cmd.operation).toBe("interrupt");
   });
 
+  it.each([
+    "Подожди, я передумал — не хочу идти внутрь.",
+    "не хочу идти внутрь",
+    "не пойду к городу",
+  ])("treats travel cancellation %s as an interrupt, not a destination", (input) => {
+    const result = interpretIntent(input);
+    expect(result.type).toBe("ActionIntentCommand");
+    const command = result as ActionIntentCommand;
+    expect(command.mode).toBe("travel");
+    expect(command.operation).toBe("interrupt");
+    expect(command.rawText).toBe(input);
+  });
+
+  it("keeps a positive replacement journey after changing plans", () => {
+    const result = interpretIntent("Я передумал, теперь иду к реке");
+    expect(result.type).toBe("JourneyIntent");
+    expect((result as JourneyIntent).destination.raw).toBe("реке");
+  });
+
+  it("does not treat a question or mixed clause as a travel cancellation", () => {
+    const question = interpretIntent("Не хочу идти внутрь?");
+    const mixed = interpretIntent("Не хочу идти внутрь и поговорить с перевозчиком");
+    expect(question.type === "ActionIntentCommand" && question.operation === "interrupt").toBe(false);
+    expect(mixed.type === "ActionIntentCommand" && mixed.operation === "interrupt").toBe(false);
+  });
+
   it("carries rawText from original input", () => {
     const result = interpretIntent("ИДТИ К РЕЧНОМУ СТРАЖУ");
     expect(result.type).toBe("JourneyIntent");

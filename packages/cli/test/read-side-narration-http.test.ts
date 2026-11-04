@@ -1,10 +1,6 @@
 /**
- * Read-side answer narration over HTTP (full-master Stage 3).
- *
- * A read-only inquiry keeps its exact answer and moves no world time, yet a
- * provider-backed literary rephrase settles into the SAME conversation turn
- * (pending -> ready), so inquiry/clarification no longer speak in a different
- * register from actions.
+ * Read-side inquiry answers remain exact until free narration can prove
+ * relevance between every claim and the question being answered.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -111,10 +107,8 @@ describe("read-side answer narration", () => {
     await server.close();
   });
 
-  it("keeps the exact answer, schedules a rephrase, and settles pending -> ready", async () => {
-    // A non-list inquiry: structured shown lists keep the deterministic
-    // bubble with no rephrase (semantic-question-plan T5), so the narration
-    // lifecycle is exercised here through current_location.
+  it("keeps the exact answer without scheduling an unscoped rephrase", async () => {
+    // Keep the exact read-side answer; its free narration has no relevance proof.
     const before = await api(`/api/worlds/${worldId}/state`);
     const cmd = await api(`/api/worlds/${worldId}/command`, {
       method: "POST",
@@ -125,17 +119,13 @@ describe("read-side answer narration", () => {
     // The exact observer answer is present immediately.
     expect(typeof cmd.body.inquiry.answer).toBe("string");
     expect(cmd.body.inquiry.answer.length).toBeGreaterThan(0);
-    // A rephrase was scheduled; the envelope reports it as pending.
-    expect(cmd.body.conversationTurn.narrationState).toBe("pending");
-    expect(cmd.body.masterTurn.narration.status).toBe("pending");
-
-    const ready = await waitForInquiryNarration("ready");
-    expect(typeof ready.narrationText).toBe("string");
-    expect(ready.narrationText.length).toBeGreaterThan(0);
-    // The deterministic answer travels as the mandatory result and the
-    // composition selects it (ADR-0037 constraint 2).
-    expect(readSideProvider.mandatorySeen.length).toBeGreaterThan(0);
-    expect(ready.responseText).toContain(readSideProvider.mandatorySeen[0]);
+    // No unscoped narration is scheduled for this question answer.
+    expect(cmd.body.conversationTurn.narrationState).toBe("not_requested");
+    expect(cmd.body.masterTurn.narration.status).toBe("not_requested");
+    const saved = await waitForInquiryNarration("not_requested");
+    expect(saved.responseText).toBe(cmd.body.inquiry.answer);
+    expect(saved.narrationText).toBeUndefined();
+    expect(readSideProvider.mandatorySeen).toHaveLength(0);
 
     // A read-only inquiry never advances world time.
     const after = await api(`/api/worlds/${worldId}/state`);
@@ -185,8 +175,8 @@ class PlanPathNarrationProvider extends ReadSideNarrationProvider {
   }
 }
 
-describe("plan-path answer narration (model-proposed inquiry)", () => {
-  it("schedules the rephrase over the allowed set and settles ready", async () => {
+describe("model-proposed inquiry read-side safety", () => {
+  it("keeps the exact response and does not invoke unscoped narration", async () => {
     const provider = new PlanPathNarrationProvider();
     const planServer = await startServer({
       host: "127.0.0.1",
@@ -213,26 +203,14 @@ describe("plan-path answer narration (model-proposed inquiry)", () => {
       expect(cmd.status).toBe("inquiry");
       // The plan path is the only inquiry branch that returns `inquiries`.
       expect(Array.isArray(cmd.inquiries)).toBe(true);
-      expect(cmd.conversationTurn.narrationState).toBe("pending");
-      expect(cmd.masterTurn.narration.status).toBe("pending");
-
-      let ready: any = null;
-      const started = Date.now();
-      while (Date.now() - started < 8000) {
-        const journal = await (await fetch(`${planServer.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
-        ready = journal.conversationTurns?.find((candidate: any) => candidate.narrationState === "ready");
-        if (ready) break;
-        await tick();
-      }
-      expect(ready).not.toBeNull();
-      expect(ready.narrationText.length).toBeGreaterThan(0);
-      // The rephrase was composed over the closed allowed set, not the legacy
-      // exact-answer narration.
-      expect(provider.allowedSeen).toContain(true);
-      // The backend answer is the mandatory result of this replica and the
-      // provider's first claim selects its fact.
-      expect(provider.mandatorySeen.length).toBeGreaterThan(0);
-      expect(ready.responseText).toContain(provider.mandatorySeen[0]);
+      expect(cmd.conversationTurn.narrationState).toBe("not_requested");
+      expect(cmd.masterTurn.narration.status).toBe("not_requested");
+      const journal = await (await fetch(`${planServer.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
+      const saved = journal.conversationTurns?.find((candidate: any) => candidate.responseKind === "inquiry_answer");
+      expect(saved.responseText).toBe(cmd.conversationTurn.responseText);
+      expect(saved.narrationText).toBeUndefined();
+      expect(provider.allowedSeen).toHaveLength(0);
+      expect(provider.mandatorySeen).toHaveLength(0);
 
       const after = await state();
       expect(after.worldTime).toBe(before.worldTime);
@@ -272,8 +250,8 @@ class FlakyReadSideProvider extends ReadSideNarrationProvider {
   }
 }
 
-describe("read-side narration retry (transient failure once, then success)", () => {
-  it("retries into the SAME turn with no second Event or ConversationTurn", async () => {
+describe("read-side inquiry narration guard", () => {
+  it("does not schedule narration retries or duplicate the ConversationTurn", async () => {
     const provider = new FlakyReadSideProvider();
     const server = await startServer({
       host: "127.0.0.1",
@@ -294,33 +272,19 @@ describe("read-side narration retry (transient failure once, then success)", () 
       const cmd = await (await fetch(`${server.url}/api/worlds/${world}/command`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Non-list inquiry: structured shown lists keep the deterministic
-        // bubble with no rephrase (semantic-question-plan T5).
+        // A question without relevance proof must keep its exact answer.
         body: JSON.stringify({ input: "где я?", idempotencyKey: "read-side-retry-1" }),
       })).json() as any;
       expect(cmd.status).toBe("inquiry");
-      expect(cmd.conversationTurn.narrationState).toBe("pending");
+      expect(cmd.conversationTurn.narrationState).toBe("not_requested");
       const masterTurnKey = cmd.masterTurn.turnKey as string;
-
-      // Poll for the retried rephrase to settle ready.
-      let ready: any = null;
-      const started = Date.now();
-      while (Date.now() - started < 8000) {
-        const journal = await (await fetch(`${server.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
-        const turn = journal.conversationTurns?.find((candidate: any) => candidate.responseKind === "inquiry_answer");
-        if (turn?.narrationState === "ready") { ready = turn; break; }
-        await tick();
-      }
-      expect(ready).not.toBeNull();
-      // The transient failure was retried (two provider attempts for one turn).
-      expect(provider.rephraseCalls.length).toBeGreaterThanOrEqual(2);
-
       const journal = await (await fetch(`${server.url}/api/worlds/${world}/journal?limit=10`)).json() as any;
       const inquiryTurns = journal.conversationTurns.filter((candidate: any) => candidate.responseKind === "inquiry_answer");
-      // One input, one turn: the retry did not append a second conversation turn.
       expect(inquiryTurns).toHaveLength(1);
       expect(inquiryTurns[0].turnKey).toBe(masterTurnKey);
+      expect(inquiryTurns[0].narrationText).toBeUndefined();
 
+      expect(provider.rephraseCalls).toHaveLength(0);
       // Retrying narration created no Domain Event and moved no world time.
       const after = await getState();
       expect(after.eventNumber).toBe(before.eventNumber);

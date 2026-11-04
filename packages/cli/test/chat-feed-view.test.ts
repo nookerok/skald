@@ -632,20 +632,20 @@ describe("Chronicle Feed — read-side narration (full-master Stage 3)", () => {
     };
   }
 
-  it("replaces the exact answer with the ready rephrase in the SAME bubble", async () => {
+  it("keeps the exact answer and ignores an unscoped ready rephrase", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     renderChatFeed([], [inquiryTurn({ narrationState: "ready", narrationText: "Перевозчик стоит рядом у плоскодонки." })], [], null);
     expect(doc.feed.children).toHaveLength(2); // ТЫ + one МАСТЕР bubble
-    expect(allText(doc.feed)).toContain("Перевозчик стоит рядом у плоскодонки.");
-    expect(allText(doc.feed)).not.toContain("Рядом с тобой");
+    expect(allText(doc.feed)).toContain("Рядом с тобой: «Перевозчик у переправы».");
+    expect(allText(doc.feed)).not.toContain("Перевозчик стоит рядом у плоскодонки.");
   });
 
-  it("shows the exact answer plus a pending status before the rephrase arrives", async () => {
+  it("keeps the exact answer without claiming a rephrase is pending", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     renderChatFeed([], [inquiryTurn({ narrationState: "pending" })], [], null);
     expect(doc.feed.children).toHaveLength(2);
     expect(allText(doc.feed)).toContain("Рядом с тобой: «Перевозчик у переправы».");
-    expect(allText(doc.feed)).toContain("МАСТЕР дополняет эту запись…");
+    expect(allText(doc.feed)).not.toContain("МАСТЕР дополняет эту запись…");
   });
 
   it("never renders the deterministic answer and the rephrase as two master bubbles", async () => {
@@ -655,19 +655,19 @@ describe("Chronicle Feed — read-side narration (full-master Stage 3)", () => {
     expect(masterBubbles).toHaveLength(1);
   });
 
-  it("keeps the SAME bubble when a retried rephrase settles (pending -> ready)", async () => {
+  it("keeps the exact answer when a stale rephrase status changes (pending -> ready)", async () => {
     const { renderChatFeed } = await import("../public/chat-feed-view.js");
     const pending = inquiryTurn({ narrationState: "pending" });
     renderChatFeed([], [pending], [], null);
     const pendingBubble = doc.feed.children.find((node) => (node.className || "").includes("chat-turn"));
     const key = pendingBubble?.attributes["data-turn-key"];
     expect(doc.feed.children.filter((node) => (node.className || "").includes("chat-turn"))).toHaveLength(1);
-    // The retry resolves the same turn: still one bubble, same key, rephrase in.
+    // Any stale/free rephrase remains invisible: one bubble, same key, exact answer.
     renderChatFeed([], [{ ...pending, narrationState: "ready", narrationText: "Перевозчик стоит рядом." }], [], null);
     const bubbles = doc.feed.children.filter((node) => (node.className || "").includes("chat-turn"));
     expect(bubbles).toHaveLength(1);
     expect(bubbles[0].attributes["data-turn-key"]).toBe(key);
-    expect(allText(doc.feed)).toContain("Перевозчик стоит рядом.");
-    expect(allText(doc.feed)).not.toContain("Рядом с тобой");
+    expect(allText(doc.feed)).toContain("Рядом с тобой: «Перевозчик у переправы».");
+    expect(allText(doc.feed)).not.toContain("Перевозчик стоит рядом.");
   });
 });

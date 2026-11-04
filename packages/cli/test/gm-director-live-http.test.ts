@@ -398,6 +398,32 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("does not start a journey from a negated travel cancellation", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { store, runtime } = await fresh(router);
+    try {
+      const start = parse(await handleWorldCommand(runtime, {
+        input: "Иду к Речному Стражу", idempotencyKey: "cancel-test-start",
+      }));
+      expect(start.masterTurn.kind).toBe("action_outcome");
+      expect(runtime.bus.query().some((event) => event.type === "JourneyStarted")).toBe(true);
+
+      const timeBeforeCancel = runtime.projection.getSnapshot().time;
+      const eventCountBeforeCancel = runtime.bus.query().length;
+      const interpretationCallsBefore = chat.mock.calls.filter(([category]) => category === "interpret").length;
+      const result = parse(await handleWorldCommand(runtime, {
+        input: "Подожди, я передумал — не хочу идти внутрь.", idempotencyKey: "cancel-test",
+      }));
+      const cancellationEvents = runtime.bus.query().slice(eventCountBeforeCancel);
+
+      expect(result.masterTurn.kind).toBe("action_outcome");
+      expect(cancellationEvents.map((event) => event.type)).toContain("JourneyInterrupted");
+      expect(cancellationEvents.some((event) => event.type === "JourneyRequested" || event.type === "JourneyStarted" || event.type === "TickPassed")).toBe(false);
+      expect(runtime.projection.getSnapshot().time).toBe(timeBeforeCancel);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(interpretationCallsBefore);
+    } finally { store.close(); }
+  });
+
   it("keeps provider unavailability read-only without a second call to the dead model", async () => {
     const router = { apiKey: "", chat: vi.fn(async () => { throw new Error("provider down"); }) } as any;
     const { store, runtime } = await fresh(router);
