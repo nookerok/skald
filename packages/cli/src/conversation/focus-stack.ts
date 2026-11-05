@@ -53,6 +53,12 @@ export interface PronounBinding {
   readonly resolution: PronounResolution;
 }
 
+/** Optional, narrowly scoped legacy-focus policy for server-validated inquiries. */
+export interface PronounBindingOptions {
+  /** Resolve a legacy target/addressee surface exclusively only when it uniquely names one visible scene referent. */
+  readonly resolveUniqueLegacyTargetFocus?: boolean;
+}
+
 /** Third-person forms: dual person/thing except neuter-only оно. */
 const DUAL_FORMS: ReadonlySet<string> = new Set([
   "он", "она", "они",
@@ -206,6 +212,7 @@ export function bindTurnPronouns(
   conversation: MasterConversationContext,
   scene: MasterTurnSceneContext,
   references: ReadonlyMap<string, MasterSceneReference> = new Map(),
+  options: PronounBindingOptions = {},
 ): readonly PronounBinding[] {
   const words = splitWords(input);
   const speechGoverned = isSpeechGoverned(words);
@@ -228,7 +235,7 @@ export function bindTurnPronouns(
       pronoun,
       classes,
       preposition,
-      ...rankCandidates(pronoun, preposition, classes, conversation, scene, references),
+      ...rankCandidates(pronoun, preposition, classes, conversation, scene, references, options),
     }));
   }
   return freeze(bindings);
@@ -241,6 +248,7 @@ function rankCandidates(
   conversation: MasterConversationContext,
   scene: MasterTurnSceneContext,
   references: ReadonlyMap<string, MasterSceneReference>,
+  options: PronounBindingOptions,
 ): Pick<PronounBinding, "candidates" | "mention" | "resolution"> {
   const wantsPerson = classes.includes("person");
   const wantsThing = classes.includes("thing");
@@ -286,6 +294,13 @@ function rankCandidates(
     // unrelated topic candidates (review P1-topic).
     if (identity || wantsTopic) {
       return { mention, candidates: freeze(matching), resolution: matching.length === 0 ? "missing" : matching.length === 1 ? "single" : "ambiguous" };
+    }
+    // A server-validated inquiry may opt into exclusive resolution for a
+    // uniquely named legacy target. Ordinary action planning stays ranked.
+    if (options.resolveUniqueLegacyTargetFocus
+      && (relevant.kind === "target" || relevant.kind === "addressee")
+      && matching.length === 1) {
+      return { mention, candidates: freeze(matching), resolution: "single" };
     }
     if (matching.length === 0) {
       // A legacy focus whose subject is gone from the scene claims the

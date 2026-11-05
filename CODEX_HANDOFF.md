@@ -1,29 +1,31 @@
-# Current work (2026-11-05 - P3 QA failure fixes; release pending)
+# Current work (2026-11-05 - P3 question-safety QA repairs; release pending)
 
-- The verified scratch QA job `gm-p3-free-session-20261105-1` was FAIL: a
-  general-knowledge question was answered from player backstory; a pronoun
-  follow-up after reload entered a stale clarification loop; and a
-  speech-wrapped question could be dropped while a partial action advanced
-  time. One provider timeout (~4.1 s) is recorded separately from route
-  quality.
-- Local corrections: unique persisted person focus can resolve the narrow
-  «Хочу поговорить с ним/ней» read-side request through an opaque scene
-  handle; question-bearing Director output that drops the question falls back
-  without executing a partial action; explicit speech-to-person remains an
-  action that carries its spoken question. `character_identity` is accepted
-  only when the specific model question source text is an explicit self-query.
-- Regression coverage includes SQLite reopen for the persisted focus,
-  question loss in acknowledgement/action responses, direct speech positive
-  controls, and self-identity source matching.
-- Validation: focused P3 suite 140/140 PASS; full `npm run validate` PASS
-  (252 files, 3158 passed, 1 skipped; typecheck, Canon and diff checks PASS).
-- Production `GM_DIRECTOR_LIVE` remains off; canonical world and production
-  DB were not touched. The working changes are local and not yet committed or
-  deployed. Pi TCP `:22` and `:3000` are reachable again; post-deploy
-  verification has not yet been performed.
-- Next: inspect final diff, commit/push, deploy through the Orange Pi updater,
-  then run a new fixed-runner QA job on a scratch world. Browser/visual,
-  provider and human acceptance remain separate; human acceptance is not run.
+- Fixed-runner scratch QA `gmdirector-p3-browser-20261105-1` was verified FAIL.
+  It showed an unrelated lore answer to an unregistered «кто…?» question,
+  repeated clarification after a pronoun clothing question/reload, and a
+  speech-wrapped journal question being downgraded to an action that advanced
+  time. The failed scratch world is not reused.
+- Local fixes now fail closed for an unsupported bare `world_question` instead
+  of adapting it to `known_place_knowledge`; a speech proposal must retain an
+  interrogative marker plus question content or repair/fall back without
+  executing a partial action; and the narrow clothing QuestionPlan can resolve
+  a unique legacy target focus. Exclusive legacy-focus resolution is opt-in
+  only for that validated read-only path; ordinary action pronoun ranking
+  remains ambiguous as before.
+- Integration coverage includes unsupported factual question (zero events and
+  time), persisted approach/conversation/clothing inquiry across SQLite reopen,
+  and question loss in addressed speech (zero events/time). Focused tests:
+  115/115 PASS. Full `npm run validate`: PASS (typecheck, all tests, Canon,
+  shell syntax and diff checks).
+- Pi preflight after network restoration: remote `HEAD=f480ae1`, clean main,
+  `skald.service` and both timers active, health 200, restricted restart
+  permission present. The runtime has not yet been changed; no canonical world
+  or production database was touched.
+- Local code/test changes and this handoff are not yet committed or deployed.
+  Next: final diff review, commit/push, Orange Pi updater, independent
+  post-deploy state/health verification, then a NEW fixed-runner browser job on
+  a scratch world. Browser, provider and human acceptance remain separate;
+  human acceptance is not run.
 
 ## Previous current work (2026-11-04 - post-deploy browser QA follow-up)
 

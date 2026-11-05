@@ -8,6 +8,7 @@ import { WorldProjector, buildMasterTurnSceneContext, createRules } from "@skald
 import { RuleEngine } from "@skald/rule-engine";
 import { isGenericFallbackText } from "@skald/intent-parser";
 import { buildMasterConversationContext } from "../src/conversation/context-builder.js";
+import { bindTurnPronouns } from "../src/conversation/focus-stack.js";
 import { buildReadSideConversationTurn, buildTurnMemoryMetadata } from "../src/conversation/builder.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
@@ -1619,7 +1620,7 @@ describe("whole-replica inquiry completeness (T3)", () => {
     const router = routerReturning(JSON.stringify({
       schemaVersion: 2,
       kind: "speech",
-      primaryIntent: { kind: "speech", utterance: "Как дела?", sourceText: "Спрошу перевозчика, что он делает" },
+      primaryIntent: { kind: "speech", utterance: "Что он делает?", sourceText: "Спрошу перевозчика, что он делает" },
       supportingClauses: [],
       addressedEntity: { role: "addressee", observerRef: "person_1", surface: "Перевозчик" },
       referents: [{ role: "addressee", observerRef: "person_1", surface: "Перевозчик" }],
@@ -1841,6 +1842,25 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(router.chat).toHaveBeenCalledTimes(1);
     expect(snap.world.time).toBe(0);
     expect(snap.events).toHaveLength(7);
+  });
+
+  it("uses a unique legacy target focus exclusively when other people are present", () => {
+    const snap = citySnapshot();
+    const archivist = snap.scene.context.knownPeople.find((person) => person.label.includes("Архивист"))!;
+    const conversation = {
+      ...snap.conversation,
+      recentFocus: [{ kind: "target" as const, surface: archivist.label, turnSeq: 1 }],
+    };
+    const defaultBinding = bindTurnPronouns("Что на нём одето?", conversation, snap.scene.context, snap.scene.references)
+      .find((entry) => entry.pronoun === "нем");
+    expect(defaultBinding?.resolution).toBe("ambiguous");
+
+    const binding = bindTurnPronouns("Что на нём одето?", conversation, snap.scene.context, snap.scene.references, {
+      resolveUniqueLegacyTargetFocus: true,
+    })
+      .find((entry) => entry.pronoun === "нем");
+    expect(snap.scene.context.knownPeople).toHaveLength(2);
+    expect(binding).toMatchObject({ resolution: "single", candidates: [archivist.observerRef] });
   });
 
   it("preserves a semantic question ambiguity when its choices are not scene people", async () => {

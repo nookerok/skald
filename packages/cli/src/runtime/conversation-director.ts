@@ -377,6 +377,11 @@ export function applyGmDirectorDecision(
   }
 
   if (decision.kind === "world_question") {
+    // The legacy inquiry adapter must not turn a free-form "who" question
+    // into a place-knowledge dump just because clause classification found
+    // that broad registered query. Let the gateway clarify instead.
+    if (singleInquiry?.queryId === "known_place_knowledge"
+      && /^(?:а\s+)?(?:кто|кого|кому|кем)\b/iu.test(input.trim())) return null;
     return asReadOnlyInquiry(decision.subjectHandle);
   }
 

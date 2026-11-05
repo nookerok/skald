@@ -1616,6 +1616,60 @@ function resolveDeterministicMeta(
 }
 
 /**
+ * Routes the closed singular wardrobe question through the existing read-side
+ * QuestionPlan pipeline. The server may use a recent focus only when the
+ * focus stack resolves exactly one current person; it never asks the model
+ * to choose the subject or invent appearance facts.
+ */
+function resolveFocusedAppearanceQuestion(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+): MasterTurnGatewayOutcome | null {
+  const normalized = input.trim().toLowerCase().replace(/ё/gu, "е").replace(/[.!?]+$/gu, "").replace(/\s+/gu, " ");
+  if (!/^(?:(?:а|и)\s+)?(?:что\s+на\s+(?:нем|ней)\s+надето|во\s+что\s+(?:он|она)\s+одет(?:а|о)?)$/iu.test(normalized)) return null;
+
+  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references, {
+    resolveUniqueLegacyTargetFocus: true,
+  });
+  if (bindings.length !== 1) return null;
+  const binding = bindings[0]!;
+  if (binding.resolution !== "single" || binding.candidates.length !== 1
+    || !binding.classes.includes("person") || !binding.mention) return null;
+  const observerRef = binding.candidates[0]!;
+  if (snapshot.scene.references.get(observerRef)?.kind !== "person") return null;
+
+  const proposal: TurnProposalV2 = {
+    schemaVersion: 2,
+    kind: "inquiry",
+    primaryIntent: null,
+    supportingClauses: [],
+    referents: [],
+    questionPlan: {
+      subjects: [{ id: "focused-person", surface: binding.mention.surface, kind: "entity", observerRef }],
+      parts: [{ id: "appearance", subjectRefs: ["focused-person"], aspect: "appearance", time: "current", purpose: "describe" }],
+    },
+    readings: [{ partId: "appearance", source: "person" }],
+  };
+  const staticCheck = validateTurnProposal(proposal);
+  if (staticCheck.status !== "accepted") return null;
+  const contextual = validateMasterTurnPlan({
+    proposal: staticCheck.proposal,
+    scene: snapshot.scene,
+    world: snapshot.world,
+    rawText: input,
+  });
+  if (contextual.status !== "accepted") return contextual.status === "clarification"
+    ? { status: "clarification", question: contextual.question, options: contextual.options }
+    : null;
+  const round = buildQuestionRound(staticCheck.proposal, contextual.plan, snapshot, input);
+  if (round.status === "clarification") {
+    return { status: "clarification", question: round.question, options: round.options };
+  }
+  if (!round.spec) return null;
+  return { status: "plan", plan: contextual.plan, scene: snapshot.scene, questionRound: round.spec };
+}
+
+/**
  * A deterministic compound plan wins over a model clarification for the SAME
  * replica: when every clause is understood (one safe primary + its questions),
  * answering them is exactly plan_9 §1 and never loses an understood part. A
@@ -1899,6 +1953,8 @@ export async function interpretMasterTurn(
   if (disambiguated) return disambiguated;
   const pronounTopic = resolvePronounConversationTopic(input, snapshot, options);
   if (pronounTopic) return pronounTopic;
+  const focusedAppearance = resolveFocusedAppearanceQuestion(input, snapshot);
+  if (focusedAppearance) return focusedAppearance;
   const liveAvailable = router !== null && (options?.mode ?? readMode()) !== "off" && gmDirectorLiveEnabled();
   if (liveAvailable) {
     const exact = parseIntent(input);
@@ -2114,7 +2170,32 @@ function resolveProposedMasterTurn(
   // binding. When the current scene names exactly one candidate for the
   // unresolved slot, the hedge is resolved here instead of asking the
   // player to pick again ("к архивисту" names one visible person).
+  const inputClass = classifyPlayerInput(input, parseIntent);
   const typedProposal = parseTurnProposal(parsed);
+  // An unregistered free-form question cannot be converted into an unrelated
+  // registered query just because the model knows that query's enum value.
+  // Only a QuestionPlan can establish how its declared facts answer the
+  // player's actual question; unsupported candidates fail closed.
+  if (inputClass.kind === "inquiry_candidate"
+    && typedProposal?.kind === "inquiry"
+    && typedProposal.primaryIntent?.kind === "inquiry"
+    && /^(?:а\s+)?(?:кто|кого|кому|кем)\b/iu.test(input.trim())
+    && typedProposal.primaryIntent.queryId === "known_place_knowledge"
+    && !typedProposal.questionPlan) {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "proposal_schema_rejected",
+      outcome: "invalid",
+      phase: "question_replica_validation",
+      failureCategory: "unregistered_question_alias",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+    });
+    return {
+      status: "clarification",
+      question: "Я не могу уверенно определить, о ком или о чём ты спрашиваешь. Уточни вопрос.",
+      options: [{ optionId: "rephrase", label: "Уточнить вопрос" }],
+    };
+  }
   const questionResolution = typedProposal
     ? resolveQuestionSubjectAmbiguity(typedProposal, input, snapshot)
     : null;
@@ -2423,24 +2504,36 @@ function replicaAsksQuestion(input: string): boolean {
  * The reply silently DROPS the replica's question (question-safety guard,
  * follow-up to the T6 question-replica work). Kinds speech/action/mixed
  * without a top-level `question`, without a supporting question clause and
- * without a questionPlan cannot answer it. A speech proposal is exempt only
- * when the player input itself deterministically classifies as a speech act:
- * in that case the utterance carries the embedded question to its addressee.
- * Question-bearing mixed/action inputs still fail closed when their question
- * is dropped (the live regression was «Подойду к старосте, как он выглядит?»
- * returned as speech).
+ * without a questionPlan cannot answer it. Speech classification alone is
+ * not evidence that the embedded question survived in the proposal.
  */
 function dropsEmbeddedQuestion(parsed: unknown, input: string): boolean {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
   const proposal = parsed as Record<string, unknown>;
   const kind = proposal.kind;
   if (kind !== "speech" && kind !== "action" && kind !== "mixed") return false;
-  if (kind === "speech" && classifyPlayerInput(input, parseIntent).kind === "speech") return false;
   if (proposal.question !== undefined) return false;
   // The semantic plan answers the embedded question (plan path, e.g. S7).
   if (proposal.questionPlan !== undefined) return false;
   const clauses = Array.isArray(proposal.supportingClauses) ? proposal.supportingClauses : [];
-  return !clauses.some((entry) => !!entry && typeof entry === "object" && (entry as { kind?: unknown }).kind === "question");
+  if (clauses.some((entry) => !!entry && typeof entry === "object" && (entry as { kind?: unknown }).kind === "question")) return false;
+  return kind !== "speech" || !speechCarriesQuestion(proposal, input);
+}
+
+function speechCarriesQuestion(proposal: Record<string, unknown>, input: string): boolean {
+  const primary = proposal.primaryIntent;
+  if (!primary || typeof primary !== "object" || !("utterance" in primary) || typeof primary.utterance !== "string") return false;
+  const question = /(?:^|[^\p{L}\p{N}_])(кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|чьё|чьи|сколько|есть\s+ли)(?=$|[^\p{L}\p{N}_])[^.!?]{0,120}/iu.exec(input);
+  if (!question) return false;
+  const questionWords = question[0].toLowerCase().replace(/ё/gu, "е").split(/[^a-zа-я0-9]+/iu).filter(Boolean);
+  const questionMarker = questionWords.find((word) => /^(кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|сколько|есть)$/u.test(word));
+  if (!questionMarker) return false;
+  const stopWords = new Set(["кто", "что", "где", "куда", "откуда", "когда", "почему", "зачем", "как", "какой", "какая", "какое", "какие", "чей", "чья", "чье", "чьё", "чьи", "сколько", "есть", "ли", "он", "она", "они", "его", "ее", "это", "этот", "эта", "этом", "на", "в", "у", "с", "по", "и"]);
+  const contentWords = questionWords.filter((word) => word.length >= 4 && !stopWords.has(word));
+  if (contentWords.length === 0) return true;
+  const spokenWords = primary.utterance.toLowerCase().replace(/ё/gu, "е").split(/[^a-zа-я0-9]+/iu).filter(Boolean);
+  const retained = contentWords.filter((word) => spokenWords.some((spoken) => sameRussianStem(word, spoken))).length;
+  return retained >= Math.min(1, contentWords.length);
 }
 
 /**

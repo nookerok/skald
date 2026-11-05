@@ -205,6 +205,84 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("does not answer an unregistered factual question with an unrelated registered knowledge query", async () => {
+    const input = "Кто перевозит людей через реку?";
+    const { router } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+    }));
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival");
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "unregistered-who-question" }));
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(["clarification", "contextual_clarification"]).toContain(body.masterTurn.kind);
+      expect(body.masterTurn.deterministicText).not.toContain("Перед пожаром из архива");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+    } finally { store.close(); }
+  });
+
+  it("resolves a persisted approached-person focus after restart and answers a clothing question read-only", async () => {
+    let decision: unknown = social();
+    const { router, chat } = routerFor(() => decision);
+    const { path, store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+
+    try {
+      const approached = parse(await handleWorldCommand(runtime, {
+        input: "Подойти к перевозчику",
+        idempotencyKey: "approach-ferry-focus",
+      }));
+      expect(approached.masterTurn.deterministicText).toContain(person.label);
+      expect(runtime.projection.getSnapshot().time).toBe(1);
+    } finally { store.close(); }
+
+    const reopened = createMultiWorldStore(path);
+    const restarted = await new WorldRuntimeManager(reopened, router).get(WORLD);
+    const afterApproachEvents = restarted.bus.query().length;
+    try {
+      const conversation = parse(await handleWorldCommand(restarted, {
+        input: "Хочу поговорить с ним",
+        idempotencyKey: "talk-to-focused-ferry",
+      }));
+      expect(conversation.conversationTurn.responseKind).toBe("speech_reaction");
+      expect(conversation.masterTurn.deterministicText).not.toMatch(/Кого или что именно|К кому именно/u);
+      expect(conversation.masterTurn.deterministicText).toContain(person.label);
+      expect(restarted.projection.getSnapshot().time).toBe(1);
+      expect(restarted.bus.query()).toHaveLength(afterApproachEvents);
+
+      const afterConversationEvents = restarted.bus.query().length;
+      decision = {
+        schemaVersion: 2,
+        addressee: { kind: "gm" },
+        kind: "world_question",
+        proposal: {
+          schemaVersion: 2,
+          kind: "inquiry",
+          primaryIntent: null,
+          supportingClauses: [],
+          referents: [],
+          questionPlan: {
+            subjects: [{ id: "person", surface: "нём", kind: "entity" }],
+            parts: [{ id: "clothes", subjectRefs: ["person"], aspect: "appearance", time: "current", purpose: "describe" }],
+          },
+          readings: [{ partId: "clothes", source: "person" }],
+        },
+      };
+      const appearance = parse(await handleWorldCommand(restarted, {
+        input: "Что на нём надето?",
+        idempotencyKey: "focused-archivist-clothing",
+      }));
+      expect(appearance.conversationTurn.responseKind).toBe("inquiry_answer");
+      expect(appearance.masterTurn.kind).toBe("inquiry_answer");
+      expect(appearance.masterTurn.deterministicText).not.toMatch(/Кого или что именно|К кому именно/u);
+      expect(restarted.projection.getSnapshot().time).toBe(1);
+      expect(restarted.bus.query()).toHaveLength(afterConversationEvents);
+      expect(chat).not.toHaveBeenCalled();
+    } finally { reopened.close(); }
+  });
   it("does not execute a speak proposal that drops a corrective topic question", async () => {
     let decision: unknown;
     const { router, chat } = routerFor(() => decision);
@@ -540,6 +618,34 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("fails closed when addressed speech text contains a question but the proposal drops it", async () => {
+    const input = "Спрашиваю смотрителя, что записано в журнале проходов";
+    let keeperRef = "";
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2,
+      kind: "speech",
+      primaryIntent: { kind: "speech", utterance: "Здравствуйте.", sourceText: input },
+      addressedEntity: { role: "addressee", surface: "смотрителя", observerRef: keeperRef },
+      supportingClauses: [],
+      referents: [{ role: "addressee", surface: "смотрителя", observerRef: keeperRef }],
+    }));
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const keeper = scene.context.knownPeople.find((person) => person.portrait?.addressForms.includes("смотритель"));
+    expect(keeper).toBeDefined();
+    if (!keeper) { store.close(); throw new Error("expected gatekeeper address form in riverwatch scene"); }
+    keeperRef = keeper.observerRef;
+    vi.stubEnv("GM_DIRECTOR_LIVE", "0");
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "addressed-question-dropped" }));
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(["clarification", "contextual_clarification"]).toContain(body.masterTurn.kind);
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+      expect(chat).toHaveBeenCalledTimes(2);
+    } finally { store.close(); }
+  });
   it("does not execute a partial action when the Director drops a speech-wrapped question", async () => {
     let decision: unknown;
     const { router, chat } = routerFor(() => decision);
