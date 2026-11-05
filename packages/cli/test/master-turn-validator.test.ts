@@ -322,6 +322,46 @@ describe("master turn contextual validation", () => {
     expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
   });
 
+  it("rejects a character-identity answer for a question about someone else", () => {
+    const { world, scene } = livingWorld();
+    const proposal = (sourceText: string) => ({
+      schemaVersion: 2,
+      kind: "inquiry",
+      primaryIntent: { kind: "inquiry", queryId: "character_identity", sourceText },
+      supportingClauses: [],
+      referents: [],
+    } as TurnProposalV2);
+    const unrelated = validateMasterTurnPlan({
+      proposal: proposal("Кто перевозит людей через реку?"),
+      scene,
+      world,
+      rawText: "Кто перевозит людей через реку?",
+    });
+    expect(unrelated.status).toBe("clarification");
+    if (unrelated.status === "clarification") {
+      expect(unrelated.question).toBe("Кого именно ты имеешь в виду в этом вопросе?");
+    }
+
+    const unrelatedAfterSelfQuestion = validateMasterTurnPlan({
+      proposal: proposal("Кто перевозит людей через реку?"),
+      scene,
+      world,
+      rawText: "Кто я? А кто перевозит людей через реку?",
+    });
+    expect(unrelatedAfterSelfQuestion.status).toBe("clarification");
+
+    const self = validateMasterTurnPlan({
+      proposal: proposal("Кто я?"),
+      scene,
+      world,
+      rawText: "Кто я?",
+    });
+    expect(self.status).toBe("accepted");
+    if (self.status === "accepted") {
+      expect(self.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["character_identity"]);
+    }
+  });
+
   it("validates every supporting question of a mixed turn (plan_9 §1)", () => {
     const { world, scene, target } = campWithPlacedTorch();
     const result = validateMasterTurnPlan({

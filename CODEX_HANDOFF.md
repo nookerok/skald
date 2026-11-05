@@ -1,4 +1,31 @@
-# Current work (2026-11-04 - post-deploy browser QA follow-up)
+# Current work (2026-11-05 - P3 QA failure fixes; release pending)
+
+- The verified scratch QA job `gm-p3-free-session-20261105-1` was FAIL: a
+  general-knowledge question was answered from player backstory; a pronoun
+  follow-up after reload entered a stale clarification loop; and a
+  speech-wrapped question could be dropped while a partial action advanced
+  time. One provider timeout (~4.1 s) is recorded separately from route
+  quality.
+- Local corrections: unique persisted person focus can resolve the narrow
+  «Хочу поговорить с ним/ней» read-side request through an opaque scene
+  handle; question-bearing Director output that drops the question falls back
+  without executing a partial action; explicit speech-to-person remains an
+  action that carries its spoken question. `character_identity` is accepted
+  only when the specific model question source text is an explicit self-query.
+- Regression coverage includes SQLite reopen for the persisted focus,
+  question loss in acknowledgement/action responses, direct speech positive
+  controls, and self-identity source matching.
+- Validation: focused P3 suite 140/140 PASS; full `npm run validate` PASS
+  (252 files, 3158 passed, 1 skipped; typecheck, Canon and diff checks PASS).
+- Production `GM_DIRECTOR_LIVE` remains off; canonical world and production
+  DB were not touched. The working changes are local and not yet committed or
+  deployed. Pi TCP `:22` and `:3000` are reachable again; post-deploy
+  verification has not yet been performed.
+- Next: inspect final diff, commit/push, deploy through the Orange Pi updater,
+  then run a new fixed-runner QA job on a scratch world. Browser/visual,
+  provider and human acceptance remain separate; human acceptance is not run.
+
+## Previous current work (2026-11-04 - post-deploy browser QA follow-up)
 
 - The fixed NTFS QA runner completed job `gmdirector-public-address-20261104-1`
   against deployed `a92406f`; the immutable receipt is verified and the

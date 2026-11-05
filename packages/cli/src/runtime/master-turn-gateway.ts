@@ -1531,6 +1531,55 @@ function resolveExplicitReferentStatement(
   return null;
 }
 
+/**
+ * Resolves the narrow read-side request "Хочу поговорить с ним/ней" from a
+ * unique, persisted person mention before the live Director sees the turn.
+ * The server owns referent binding; the accepted social act is the existing
+ * closed ask_topic response and creates neither Events nor time.
+ */
+function resolvePronounConversationTopic(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  if (!/^(?:я\s+)?хочу\s+поговорить\s+с\s+(?:ним|ней)[.!?]*$/iu.test(input.trim())) return null;
+  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
+  if (bindings.length !== 1) return null;
+  const binding = bindings[0]!;
+  if (binding.resolution !== "single" || binding.candidates.length !== 1 || !binding.classes.includes("person")) return null;
+  const observerRef = binding.candidates[0]!;
+  const reference = snapshot.scene.references.get(observerRef);
+  if (!reference || reference.kind !== "person") return null;
+
+  let bundle: GmContextBundle;
+  try {
+    bundle = options?.gmContextBundle ?? buildGmContext({ scene: snapshot.scene.context, conversation: snapshot.conversation });
+  } catch {
+    return null;
+  }
+  const handle = [...bundle.handleToObserverRef.entries()]
+    .find(([, candidate]) => candidate === observerRef)?.[0];
+  if (!handle) return null;
+  const decision: GmTurnDecision = {
+    schemaVersion: 2,
+    addressee: { kind: "npc", handle },
+    kind: "conversation",
+    response: { segments: [{ kind: "social", act: "ask_topic" }] },
+  };
+  const outcome = applyGmDirectorDecision(decision, bundle, input, snapshot);
+  if (outcome) {
+    emitMasterTurnDiagnostic(options?.diagnostics, {
+      category: "deterministic_fast_path",
+      outcome: "accepted",
+      phase: "routing",
+      correlationId: options?.correlationId,
+      worldTime: options?.worldTime,
+      queryId: "conversation_topic",
+      referentCount: 1,
+    });
+  }
+  return outcome;
+}
 function resolveDeterministicMeta(
   input: string,
   snapshot: MasterTurnSnapshot,
@@ -1705,6 +1754,17 @@ async function tryLiveGmDirector(
       bridged = applyGmDirectorDecision(result.decision, bundle, input, snapshot);
     }
   }
+  const modelAnswerContainsQuestionResponse = result.status === "decision"
+    && result.decision.kind === "conversation"
+    && Boolean(result.decision.response?.segments.some((segment) => segment.kind === "fact"
+      || (segment.kind === "social" && (segment.act === "no_knowledge" || segment.act === "no_commitment"))));
+  const modelDroppedQuestion = result.status === "decision"
+    && replicaAsksQuestion(input)
+    && bridged?.status !== "inquiry"
+    && ((result.decision.kind === "conversation" && !modelAnswerContainsQuestionResponse)
+      || ("proposal" in result.decision && Boolean(result.decision.proposal)
+        && dropsEmbeddedQuestion(result.decision.proposal, input)));
+  if (modelDroppedQuestion) bridged = null;
   const questionGuardFallback = !bridged
     && replicaAsksQuestion(input)
     && !(result.status === "fallback" && result.reason === "provider_error");
@@ -1837,6 +1897,8 @@ export async function interpretMasterTurn(
   if (checkIn) return checkIn;
   const disambiguated = resolveExplicitReferentStatement(input, snapshot, options);
   if (disambiguated) return disambiguated;
+  const pronounTopic = resolvePronounConversationTopic(input, snapshot, options);
+  if (pronounTopic) return pronounTopic;
   const liveAvailable = router !== null && (options?.mode ?? readMode()) !== "off" && gmDirectorLiveEnabled();
   if (liveAvailable) {
     const exact = parseIntent(input);
@@ -2137,7 +2199,7 @@ function resolveProposedMasterTurn(
   // not execute that reply — the degraded path runs the deterministic part
   // with a diagnostic instead of silently losing the question (live
   // variance: mixed replica answered as speech).
-  if (replicaAsksQuestion(promptInput) && dropsEmbeddedQuestion(parsed)) {
+  if (replicaAsksQuestion(promptInput) && dropsEmbeddedQuestion(parsed, promptInput)) {
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "proposal_schema_rejected",
       outcome: "invalid",
@@ -2353,26 +2415,27 @@ function executesActionForQuestionReply(parsed: unknown): boolean {
 /** The replica itself carries a question (question-bearing, not necessarily pure). */
 function replicaAsksQuestion(input: string): boolean {
   const classification = classifyPlayerInput(input, parseIntent);
-  return classification.kind === "inquiry" || classification.kind === "inquiry_candidate";
+  if (classification.kind === "inquiry" || classification.kind === "inquiry_candidate") return true;
+  return /(?:^|[^\p{L}\p{N}_])(?:спрашиваю|спрошу|спросил(?:а)?|интересуюсь|поинтересуюсь|задаю\s+вопрос)(?:$|[^\p{L}\p{N}_])[^.!?]{0,160}(?:^|[^\p{L}\p{N}_])(?:кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|чьё|чьи|сколько|есть\s+ли)(?:$|[^\p{L}\p{N}_])/iu.test(input);
 }
 
 /**
  * The reply silently DROPS the replica's question (question-safety guard,
  * follow-up to the T6 question-replica work). Kinds speech/action/mixed
  * without a top-level `question`, without a supporting question clause and
- * without a questionPlan cannot answer it — for speech it is impossible by
- * the static placement rule, which is exactly how the live variance
- * happened: a mixed replica («Подойду к старосте, как он выглядит?») came
- * back as speech, the action executed and the question died. The guard
- * fires only for question-bearing replicas; addressing speech
- * («Спрошу перевозчика, что он делает» classifies as speech) and
- * action-only replicas never reach it.
+ * without a questionPlan cannot answer it. A speech proposal is exempt only
+ * when the player input itself deterministically classifies as a speech act:
+ * in that case the utterance carries the embedded question to its addressee.
+ * Question-bearing mixed/action inputs still fail closed when their question
+ * is dropped (the live regression was «Подойду к старосте, как он выглядит?»
+ * returned as speech).
  */
-function dropsEmbeddedQuestion(parsed: unknown): boolean {
+function dropsEmbeddedQuestion(parsed: unknown, input: string): boolean {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
   const proposal = parsed as Record<string, unknown>;
   const kind = proposal.kind;
   if (kind !== "speech" && kind !== "action" && kind !== "mixed") return false;
+  if (kind === "speech" && classifyPlayerInput(input, parseIntent).kind === "speech") return false;
   if (proposal.question !== undefined) return false;
   // The semantic plan answers the embedded question (plan path, e.g. S7).
   if (proposal.questionPlan !== undefined) return false;
@@ -2430,7 +2493,7 @@ function repairDecisionFor(raw: unknown, input: string): RepairDecision | null {
       },
     };
   }
-  if (check.status === "accepted" && replicaAsksQuestion(input) && dropsEmbeddedQuestion(parsed)) {
+  if (check.status === "accepted" && replicaAsksQuestion(input) && dropsEmbeddedQuestion(parsed, input)) {
     return {
       note: "This replica contains a question the reply must carry: return kind mixed with the embedded question (or kind inquiry, or a supportingClauses entry of kind question, or a questionPlan) — never speech or action without it.",
       dims: {

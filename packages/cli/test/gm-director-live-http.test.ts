@@ -466,4 +466,108 @@ describe("P3 Director production path", () => {
       expect(router.chat.mock.calls.filter(([category]: [string]) => category === "interpret")).toHaveLength(1);
     } finally { store.close(); }
   });
+  it("continues a persisted person focus for a pronominal talk request after SQLite reopen", async () => {
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "clarification",
+      clarification: {
+        question: "«Незнакомый человек» сейчас не удаётся связать с тем, что видно. Назови это иначе или осмотрись.",
+        candidateHandles: [],
+      },
+    }));
+    const { path, store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const source = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const person = source.context.knownPeople.find((entry) => entry.label === "Незнакомый человек" && !entry.known);
+    expect(person).toBeDefined();
+    const reference = person && source.references.get(person.observerRef);
+    expect(reference?.kind).toBe("person");
+    const { conversationRequestHash } = await import("../src/conversation/builder.js");
+    store.recordConversationTurn({
+      worldId: WORLD,
+      idempotencyKey: "prior-focus",
+      correlationId: "conversation:prior-focus",
+      requestHash: conversationRequestHash("Кто рядом?"),
+      playerText: "Кто рядом?",
+      inputClass: "inquiry",
+      responseKind: "inquiry_answer",
+      responseText: "Незнакомый человек ведёт журнал проходов.",
+      worldTimeBefore: 0,
+      worldTimeAfter: 0,
+      contextMetadata: {
+        schemaVersion: 1,
+        mentions: [{
+          kind: "person",
+          role: "topic",
+          label: person!.label,
+          source: "answer",
+          identity: { kind: "person", internalId: reference!.internalId },
+        }],
+      },
+    } as any);
+    store.close();
+
+    const reopened = createMultiWorldStore(path);
+    const restarted = await new WorldRuntimeManager(reopened, router).get(WORLD);
+    const eventCount = restarted.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(restarted, { input: "Хочу поговорить с ним", idempotencyKey: "pronoun-topic" }));
+      expect(body.status).toBe("conversation");
+      expect(body.masterTurn.deterministicText).toContain("Незнакомый человек");
+      expect(body.masterTurn.deterministicText).toContain("О чём ты хочешь поговорить?");
+      expect(JSON.stringify(body)).not.toMatch(/person_|object_|route_|locationId|internalId/iu);
+      expect(chat).not.toHaveBeenCalled();
+      expect(restarted.projection.getSnapshot().time).toBe(0);
+      expect(restarted.bus.query()).toHaveLength(eventCount);
+      expect(reopened.listConversationTurns(WORLD)).toHaveLength(2);
+    } finally { reopened.close(); }
+  });
+
+  it("does not accept a social-only acknowledgement that drops a speech-wrapped question", async () => {
+    const { router, chat } = routerFor(() => social("acknowledge"));
+    const { store, runtime } = await fresh(router);
+    const count = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "спрашиваю, что записано в журнале проходов",
+        idempotencyKey: "speech-question-ack",
+      }));
+      expect(body.masterTurn.kind).not.toBe("speech_reaction");
+      expect(body.masterTurn.deterministicText).not.toBe("Я тебя слышу.");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(count);
+      expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
+
+  it("does not execute a partial action when the Director drops a speech-wrapped question", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+    decision = {
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "action",
+      proposal: {
+        schemaVersion: 2,
+        kind: "action",
+        primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойти к перевозчику" },
+        target: { role: "target", surface: "перевозчику", observerRef: person.handle },
+        supportingClauses: [],
+        referents: [{ role: "target", surface: "перевозчику", observerRef: person.handle }],
+      },
+    };
+    const count = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "спрашиваю, что записано в журнале проходов",
+        idempotencyKey: "speech-question-action",
+      }));
+      expect(body.masterTurn.kind).not.toBe("action_outcome");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(count);
+      expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
 });

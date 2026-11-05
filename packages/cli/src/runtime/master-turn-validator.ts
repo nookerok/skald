@@ -26,10 +26,12 @@ import {
   type ReadonlyWorld,
 } from "@skald/world";
 import {
+  classifyPlayerInput,
   conflictingActions,
   inferAmbiguitySlot,
   isInquiryQueryId,
   multipleReferents,
+  parseIntent,
   splitPlayerClauses,
   stemRussianToken,
   validateActionProposal,
@@ -491,7 +493,15 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
 
   if (proposal.kind === "inquiry") {
     if (proposal.primaryIntent.kind !== "inquiry") return { status: "invalid", reason: "inquiry turn requires an inquiry primary intent" };
-    const inquiry = checkQuestionFocus(proposal.primaryIntent.queryId, proposal.primaryIntent.focus, proposal.primaryIntent.relation, scene, rawText, track);
+    const inquiry = checkQuestionFocus(
+      proposal.primaryIntent.queryId,
+      proposal.primaryIntent.focus,
+      proposal.primaryIntent.relation,
+      scene,
+      rawText,
+      track,
+      proposal.primaryIntent.sourceText,
+    );
     if (inquiry.status !== "accepted") return inquiry;
     const topUp = checkTopQuestions(proposal, scene, rawText, track, inquiry.inquiry);
     if (topUp.status !== "accepted") return topUp;
@@ -947,8 +957,16 @@ function checkQuestionFocus(
   scene: MasterTurnSceneSnapshot,
   rawText: string,
   track: (entry: ValidatedConversationReferent) => void,
+  questionText = rawText,
 ): MappedInquiry {
   if (!isInquiryQueryId(queryId)) return { status: "invalid", reason: "unknown inquiry query" };
+  if (queryId === "character_identity" && !hasExplicitCharacterIdentityQuestion(questionText)) {
+    return {
+      status: "clarification",
+      question: "Кого именно ты имеешь в виду в этом вопросе?",
+      options: [{ optionId: "rephrase", label: "Переформулировать вопрос" }],
+    };
+  }
   if (!focus) {
     return {
       status: "accepted",
@@ -977,6 +995,12 @@ function checkQuestionFocus(
       ...(relation ? { relation } : {}),
     }),
   };
+}
+
+/** A model cannot turn an arbitrary question into private player identity data. */
+function hasExplicitCharacterIdentityQuestion(questionText: string): boolean {
+  const classified = classifyPlayerInput(questionText.trim(), parseIntent);
+  return classified.kind === "inquiry" && classified.inquiry.queryId === "character_identity";
 }
 
 /**
