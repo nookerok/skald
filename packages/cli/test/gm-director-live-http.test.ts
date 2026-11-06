@@ -26,7 +26,13 @@ function routerFor(getDecision: () => unknown) {
   });
   return { router: { apiKey: "", chat } as any, chat };
 }
-async function fresh(router: any, entrypointId?: string, unfamiliarContactRef?: string, additionalEvents: readonly DomainEvent[] = []) {
+async function fresh(
+  router: any,
+  entrypointId?: string,
+  unfamiliarContactRef?: string,
+  additionalEvents: readonly DomainEvent[] = [],
+  backgroundId?: string,
+) {
   vi.stubEnv("GM_DIRECTOR_LIVE", "1");
   vi.stubEnv("GM_DIRECTOR_SHADOW", "0");
   vi.stubEnv("SKALD_INTENT_LLM_MODE", "fallback");
@@ -34,7 +40,7 @@ async function fresh(router: any, entrypointId?: string, unfamiliarContactRef?: 
   const store = createMultiWorldStore(path);
   const bootstrapEvents = [
     ...(entrypointId
-      ? buildBootstrapEvents({ templateId: "living_region", entrypointId })
+      ? buildBootstrapEvents({ templateId: "living_region", entrypointId, ...(backgroundId ? { backgroundId } : {}) })
       : buildBootstrapEvents("living_region")),
     ...additionalEvents,
   ];
@@ -736,6 +742,168 @@ describe("P3 Director production path", () => {
       expect(runtime.projection.getSnapshot().time).toBe(0);
       expect(runtime.bus.query()).toHaveLength(count);
       expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
+  it("clarifies two named approach targets before executing and resumes the chosen target after restart", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { path, store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const archivist = scene.context.knownPeople.find((person) => person.label.includes("Архивист"));
+    const gatekeeper = scene.context.knownPeople.find((person) => person.portrait?.publicRole?.includes("журнал проходов"));
+    expect(archivist).toBeDefined();
+    expect(gatekeeper).toBeDefined();
+    const startEvents = store.loadEvents(WORLD).length;
+    let answerSurface = "";
+    try {
+      const clarification = parse(await handleWorldCommand(runtime, {
+        input: "Подойду к архивисту и смотрителю.",
+        idempotencyKey: "two-approach-targets",
+      }));
+      expect(clarification.conversationTurn.responseKind).toBe("clarification");
+      expect(clarification.question).toBe("К кому подойти первым?");
+      expect(clarification.options.some((option: any) => option.label.includes("Архивист"))).toBe(true);
+      expect(clarification.options.some((option: any) => option.label.includes("Смотритель"))).toBe(true);
+      answerSurface = clarification.options.find((option: any) => option.label.includes("Архивист"))!.label;
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(startEvents);
+      expect(chat).not.toHaveBeenCalled();
+    } finally { store.close(); }
+
+    const reopened = createMultiWorldStore(path);
+    const restarted = await new WorldRuntimeManager(reopened, router).get(WORLD);
+    try {
+      const selected = reopened.listConversationTurns(WORLD)[0]!;
+      expect(selected.contextMetadata?.clarification?.framed?.intent).toBeDefined();
+      const answer = parse(await handleWorldCommand(restarted, {
+        input: answerSurface,
+        idempotencyKey: "choose-archivist",
+      }));
+      expect(answer.masterTurn.kind).toBe("action_outcome");
+      expect(answer.conversationTurn.responseKind).toBe("action_outcome");
+      expect(restarted.projection.getSnapshot().time).toBe(1);
+      expect(restarted.bus.query().slice(startEvents).filter((event) => event.type === "ActionResolved")).toHaveLength(1);
+      expect(chat).not.toHaveBeenCalled();
+    } finally { reopened.close(); }
+  });
+
+  it("answers a visible public-role question from observer-safe read facts without spending time", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Кто ведёт журнал проходов у ворот?",
+        idempotencyKey: "visible-role-question",
+      }));
+      expect(body.status).toBe("inquiry");
+      expect(body.conversationTurn.responseKind).toBe("inquiry_answer");
+      expect(body.conversationTurn.responseText).toContain("журнал проходов");
+      expect(body.conversationTurn.responseText).toContain("Незнакомый человек");
+      expect(body.conversationTurn.responseText).not.toContain("Смотритель речных ворот");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+      expect(chat).not.toHaveBeenCalled();
+      expect(JSON.stringify(body)).not.toMatch(/person_|object_|route_|locationId|internalId/iu);
+    } finally { store.close(); }
+  });
+
+  it("continues a topic after the NPC's topic prompt and survives reload without repeating it", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { path, store, runtime } = await fresh(router);
+    const target = ferry(runtime);
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const approached = parse(await handleWorldCommand(runtime, {
+        input: "Подойти к перевозчику",
+        idempotencyKey: "topic-approach",
+      }));
+      expect(approached.masterTurn.deterministicText).toContain(target.label);
+      const prompt = parse(await handleWorldCommand(runtime, {
+        input: "Хочу поговорить с ним",
+        idempotencyKey: "topic-prompt",
+      }));
+      expect(prompt.masterTurn.deterministicText).toContain("О чём ты хочешь поговорить?");
+      expect(runtime.projection.getSnapshot().time).toBe(1);
+    } finally { store.close(); }
+
+    const reopened = createMultiWorldStore(path);
+    const restarted = await new WorldRuntimeManager(reopened, router).get(WORLD);
+    const eventsBeforeAnswer = restarted.bus.query().length;
+    try {
+      const answer = parse(await handleWorldCommand(restarted, {
+        input: "О пропавшей записи.",
+        idempotencyKey: "topic-answer",
+      }));
+      expect(answer.status).toBe("conversation");
+      expect(answer.conversationTurn.responseText).toContain("пропавшей записи");
+      expect(answer.conversationTurn.responseText).not.toContain("О чём ты хочешь поговорить?");
+      expect(restarted.projection.getSnapshot().time).toBe(1);
+      expect(restarted.bus.query()).toHaveLength(eventsBeforeAnswer);
+      expect(reopened.listConversationTurns(WORLD)).toHaveLength(3);
+      expect(chat).not.toHaveBeenCalled();
+      expect(beforeEvents).toBeGreaterThan(0);
+    } finally { reopened.close(); }
+  });
+
+  it("persists an ambiguous appearance-and-reaction question across restart without events or invented mood", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { path, store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const people = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot()).context.knownPeople;
+    expect(people.some((person) => person.label.includes("Архивист"))).toBe(true);
+    expect(people.some((person) => person.label.includes("Смотритель"))).toBe(true);
+    const beforeEvents = store.loadEvents(WORLD).length;
+    let selectedLabel = "";
+    try {
+      const clarification = parse(await handleWorldCommand(runtime, {
+        input: "Что на нём надето и как он себя ведёт?",
+        idempotencyKey: "ambiguous-appearance-question",
+      }));
+      expect(clarification.conversationTurn.responseKind).toBe("clarification");
+      expect(clarification.question).toContain("О ком");
+      selectedLabel = clarification.options.find((option: any) => option.label.includes("Архивист"))?.label ?? "";
+      expect(selectedLabel).not.toBe("");
+      expect(store.listConversationTurns(WORLD)[0]!.contextMetadata?.clarification?.framed?.slot).toBe("question_subject");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(chat).not.toHaveBeenCalled();
+    } finally { store.close(); }
+
+    const reopened = createMultiWorldStore(path);
+    const restarted = await new WorldRuntimeManager(reopened, router).get(WORLD);
+    try {
+      const answer = parse(await handleWorldCommand(restarted, {
+        input: "Я имею в виду Архивиста",
+        idempotencyKey: "answer-appearance-subject",
+      }));
+      expect(answer.status).toBe("inquiry");
+      expect(answer.conversationTurn.responseKind).toBe("inquiry_answer");
+      expect(answer.conversationTurn.responseText).toContain("рабочем платье");
+      expect(answer.conversationTurn.responseText).toMatch(/нет (?:доступных |проверенных )?сведений|не удалось наблюдать|не видно данных|пока нельзя понять/iu);
+      expect(answer.conversationTurn.responseText).not.toMatch(/спокоен|сердит|тревож|испуган|радостн|злится/iu);
+      expect(restarted.projection.getSnapshot().time).toBe(0);
+      expect(restarted.bus.query()).toHaveLength(beforeEvents);
+      expect(chat).not.toHaveBeenCalled();
+      expect(JSON.stringify(answer)).not.toMatch(/person_|object_|route_|locationId|internalId/iu);
+    } finally { reopened.close(); }
+  });
+  it("answers an addressed historical perception question with honest no-knowledge", async () => {
+    const { router, chat } = routerFor(() => social());
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const eventsBefore = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Смотритель, что ты видел перед пожаром?",
+        idempotencyKey: "addressed-historical-no-knowledge",
+      }));
+      expect(body.status).toBe("conversation");
+      expect(body.conversationTurn.responseKind).toBe("speech_reaction");
+      expect(body.conversationTurn.responseText).toContain("нет подтверждённого ответа");
+      expect(body.conversationTurn.responseText).toContain("Незнакомый человек");
+      expect(body.conversationTurn.responseText).not.toContain("Смотритель речных ворот");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(eventsBefore);
+      expect(chat).not.toHaveBeenCalled();
+      expect(JSON.stringify(body)).not.toMatch(/person_|object_|route_|locationId|internalId/iu);
     } finally { store.close(); }
   });
 });
