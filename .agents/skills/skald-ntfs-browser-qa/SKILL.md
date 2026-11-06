@@ -36,7 +36,9 @@ followed by a same-directory rename):
 
 1. `<jobId>.ack.json` before any browser mutation;
 2. `<jobId>.progress.json` before and after every potentially
-   state-changing browser call;
+   state-changing browser call. The helper appends each checkpoint to the
+   ordered `events` array while keeping the latest checkpoint at the top level;
+   never discard earlier progress events;
 3. `<jobId>-report.json` and `<jobId>-report.md` after the run;
 4. `<jobId>.complete.json` last, as the commit marker.
 

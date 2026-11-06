@@ -160,16 +160,44 @@ async function writeProgress({ outputRoot, jobId, runToken, phase, mutationTotal
   validateIdentity(jobId, runToken);
   const root = path.resolve(outputRoot);
   await readAckForJob(root, jobId, runToken);
+  const progressPath = path.join(root, `${jobId}.progress.json`);
+  let events = [];
+  try {
+    const previous = JSON.parse(await readFile(progressPath, "utf8"));
+    equal(previous.schema, "QA_JOB_PROGRESS_V1", "progress schema");
+    equal(previous.protocol, "QA_FILE_BRIDGE_V1", "progress protocol");
+    equal(previous.jobId, jobId, "progress jobId");
+    equal(previous.runToken, runToken, "progress runToken");
+    if (!Array.isArray(previous.events)) {
+      throw new Error("progress history is missing; refusing to overwrite the checkpoint");
+    }
+    events = previous.events;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const total = Number(mutationTotal ?? 0);
+  if (!Number.isSafeInteger(total) || total < 0) {
+    throw new Error("invalid progress mutation total");
+  }
+  const recordedAt = new Date().toISOString();
+  const event = {
+    sequence: events.length + 1,
+    phase,
+    mutationCounts: { total },
+    recordedAt,
+  };
+  events = [...events, event];
   const payload = {
     schema: "QA_JOB_PROGRESS_V1",
     protocol: "QA_FILE_BRIDGE_V1",
     jobId,
     runToken,
     phase,
-    mutationCounts: { total: Number(mutationTotal ?? 0) },
-    updatedAt: new Date().toISOString(),
+    mutationCounts: { total },
+    updatedAt: recordedAt,
+    events,
   };
-  await atomicJson(path.join(root, `${jobId}.progress.json`), payload);
+  await atomicJson(progressPath, payload);
   return payload;
 }
 
@@ -349,9 +377,33 @@ async function selfTest() {
       outputRoot: root,
       jobId,
       runToken,
-      phase: "reporting",
+      phase: "before-gameplay",
       mutationTotal: 0,
     });
+    await writeProgress({
+      outputRoot: root,
+      jobId,
+      runToken,
+      phase: "after-gameplay",
+      mutationTotal: 1,
+    });
+    await writeProgress({
+      outputRoot: root,
+      jobId,
+      runToken,
+      phase: "reporting",
+      mutationTotal: 1,
+    });
+    const progress = await json(path.join(root, `${jobId}.progress.json`), "progress");
+    const progressHistoryPreserved = progress.events.length === 3 &&
+      progress.events.map((event) => event.phase).join(",") === "before-gameplay,after-gameplay,reporting" &&
+      progress.events.map((event) => event.sequence).join(",") === "1,2,3";
+    if (!progressHistoryPreserved) {
+      throw new Error("progress checkpoints were not preserved in order");
+    }
+    if (progress.mutationCounts.total !== 1 || progress.phase !== "reporting") {
+      throw new Error("latest progress checkpoint was not retained at the top level");
+    }
     const sourceJson = path.join(root, "source.json");
     const sourceMarkdown = path.join(root, "source.md");
     await atomicJson(sourceJson, report);
@@ -377,7 +429,7 @@ async function selfTest() {
       tamperRejected = String(error.message).includes("SHA-256");
     }
     if (!tamperRejected) throw new Error("tampered report was accepted");
-    return { ...result, duplicateRejected, tamperRejected };
+    return { ...result, duplicateRejected, tamperRejected, progressHistoryPreserved };
   } finally {
     const resolved = path.resolve(root);
     if (!resolved.startsWith(path.resolve(tmpdir()) + path.sep)) {
