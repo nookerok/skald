@@ -1105,6 +1105,9 @@ function patchExecutableIntent(
   if (slot === "target" && intent.type === "InteractionCommand") {
     return freeze({ ...intent, target: freeze({ raw: surface }) });
   }
+  if (slot === "target" && intent.type === "ActionIntentCommand" && intent.operation === "approach") {
+    return freeze({ ...intent, target: freeze({ raw: surface }) });
+  }
   if (slot === "addressee" && intent.type === "ActionIntentCommand"
     && (intent.operation === "speak" || intent.operation === "call")) {
     return freeze({ ...intent, target: freeze({ raw: surface }) });
@@ -1194,7 +1197,13 @@ function tryResolveFramed(
       return { status: "plan", plan: validation.plan, scene: snapshot.scene, pendingLink: resolvesLink(pending.turnSeq) };
     }
     if (framed.intent) {
-      const patched = patchExecutableIntent(framed.intent, framed.slot, label);
+      const selectedSurface = framed.slot === "target"
+        && framed.intent.type === "ActionIntentCommand"
+        && framed.intent.operation === "approach"
+        ? observerSafeTargetSurfaceForRef(snapshot.scene, observerRef)
+        : label;
+      if (!selectedSurface) return null;
+      const patched = patchExecutableIntent(framed.intent, framed.slot, selectedSurface);
       if (!patched) return null;
       if (!validateActionProposal(patched).ok) return null;
       emitMasterTurnDiagnostic(options?.diagnostics, {
@@ -1583,6 +1592,36 @@ function resolvePronounConversationTopic(
   }
   return outcome;
 }
+
+/** Continue a bounded topic prompt without asking the same open question again. */
+function resolveConversationTopicAnswer(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+): MasterTurnGatewayOutcome | null {
+  const lastTurns = snapshot.conversation.lastTurns;
+  const lastMaster = [...lastTurns].reverse().find((turn) => turn.speaker === "master");
+  const lastPlayer = [...lastTurns].reverse().find((turn) => turn.speaker === "player");
+  const masterAskedForTopic = Boolean(lastMaster
+    && /о\s+чем\s+ты\s+хочешь\s+поговорить\s*\?/iu.test(lastMaster.text.replace(/ё/gu, "е")));
+  const playerJustRequestedNpcTopic = Boolean(lastPlayer
+    && /^(?:я\s+)?хочу\s+поговорить\s+с\s+(?:ним|ней)[.!?]*$/iu.test(lastPlayer.text.trim().toLowerCase().replace(/ё/gu, "е")));
+  if (!masterAskedForTopic && !playerJustRequestedNpcTopic) return null;
+  const normalized = input.trim().toLowerCase().replace(/ё/gu, "е");
+  const topicFragment = /^(?:о|об|про|насчет|касательно|по\s+поводу)\s+\S/iu.test(normalized);
+  const explicitQuestion = (!topicFragment && /[?？]/u.test(normalized))
+    || /^(?:а\s+)?(?:кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|чьи|сколько)(?=$|[^\p{L}\p{N}])/iu.test(normalized);
+  if (replicaAsksQuestion(input) && explicitQuestion) return null;
+  const intent = parseIntent(input);
+  if ((intent.type === "ActionIntentCommand" && intent.operation !== "unknown") || intent.type === "InteractionCommand" || intent.type === "JourneyIntent") return null;
+  const topic = input.trim().replace(/[\u0000-\u001f]/gu, " ").replace(/[«»"']/gu, "").replace(/\s+/gu, " ").slice(0, 120);
+  if (!topic) return null;
+  return {
+    status: "conversation",
+    text: "Понял: речь о «" + topic + "». Что ты уже знаешь об этом?",
+    revision: { worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber },
+  };
+}
+
 function resolveDeterministicMeta(
   input: string,
   snapshot: MasterTurnSnapshot,
@@ -1627,20 +1666,30 @@ function resolveDeterministicMeta(
 function resolveFocusedAppearanceQuestion(
   input: string,
   snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
 ): MasterTurnGatewayOutcome | null {
-  const normalized = input.trim().toLowerCase().replace(/ё/gu, "е").replace(/[.!?]+$/gu, "").replace(/\s+/gu, " ");
-  if (!/^(?:(?:а|и)\s+)?(?:что\s+на\s+(?:нем|ней)\s+надето|во\s+что\s+(?:он|она)\s+одет(?:а|о)?)$/iu.test(normalized)) return null;
-
-  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references, {
+  const match = /^(?:(?:а|и)\s+)?(?:что\s+на\s+(?<locative>нем|ней)\s+надето|во\s+что\s+(?<nominative>он|она)\s+одет(?:а|о)?)(?:\s+и\s+как\s+(?:он|она)\s+себя\s+ведет)?[.!?]*$/iu.exec(
+    input.trim().toLowerCase().replace(/ё/gu, "е").replace(/\s+/gu, " "),
+  );
+  if (!match) return null;
+  const pronoun = match.groups?.["locative"] ?? match.groups?.["nominative"];
+  if (!pronoun) return null;
+  const bindingInput = match.groups?.["locative"] ? "на " + pronoun : "во что " + pronoun;
+  const bindings = bindTurnPronouns(bindingInput, snapshot.conversation, snapshot.scene.context, snapshot.scene.references, {
     resolveUniqueLegacyTargetFocus: true,
   });
-  if (bindings.length !== 1) return null;
+  if (bindings.length !== 1 || !bindings[0]!.classes.includes("person")) return null;
   const binding = bindings[0]!;
-  if (binding.resolution !== "single" || binding.candidates.length !== 1
-    || !binding.classes.includes("person") || !binding.mention) return null;
-  const observerRef = binding.candidates[0]!;
-  if (snapshot.scene.references.get(observerRef)?.kind !== "person") return null;
-
+  if (binding.resolution === "missing") return null;
+  const personRefs = binding.candidates.filter((ref) => snapshot.scene.references.get(ref)?.kind === "person");
+  if (personRefs.length === 0) return null;
+  const observerRef = personRefs.length === 1 ? personRefs[0] : undefined;
+  if (binding.resolution === "single" && !observerRef) return null;
+  const hasReaction = /\s+и\s+как\s+(?:он|она)\s+себя\s+ведет/iu.test(match[0]);
+  const parts: NonNullable<TurnProposalV2["questionPlan"]>["parts"] = [
+    { id: "appearance", subjectRefs: ["focused-person"], aspect: "appearance", time: "current", purpose: "describe" },
+    ...(hasReaction ? [{ id: "reaction", subjectRefs: ["focused-person"], aspect: "observed_reaction", time: "current", purpose: "describe" } as const] : []),
+  ];
   const proposal: TurnProposalV2 = {
     schemaVersion: 2,
     kind: "inquiry",
@@ -1648,28 +1697,37 @@ function resolveFocusedAppearanceQuestion(
     supportingClauses: [],
     referents: [],
     questionPlan: {
-      subjects: [{ id: "focused-person", surface: binding.mention.surface, kind: "entity", observerRef }],
-      parts: [{ id: "appearance", subjectRefs: ["focused-person"], aspect: "appearance", time: "current", purpose: "describe" }],
+      subjects: [{ id: "focused-person", surface: pronoun, kind: "entity", ...(observerRef ? { observerRef } : {}) }],
+      parts,
     },
-    readings: [{ partId: "appearance", source: "person" }],
+    readings: [
+      { partId: "appearance", source: "person" },
+      ...(hasReaction ? [{ partId: "reaction", source: "scene" as const }] : []),
+    ],
   };
-  const staticCheck = validateTurnProposal(proposal);
-  if (staticCheck.status !== "accepted") return null;
-  const contextual = validateMasterTurnPlan({
-    proposal: staticCheck.proposal,
-    scene: snapshot.scene,
-    world: snapshot.world,
-    rawText: input,
-  });
-  if (contextual.status !== "accepted") return contextual.status === "clarification"
-    ? { status: "clarification", question: contextual.question, options: contextual.options }
-    : null;
-  const round = buildQuestionRound(staticCheck.proposal, contextual.plan, snapshot, input);
-  if (round.status === "clarification") {
-    return { status: "clarification", question: round.question, options: round.options };
+  if (personRefs.length > 1) {
+    const optionsForPerson: ClarificationOption[] = personRefs.slice(0, 3).map((ref, index) => {
+      const person = snapshot.scene.context.knownPeople.find((entry) => entry.observerRef === ref)!;
+      const duplicates = personRefs.filter((candidate) =>
+        snapshot.scene.context.knownPeople.find((entry) => entry.observerRef === candidate)?.label === person.label,
+      ).length > 1;
+      const detail = person.portrait?.publicRole ?? person.portrait?.distinguishingFeatures[0];
+      return {
+        optionId: `candidate-${index + 1}`,
+        label: duplicates && detail ? `${person.label} — ${detail}`.slice(0, 120)
+          : duplicates ? `${person.label} — вариант ${index + 1}` : person.label,
+        referentRefs: Object.freeze([ref]),
+      };
+    });
+    optionsForPerson.push({ optionId: "rephrase", label: "Уточнить, о ком вопрос" });
+    return {
+      status: "clarification",
+      question: "О ком ты спрашиваешь?",
+      options: Object.freeze(optionsForPerson),
+      framed: frameQuestionSubject(proposal, "focused-person", input, snapshot.scene.context.revision),
+    };
   }
-  if (!round.spec) return null;
-  return { status: "plan", plan: contextual.plan, scene: snapshot.scene, questionRound: round.spec };
+  return resolveReadOnlyPersonQuestion(proposal, input, snapshot, options);
 }
 
 /**
@@ -1948,6 +2006,10 @@ export async function interpretMasterTurn(
     const framed = await interpretFramedInput(input, snapshot, router, options);
     if (framed) return framed;
   }
+  const multiPersonApproach = resolveMultiPersonApproach(input, snapshot);
+  if (multiPersonApproach) return multiPersonApproach;
+  const topicAnswer = resolveConversationTopicAnswer(input, snapshot);
+  if (topicAnswer) return topicAnswer;
   const meta = resolveDeterministicMeta(input, snapshot, options);
   if (meta) return meta;
   const checkIn = resolveMasterConversationalCheckIn(input, options);
@@ -1956,8 +2018,12 @@ export async function interpretMasterTurn(
   if (disambiguated) return disambiguated;
   const pronounTopic = resolvePronounConversationTopic(input, snapshot, options);
   if (pronounTopic) return pronounTopic;
-  const focusedAppearance = resolveFocusedAppearanceQuestion(input, snapshot);
+  const addressedPastQuestion = resolveAddressedPastPerceptionQuestion(input, snapshot);
+  if (addressedPastQuestion) return addressedPastQuestion;
+  const focusedAppearance = resolveFocusedAppearanceQuestion(input, snapshot, options);
   if (focusedAppearance) return focusedAppearance;
+  const visibleRoleQuestion = resolveVisibleRoleQuestion(input, snapshot, options);
+  if (visibleRoleQuestion) return visibleRoleQuestion;
   const liveAvailable = router !== null && (options?.mode ?? readMode()) !== "off" && gmDirectorLiveEnabled();
   if (liveAvailable) {
     const exact = parseIntent(input);
@@ -2696,4 +2762,169 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
+}
+
+function observerSafeTargetSurfaceForRef(scene: MasterTurnSceneSnapshot, observerRef: string): string | null {
+  const person = scene.context.knownPeople.find((entry) => entry.observerRef === observerRef);
+  if (!person) return null;
+  const folded = (value: string): string => value.trim().toLowerCase().replace(/ё/gu, "е");
+  const sameLabel = scene.context.knownPeople.filter((entry) => folded(entry.label) === folded(person.label));
+  if (sameLabel.length === 1) return person.label;
+  const entries = scene.context.knownPeople.map((entry) => ({
+    observerRef: entry.observerRef,
+    label: entry.label,
+    knownAs: entry.knownAs,
+    addressForms: entry.portrait?.addressForms ?? [],
+  }));
+  for (const form of person.portrait?.addressForms ?? []) {
+    const resolved = bindSceneSurface(form, entries);
+    if (resolved.status === "unique" && resolved.entry.observerRef === observerRef) return form;
+  }
+  return null;
+}
+
+function contentStems(text: string): ReadonlySet<string> {
+  return new Set(text.toLowerCase().replace(/ё/gu, "е").split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 4)
+    .map((word) => stemRussianToken(word))
+    .filter((word) => word.length >= 4));
+}
+
+function peopleExplicitlyNamedInReplica(input: string, scene: MasterTurnSceneSnapshot): readonly MasterTurnSceneContext["knownPeople"][number][] {
+  const inputWords = contentStems(input);
+  const people = scene.context.knownPeople.map((person) => ({
+    person,
+    words: contentStems([person.label, ...person.knownAs, ...(person.portrait?.addressForms ?? [])].join(" ")),
+  }));
+  return Object.freeze(people.filter(({ words }, index) => {
+    const exclusive = [...words].filter((word) =>
+      !people.some((other, otherIndex) => otherIndex !== index && other.words.has(word)),
+    );
+    return exclusive.some((word) => inputWords.has(word));
+  }).map(({ person }) => person));
+}
+
+function resolveMultiPersonApproach(input: string, snapshot: MasterTurnSnapshot): MasterTurnGatewayOutcome | null {
+  const hasAnd = /(?:^|[^\p{L}\p{N}])и(?:$|[^\p{L}\p{N}])/iu.test(input);
+  const hasApproachVerb = /(?<![\p{L}\p{N}])(?:подойду|подойти|подойди|подойдите|приближусь|приблизиться)(?![\p{L}\p{N}])/iu.test(input);
+  if (!hasAnd || !hasApproachVerb) return null;
+  const people = peopleExplicitlyNamedInReplica(input, snapshot.scene);
+  if (people.length < 2) return null;
+  const firstSurface = observerSafeTargetSurfaceForRef(snapshot.scene, people[0]!.observerRef);
+  if (!firstSurface) return null;
+
+  const options: ClarificationOption[] = people.slice(0, 3).map((person, index) => {
+    const duplicates = people.filter((entry) => entry.label === person.label).length > 1;
+    const detail = person.portrait?.publicRole ?? person.portrait?.distinguishingFeatures[0];
+    return {
+      optionId: `candidate-${index + 1}`,
+      label: duplicates && detail ? `${person.label} — ${detail}`.slice(0, 120)
+        : duplicates ? `${person.label} — вариант ${index + 1}` : person.label,
+      referentRefs: Object.freeze([person.observerRef]),
+    };
+  });
+  options.push({ optionId: "rephrase", label: "Уточнить намерение" });
+  const framedIntent: ActionIntentCommand = Object.freeze({
+    type: "ActionIntentCommand",
+    mode: "relocate",
+    operation: "approach",
+    target: Object.freeze({ raw: firstSurface }),
+    rawText: input,
+    interpretation: Object.freeze({ source: "deterministic", confidence: 1, ambiguities: Object.freeze([]) }),
+  });
+  return {
+    status: "clarification",
+    question: "К кому подойти первым?",
+    options: Object.freeze(options),
+    framed: {
+      slot: "target",
+      intent: framedIntent,
+      revision: Object.freeze({ worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber }),
+    },
+  };
+}
+
+function resolveReadOnlyPersonQuestion(
+  proposal: TurnProposalV2,
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  const staticCheck = validateTurnProposal(proposal);
+  if (staticCheck.status !== "accepted") return null;
+  const contextual = validateMasterTurnPlan({
+    proposal: staticCheck.proposal,
+    scene: snapshot.scene,
+    world: snapshot.world,
+    rawText: input,
+  });
+  if (contextual.status === "clarification") {
+    return {
+      status: "clarification",
+      question: contextual.question,
+      options: contextual.options,
+      ...(contextual.framed ? { framed: contextual.framed } : {}),
+    };
+  }
+  if (contextual.status !== "accepted") return null;
+  const round = buildQuestionRound(staticCheck.proposal, contextual.plan, snapshot, input, options);
+  if (round.status === "clarification") {
+    return {
+      status: "clarification",
+      question: round.question,
+      options: round.options,
+      ...(round.framed ? { framed: round.framed } : {}),
+    };
+  }
+  return round.spec
+    ? { status: "plan", plan: contextual.plan, scene: snapshot.scene, questionRound: round.spec }
+    : null;
+}
+
+function resolveAddressedPastPerceptionQuestion(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+): MasterTurnGatewayOutcome | null {
+  const addressed = /^\s*(?<target>[^,?!]+),\s*(?<question>[\s\S]+)$/u.exec(input.trim());
+  const target = addressed?.groups?.["target"]?.trim();
+  const question = addressed?.groups?.["question"]?.trim().toLowerCase().replace(/ё/gu, "е");
+  if (!target || !question) return null;
+  const asksPastPerception = /^(?:что|где|когда)(?=$|[^\p{L}\p{N}])\s+ты\s+(?:видел|видела|заметил|заметила|слышал|слышала|наблюдал|наблюдала)(?=$|[^\p{L}\p{N}])/iu.test(question);
+  const namesHistoricalFrame = /(?:^|[^\p{L}\p{N}])(?:до|перед|во\s+время|после)(?=$|[^\p{L}\p{N}])\s+\S/iu.test(question);
+  if (!asksPastPerception || !namesHistoricalFrame) return null;
+  const matches = peopleExplicitlyNamedInReplica(target, snapshot.scene);
+  if (matches.length !== 1) return null;
+  const person = matches[0]!;
+  return {
+    status: "conversation",
+    text: "В доступных сведениях нет подтверждённого ответа на вопрос, что «" + person.label + "» видел в тот момент.",
+    revision: { worldTime: snapshot.world.time, eventNumber: snapshot.world.eventNumber },
+  };
+}
+
+function resolveVisibleRoleQuestion(
+  input: string,
+  snapshot: MasterTurnSnapshot,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome | null {
+  if (!/^\s*(?:а\s+)?кто(?=$|[^\p{L}\p{N}])/iu.test(input.trim().toLowerCase().replace(/ё/gu, "е"))) return null;
+  const queryWords = contentStems(input);
+  const matches = snapshot.scene.context.knownPeople.filter((person) => {
+    const roleWords = person.portrait?.publicRole ? contentStems(person.portrait.publicRole) : new Set<string>();
+    return roleWords.size > 0 && [...roleWords].every((word) => queryWords.has(word));
+  });
+  if (matches.length !== 1) return null;
+  const person = matches[0]!;
+  return resolveReadOnlyPersonQuestion({
+    schemaVersion: 2,
+    kind: "inquiry",
+    primaryIntent: null,
+    supportingClauses: [],
+    referents: [],
+    questionPlan: {
+      subjects: [{ id: "person", surface: person.label, kind: "entity", observerRef: person.observerRef }],
+      parts: [{ id: "role", subjectRefs: ["person"], aspect: "identity_role", time: "current", purpose: "describe" }],
+    },
+    readings: [{ partId: "role", source: "person" }],
+  }, input, snapshot, options);
 }

@@ -841,6 +841,18 @@ function buildInquiryAllowedFacts(params: {
   }
 }
 
+function toPlayerFacingQuestionReadingResults(results: QuestionReadingRound["results"]) {
+  let nextFactNumber = 0;
+  return results.map((result) => ({
+    ...result,
+    facts: result.facts.map((fact) => ({
+      ...fact,
+      // Internal source/subject keys are not part of the player DTO.
+      factId: "fact-" + (++nextFactNumber),
+    })),
+  }));
+}
+
 /**
  * T5 capture of the SHOWN answer (semantic-question-plan): confirmed
  * subjects of the covered question parts, resolved to their SCENE labels,
@@ -2506,7 +2518,7 @@ async function runValidatedMasterTurnResponse(
         questionReadings: {
           revision: questionReadings.revision,
           coveredParts: questionReadings.coveredParts,
-          results: questionReadings.results,
+          results: toPlayerFacingQuestionReadingResults(questionReadings.results),
         },
       } : {}),
       conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" },
@@ -2648,7 +2660,7 @@ async function runValidatedMasterTurnResponse(
       questionReadings: {
         revision: questionReadings.revision,
         coveredParts: questionReadings.coveredParts,
-        results: questionReadings.results,
+        results: toPlayerFacingQuestionReadingResults(questionReadings.results),
       },
     } : {}),
     masterTurn: masterTurnFromTurn(runtime, idempotencyKey,
