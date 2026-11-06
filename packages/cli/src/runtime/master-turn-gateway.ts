@@ -1533,9 +1533,10 @@ function resolveExplicitReferentStatement(
 
 /**
  * Resolves the narrow read-side request "Хочу поговорить с ним/ней" from a
- * unique, persisted person mention before the live Director sees the turn.
+ * unique, persisted person focus before the live Director sees the turn.
  * The server owns referent binding; the accepted social act is the existing
- * closed ask_topic response and creates neither Events nor time.
+ * closed ask_topic response and creates neither Events nor time. Legacy
+ * target/addressee focus may opt into exclusive resolution only here.
  */
 function resolvePronounConversationTopic(
   input: string,
@@ -1543,7 +1544,9 @@ function resolvePronounConversationTopic(
   options?: MasterTurnGatewayOptions,
 ): MasterTurnGatewayOutcome | null {
   if (!/^(?:я\s+)?хочу\s+поговорить\s+с\s+(?:ним|ней)[.!?]*$/iu.test(input.trim())) return null;
-  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
+  const bindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references, {
+    resolveUniqueLegacyTargetFocus: true,
+  });
   if (bindings.length !== 1) return null;
   const binding = bindings[0]!;
   if (binding.resolution !== "single" || binding.candidates.length !== 1 || !binding.classes.includes("person")) return null;

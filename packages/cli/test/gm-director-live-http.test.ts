@@ -7,6 +7,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildBootstrapEvents, buildMasterTurnSceneContext } from "@skald/world";
+import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager, type WorldRuntime } from "../src/runtime/world-runtime-manager.js";
 import { handleWorldCommand } from "../src/http/world-handlers.js";
@@ -25,15 +26,18 @@ function routerFor(getDecision: () => unknown) {
   });
   return { router: { apiKey: "", chat } as any, chat };
 }
-async function fresh(router: any, entrypointId?: string, unfamiliarContactRef?: string) {
+async function fresh(router: any, entrypointId?: string, unfamiliarContactRef?: string, additionalEvents: readonly DomainEvent[] = []) {
   vi.stubEnv("GM_DIRECTOR_LIVE", "1");
   vi.stubEnv("GM_DIRECTOR_SHADOW", "0");
   vi.stubEnv("SKALD_INTENT_LLM_MODE", "fallback");
   const path = join(mkdtempSync(join(tmpdir(), "skald-director-live-")), "events.sqlite");
   const store = createMultiWorldStore(path);
-  const bootstrapEvents = entrypointId
-    ? buildBootstrapEvents({ templateId: "living_region", entrypointId })
-    : buildBootstrapEvents("living_region");
+  const bootstrapEvents = [
+    ...(entrypointId
+      ? buildBootstrapEvents({ templateId: "living_region", entrypointId })
+      : buildBootstrapEvents("living_region")),
+    ...additionalEvents,
+  ];
   const worldBootstrapEvents = unfamiliarContactRef
     ? bootstrapEvents.filter((event) =>
         event.type !== "RelationChanged"
@@ -601,6 +605,64 @@ describe("P3 Director production path", () => {
     } finally { reopened.close(); }
   });
 
+  it("uses a unique recent target focus for pronominal talk without asking again among multiple people", async () => {
+    const { router, chat } = routerFor(() => social());
+    const bystander: DomainEvent = {
+      eventId: "test#ObjectPlaced#bystander",
+      type: "ObjectPlaced",
+      schemaVersion: 1,
+      payload: {
+        entityId: "contact:test-bystander",
+        x: 13500, y: 7500, name: "Незнакомый свидетель", aliases: [],
+        description: "Человек ждёт у стены.",
+        components: {
+          contact: {
+            locationId: "riverwatch_city",
+            profile: {
+              identityRef: "contact:test-bystander",
+              visibleAppearance: [], distinguishingFeatures: [],
+              publicRole: "ждёт у стены", knownAs: [], addressForms: [],
+            },
+          },
+        },
+      },
+      timestamp: 0, correlationId: "test-bootstrap", causationId: null,
+    };
+    const { path, store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [bystander]);
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const people = scene.context.knownPeople;
+    const gatekeeper = people.find((person) => person.label.includes("Смотритель"));
+    expect(people.length).toBeGreaterThan(1);
+    expect(gatekeeper).toBeDefined();
+
+    try {
+      const approached = parse(await handleWorldCommand(runtime, {
+        input: "Подойти к смотрителю",
+        idempotencyKey: "approach-gatekeeper-focus",
+      }));
+      expect(approached.masterTurn.deterministicText).toContain(gatekeeper!.label);
+      expect(runtime.projection.getSnapshot().time).toBe(1);
+    } finally { store.close(); }
+
+    const reopened = createMultiWorldStore(path);
+    const restarted = await new WorldRuntimeManager(reopened, router).get(WORLD);
+    const eventsBeforeTalk = restarted.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(restarted, {
+        input: "Хочу поговорить с ним",
+        idempotencyKey: "talk-to-focused-gatekeeper",
+      }));
+      expect(body.conversationTurn.responseKind).toBe("speech_reaction");
+      expect(body.masterTurn.deterministicText).toContain(gatekeeper!.label);
+      expect(body.masterTurn.deterministicText).toContain("О чём ты хочешь поговорить?");
+      expect(body.masterTurn.deterministicText).not.toMatch(/Кого или что именно|К кому именно/u);
+      expect(restarted.projection.getSnapshot().time).toBe(1);
+      expect(restarted.bus.query()).toHaveLength(eventsBeforeTalk);
+      expect(chat).not.toHaveBeenCalled();
+      expect(JSON.stringify(body)).not.toMatch(/person_|object_|route_|locationId|internalId/iu);
+    } finally { reopened.close(); }
+  });
+
   it("does not accept a social-only acknowledgement that drops a speech-wrapped question", async () => {
     const { router, chat } = routerFor(() => social("acknowledge"));
     const { store, runtime } = await fresh(router);
@@ -619,7 +681,7 @@ describe("P3 Director production path", () => {
   });
 
   it("fails closed when addressed speech text contains a question but the proposal drops it", async () => {
-    const input = "Спрашиваю смотрителя, что записано в журнале проходов";
+    const input = "Спрашиваю смотрителя, что записано в журнале проходов?";
     let keeperRef = "";
     const { router, chat } = routerFor(() => ({
       schemaVersion: 2,
