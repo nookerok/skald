@@ -1,31 +1,31 @@
-# Current work (2026-11-05 - P3 question-safety QA repairs; release pending)
+# Current work (2026-11-07 - Conversation Director P3 question-safety release pending)
 
-- Fixed-runner scratch QA `gmdirector-p3-browser-20261105-1` was verified FAIL.
-  It showed an unrelated lore answer to an unregistered «кто…?» question,
-  repeated clarification after a pronoun clothing question/reload, and a
-  speech-wrapped journal question being downgraded to an action that advanced
-  time. The failed scratch world is not reused.
-- Local fixes now fail closed for an unsupported bare `world_question` instead
-  of adapting it to `known_place_knowledge`; a speech proposal must retain an
-  interrogative marker plus question content or repair/fall back without
-  executing a partial action; and the narrow clothing QuestionPlan can resolve
-  a unique legacy target focus. Exclusive legacy-focus resolution is opt-in
-  only for that validated read-only path; ordinary action pronoun ranking
-  remains ambiguous as before.
-- Integration coverage includes unsupported factual question (zero events and
-  time), persisted approach/conversation/clothing inquiry across SQLite reopen,
-  and question loss in addressed speech (zero events/time). Focused tests:
-  115/115 PASS. Full `npm run validate`: PASS (typecheck, all tests, Canon,
-  shell syntax and diff checks).
-- Pi preflight after network restoration: remote `HEAD=f480ae1`, clean main,
-  `skald.service` and both timers active, health 200, restricted restart
-  permission present. The runtime has not yet been changed; no canonical world
-  or production database was touched.
-- Local code/test changes and this handoff are not yet committed or deployed.
-  Next: final diff review, commit/push, Orange Pi updater, independent
-  post-deploy state/health verification, then a NEW fixed-runner browser job on
-  a scratch world. Browser, provider and human acceptance remain separate;
-  human acceptance is not run.
+- Follow-up repairs cover multi-person approach clarification/resume after SQLite
+  restart, visible public-role questions from observer-safe facts, topic replies
+  after an NPC topic prompt across reload, ambiguous appearance/reaction
+  questions with a persisted subject clarification, and honest no-knowledge for
+  addressed historical perception questions. Player-facing question-reading
+  facts now replace internal fact IDs with per-response opaque labels.
+- Regression coverage is in packages/cli/test/gm-director-live-http.test.ts;
+  focused slice: 30/30 PASS. Full npm run validate: PASS (252 files, 3168
+  passed, 1 skipped; typecheck, shell checks, canon, simulation, eval and
+  diff checks all passed).
+- Read-only Orange Pi preflight on 2026-11-07: canonical host orangepi4-lts,
+  user nooker, remote main clean at
+  27ce55ac5e03a99f460a4d0f3fd28d17347e3a2f, service and both timers active,
+  health 200, restricted restart permission present. No remote mutation has
+  occurred in this release pass.
+- Local main is at the same commit. The scoped source/test changes remain
+  uncommitted. User-owned plan_1.md-plan_9.md and CODEX_HANDOFF.md.orig
+  remain untracked and must be preserved/excluded. GM_DIRECTOR_LIVE remains
+  disabled on production.
+- Existing user authorization covers commit/push/deploy and post-deploy QA.
+  Next: final validation and diff review, commit only the scoped source/test and
+  handoff changes, push and update with the installed Orange Pi updater, verify
+  remote commit/service/health/scoped current-world state, then run a NEW fixed
+  NTFS browser job on a scratch world. Repository, deployment, API/browser,
+  visual, provider and human acceptance remain separate; human acceptance has
+  not been run.
 
 ## Previous current work (2026-11-04 - post-deploy browser QA follow-up)
 
