@@ -2911,7 +2911,12 @@ function resolveVisibleRoleQuestion(
   const queryWords = contentStems(input);
   const matches = snapshot.scene.context.knownPeople.filter((person) => {
     const roleWords = person.portrait?.publicRole ? contentStems(person.portrait.publicRole) : new Set<string>();
-    return roleWords.size > 0 && [...roleWords].every((word) => queryWords.has(word));
+    // The player's question may omit optional detail from the authored role
+    // (for example, "Кто ведёт журнал проходов?" omits "у ворот"). Resolve
+    // only when the question contributes at least two meaningful role words
+    // and every one is supported by the observer-visible role. Requiring a
+    // unique person below keeps shared/overlapping roles unresolved.
+    return queryWords.size >= 2 && roleWords.size > 0 && [...queryWords].every((word) => roleWords.has(word));
   });
   if (matches.length !== 1) return null;
   const person = matches[0]!;

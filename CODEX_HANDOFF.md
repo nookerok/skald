@@ -1,4 +1,4 @@
-# Current work (2026-11-07 - Conversation Director P3 question-safety release pending)
+# Current work (2026-11-07 - Conversation Director P0/P1 validated; P3 live acceptance pending)
 
 - Follow-up repairs cover multi-person approach clarification/resume after SQLite
   restart, visible public-role questions from observer-safe facts, topic replies
@@ -6,13 +6,16 @@
   questions with a persisted subject clarification, and honest no-knowledge for
   addressed historical perception questions. Player-facing question-reading
   facts now replace internal fact IDs with per-response opaque labels.
+
+- P0 rejects handle on gm/meta; P1 corpus covers ambiguous recipient, people-list
+  questions, visible-role identification and recent unique focus.
 - Regression coverage is in packages/cli/test/gm-director-live-http.test.ts;
-  focused slice: 30/30 PASS. Full npm run validate: PASS (252 files, 3168
-  passed, 1 skipped; typecheck, shell checks, canon, simulation, eval and
-  diff checks all passed).
+  P0/P1/QuestionPlan focused slice: 121/121 PASS. Full npm run validate:
+  PASS (252 files, 3169 passed, 1 skipped; typecheck, shell, canon, simulation,
+  eval, adventure acceptance and diff checks all passed).
 - Read-only Orange Pi preflight on 2026-11-07: canonical host orangepi4-lts,
   user nooker, remote main clean at
-  27ce55ac5e03a99f460a4d0f3fd28d17347e3a2f, service and both timers active,
+  4297a451dc220a2988b70fcd27fa3f6dc5e8cdb4, service and both timers active,
   health 200, restricted restart permission present. No remote mutation has
   occurred in this release pass.
 - Local main is at the same commit. The scoped source/test changes remain

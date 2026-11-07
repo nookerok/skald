@@ -786,14 +786,17 @@ describe("P3 Director production path", () => {
     } finally { reopened.close(); }
   });
 
-  it("answers a visible public-role question from observer-safe read facts without spending time", async () => {
+  it.each([
+    "Кто ведёт журнал проходов у ворот?",
+    "Кто ведёт журнал проходов?",
+  ])("answers a unique visible public-role question from observer-safe read facts without spending time: %s", async (input) => {
     const { router, chat } = routerFor(() => social());
     const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
     const beforeEvents = runtime.bus.query().length;
     try {
       const body = parse(await handleWorldCommand(runtime, {
-        input: "Кто ведёт журнал проходов у ворот?",
-        idempotencyKey: "visible-role-question",
+        input,
+        idempotencyKey: `visible-role-question-${input}`,
       }));
       expect(body.status).toBe("inquiry");
       expect(body.conversationTurn.responseKind).toBe("inquiry_answer");
