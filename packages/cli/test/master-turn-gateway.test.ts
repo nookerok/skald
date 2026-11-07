@@ -809,6 +809,36 @@ describe("deterministic compound resolution (plan_9 §1)", () => {
     return { chat: vi.fn(() => { throw new Error("model down"); }) } as any;
   }
 describe("P3 live gateway safeguards", () => {
+  it("keeps one understood action and its question when the live Director asks to clarify", async () => {
+    const previous = process.env["GM_DIRECTOR_LIVE"];
+    process.env["GM_DIRECTOR_LIVE"] = "1";
+    try {
+      const router = routerReturning(JSON.stringify({
+        schemaVersion: 2,
+        addressee: { kind: "gm" },
+        kind: "clarification",
+        clarification: { question: "Что именно ты видишь?" },
+      }));
+
+      const result = await interpretMasterTurn(
+        "осматриваю двор, что я вижу?",
+        snapshot(),
+        router,
+        { mode: "fallback", timeoutMs: 50 },
+      );
+
+      expect(router.chat).toHaveBeenCalledTimes(1);
+      expect(result.status).toBe("plan");
+      if (result.status !== "plan") return;
+      expect(result.plan.kind).toBe("mixed");
+      expect(result.plan.execution?.intent.type).toBe("InteractionCommand");
+      expect(result.plan.postActionInquiries.map((entry) => entry.queryId)).toEqual(["visible_scene"]);
+    } finally {
+      if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
+      else process.env["GM_DIRECTOR_LIVE"] = previous;
+    }
+  });
+
   it("does not invoke the live Director twice when its pronoun bridge declines", async () => {
     const previous = process.env["GM_DIRECTOR_LIVE"];
     process.env["GM_DIRECTOR_LIVE"] = "1";
@@ -821,7 +851,7 @@ describe("P3 live gateway safeguards", () => {
       });
       const router = { chat: vi.fn(async (category: string) => ({ text: category === "interpret" ? directorReply : "{}" })) } as any;
       const diagnostics: any[] = [];
-      const result = await interpretMasterTurn("Что на нём одето?", citySnapshot(), router, { mode: "fallback", diagnostics: (entry) => { diagnostics.push(entry); } });
+      const result = await interpretMasterTurn("Что на нём в карманах?", citySnapshot(), router, { mode: "fallback", diagnostics: (entry) => { diagnostics.push(entry); } });
       expect(result.status).toBe("clarification");
       expect(diagnostics.filter((entry) => entry.category === "gm_director")).toHaveLength(1);
     } finally {
@@ -1699,7 +1729,7 @@ describe("whole-replica inquiry completeness (T3)", () => {
       { observerRef: "person_3", kind: "person" as const, label: "Guard", knownAs: [], known: true, portrait: { visibleAppearance: ["blue scarf"], distinguishingFeatures: ["silver key"], publicRole: "gate keeper", addressForms: [] } },
     ];
     const scene = { ...snap.scene, references, context: { ...snap.scene.context, knownPeople: people } };
-    const input = "Что на нём одето и как он себя ведёт?";
+    const input = "Что можно узнать об одежде и поведении стража?";
     const proposal = {
       schemaVersion: 2,
       kind: "inquiry",
@@ -1830,7 +1860,7 @@ describe("whole-replica inquiry completeness (T3)", () => {
       },
       readings: [{ partId: "clothes", source: "person" }],
     }));
-    const result = await interpretMasterTurn("Что на нём одето?", { ...snap, conversation }, router);
+    const result = await interpretMasterTurn("Как он одет?", { ...snap, conversation }, router);
     expect(result.status).toBe("plan");
     if (result.status !== "plan") return;
     expect(result.plan.execution).toBeNull();
@@ -1861,6 +1891,64 @@ describe("whole-replica inquiry completeness (T3)", () => {
       .find((entry) => entry.pronoun === "нем");
     expect(snap.scene.context.knownPeople).toHaveLength(2);
     expect(binding).toMatchObject({ resolution: "single", candidates: [archivist.observerRef] });
+  });
+
+  it("uses the current scene engagement to bind a combined appearance and reaction question", async () => {
+    const snap = citySnapshot();
+    const archivistRef = [...snap.scene.references]
+      .find(([, reference]) => reference.internalId === "contact:archivist")?.[0];
+    expect(archivistRef).toBeDefined();
+    const engaged: MasterTurnSnapshot = {
+      ...snap,
+      world: {
+        ...snap.world,
+        sceneEngagement: {
+          targetRef: "contact:archivist",
+          locationId: snap.world.currentLocationId,
+          state: "near",
+          establishedAt: snap.world.time,
+        },
+      },
+    };
+    const result = await interpretMasterTurn("Что на нём одето и как он себя ведёт?", engaged, null);
+
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution).toBeNull();
+    expect(result.questionRound?.questionPlan.subjects[0]).toMatchObject({
+      resolution: "resolved",
+      resolvedRef: archivistRef,
+    });
+    expect(result.questionRound?.questionPlan.parts.map((part) => part.aspect)).toEqual([
+      "appearance",
+      "observed_reaction",
+    ]);
+    expect(snap.world.time).toBe(0);
+    expect(snap.events).toHaveLength(7);
+  });
+
+  it("does not use stale or cross-location scene engagement to bind a person question", async () => {
+    const snap = citySnapshot();
+    const stale: MasterTurnSnapshot = {
+      ...snap,
+      world: {
+        ...snap.world,
+        sceneEngagement: {
+          targetRef: "contact:archivist",
+          locationId: "another-location",
+          state: "near",
+          establishedAt: snap.world.time,
+        },
+      },
+    };
+
+    const result = await interpretMasterTurn("Что на нём одето и как он себя ведёт?", stale, null);
+
+    expect(result.status).toBe("clarification");
+    if (result.status === "clarification") {
+      expect(result.question).toContain("О ком");
+      expect(result.framed?.slot).toBe("question_subject");
+    }
   });
 
   it("preserves a semantic question ambiguity when its choices are not scene people", async () => {

@@ -1668,7 +1668,7 @@ function resolveFocusedAppearanceQuestion(
   snapshot: MasterTurnSnapshot,
   options?: MasterTurnGatewayOptions,
 ): MasterTurnGatewayOutcome | null {
-  const match = /^(?:(?:а|и)\s+)?(?:что\s+на\s+(?<locative>нем|ней)\s+надето|во\s+что\s+(?<nominative>он|она)\s+одет(?:а|о)?)(?:\s+и\s+как\s+(?:он|она)\s+себя\s+ведет)?[.!?]*$/iu.exec(
+  const match = /^(?:(?:а|и)\s+)?(?:что\s+на\s+(?<locative>нем|ней)\s+(?:надето|одето)|во\s+что\s+(?<nominative>он|она)\s+одет(?:а|о)?)(?:\s+и\s+как\s+(?:он|она)\s+себя\s+ведет)?[.!?]*$/iu.exec(
     input.trim().toLowerCase().replace(/ё/gu, "е").replace(/\s+/gu, " "),
   );
   if (!match) return null;
@@ -1681,9 +1681,29 @@ function resolveFocusedAppearanceQuestion(
   if (bindings.length !== 1 || !bindings[0]!.classes.includes("person")) return null;
   const binding = bindings[0]!;
   if (binding.resolution === "missing") return null;
-  const personRefs = binding.candidates.filter((ref) => snapshot.scene.references.get(ref)?.kind === "person");
+  let personRefs = binding.candidates.filter((ref) => snapshot.scene.references.get(ref)?.kind === "person");
+  // An approach establishes a scene-relative focus even when an older or
+  // legacy ConversationTurn did not persist a mention. Use it only to break
+  // an otherwise ambiguous person binding, and only when the same target is
+  // still observer-visible in this exact location. An explicit unique
+  // conversation focus above remains authoritative.
+  if (binding.resolution === "ambiguous") {
+    const engagement = snapshot.world.sceneEngagement;
+    if (engagement && engagement.locationId === snapshot.world.currentLocationId) {
+      const engagedPerson = snapshot.scene.context.knownPeople.find((person) => {
+        const reference = snapshot.scene.references.get(person.observerRef);
+        return reference?.kind === "person" && reference.internalId === engagement.targetRef;
+      });
+      if (engagedPerson && personRefs.includes(engagedPerson.observerRef)) {
+        personRefs = [engagedPerson.observerRef];
+      }
+    }
+  }
   if (personRefs.length === 0) return null;
   const observerRef = personRefs.length === 1 ? personRefs[0] : undefined;
+  const resolvedPerson = observerRef
+    ? snapshot.scene.context.knownPeople.find((person) => person.observerRef === observerRef)
+    : undefined;
   if (binding.resolution === "single" && !observerRef) return null;
   const hasReaction = /\s+и\s+как\s+(?:он|она)\s+себя\s+ведет/iu.test(match[0]);
   const parts: NonNullable<TurnProposalV2["questionPlan"]>["parts"] = [
@@ -1697,7 +1717,7 @@ function resolveFocusedAppearanceQuestion(
     supportingClauses: [],
     referents: [],
     questionPlan: {
-      subjects: [{ id: "focused-person", surface: pronoun, kind: "entity", ...(observerRef ? { observerRef } : {}) }],
+      subjects: [{ id: "focused-person", surface: resolvedPerson?.label ?? pronoun, kind: "entity", ...(observerRef ? { observerRef } : {}) }],
       parts,
     },
     readings: [
@@ -2016,12 +2036,12 @@ export async function interpretMasterTurn(
   if (checkIn) return checkIn;
   const disambiguated = resolveExplicitReferentStatement(input, snapshot, options);
   if (disambiguated) return disambiguated;
+  const focusedAppearance = resolveFocusedAppearanceQuestion(input, snapshot, options);
+  if (focusedAppearance) return focusedAppearance;
   const pronounTopic = resolvePronounConversationTopic(input, snapshot, options);
   if (pronounTopic) return pronounTopic;
   const addressedPastQuestion = resolveAddressedPastPerceptionQuestion(input, snapshot);
   if (addressedPastQuestion) return addressedPastQuestion;
-  const focusedAppearance = resolveFocusedAppearanceQuestion(input, snapshot, options);
-  if (focusedAppearance) return focusedAppearance;
   const visibleRoleQuestion = resolveVisibleRoleQuestion(input, snapshot, options);
   if (visibleRoleQuestion) return visibleRoleQuestion;
   const liveAvailable = router !== null && (options?.mode ?? readMode()) !== "off" && gmDirectorLiveEnabled();

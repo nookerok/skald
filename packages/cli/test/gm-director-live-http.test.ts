@@ -388,7 +388,7 @@ describe("P3 Director production path", () => {
     };
     const count = runtime.bus.query().length;
     try {
-      const body = parse(await handleWorldCommand(runtime, { input: "Что на нём одето и как он себя ведёт?", idempotencyKey: "parts-only" }));
+      const body = parse(await handleWorldCommand(runtime, { input: "Что можно узнать об одежде и поведении Перевозчика у переправы?", idempotencyKey: "parts-only" }));
       expect(body.masterTurn.kind).toBe("inquiry_answer");
       expect(body.inquiries).toEqual([]);
       expect(body.masterTurn.deterministicText).toContain(appearance);
