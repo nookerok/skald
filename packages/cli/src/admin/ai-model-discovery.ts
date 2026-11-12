@@ -197,9 +197,11 @@ function safeProbeFailure(error: unknown): SafeProbeFailure {
   return {};
 }
 
-function retryDelayMs(failure: SafeProbeFailure): number {
+function retryDelayMs(failure: SafeProbeFailure): number | null {
   const requested = failure.retryAfterMs ?? 1_000;
-  return Math.max(100, Math.min(AI_DISCOVERY_MAX_RETRY_DELAY_MS, Math.floor(requested)));
+  // A bounded retry may be skipped, never sent before upstream's cooldown.
+  if (!Number.isFinite(requested) || requested > AI_DISCOVERY_MAX_RETRY_DELAY_MS) return null;
+  return Math.max(100, Math.floor(requested));
 }
 
 function metadataCandidates(catalog: OpenCodeCatalogReport, preferredModels: readonly string[]): OpenCodeCatalogModel[] {
@@ -495,14 +497,16 @@ export async function screenOpenCodeFreeModels(options: OpenCodeDiscoveryOptions
           } catch (error) {
             const failure = safeProbeFailure(error);
             const status = failure.httpStatus;
-            if (status === 429 && retryCount < AI_DISCOVERY_MAX_RETRIES_PER_PROBE) {
+            const accountRateLimit = status === 429 && /account.*rate|rate.*account|account_quota|daily_limit_exceeded/iu.test(failure.providerCode ?? "");
+            const delay = retryDelayMs(failure);
+            if (status === 429 && !accountRateLimit && delay !== null && retryCount < AI_DISCOVERY_MAX_RETRIES_PER_PROBE) {
               retryCount += 1;
-              await sleep(retryDelayMs(failure));
+              await sleep(delay);
               continue;
             }
             if (status === 401 || status === 403) circuitBreaker = "provider_auth_failure";
             else if (status === 402) circuitBreaker = "provider_quota_exhausted";
-            else if (status === 429 && /account.*rate|rate.*account|account_quota|daily_limit_exceeded/iu.test(failure.providerCode ?? "")) circuitBreaker = "provider_rate_limited";
+            else if (accountRateLimit) circuitBreaker = "provider_rate_limited";
             else if (status === undefined || status >= 500) circuitBreaker = "provider_transport_error";
             const reason = status === 401 || status === 403 ? "provider_auth" as const
               : status === 402 ? "provider_quota" as const
@@ -520,8 +524,8 @@ export async function screenOpenCodeFreeModels(options: OpenCodeDiscoveryOptions
         }
       };
       const interpret = await run("interpret");
-      const narrate = circuitBreaker || interpret.reason === "model_unavailable" || interpret.reason === "run_time_budget"
-        ? { status: "not_run" as const, reason: circuitBreaker ? "circuit_breaker" as const : interpret.reason as "model_unavailable" | "run_time_budget" }
+      const narrate = circuitBreaker || interpret.reason === "model_unavailable" || interpret.reason === "run_time_budget" || interpret.reason === "rate_limited"
+        ? { status: "not_run" as const, reason: circuitBreaker ? "circuit_breaker" as const : interpret.reason as "model_unavailable" | "run_time_budget" | "rate_limited" }
         : await run("narrate");
       const results = [interpret, narrate];
       const candidateFailure = results.some((result) => result.status === "marker_mismatch" || result.reason === "model_unavailable");

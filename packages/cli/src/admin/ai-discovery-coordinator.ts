@@ -100,7 +100,10 @@ export class AIDiscoveryCoordinator {
 
   constructor(options: AIDiscoveryCoordinatorOptions = {}) {
     this.options = options;
-    const env = options.env ?? process.env;
+    // Resolve durable storage from the same service file as the provider run.
+    // Otherwise a standalone SKALD_ENV_FILE invocation silently writes to cwd.
+    const env = { ...(options.env ?? process.env) };
+    loadDiscoveryServiceEnvironment(env);
     this.store = new AIDiscoveryStore(
       options.directory ?? env[AI_DISCOVERY_DIR_ENV] ?? (env.NODE_ENV === "production" ? AI_DISCOVERY_DEFAULT_DIRECTORY : join(process.cwd(), AI_DISCOVERY_LOCAL_DIRECTORY)),
     );

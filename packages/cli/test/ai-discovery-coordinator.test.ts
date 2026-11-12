@@ -92,6 +92,20 @@ afterEach(() => {
 });
 
 describe("AIDiscoveryCoordinator", () => {
+  it("resolves durable storage from SKALD_ENV_FILE before opening the store", async () => {
+    const root = makeRoot();
+    const envFile = join(root, "service.env");
+    const directory = join(root, "durable");
+    writeFileSync(envFile, "SKALD_AI_DISCOVERY_DIR=" + directory + "\nSKALD_OPENCODE_REGION=RU\n");
+    const env = { SKALD_ENV_FILE: envFile };
+    const coordinator = new AIDiscoveryCoordinator({ env, cwd: root, screen: async () => report() });
+    expect(coordinator.store.directory).toBe(directory);
+    const result = await coordinator.refresh("manual");
+    expect(result.state).toBe("complete");
+    expect((await coordinator.store.snapshot()).latestRun?.runId).toBe(result.runId);
+    expect(env).toEqual({ SKALD_ENV_FILE: envFile });
+  });
+
   it("coalesces concurrent manual and scheduled requests into one durable scan", async () => {
     const root = makeRoot();
     let scans = 0;

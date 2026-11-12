@@ -5,6 +5,33 @@
 
 ## Состояние реализации
 
+**Текущий live-срез 2026-11-12:** e3219b4 развёрнут штатным updater на Pi;
+backup/integrity, 259/3233 gate на устройстве, health и intent/narration
+contract PASS. Scratch smoke: 10/10 ходов, replay/conflict PASS. Ни один
+существующий player world не изменён. Последующие локальные регрессии
+cooldown/env-directory прошли 259/3235 и должны быть довезены отдельным выпуском.
+
+Настоящий V2 screening всех 10 RU-кандидатов дал только 429 с Retry-After 60s:
+partial, 0 passed, 40 calls. Run
+20261112T042850Z-3f0821f1-1513-441a-b3f4-5c30044f55ad, SHA
+273fdcb3c53c264a41c30c05cdd52aa37798f3e178b95df66df47c6392f9395c.
+Отчёт проверен и перенесён в штатное durable-хранилище без новых inference.
+Retry-After больше bounded wait теперь означает пропуск повтора, а не
+сокращение срока; narration для cooled-down модели также пропускается.
+Standalone CLI выбирает durable directory после чтения SKALD_ENV_FILE.
+
+OpenRouter Nemotron Ultra: короткие probes/contract PASS и prose 9/10 не
+доказывают пригодность Director. Настоящий corpus-v5 прогон на рабочем
+таймауте 4s дал 0/11 accepted (provider errors). Автопродвижения нет.
+
+Codex heartbeat `skald` создан ACTIVE на 09:00 МСК: читает Pi loopback
+report/marker/SHA/timer, сообщает о новых сбоях/кандидатах и спрашивает
+подтверждение task evaluation. Он не запускает второй scan и не переключает
+маршруты. Этот канал уведомлений требует работающего приложения/компьютера;
+сам Pi systemd timer независим от него. Timer installation ещё ожидает
+интерактивный sudo-пароль, окно установщика открыто. Scheduled/next-day run
+не подтверждены. Ниже сохранён исторический ход реализации.
+
 После аудита локально внесён ограниченный survey-срез; это ещё не live
 acceptance и не доказательство работы на Orange Pi:
 

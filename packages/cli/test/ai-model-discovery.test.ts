@@ -246,13 +246,13 @@ describe("screenOpenCodeFreeModels", () => {
             phase: "response_status",
             httpStatus: 429,
             providerCode: "rate_limited",
-            retryAfterMs: 90_000,
+            retryAfterMs: 2_000,
           });
         }
         return { text: marker(category), latencyMs: 5 };
       },
     });
-    expect(delays).toEqual([5_000]);
+    expect(delays).toEqual([2_000]);
     expect(calls).toEqual([
       "rate-limited-once:interpret",
       "rate-limited-once:interpret",
@@ -295,6 +295,26 @@ describe("screenOpenCodeFreeModels", () => {
     expect(report.candidates[1]?.screening).toBe("not_run");
   });
 
+  it("never shortens a long upstream cooldown or sends narration to the cooled-down model", async () => {
+    const calls: string[] = [];
+    const delays: number[] = [];
+    const report = await screenOpenCodeFreeModels({
+      catalog: makeCatalog([makeModel("long-cooldown"), makeModel("available-model")]),
+      env: probeEnvironment,
+      sleepImpl: async (ms) => { delays.push(ms); },
+      probe: async (model, category) => {
+        calls.push(model + ":" + category);
+        if (model === "long-cooldown") throw new ProviderRequestError({ provider: "opencode_run", model, category, phase: "response_status", httpStatus: 429, retryAfterMs: 60_000 });
+        return { text: marker(category), latencyMs: 1 };
+      },
+    });
+    expect(delays).toEqual([]);
+    expect(calls.filter((call) => call.startsWith("long-cooldown:"))).toEqual(["long-cooldown:interpret"]);
+    expect(report.candidates.find((candidate) => candidate.id === "long-cooldown")?.interpret.retryAfterMs).toBe(60_000);
+    expect(report.candidates.find((candidate) => candidate.id === "available-model")?.screening).toBe("pass");
+    expect(report.status).toBe("partial");
+  });
+
   it("continues other candidates after a model-scoped 429 while retaining partial status", async () => {
     let limitedCalls = 0;
     const report = await screenOpenCodeFreeModels({
@@ -312,7 +332,7 @@ describe("screenOpenCodeFreeModels", () => {
     expect(report.circuitBreaker).toBeUndefined();
     expect(report.status).toBe("partial");
     expect(report.candidates.find((candidate) => candidate.id === "available-model")?.screening).toBe("pass");
-    expect(limitedCalls).toBe(4);
+    expect(limitedCalls).toBe(2);
   });
 
   it("opens a shared breaker only when 429 explicitly identifies an account rate limit", async () => {
@@ -326,7 +346,7 @@ describe("screenOpenCodeFreeModels", () => {
         throw new ProviderRequestError({ provider: "opencode_run", model, category, phase: "response_status", httpStatus: 429, providerCode: "account_rate_limited" });
       },
     });
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
     expect(report.circuitBreaker).toBe("provider_rate_limited");
     expect(report.candidates[0]?.narrate.status).toBe("not_run");
   });

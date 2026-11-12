@@ -10,7 +10,7 @@
 - User authorized the necessary commit/push/deploy, daily-job installation and
   real-provider checks on 2026-11-12. Pi preflight: clean main at 5edb94c,
   Node 22.23.1, OpenCode 1.18.30, game service and existing timers active.
-- Full repository gate on this isolated release passed: 259 files, 3233
+- Full repository gate on this isolated release passed: 259 files, 3235
   passed / 1 skipped, including canon/simulation/eval/adventure/diff checks.
   V2 CLI support adds --standalone, process cwd, wildcard tool denial and
   private-server cleanup; V1 remains the default compatibility contract.
@@ -25,6 +25,20 @@
   structured 429; a model-scoped 429 no longer suppresses all later candidates.
   A systemd timer is not yet installed; sudo requires
   interactive authentication and linger is disabled by policy.
+- Pi updater deployed e3219b4 successfully: backup/integrity, 259/3233 gate,
+  health and live intent/narration contract PASS. Ten scratch turns and
+  replay/conflict PASS; no existing player world was changed.
+- V2 survey covered all ten RU-eligible models: all 429 / Retry-After 60s,
+  no screening passes. Verified receipt 20261112T042850Z-3f0821f1-1513-441a-b3f4-5c30044f55ad,
+  SHA 273fdcb3c53c264a41c30c05cdd52aa37798f3e178b95df66df47c6392f9395c.
+  Follow-up fixes skip retries beyond their bounded wait instead of shortening
+  upstream cooldown, skip narration on a cooled-down model, and resolve the
+  durable store directory from SKALD_ENV_FILE before opening it.
+- Nemotron Ultra failed the Director corpus at the real 4s deadline: 0/11,
+  provider errors. Short probe success is not Director quality acceptance.
+- Codex heartbeat `skald` is ACTIVE, daily 09:00 Europe/Moscow: read-only
+  report review and operator confirmation, no automatic nomination/promotion.
+  Pi timer still awaits sudo authentication in the interactive installer window.
 - See docs/operations/opencode-model-discovery-2026-11-11.md. Completion still
   requires live receipts, operational scheduling and the next daily run.
 
