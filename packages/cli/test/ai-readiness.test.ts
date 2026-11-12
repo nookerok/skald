@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AIReadinessService, AI_READINESS_PROBE_TIMEOUT_MS } from "../src/runtime/ai-readiness.js";
+import { AIReadinessService, AI_READINESS_CACHE_MAX_AGE_MS, AI_READINESS_PROBE_TIMEOUT_MS } from "../src/runtime/ai-readiness.js";
 import { LLM_CONFIG } from "@skald/world";
 
 describe("AIReadinessService", () => {
@@ -39,6 +39,26 @@ describe("AIReadinessService", () => {
     const service = new AIReadinessService(null);
     expect(service.cached()).toBeNull();
     expect(service.isProbing()).toBe(false);
+  });
+
+  it("expires readiness after the cache TTL and invalidates it when routes change", async () => {
+    let now = 10_000;
+    let fingerprint = "routes-a";
+    const router = {
+      routeCandidates: () => LLM_CONFIG.routes.interpret.candidates,
+      configFingerprint: () => fingerprint,
+      hasProviderKey: () => true,
+      chatCandidate: async (category: "interpret" | "narrate") => ({
+        text: category === "interpret" ? '{"schemaVersion":1,"probe":true}' : "SKALD_PROBE_OK",
+      }),
+    } as any;
+    const service = new AIReadinessService(router, { now: () => now });
+    const report = await service.probe();
+    expect(service.cached()).toEqual(report);
+    fingerprint = "routes-b";
+    expect(service.cached()).toBeNull();
+    now += AI_READINESS_CACHE_MAX_AGE_MS + 1;
+    expect(service.cached()).toBeNull();
   });
 
   it("budgets slow local transports with a 25s per-candidate probe timeout", async () => {

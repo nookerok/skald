@@ -21,31 +21,31 @@ export interface LLMConfig {
 }
 
 /**
- * Ordered OpenCode Zen test preferences. Runtime routing activates only
- * entries present in the live catalogue that pass both authenticated no-world
- * probes. The list is a preference order, not a claim that any model is
- * available.
+ * OpenCode free chat candidates, refreshed from the official public catalogue
+ * on 2026-11-12: https://opencode.ai/inference/v1/models. Every listed model
+ * explicitly reported zero text input AND output prices. Order follows that
+ * catalogue snapshot; it is not a quality ranking or live availability claim.
+ * Muse Spark and Ling are no longer present and are not default candidates.
  *
- * Live recon (2026-09-06, tunnel egress, both wire protocols, production
- * probe budgets): muse-spark answers only on Responses; ling answers on Chat
- * Completions but its upstream flaps (503/garbled). big-pickle and
- * mimo-v2.5-free are persistently 429-gated, deepseek-v4-flash-free is a
- * persistent 400, and both nemotron frees are too slow for route timeouts
- * (16-63s). No better free backup exists right now, so the daily
- * re-discovery keeps probing this pair and promotes whichever passes.
- *
- * Live recon (2026-09-08, production device, all wire shapes): Zen locked
- * free-tier models to OpenCode app sessions — every server-side call to a
- * `-free` model fails 400 `MissingSessionID` ("free tier can only be used
- * in OpenCode") regardless of endpoint, shape, token budget or role layout,
- * while the catalogue stays 200 with the same key. Request building is not
- * the fault. Until Zen reopens server-side free use, live discovery falls
- * back to the pinned Ollama Cloud model when Zen activates nothing; paid
- * Zen models are deliberately never probed without operator consent.
+ * Console documents free chat as OpenCode-only: direct server HTTP calls may
+ * return 403 even with a valid API key. Catalogue presence alone must never
+ * promote a route. Existing dual probes still gate activation. The daily
+ * discovery migration, price revalidation and native CLI confirmation plan is
+ * docs/operations/opencode-model-discovery-2026-11-11.md.
  */
 export const OPENCODE_PREFERRED_MODELS: readonly string[] = Object.freeze([
-  "muse-spark-1.3-contributor-free",
-  "ling-3.0-flash-fin-free",
+  "big-pickle",
+  "mimo-v2.6-flash-free",
+  "deepseek-v4.1-flash-free",
+  "glm-5.3-flash-free",
+  "longcat-2.5-free",
+  "iceman-free",
+  "inkling-2-small-free",
+  "beam-free",
+  "flint-40b-free",
+  "nemotron-3.5-super-vl-free",
+  "nemotron-3.5-lightning-free",
+  "minimax-m3.1-flash-free",
 ]);
 
 /**

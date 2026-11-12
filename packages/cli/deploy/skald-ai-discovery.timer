@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Skald free-model discovery screening
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/Moscow
+Persistent=true
+AccuracySec=1min
+Unit=skald-ai-discovery.service
+
+[Install]
+WantedBy=timers.target

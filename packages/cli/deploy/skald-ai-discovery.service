@@ -1,0 +1,34 @@
+[Unit]
+Description=Skald bounded free-model discovery screening
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=nooker
+Group=nooker
+WorkingDirectory=/home/nooker/skald
+Environment=NODE_ENV=production
+Environment=PATH=/home/nooker/.nvm/versions/node/v22.23.1/bin:/home/nooker/.local/bin:/home/nooker/.opencode/bin:/usr/local/bin:/usr/bin
+Environment=SKALD_ENV_FILE=/home/nooker/skald-data/skald.env
+Environment=SKALD_AI_DISCOVERY_DIR=/home/nooker/skald-data/ai-discovery
+EnvironmentFile=-/home/nooker/skald-data/skald.env
+ExecStartPre=/usr/bin/test -r /home/nooker/skald/package.json
+ExecStartPre=/usr/bin/test -w /home/nooker/skald-data/ai-discovery
+ExecStart=/home/nooker/.nvm/versions/node/v22.23.1/bin/node --import tsx packages/cli/src/admin/run-ai-model-discovery.ts --trigger=daily
+TimeoutStartSec=15min
+MemoryMax=1536M
+TasksMax=128
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/nooker/skald-data/ai-discovery
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=skald-ai-discovery

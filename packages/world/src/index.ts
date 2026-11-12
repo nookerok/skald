@@ -100,7 +100,7 @@ export { arrivalReasonForProfile, buildInquiryAnswer, INQUIRY_QUERY_HANDLERS } f
 export type { InquiryAnswerDTO, InquiryReadContext, InquiryQueryHandler, InquiryShownList } from "./inquiry/index.js";
 export { observationLabel, consequenceLabel, situationLabel, relationTargetLabel, relationKindLabel, blockedReasonLabel, operationLabel, relationTargetLabelOrRaw, sanitizePlayerFacingText } from "./game-shell/player-facing.js";
 export { localizedPlayerText } from "./game-shell/player-facing.js";
-export { narrateLLM, narrateTurnLLM, narrateAnswerLLM, narrateAllowedAnswerLLM, verifyEpistemicNarration, verifyAllowedNarration } from "./narrative-llm.js";
+export { narrateLLM, narrateTurnLLM, narrateAnswerLLM, narrateAllowedAnswerLLM, buildAllowedAnswerMessages, verifyEpistemicNarration, verifyAllowedNarration } from "./narrative-llm.js";
 export { buildAllowedNarrativeFacts, buildAnswerPlanAllowedFacts, ALLOWED_NARRATIVE_FACTS_MAX, ALLOWED_NARRATIVE_FACT_MAX_CHARS } from "./allowed-narrative-facts.js";
 export type {
   AllowedNarrativeFact,
@@ -168,6 +168,7 @@ export type {
   ModelCandidateReport,
   ModelExclusionReason,
   OllamaDiscoveryOptions,
+  OpenCodeCatalogModel,
   OpenCodeCatalogOptions,
   OpenCodeCatalogReport,
   OpenCodeCatalogStatus,

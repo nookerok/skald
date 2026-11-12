@@ -10,211 +10,144 @@ function response(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-const preferred = ["big-pickle", "muse-spark-1.3-contributor-free", "mimo-v2.5-free"];
+const preferred = ["big-pickle", "muse-spark-1.3-contributor-free", "new-free-model"];
 
-describe("OpenCode Zen live catalogue selection", () => {
-  it("fetches model ids through the authenticated catalogue endpoint", async () => {
-    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
-      expect(String(input)).toBe("https://opencode.ai/zen/v1/models");
-      return response({ data: [{ id: "big-pickle" }, { id: "mimo-v2.5-free" }, { id: "big-pickle" }] });
-    });
-    const report = await fetchOpenCodeCatalog({ apiKey: "zen-key", fetchImpl });
-    expect(report).toMatchObject({ provider: "opencode_zen", status: "ok", phase: "response_shape", modelIds: ["big-pickle", "mimo-v2.5-free"] });
-    expect(fetchImpl).toHaveBeenCalledWith("https://opencode.ai/zen/v1/models", expect.objectContaining({ method: "GET", headers: { Authorization: "Bearer zen-key", Accept: "application/json" } }));
-  });
+function catalogModel(
+  id: string,
+  inputPrice: number | undefined,
+  outputPrice: number | undefined,
+  options: { type?: string; input?: string[]; output?: string[]; api?: string[]; conditionalTextPricing?: boolean } = {},
+): Record<string, unknown> {
+  const price = (value: number | undefined, withOverride = false) => value === undefined ? {} : {
+    price: value,
+    ...(withOverride ? { overrides: [{ when: { context: { gt: 10_000 } }, price: value + 0.01 }] } : {}),
+  };
+  return {
+    id,
+    type: options.type ?? "chat",
+    modalities: { input: options.input ?? ["text"], output: options.output ?? ["text"] },
+    api: Object.fromEntries((options.api ?? ["chat-completions"]).map((name) => [name, {}])),
+    cost: {
+      text: {
+        input: price(inputPrice, options.conditionalTextPricing),
+        output: price(outputPrice),
+      },
+      ...(options.conditionalTextPricing ? { multipliers: [{ when: { date: { gte: "2026-12-01" } }, factor: 2 }] } : {}),
+    },
+  };
+}
 
-  it("fails closed on catalogue auth failure without probing models", async () => {
-    const fetchImpl = vi.fn(async () => response({ error: { code: "invalid_api_key" } }, 401));
-    const probe = vi.fn();
-    const report = await discoverOpenCodeRoutes({ apiKey: "bad-key", preferredModels: preferred, fetchImpl, probe: probe as any });
-    expect(report.status).toBe("misconfigured");
-    expect(report.catalog).toMatchObject({ status: "auth_failure", httpStatus: 401, providerCode: "invalid_api_key" });
-    expect(report.activeModel).toBeUndefined();
-    expect(report.excluded).toEqual(preferred.map((model) => ({ model, reason: "catalog_auth_failure" })));
-    expect(probe).not.toHaveBeenCalled();
-  });
-
-  it("reports a missing credential without attempting catalogue or model probes", async () => {
-    const fetchImpl = vi.fn();
-    const probe = vi.fn();
-    const report = await discoverOpenCodeRoutes({ preferredModels: preferred, fetchImpl, probe: probe as any });
-    expect(report.status).toBe("misconfigured");
-    expect(report.catalog).toMatchObject({ status: "auth_failure", phase: "configuration" });
-    expect(report.excluded).toEqual(preferred.map((model) => ({ model, reason: "missing_credential" })));
-    expect(fetchImpl).not.toHaveBeenCalled();
-    expect(probe).not.toHaveBeenCalled();
-  });
-
-  it("probes every catalog-present preferred model for both routes and activates only complete pairs", async () => {
-    const fetchImpl = vi.fn(async () => response({ data: preferred.map((id) => ({ id })) }));
-    const probe = vi.fn(async (category: "interpret" | "narrate", model: string) => {
-      if (model === "mimo-v2.5-free" && category === "narrate") return { status: "model_unavailable", phase: "response_status", httpStatus: 404 };
-      return { status: "ok", phase: "schema_validation" };
-    });
-    const report = await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: preferred, fetchImpl, probe: probe as any });
-    expect(probe).toHaveBeenCalledTimes(6);
-    expect(report.status).toBe("ready");
-    expect(report.activeModel).toBe("big-pickle");
-    expect(report.backupModel).toBe("muse-spark-1.3-contributor-free");
-    expect(report.routes.interpret.map((candidate) => candidate.model)).toEqual(["big-pickle", "muse-spark-1.3-contributor-free"]);
-    expect(report.routes.narrate.map((candidate) => candidate.model)).toEqual(["big-pickle", "muse-spark-1.3-contributor-free"]);
-    expect(report.excluded).toEqual([{ model: "mimo-v2.5-free", reason: "model_unavailable" }]);
-  });
-
-  it("uses the real no-world transport for both probe routes without retrying", async () => {
+describe("OpenCode public catalogue and native-only free routes", () => {
+  it("loads the public model catalog without credentials and normalizes explicit zero text prices", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith("/models")) return response({ data: [{ id: "big-pickle" }] });
-      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
-      return body.messages?.[0]?.content?.includes("marker")
-        ? response({ choices: [{ message: { content: "SKALD_PROBE_OK" } }], model: "big-pickle" })
-        : response({ choices: [{ message: { content: '{"schemaVersion":1,"probe":true}' } }], model: "big-pickle" });
+      expect(String(input)).toBe("https://opencode.ai/inference/v1/models");
+      expect(init?.method).toBe("GET");
+      expect(init?.headers).toEqual({ Accept: "application/json" });
+      expect(init?.redirect).toBe("error");
+      return response({ object: "list", data: [catalogModel("big-pickle", 0, 0)] });
     });
-    const report = await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: ["big-pickle"], fetchImpl });
-    expect(report.status).toBe("degraded");
-    expect(report.activeModel).toBe("big-pickle");
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(fetchImpl.mock.calls.slice(1).map((call) => String(call[0]))).toEqual([
-      "https://opencode.ai/zen/v1/chat/completions",
-      "https://opencode.ai/zen/v1/chat/completions",
-    ]);
-    expect(fetchImpl.mock.calls.slice(1).every((call) => (call[1] as RequestInit).method === "POST")).toBe(true);
+    const report = await fetchOpenCodeCatalog({ fetchImpl, now: () => new Date("2026-11-12T00:00:00.000Z") });
+    expect(report).toMatchObject({
+      provider: "opencode_zen",
+      status: "ok",
+      fetchedAt: "2026-11-12T00:00:00.000Z",
+      sourceUrl: "https://opencode.ai/inference/v1/models",
+      modelIds: ["big-pickle"],
+      eligibleFreeChatIds: ["big-pickle"],
+      models: [{ id: "big-pickle", zeroPriceTextChat: true, clientRestriction: "opencode_cli" }],
+    });
+    expect(report.catalogDigest).toMatch(/^[0-9a-f]{64}$/u);
+    expect(JSON.stringify(report)).not.toContain("Authorization");
   });
 
-  it("classifies a transport-backed HTTP 400 model refusal as unavailable", async () => {
-    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith("/models")) return response({ data: [{ id: "big-pickle" }] });
-      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
-      if (body.messages?.[0]?.content?.includes("schemaVersion")) {
-        return response({ error: { message: "Model unavailable" } }, 400);
-      }
-      return response({ choices: [{ message: { content: "SKALD_PROBE_OK" } }], model: "big-pickle" });
+  it("treats missing and positive prices as ineligible rather than guessing from a free-looking id", async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.headers).toEqual({ Accept: "application/json" });
+      return response({ data: [
+      catalogModel("suffix-free", 0.1, 0),
+      catalogModel("unknown-price", undefined, 0),
+      catalogModel("explicit-free", 0, 0),
+      ] });
     });
-    const report = await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: ["big-pickle"], fetchImpl });
+    const report = await fetchOpenCodeCatalog({ apiKey: "must-not-be-sent", fetchImpl });
+    expect(report.eligibleFreeChatIds).toEqual(["explicit-free"]);
+    expect(report.models?.find((item) => item.id === "suffix-free")?.zeroPriceTextChat).toBe(false);
+    expect(report.models?.find((item) => item.id === "unknown-price")?.zeroPriceTextChat).toBeNull();
+    expect((fetchImpl.mock.calls[0]?.[1] as RequestInit).headers).toEqual({ Accept: "application/json" });
+  });
+
+  it("fails closed when a zero base price has conditional overrides or multipliers", async () => {
+    const fetchImpl = vi.fn(async () => response({ data: [
+      catalogModel("conditional-zero", 0, 0, { conditionalTextPricing: true }),
+      catalogModel("plain-zero", 0, 0),
+    ] }));
+    const report = await fetchOpenCodeCatalog({ fetchImpl });
+    expect(report.eligibleFreeChatIds).toEqual(["plain-zero"]);
+    expect(report.models?.find((model) => model.id === "conditional-zero")).toMatchObject({
+      hasConditionalTextPricing: true,
+      zeroPriceTextChat: null,
+      clientRestriction: "unknown",
+    });
+  });
+
+  it("includes newly discovered free IDs but never probes free-tier models through direct HTTP", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe("https://opencode.ai/inference/v1/models");
+      expect(init?.method).toBe("GET");
+      return response({ data: [
+        catalogModel("big-pickle", 0, 0),
+        catalogModel("new-free-model", 0, 0),
+        catalogModel("paid-model", 0.02, 0.03),
+      ] });
+    });
+    const probe = vi.fn();
+    const report = await discoverOpenCodeRoutes({ apiKey: "expired-key", preferredModels: preferred, fetchImpl, probe: probe as any });
     expect(report.status).toBe("unavailable");
-    expect(report.candidates[0]).toMatchObject({ active: false, exclusionReason: "model_unavailable", interpret: { status: "model_unavailable", httpStatus: 400 } });
-    expect(report.excluded).toEqual([{ model: "big-pickle", reason: "model_unavailable" }]);
-  });
-
-  it("excludes preferred ids absent from live catalog without probing them", async () => {
-    const fetchImpl = vi.fn(async () => response({ data: [{ id: "big-pickle" }] }));
-    const probe = vi.fn(async () => ({ status: "ok", phase: "schema_validation" }));
-    const report = await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: preferred, fetchImpl, probe: probe as any });
-    expect(probe).toHaveBeenCalledTimes(2);
-    expect(report.status).toBe("degraded");
-    expect(report.excluded).toEqual([
-      { model: "muse-spark-1.3-contributor-free", reason: "not_in_catalog" },
-      { model: "mimo-v2.5-free", reason: "not_in_catalog" },
-    ]);
-  });
-
-  it("does not retry an unavailable model and records auth/model reasons", async () => {
-    const fetchImpl = vi.fn(async () => response({ data: preferred }));
-    const probe = vi.fn(async (_category: "interpret" | "narrate", model: string) => {
-      if (model === "big-pickle") return { status: "auth_failure", phase: "response_status", httpStatus: 401 };
-      if (model === "muse-spark-1.3-contributor-free") return { status: "model_unavailable", phase: "response_status", httpStatus: 400, providerCode: "model_unavailable" };
-      return { status: "failed", phase: "response_shape" };
-    });
-    const report = await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: preferred, fetchImpl, probe: probe as any });
-    expect(probe).toHaveBeenCalledTimes(6);
-    expect(report.status).toBe("misconfigured");
-    expect(report.excluded).toEqual([
-      { model: "big-pickle", reason: "auth_failure" },
-      { model: "muse-spark-1.3-contributor-free", reason: "model_unavailable" },
-      { model: "mimo-v2.5-free", reason: "interpret_probe_failed" },
-    ]);
-  });
-
-  it("probes muse-spark via Responses and ling via Chat Completions with per-model live protocols", async () => {    const urls: string[] = [];
-    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith("/models")) {
-        return response({ data: [{ id: "muse-spark-1.3-contributor-free" }, { id: "ling-3.0-flash-fin-free" }] });
-      }
-      urls.push(url);
-      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
-      if (url.endsWith("/responses")) {
-        expect(body.model).toBe("muse-spark-1.3-contributor-free");
-        expect(body).toHaveProperty("input");
-        expect(body).toHaveProperty("max_output_tokens");
-        expect(body).not.toHaveProperty("messages");
-        const marker = body.input?.[1]?.content ?? body.input?.[0]?.content ?? "";
-        const text = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
-          ? "SKALD_PROBE_OK"
-          : '{"schemaVersion":1,"probe":true}';
-        return response({ output_text: text, model: "muse-spark-1.3-contributor-free" });
-      }
-      expect(url.endsWith("/chat/completions")).toBe(true);
-      expect(body.model).toBe("ling-3.0-flash-fin-free");
-      expect(body).toHaveProperty("messages");
-      expect(body).toHaveProperty("max_tokens");
-      expect(body).not.toHaveProperty("input");
-      const marker = body.messages?.[1]?.content ?? body.messages?.[0]?.content ?? "";
-      const text = String(marker).includes("SKALD_PROBE_OK") || String(marker).includes("marker")
-        ? "SKALD_PROBE_OK"
-        : '{"schemaVersion":1,"probe":true}';
-      return response({ choices: [{ message: { content: text } }], model: "ling-3.0-flash-fin-free" });
-    });
-    const report = await discoverOpenCodeRoutes({
-      apiKey: "zen-key",
-      preferredModels: ["muse-spark-1.3-contributor-free", "ling-3.0-flash-fin-free"],
-      fetchImpl,
-    });
-    expect(report.status).toBe("ready");
-    expect(report.activeModel).toBe("muse-spark-1.3-contributor-free");
-    expect(report.backupModel).toBe("ling-3.0-flash-fin-free");
-    expect(report.routes.interpret.map((candidate) => `${candidate.model}:${candidate.protocol}`)).toEqual([
-      "muse-spark-1.3-contributor-free:openai_responses",
-      "ling-3.0-flash-fin-free:openai_chat",
-    ]);
-    expect(report.routes.narrate.map((candidate) => `${candidate.model}:${candidate.protocol}`)).toEqual([
-      "muse-spark-1.3-contributor-free:openai_responses",
-      "ling-3.0-flash-fin-free:openai_chat",
-    ]);
-    expect(urls.filter((url) => url.endsWith("/responses"))).toHaveLength(2);
-    expect(urls.filter((url) => url.endsWith("/chat/completions"))).toHaveLength(2);
-  });
-
-  it("budgets probes for reasoning traces, not just marker text", async () => {
-    const seen: Array<{ url: string; body: Record<string, unknown> }> = [];
-    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith("/models")) return response({ data: [{ id: "muse-spark-1.3-contributor-free" }] });
-      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
-      seen.push({ url, body });
-      return response({ output_text: "SKALD_PROBE_OK", model: "muse-spark-1.3-contributor-free" });
-    });
-    await discoverOpenCodeRoutes({ apiKey: "zen-key", preferredModels: ["muse-spark-1.3-contributor-free"], fetchImpl });
-    expect(seen).toHaveLength(2);
-    for (const { url, body } of seen) {
-      if (url.endsWith("/responses")) expect(body.max_output_tokens as number).toBeGreaterThanOrEqual(512);
-      else expect(body.max_tokens as number).toBeGreaterThanOrEqual(512);
-    }
-  });
-
-  it("keeps the region gate code on a 403 probe instead of reporting a bare credential failure", async () => {
-    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.endsWith("/models")) return response({ data: [{ id: "muse-spark-1.3-contributor-free" }] });
-      return response({ error: { message: "This model is not available in your country.", type: "RegionError" } }, 403);
-    });
-    const report = await discoverOpenCodeRoutes({
-      apiKey: "zen-key",
-      preferredModels: ["muse-spark-1.3-contributor-free"],
-      fetchImpl,
-    });
-    expect(report.status).toBe("misconfigured");
-    expect(report.candidates[0]).toMatchObject({
+    expect(report.candidates.map((item) => item.model)).toEqual(preferred);
+    expect(report.candidates.find((item) => item.model === "new-free-model")).toMatchObject({
       active: false,
-      exclusionReason: "auth_failure",
-      interpret: { status: "auth_failure", httpStatus: 403, providerCode: "region_unavailable" },
-      narrate: { status: "auth_failure", httpStatus: 403, providerCode: "region_unavailable" },
+      zeroPriceTextChat: true,
+      clientRestriction: "opencode_cli",
+      exclusionReason: "restricted_to_opencode",
     });
-    expect(report.excluded).toEqual([{ model: "muse-spark-1.3-contributor-free", reason: "auth_failure" }]);
+    expect(report.routes.interpret).toEqual([]);
+    expect(report.routes.narrate).toEqual([]);
+    expect(probe).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls.every((call) => (call[1] as RequestInit).method === "GET")).toBe(true);
+  });
+
+  it("keeps unknown-price and unsupported-model exclusions visible without inference calls", async () => {
+    const fetchImpl = vi.fn(async () => response({ data: [
+      catalogModel("unknown-price", undefined, 0),
+      catalogModel("paid-chat", 0.1, 0.1),
+      catalogModel("embedding-model", 0, 0, { type: "embedding" }),
+      catalogModel("responses-only", 0, 0, { api: ["responses"] }),
+      catalogModel("image-only", 0, 0, { input: ["image"], output: ["text"] }),
+    ] }));
+    const report = await discoverOpenCodeRoutes({
+      preferredModels: ["unknown-price", "paid-chat", "embedding-model", "responses-only", "image-only"],
+      fetchImpl,
+    });
+    expect(report.excluded).toEqual([
+      { model: "unknown-price", reason: "price_unknown" },
+      { model: "paid-chat", reason: "not_free" },
+      { model: "embedding-model", reason: "unsupported_modality" },
+      { model: "responses-only", reason: "unsupported_api" },
+      { model: "image-only", reason: "unsupported_modality" },
+    ]);
+  });
+
+  it("fails closed on malformed catalog and transport errors without credentials", async () => {
+    const malformed = await fetchOpenCodeCatalog({ fetchImpl: vi.fn(async () => response({ data: [] })) });
+    expect(malformed.status).toBe("failed");
+    expect(malformed.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
+    expect(malformed.sourceUrl).toBe("https://opencode.ai/inference/v1/models");
+    const unavailable = await fetchOpenCodeCatalog({ fetchImpl: vi.fn(async () => { throw new Error("network unavailable"); }) });
+    expect(unavailable.status).toBe("unavailable");
+    expect(unavailable.phase).toBe("request");
   });
 });
-
 describe("Ollama Cloud fallback discovery", () => {
   const GEMMA = "gemma4:31b-cloud";
 
@@ -438,7 +371,7 @@ describe("provider-ordered live discovery", () => {
 
   function zenCatalog(ids: readonly string[]) {
     return async (input: string | URL | Request) => String(input).endsWith("/models")
-      ? { ok: true, status: 200, json: async () => ({ data: ids.map((id) => ({ id })) }) } as unknown as Response
+      ? { ok: true, status: 200, json: async () => ({ data: ids.map((id) => catalogModel(id, 0, 0)) }) } as unknown as Response
       : { ok: false, status: 400, json: async () => ({}), text: async () => "{}" } as unknown as Response;
   }
 
@@ -457,24 +390,29 @@ describe("provider-ordered live discovery", () => {
     };
   }
 
-  it("keeps a working Zen selection without touching Ollama", async () => {
+  it("does not promote a free catalog model through HTTP and falls back to Ollama", async () => {
     const probe = vi.fn(async (_category: "interpret" | "narrate", _model: string) => ({ status: "ok", phase: "schema_validation" as const }));
     const report = await discoverLiveRoutes({
       apiKey: "zen-key",
       ollamaKey: "ollama-key",
+      ollamaModel: GEMMA,
       preferredModels: ["big-pickle", "muse-spark-1.3-contributor-free"],
       fetchImpl: zenCatalog(["big-pickle", "muse-spark-1.3-contributor-free"]),
       probe: probe as any,
     });
-    expect(report.provider).toBe("opencode_zen");
-    expect(report.status).toBe("ready");
-    expect(probe.mock.calls.every((call) => (call[1] as string) !== GEMMA)).toBe(true);
+    expect(report.provider).toBe("ollama_cloud");
+    expect(report.activeModel).toBe(GEMMA);
+    expect(probe.mock.calls).toHaveLength(2);
+    expect(probe.mock.calls.every((call) => call[1] === GEMMA)).toBe(true);
+    expect(report.excluded).toEqual(expect.arrayContaining([
+      { model: "big-pickle", reason: "restricted_to_opencode" },
+    ]));
   });
 
   it("falls back to Ollama when Zen activates nothing, keeping both exclusion stories", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [catalogModel("big-pickle", 0, 0)] }) } as unknown as Response;
       if (url.startsWith("https://ollama.com/")) return ollamaOk()(input, init);
       return {
         ok: false,
@@ -496,7 +434,7 @@ describe("provider-ordered live discovery", () => {
     expect(report.catalog?.status).toBe("ok");
     expect(report.routes.interpret).toEqual([{ provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" }]);
     expect(report.excluded).toEqual(expect.arrayContaining([
-      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "big-pickle", reason: "restricted_to_opencode" },
     ]));
     expect(report.candidates).toHaveLength(1);
     expect(report.candidates[0]).toMatchObject({
@@ -517,14 +455,14 @@ describe("provider-ordered live discovery", () => {
     });
     expect(report.provider).toBe("opencode_zen");
     expect(report.status).toBe("unavailable");
-    expect(report.excluded).toEqual([{ model: "big-pickle", reason: "model_unavailable" }]);
+    expect(report.excluded).toEqual([{ model: "big-pickle", reason: "restricted_to_opencode" }]);
   });
 
   it("falls through to OpenRouter only after Zen and Ollama both fail", async () => {
     const NEMO = "nvidia/nemotron-3-super-120b-a12b:free";
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [catalogModel("big-pickle", 0, 0)] }) } as unknown as Response;
       if (url.startsWith("https://ollama.com/")) {
         return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
       }
@@ -557,7 +495,7 @@ describe("provider-ordered live discovery", () => {
     expect(report.catalog?.status).toBe("ok");
     expect(report.routes.interpret).toEqual([{ provider: "openrouter", model: NEMO, protocol: "openai_chat", tier: "live_primary" }]);
     expect(report.excluded).toEqual(expect.arrayContaining([
-      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "big-pickle", reason: "restricted_to_opencode" },
       { model: "gemma4:31b-cloud", reason: "interpret_probe_failed" },
     ]));
     const openrouterCalls = fetchImpl.mock.calls.filter((call) => String(call[0]).startsWith("https://openrouter.ai/"));
@@ -567,7 +505,7 @@ describe("provider-ordered live discovery", () => {
   it("merges every checked rung when all rungs including OpenRouter fail", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
-      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [catalogModel("big-pickle", 0, 0)] }) } as unknown as Response;
       if (url.startsWith("https://ollama.com/") || url.startsWith("https://openrouter.ai/")) {
         return { ok: false, status: 500, json: async () => ({}), text: async () => "{}" } as unknown as Response;
       }
@@ -595,7 +533,7 @@ describe("provider-ordered live discovery", () => {
       expect.arrayContaining(["big-pickle", "gemma4:31b-cloud"]),
     );
     expect(report.excluded).toEqual(expect.arrayContaining([
-      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "big-pickle", reason: "restricted_to_opencode" },
       { model: "gemma4:31b-cloud", reason: expect.any(String) },
     ]));
     expect(report.catalog?.status).toBe("ok");
@@ -605,7 +543,7 @@ describe("provider-ordered live discovery", () => {
   it("never spends OpenRouter quota while Ollama answers", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [catalogModel("big-pickle", 0, 0)] }) } as unknown as Response;
       if (url.startsWith("https://openrouter.ai/")) throw new Error("OpenRouter quota must not be spent while Ollama answers");
       if (url.startsWith("https://ollama.com/")) {
         const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
@@ -635,7 +573,7 @@ describe("provider-ordered live discovery", () => {
   it("merges Zen and Ollama misses when no OpenRouter credential is configured", async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
-      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+      if (url.endsWith("/models")) return { ok: true, status: 200, json: async () => ({ data: [catalogModel("big-pickle", 0, 0)] }) } as unknown as Response;
       if (url.startsWith("https://openrouter.ai/")) throw new Error("OpenRouter must not be touched without a credential");
       return {
         ok: false,
@@ -659,7 +597,7 @@ describe("provider-ordered live discovery", () => {
       expect.arrayContaining(["big-pickle", "gemma4:31b-cloud"]),
     );
     expect(report.excluded).toEqual(expect.arrayContaining([
-      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "big-pickle", reason: "restricted_to_opencode" },
       { model: "gemma4:31b-cloud", reason: "model_unavailable" },
     ]));
   });

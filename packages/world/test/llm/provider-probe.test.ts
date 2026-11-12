@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { LLM_CONFIG } from "../../src/llm/config.js";
 import { probeAIReadiness } from "../../src/llm/provider-probe.js";
 
+const primaryModel = LLM_CONFIG.routes.interpret.candidates[0]!.model;
+const backupModel = LLM_CONFIG.routes.interpret.candidates[1]!.model;
+
 function fakeRouter(responses: Record<string, string | Error>) {
   const candidates = (category: "interpret" | "narrate") => LLM_CONFIG.routes[category].candidates;
   return {
@@ -29,9 +32,9 @@ describe("no-world AI readiness probe", () => {
     expect(JSON.stringify(report)).not.toContain("SKALD_PROBE_OK");
   });
 
-  it("reports degraded when a paid primary fails but backup passes", async () => {    const router = fakeRouter({
-      "interpret:muse-spark-1.3-contributor-free": new Error("HTTP 503 (secret response body must not leak)"),
-      "narrate:muse-spark-1.3-contributor-free": new Error("HTTP 503 (secret response body must not leak)"),
+  it("reports degraded when the preferred primary fails but backup passes", async () => {    const router = fakeRouter({
+      [`interpret:${primaryModel}`]: new Error("HTTP 503 (secret response body must not leak)"),
+      [`narrate:${primaryModel}`]: new Error("HTTP 503 (secret response body must not leak)"),
     });
     const report = await probeAIReadiness(router);
     expect(report.status).toBe("degraded");
@@ -51,11 +54,11 @@ describe("no-world AI readiness probe", () => {
   });
 
   it("classifies malformed interpret JSON without exposing response text", async () => {
-    const router = fakeRouter({ "interpret:muse-spark-1.3-contributor-free": "not-json" });
+    const router = fakeRouter({ [`interpret:${primaryModel}`]: "not-json" });
     const diagnostics: unknown[] = [];
     const report = await probeAIReadiness(router, { diagnostics: (event) => diagnostics.push(event) });
     expect(report.routes.interpret[0]).toMatchObject({ status: "failed", phase: "response_decode" });
-    expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "probe", model: "muse-spark-1.3-contributor-free", phase: "response_decode" })]));
+    expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "probe", model: primaryModel, phase: "response_decode" })]));
   });
 
   it("fails closed when a provider returns a different model id", async () => {
@@ -128,8 +131,8 @@ describe("no-world AI readiness probe", () => {
 
   it("rejects deployment when interpret is dead even though narrate answers", async () => {
     const router = fakeRouter({
-      "interpret:muse-spark-1.3-contributor-free": new Error("HTTP 400 (phase=response_status)"),
-      "interpret:ling-3.0-flash-fin-free": new Error("HTTP 400 (phase=response_status)"),
+      [`interpret:${primaryModel}`]: new Error("HTTP 400 (phase=response_status)"),
+      [`interpret:${backupModel}`]: new Error("HTTP 400 (phase=response_status)"),
     });
     const report = await probeAIReadiness(router);
     expect(report.status).toBe("degraded");

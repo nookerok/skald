@@ -136,8 +136,9 @@ echo "[OK] Narrative agent manifest installed and verified."
 
 # 9. systemd units
 echo "Installing systemd units..."
+sudo install -d -o "$SKALD_USER" -g "$SKALD_USER" -m 700 "$SKALD_DATA/ai-discovery"
 sudo cp "${SKALD_CODE}/packages/cli/deploy/skald.service" /etc/systemd/system/skald.service
-for unit in skald-backup.service skald-backup.timer skald-healthcheck.service skald-healthcheck.timer; do
+for unit in skald-backup.service skald-backup.timer skald-healthcheck.service skald-healthcheck.timer skald-ai-discovery.service skald-ai-discovery.timer; do
   sudo cp "${SKALD_CODE}/packages/cli/deploy/${unit}" "/etc/systemd/system/${unit}"
 done
 sudo systemctl daemon-reload
@@ -162,6 +163,7 @@ done
 # 11. Enable timers (only after server confirmed healthy)
 sudo systemctl enable --now skald-healthcheck.timer
 sudo systemctl enable --now skald-backup.timer
+sudo systemctl enable --now skald-ai-discovery.timer
 echo "[OK] Timers enabled."
 
 # 12. Production acceptance requires a live AI readiness probe. Accepted

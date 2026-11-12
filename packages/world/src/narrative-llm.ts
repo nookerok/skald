@@ -1308,6 +1308,18 @@ function allowedAnswerSystemPrompt(): string {
 }
 
 /**
+ * Build the exact production messages for a closed-facts narration call.
+ * Exported so fixed-corpus evaluations can fingerprint and exercise the same
+ * prompt without duplicating prompt policy.
+ */
+export function buildAllowedAnswerMessages(allowed: AllowedNarrativeFacts): readonly ChatMessage[] {
+  return Object.freeze([
+    Object.freeze({ role: "system" as const, content: allowedAnswerSystemPrompt() }),
+    Object.freeze({ role: "user" as const, content: JSON.stringify({ allowed }) }),
+  ]);
+}
+
+/**
  * Composed read-side answer over the closed allowed set (ADR-0037). The prompt
  * receives ONLY `AllowedNarrativeFacts` — never the raw `NarrativeAdapterContext`.
  * On any failure it returns `usedFallback`, so the deterministic answer stands.
@@ -1343,10 +1355,7 @@ export async function narrateAllowedAnswerLLM(
 
   const maxAttempts = 1 + retryCount(opts?.maxRetries);
   const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
-  const messages: ChatMessage[] = [
-    { role: "system", content: allowedAnswerSystemPrompt() },
-    { role: "user", content: JSON.stringify({ allowed }) },
-  ];
+  const messages: ChatMessage[] = [...buildAllowedAnswerMessages(allowed)];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const start = performance.now();

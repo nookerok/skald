@@ -112,6 +112,8 @@ export interface ProviderRequestErrorOptions {
   readonly httpStatus?: number | undefined;
   /** Raw provider code; sanitized before it is stored. */
   readonly providerCode?: string | undefined;
+  /** Bounded retry delay parsed from a structured provider error, in ms. */
+  readonly retryAfterMs?: number | undefined;
   readonly retryable?: boolean | undefined;
   /** Short safe reason used when there is no HTTP status. */
   readonly reason?: string | undefined;
@@ -127,6 +129,7 @@ export class ProviderRequestError extends Error {
   readonly phase: ProviderPhase;
   readonly httpStatus: number | undefined;
   readonly providerCode: string | undefined;
+  readonly retryAfterMs: number | undefined;
   readonly retryable: boolean;
 
   constructor(opts: ProviderRequestErrorOptions) {
@@ -140,6 +143,9 @@ export class ProviderRequestError extends Error {
     this.phase = opts.phase;
     this.httpStatus = httpStatus;
     this.providerCode = providerCode;
+    this.retryAfterMs = typeof opts.retryAfterMs === "number" && Number.isFinite(opts.retryAfterMs)
+      ? Math.min(60_000, Math.max(0, Math.floor(opts.retryAfterMs)))
+      : undefined;
     this.retryable = opts.retryable ?? isRetryableProviderFailure(opts.phase, httpStatus);
   }
 

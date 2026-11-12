@@ -5,6 +5,16 @@ import { join } from "node:path";
 import { createLiveRouterConfiguration, createRouterConfiguration, openCodeRunIdentity, refreshRouterSelection } from "../src/runtime/router-factory.js";
 import { OpenCodeRunProvider } from "../src/runtime/opencode-run-provider.js";
 
+function freeChatModel(id: string): Record<string, unknown> {
+  return {
+    id,
+    type: "chat",
+    modalities: { input: ["text"], output: ["text"] },
+    api: { "chat-completions": {} },
+    cost: { text: { input: { price: 0 }, output: { price: 0 } } },
+  };
+}
+
 describe("router factory", () => {
   it("captures provider-scoped keys in the runtime router without returning them", () => {
     const config = createRouterConfiguration({
@@ -69,22 +79,27 @@ describe("router factory", () => {
     expect(missing.configFingerprint).not.toBe(first.configFingerprint);
   });
 
-  it("activates only catalog-present models that pass both live route probes", async () => {
+  it("never routes free OpenCode-only chat through the server HTTP path", async () => {
     const preferred = ["big-pickle", "muse-spark-1.3-contributor-free", "mimo-v2.5-free"];
     const fetchImpl = async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ data: preferred.map((id) => ({ id })) }),
+      json: async () => ({ data: preferred.map(freeChatModel) }),
     } as unknown as Response);
-    const probe = async () => ({ status: "ok", phase: "schema_validation" } as const);
+    const probe = vi.fn(async () => ({ status: "ok", phase: "schema_validation" } as const));
     const config = await createLiveRouterConfiguration({
       SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
       SKALD_AI_REQUIRED: "1",
     }, { preferredModels: preferred, fetchImpl, probe });
 
-    expect(config.selectionReport?.activeModel).toBe("big-pickle");
-    expect(config.selectionReport?.backupModel).toBe("muse-spark-1.3-contributor-free");
-    expect(config.router?.routeCandidates("interpret").map((candidate) => candidate.model)).toEqual(preferred);
+    expect(config.selectionReport?.activeModel).toBeUndefined();
+    expect(config.selectionReport?.backupModel).toBeUndefined();
+    expect(config.selectionReport?.candidates.map((candidate) => candidate.exclusionReason)).toEqual(
+      preferred.map(() => "restricted_to_opencode"),
+    );
+    expect(config.router?.routeCandidates("interpret")).toEqual([]);
+    expect(config.router?.routeCandidates("narrate")).toEqual([]);
+    expect(probe).not.toHaveBeenCalled();
     expect(JSON.stringify(config)).not.toContain("zen-secret");
     expect(config.router?.configFingerprint()).toBe(config.configFingerprint);
   });
@@ -126,7 +141,7 @@ describe("router factory", () => {
     const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/models")) {
-        return { ok: true, status: 200, json: async () => ({ data: [{ id: "big-pickle" }] }) } as unknown as Response;
+        return { ok: true, status: 200, json: async () => ({ data: [freeChatModel("big-pickle")] }) } as unknown as Response;
       }
       if (url.startsWith("https://ollama.com/")) {
         const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
@@ -152,9 +167,9 @@ describe("router factory", () => {
     expect(config.selectionReport?.provider).toBe("ollama_cloud");
     expect(config.selectionReport?.activeModel).toBe(GEMMA);
     expect(config.selectionReport?.excluded).toEqual(expect.arrayContaining([
-      { model: "big-pickle", reason: "model_unavailable" },
+      { model: "big-pickle", reason: "restricted_to_opencode" },
     ]));
-    expect(config.selectionReport?.candidates[0]?.interpret).toMatchObject({ status: "ok" });
+    expect(config.selectionReport?.candidates[0]?.model).toBe(GEMMA);
     expect(config.router?.routeCandidates("interpret")).toEqual([
       { provider: "ollama_cloud", model: GEMMA, protocol: "ollama_chat", tier: "live_primary" },
     ]);

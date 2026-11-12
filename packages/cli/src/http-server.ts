@@ -6,6 +6,7 @@ import { createMultiWorldStore, type MultiWorldStore } from "./persistence/index
 import { WorldRuntimeManager } from "./runtime/index.js";
 import { createLiveRouterConfiguration } from "./runtime/router-factory.js";
 import { resolveRefreshIntervalMs } from "./runtime/discovery-refresh.js";
+import { AIDiscoveryCoordinator } from "./admin/ai-discovery-coordinator.js";
 import { readJsonBody } from "./http-body.js";
 import {
   handleWorlds,
@@ -162,6 +163,8 @@ export async function startServer(options?: {
   diagnostics?: NarrationDiagnosticSink;
   /** Run live Zen catalogue discovery before accepting production requests. */
   discoverAI?: boolean;
+  /** Optional discovery coordinator for deterministic admin API tests. */
+  aiDiscoveryCoordinator?: AIDiscoveryCoordinator;
 }): Promise<StartedServer> {
   const dbPath = options?.dbPath ?? process.env["SKALD_DB_PATH"] ?? "/home/nook/skald-data/events.sqlite";
   const store = createMultiWorldStore(dbPath);
@@ -170,6 +173,7 @@ export async function startServer(options?: {
     ? await createLiveRouterConfiguration()
     : null;
   const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics, routerConfiguration);
+  const aiDiscovery = options?.aiDiscoveryCoordinator ?? new AIDiscoveryCoordinator();
   const serverApp: ServerApp = { store, runtimes };
   // Daily live-model re-discovery keeps routing aligned with the provider
   // catalogue without restarts. It applies the fresh selection to the live
@@ -246,6 +250,103 @@ export async function startServer(options?: {
 
       // Operational AI readiness is deliberately loopback-only and separate
       // from simulation liveness. It has no world route or player input.
+      if (url.pathname === "/api/ops/ai-discovery") {
+        if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
+        if (method !== "GET") { errHandle(405, "method_not_allowed", "method " + method + " not allowed"); return; }
+        const snapshot = await aiDiscovery.store.snapshot();
+        handle(200, {
+          ok: true,
+          discovery: snapshot,
+          report: snapshot.latestRun?.report ?? null,
+          operatorDecision: snapshot.latestDecision,
+          taskEvaluation: snapshot.latestTaskEvaluation,
+          servingRouteChanged: false,
+        });
+        return;
+      }
+      if (url.pathname === "/api/ops/ai-discovery/refresh") {
+        if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
+        if (method !== "POST") { errHandle(405, "method_not_allowed", "method " + method + " not allowed"); return; }
+        const idempotencyKey = req.headers["idempotency-key"];
+        if (typeof idempotencyKey !== "string") {
+          errHandle(400, "idempotency_key_required", "Idempotency-Key header is required"); return;
+        }
+        if (parseContentType(req.headers["content-type"]) !== "application/json") {
+          errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return;
+        }
+        let body: unknown;
+        try { body = await readJsonBody(req, 1024); } catch { errHandle(400, "invalid_request", "invalid body"); return; }
+        if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 0) {
+          errHandle(400, "invalid_request", "manual discovery refresh does not accept player input"); return;
+        }
+        let reservation: { readonly created: boolean; readonly requestId: string; readonly shouldStart: boolean };
+        try {
+          reservation = await aiDiscovery.store.reserveManualRequest(idempotencyKey);
+        } catch {
+          errHandle(400, "invalid_idempotency_key", "Idempotency-Key must be 16 to 200 visible characters"); return;
+        }
+        if (reservation.shouldStart) void aiDiscovery.refresh("manual", reservation.requestId).catch(() => undefined);
+        handle(202, {
+          ok: true,
+          state: reservation.created ? "accepted" : "already_requested",
+          requestId: reservation.requestId,
+          statusUrl: "/api/ops/ai-discovery",
+        });
+        return;
+      }
+      if (url.pathname === "/api/ops/ai-discovery/decision") {
+        if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
+        if (method !== "POST") { errHandle(405, "method_not_allowed", "method " + method + " not allowed"); return; }
+        const idempotencyKey = req.headers["idempotency-key"];
+        if (typeof idempotencyKey !== "string") {
+          errHandle(400, "idempotency_key_required", "Idempotency-Key header is required"); return;
+        }
+        if (parseContentType(req.headers["content-type"]) !== "application/json") {
+          errHandle(415, "unsupported_media_type", "Content-Type must be application/json"); return;
+        }
+        let body: unknown;
+        try { body = await readJsonBody(req, 2048); } catch { errHandle(400, "invalid_request", "invalid body"); return; }
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+          errHandle(400, "invalid_request", "invalid decision"); return;
+        }
+        const decision = body as Record<string, unknown>;
+        const allowedKeys = ["runId", "reportSha256", "candidateId", "decision"];
+        if (Object.keys(decision).some((key) => !allowedKeys.includes(key))
+          || typeof decision.runId !== "string"
+          || typeof decision.reportSha256 !== "string"
+          || typeof decision.candidateId !== "string"
+          || (decision.decision !== "nominate_for_task_evaluation" && decision.decision !== "reject")) {
+          errHandle(400, "invalid_request", "invalid decision fields"); return;
+        }
+        try {
+          const receipt = await aiDiscovery.store.recordDecision({
+            runId: decision.runId,
+            reportSha256: decision.reportSha256,
+            candidateId: decision.candidateId,
+            decision: decision.decision,
+            idempotencyKey,
+          });
+          const taskEvaluation = receipt.decision === "nominate_for_task_evaluation"
+            ? await aiDiscovery.startTaskEvaluation(receipt)
+            : null;
+          handle(receipt.decision === "nominate_for_task_evaluation" ? 202 : 201, {
+            ok: true,
+            decision: receipt,
+            taskEvaluation,
+            servingRouteChanged: false,
+            nextStep: receipt.decision === "nominate_for_task_evaluation" ? "poll_task_evaluation" : "none",
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          const status = message === "discovery evidence mismatch"
+            || message === "discovery evidence is stale"
+            || message === "task evaluation evidence is stale"
+            || message === "decision idempotency conflict"
+            || message === "decision request already in progress" ? 409 : 400;
+          errHandle(status, status === 409 ? "stale_discovery_evidence" : "decision_rejected", status === 409 ? "discovery evidence is stale or invalid" : "candidate is not eligible for this decision");
+        }
+        return;
+      }
       if (url.pathname === "/api/ops/ai-probe") {
         if (!isLoopbackRequest(req)) { errHandle(404, "not_found", "not found"); return; }
         if (method !== "POST") { errHandle(405, "method_not_allowed", `method ${method} not allowed`); return; }

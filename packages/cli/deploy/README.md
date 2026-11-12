@@ -38,7 +38,7 @@ The install script will:
    refuse installation completion when readiness is `unavailable`,
    `misconfigured`, unparsable or not `playable` (both routes need a live
    candidate; `ready` or `degraded` are accepted)
-9. Enable health check and backup timers
+9. Enable health check, backup and AI-discovery timers
 
 The installer creates `skald.env` from the example on first run. Set
 `SKALD_AI_REQUIRED=1` and add the OpenCode Zen key before rerunning it; `0` is
@@ -167,26 +167,85 @@ A no-primary multi-world deployment is valid: verify the world catalog
 rather than the unscoped path. A deployment smoke test runs against a scratch
 world created for the check, never an existing player world.
 
-## Daily model re-discovery
+## Serving-route refresh and free-model survey
 
-Startup discovery runs once before the server accepts requests. After that a
-built-in daily refresher re-runs the same catalogue fetch plus authenticated
-no-world probes for every preferred model and applies the fresh selection to
-the running router without rebuilding it or restarting the process:
+These are two different mechanisms and must not be read as one signal:
 
-- the policy is stale-while-revalidate: a selection that activates nothing
-  (or a failed discovery run) never empties live routes; the last good
-  selection keeps serving;
-- every refresh is reported through the readiness `modelSelection` block
-  (`checkedAt`, active/backup models, exclusion reasons) and a one-line
-  `[ai-discovery]` log entry; credentials never enter reports or logs;
-- the cadence defaults to 24h and is tunable via `SKALD_AI_DISCOVERY_REFRESH_MS`
-  (minimum 5 minutes; bad values fall back to daily).
+- The in-process `DiscoveryRefresher` checks configured serving-route
+  candidates and may keep the last known-good selection on failure. It is not
+  the free-model catalogue survey and does not prove that the latest check was
+  successful. `POST /api/ops/ai-probe` probes currently routed candidates; it
+  does not refresh the catalogue.
+- The free-model survey reads the public OpenCode catalogue, screens only
+  explicit zero-input/zero-output text chat models through the isolated native
+  OpenCode CLI, and writes sanitized immutable receipts outside the Event Log.
+  It never sends free OpenCode chat to direct HTTP and never changes serving
+  routes. Each screening pass is only a smoke check; task-corpus, privacy and
+  operator approval are separate.
 
-Note: `POST /api/ops/ai-probe` re-checks the currently routed candidates; it
-does not re-run catalogue discovery. After network-level changes (VPN,
-credential rotation) either wait for the daily refresh or restart
-`skald.service` for an immediate fresh discovery.
+The survey code configures a persistent systemd timer for daily 04:00
+Europe/Moscow. Fresh installs copy and enable it from
+`install-orange-pi.sh`. On an existing Orange Pi, the ordinary updater cannot
+install systemd units (its restricted sudo permission is only for restarting
+`skald.service`); after the code is deployed, activate the timer once by
+running this narrow helper interactively as `nooker`, without external sudo:
+
+    packages/cli/deploy/install-ai-discovery.sh
+
+It installs only the AI-discovery service/timer, verifies the timer is enabled
+and active, and does not restart `skald.service` or touch SQLite. Until that
+helper has run and the scheduled service has completed successfully, the daily
+survey is **configured in source, not operationally verified**.
+
+Loopback-only operator polling:
+
+    curl --fail --silent http://127.0.0.1:3000/api/ops/ai-discovery
+    curl --fail --silent -X POST -H 'Content-Type: application/json' \
+      -H 'Idempotency-Key: unique-manual-run-id-0001' -d '{}' \
+      http://127.0.0.1:3000/api/ops/ai-discovery/refresh
+
+Poll the GET endpoint until `discovery.lastAttempt.status` is no longer
+`running`; inspect per-candidate `screening` and the report's catalogue digest,
+prices, transport restrictions, failures and timestamps. A completed scan does
+not mean every candidate passed. The same immutable report can be explicitly
+confirmed by POSTing JSON to `/api/ops/ai-discovery/decision` with
+`runId`, `reportSha256`, `candidateId` and `decision` set to
+`nominate_for_task_evaluation` or `reject`, plus a fresh `Idempotency-Key`.
+Nomination returns HTTP 202 and starts a bounded background task-corpus
+evaluation. Poll the same GET endpoint's taskEvaluation field; a concurrent
+daily scan is serialized by the shared provider lock. The same idempotency
+key returns the original evaluation and never activates a route.
+The corpus is the deployed Director corpus plus ten fixed Russian
+allowed-facts narration tasks. It has a 48-call ceiling and mandatory human
+review. No automatic notification is sent; operators poll the API.
+
+Example confirmation (substitute values from the current GET report):
+
+    curl --fail --silent -X POST -H 'Content-Type: application/json' \
+      -H 'Idempotency-Key: operator-decision-0001' \
+      -d '{"runId":"20261111T010000Z-...","reportSha256":"<sha256>","candidateId":"<catalog-id>","decision":"nominate_for_task_evaluation"}' \
+      http://127.0.0.1:3000/api/ops/ai-discovery/decision
+
+Check `systemctl list-timers --all skald-ai-discovery.timer --no-pager` for
+scheduled activation and `journalctl -u skald-ai-discovery.service` for the
+last execution. API `nextRunAt` is a schedule calculation, not proof that
+systemd has the timer installed or enabled.
+
+Manual CLI invocation from the checkout:
+`npm run admin:ai-model-discovery -- --trigger=manual`.
+
+The survey uses the isolated OpenCode CLI only when `SKALD_OPENCODE_RUN=1` is
+present in `skald.env`; the default is off. A valid OpenCode Console credential
+must also be available as `OPENCODE_API_KEY` or
+`SKALD_OPENCODE_ZEN_API_KEY`. If disabled or missing, the scheduled attempt is
+still recorded as blocked and performs no inference calls. This opt-in also
+makes the local-subprocess candidate available to the router, but narration
+fallback remains separately disabled unless its own explicit flag is set.
+
+Structured 429 failures receive one bounded retry using Retry-After when the
+CLI supplies it. Authentication, account-quota and transport failures open a
+provider-wide circuit breaker for the remainder of the run; sanitized failure
+codes are retained without the raw upstream response.
 
 ## Access
 

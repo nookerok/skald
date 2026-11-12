@@ -9,9 +9,11 @@ import { probeAIReadiness, type AIReadinessReport, type ModelRouter, type AIDiag
  * for the whole probe (two sequential route budgets plus overhead).
  */
 export const AI_READINESS_PROBE_TIMEOUT_MS = 25_000;
+export const AI_READINESS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface AIReadinessOptions {
   readonly cooldownMs?: number;
+  readonly cacheMaxAgeMs?: number;
   readonly timeoutMs?: number;
   /** Secret-free fingerprint captured by the same environment factory as the router. */
   readonly configFingerprint?: string;
@@ -30,6 +32,7 @@ export class AIReadinessService {
   private lastReport: AIReadinessReport | null = null;
   private lastStartedAt = -Infinity;
   private readonly cooldownMs: number;
+  private readonly cacheMaxAgeMs: number;
   private readonly timeoutMs: number;
   private readonly configFingerprint: string | undefined;
   private readonly selectionReport: LiveModelSelectionReport | undefined;
@@ -40,6 +43,7 @@ export class AIReadinessService {
     options?: AIReadinessOptions,
   ) {
     this.cooldownMs = Math.max(0, Math.floor(options?.cooldownMs ?? 15_000));
+    this.cacheMaxAgeMs = Math.max(1, Math.floor(options?.cacheMaxAgeMs ?? AI_READINESS_CACHE_MAX_AGE_MS));
     this.timeoutMs = Math.max(1, Math.floor(options?.timeoutMs ?? AI_READINESS_PROBE_TIMEOUT_MS));
     this.configFingerprint = options?.configFingerprint;
     this.selectionReport = options?.selectionReport;
@@ -52,7 +56,7 @@ export class AIReadinessService {
   async probe(): Promise<AIReadinessReport> {
     if (this.inFlight) return this.inFlight;
     const now = this.now();
-    if (this.lastReport && now - this.lastStartedAt < this.cooldownMs) return this.lastReport;
+    if (this.lastReport && now - this.lastStartedAt < this.cooldownMs && this.cached() !== null) return this.lastReport;
     this.lastStartedAt = now;
     // Prefer the router's live selection/fingerprint: daily re-discovery
     // applies fresh selections to the router, while this service only holds
@@ -79,6 +83,13 @@ export class AIReadinessService {
   }
 
   cached(): AIReadinessReport | null {
+    if (!this.lastReport) return null;
+    const ageMs = this.now() - this.lastStartedAt;
+    if (ageMs < 0 || ageMs > this.cacheMaxAgeMs) return null;
+    const liveFingerprint = (this.router as unknown as { configFingerprint?: () => string })?.configFingerprint?.();
+    if (liveFingerprint !== undefined
+      && this.lastReport.configFingerprint !== undefined
+      && liveFingerprint !== this.lastReport.configFingerprint) return null;
     return this.lastReport;
   }
 

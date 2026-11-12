@@ -1,4 +1,23 @@
-# Current work (2026-11-07 - Conversation Director P0/P1 validated; P3 live acceptance pending)
+# Current work (2026-11-12 - OpenCode daily discovery release)
+
+- Release is isolated from the original dirty Conversation Director worktree.
+  It builds on production 5edb94c and uses that commit's Director corpus v5;
+  unpublished P3/corpus-v8 changes are preserved in the original workspace.
+- Public catalogue metadata, exact zero-input/output pricing, native CLI
+  restrictions, regional exclusions, bounded screening, durable receipts,
+  loopback refresh/nomination/polling and bounded task evaluation are implemented.
+  No Domain Events, Rules or world-persistence schemas are added.
+- User authorized the necessary commit/push/deploy, daily-job installation and
+  real-provider checks on 2026-11-12. Pi preflight: clean main at 5edb94c,
+  Node 22.23.1, OpenCode 1.18.30, game service and existing timers active.
+- Full repository gate on this isolated release passed (typecheck, tests,
+  canon/simulation/eval/adventure and diff check). Native transport evaluation
+  continues on Pi. A systemd timer is not yet installed; sudo requires
+  interactive authentication and linger is disabled by policy.
+- See docs/operations/opencode-model-discovery-2026-11-11.md. Completion still
+  requires live receipts, operational scheduling and the next daily run.
+
+## Historical snapshot (2026-11-07 - Conversation Director P0/P1 validated; P3 live acceptance pending)
 
 - Follow-up repairs cover multi-person approach clarification/resume after SQLite
   restart, visible public-role questions from observer-safe facts, topic replies

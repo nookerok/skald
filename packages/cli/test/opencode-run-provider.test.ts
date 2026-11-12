@@ -132,7 +132,7 @@ describe("opencode run argv and environment", () => {
     expect(OPENCODE_RUN_SESSION_TITLE).toBe("skald-narrate");
   });
 
-  it("scrubs secrets from the child environment and keeps the allowlist", () => {
+  it("forwards only the OpenCode credential needed by its native provider", () => {
     const env = sanitizeEnv({
       PATH: "/usr/bin",
       HOME: "/home/nooker",
@@ -142,9 +142,14 @@ describe("opencode run argv and environment", () => {
       CUSTOM_SECRET: "shh",
       EMPTY_OK: "",
     });
-    expect(env).toEqual({ PATH: "/usr/bin", HOME: "/home/nooker" });
-    expect(JSON.stringify(env)).not.toContain("secret");
+    expect(env).toEqual({ PATH: "/usr/bin", HOME: "/home/nooker", OPENCODE_API_KEY: "zen-secret" });
+    expect(JSON.stringify(env)).not.toContain("ollama-secret");
+    expect(JSON.stringify(env)).not.toContain("sk-or-v1-secret");
     expect(JSON.stringify(env)).not.toContain("shh");
+  });
+
+  it("prefers an explicit OpenCode API key over the Skald Zen key", () => {
+    expect(sanitizeEnv({ OPENCODE_API_KEY: "native-key", SKALD_OPENCODE_ZEN_API_KEY: "zen-key" }).OPENCODE_API_KEY).toBe("native-key");
   });
 
   it("enables the transport only on explicit opt-in", () => {
@@ -204,6 +209,29 @@ describe("parseOpenCodeNdjsonEvents", () => {
       sessionId: undefined,
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     });
+  });
+});
+
+describe("parseOpenCodeNdjsonEvents error metadata", () => {
+  it("extracts only bounded status, code and Retry-After metadata", () => {
+    const parsed = parseOpenCodeNdjsonEvents(JSON.stringify({
+      type: "error",
+      error: {
+        name: "ProviderResponseError",
+        data: {
+          statusCode: 429,
+          code: "rate_limited",
+          message: "private response must not escape",
+          response: { headers: { "Retry-After": "2.5" } },
+        },
+      },
+    }), Date.parse("2026-11-12T00:00:00.000Z"));
+    expect(parsed).toEqual({
+      ok: false,
+      reason: "run_error",
+      failure: { httpStatus: 429, providerCode: "rate_limited", retryAfterMs: 2_500 },
+    });
+    expect(JSON.stringify(parsed)).not.toContain("private response");
   });
 });
 
@@ -270,6 +298,32 @@ describe("runOpencodeChat", () => {
       retryable: false,
     });
     expect((error as Error).message).toContain("exit code 1");
+  });
+
+  it("maps a structured provider rejection to sanitized typed status metadata", async () => {
+    const fake = fakeSpawn([{
+      stdout: JSON.stringify({
+        type: "error",
+        error: {
+          name: "ProviderResponseError",
+          data: {
+            statusCode: 403,
+            code: "free_tier_session_required",
+            message: "private account response",
+          },
+        },
+      }),
+      exitCode: 1,
+    }]);
+    const error = await runOpencodeChat({ ...baseInput(), spawnImpl: fake.fn }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    expect(error as ProviderRequestError).toMatchObject({
+      phase: "request",
+      httpStatus: 403,
+      providerCode: "free_tier_session_required",
+      retryable: false,
+    });
+    expect((error as Error).message).not.toContain("private account response");
   });
 
   it("kills on timeout with SIGTERM then SIGKILL and reports retryable transport", async () => {
@@ -540,6 +594,25 @@ describe("home isolation and agent manifest", () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  it("pins the isolated agent and CLI argument to the same screened model", async () => {
+    const model = "opencode/current-free-model";
+    const manifest = "---\nmode: primary\nmodel: opencode/retired-model\npermission:\n  bash: deny\n---\nUse only given facts.\n";
+    let served = "";
+    const probing: SpawnFn = (_binary, args, opts) => {
+      served = readFileSync(join(opts.env.HOME!, ".config", "opencode", "agents", "narrative.md"), "utf8");
+      expect(args[args.indexOf("-m") + 1]).toBe(model);
+      return {
+        done: Promise.resolve({ stdout: ndjsonOk("ok"), exitCode: 0, signal: null, outputTruncated: false }),
+        kill: () => undefined,
+      };
+    };
+    await runOpencodeChat({ ...baseInput(), model, isolateHome: true, agentManifest: manifest, spawnImpl: probing });
+    expect(served).toContain('model: "opencode/current-free-model"');
+    expect(served).not.toContain("retired-model");
+    expect(served).toContain("  bash: deny");
+    expect(served).toContain("Use only given facts.");
+  });
+
   it("rejects an agent name that cannot become a skeleton path", async () => {
     const fake = fakeSpawn();
     const error = await runOpencodeChat({
@@ -575,6 +648,33 @@ describe("home isolation and agent manifest", () => {
     });
     await routerOff.chatCandidate("narrate", candidate(), messages(), { timeoutMs: 1000 });
     expect(plain.calls[0]?.env.HOME).toBe(process.env.HOME);
+  });
+
+  it("uses only the allowlisted injected service environment in the isolated child", async () => {
+    const fake = fakeSpawn([{ stdout: ndjsonOk("env-ok") }]);
+    const router = new OpenCodeRunProvider({
+      apiKey: "",
+      providerId: "opencode_zen",
+      availableProviders: ["opencode_run"],
+      routeCandidates: { narrate: [candidate()] },
+      opencodeRun: {
+        binary: "opencode-test-binary",
+        spawnImpl: fake.fn,
+        cleanupSession: false,
+        env: {
+          PATH: "/usr/bin",
+          HOME: "/operator/home",
+          OPENCODE_API_KEY: "native-session-key",
+          UNRELATED_SECRET: "must-not-reach-child",
+        },
+      },
+    });
+
+    await router.chatCandidate("narrate", candidate(), messages(), { timeoutMs: 1000 });
+
+    expect(fake.calls[0]?.env.OPENCODE_API_KEY).toBe("native-session-key");
+    expect(fake.calls[0]?.env.UNRELATED_SECRET).toBeUndefined();
+    expect(fake.calls[0]?.env.HOME).not.toBe("/operator/home");
   });
 
   it("serves the construction-time manifest even when the file changes later", async () => {

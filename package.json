@@ -37,6 +37,7 @@
     "acceptance:intent:contract": "node --import tsx packages/cli/src/acceptance/run-intent-contract.ts",
     "acceptance:command-time:live": "node --import tsx packages/cli/src/acceptance/command-time-live.ts",
     "admin:world-retention": "node --import tsx packages/cli/src/admin/run-world-retention.ts",
+    "admin:ai-model-discovery": "node --import tsx packages/cli/src/admin/run-ai-model-discovery.ts",
     "acceptance:gm-shadow:scorecard": "node --import tsx packages/cli/src/acceptance/gm-shadow-scorecard.ts",
     "deploy:receipt": "node scripts/deploy-receipt.mjs",
     "acceptance:interpretation:corpus": "node --import tsx packages/cli/src/acceptance/run-interpretation-corpus.ts",

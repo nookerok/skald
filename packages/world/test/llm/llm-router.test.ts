@@ -32,9 +32,9 @@ describe("ModelRouter", () => {
       expect(primary?.tier).toBe("catalog_candidate");
       expect(backup?.tier).toBe("catalog_candidate");
       expect(primary?.provider).toBe("opencode_zen");
-      expect(primary?.model).toBe("muse-spark-1.3-contributor-free");
-      expect(primary?.protocol).toBe("openai_responses");
-      expect(backup?.model).toBe("ling-3.0-flash-fin-free");
+      expect(primary?.model).toBe("big-pickle");
+      expect(primary?.protocol).toBe("openai_chat");
+      expect(backup?.model).toBe("mimo-v2.6-flash-free");
       expect(backup?.protocol).toBe("openai_chat");
       expect(LLM_CONFIG.routes[category].models).toEqual(OPENCODE_PREFERRED_MODELS);
     }
@@ -65,7 +65,7 @@ describe("ModelRouter", () => {
   it("decideModel selects first model when health is unknown", () => {
     const router = new ModelRouter({ apiKey: "test-key" });
     const decision = router.decideModel("narrate", msg("hello"));
-    expect(decision.selectedModel).toBe("muse-spark-1.3-contributor-free");
+    expect(decision.selectedModel).toBe("big-pickle");
     expect(decision.category).toBe("narrate");
     expect(decision.healthStatus).toBe("unknown");
   });
@@ -320,8 +320,8 @@ describe("ModelRouter", () => {
         const pue = err as ProviderUnavailableError;
         expect(pue.code).toBe("PROVIDER_UNAVAILABLE");
         expect(pue.provider).toBe("opencode_zen");
-        expect(pue.model).toBe("muse-spark-1.3-contributor-free");
-        expect(pue.configuredModel).toBe("muse-spark-1.3-contributor-free");
+        expect(pue.model).toBe("big-pickle");
+        expect(pue.configuredModel).toBe("big-pickle");
         expect(pue.cause).toBeInstanceOf(Error);
       }
     } finally {
@@ -369,7 +369,7 @@ describe("ModelRouter", () => {
       },
     } as const;
     router.applyLiveSelection(selection as any, "refreshed-fingerprint");
-    expect(before).toContain("muse-spark-1.3-contributor-free");
+    expect(before).toContain("big-pickle");
     expect(router.routeCandidates("interpret").map((candidate) => candidate.model)).toEqual(["ling-3.0-flash-fin-free"]);
     expect(router.routeCandidates("narrate").map((candidate) => `${candidate.model}:${candidate.protocol}`)).toEqual([
       "ling-3.0-flash-fin-free:openai_chat",

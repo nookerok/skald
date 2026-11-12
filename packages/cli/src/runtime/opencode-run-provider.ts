@@ -16,7 +16,7 @@
  * latency-critical command path.
  *
  * Containment contract (all enforced here, all tested):
- * - the child never sees secrets: the prompt travels as one argv entry
+ * - the child sees only the native provider credential when configured: the prompt travels as one argv entry
  *   with no shell in between (no shell injection by construction), and the
  *   environment is reduced to {@link OPENCODE_RUN_ENV_ALLOWLIST};
  * - the child runs in a fresh empty temp dir (caller-owned when overridden);
@@ -77,9 +77,10 @@ export const OPENCODE_RUN_SESSION_TITLE = "skald-narrate";
  * Transport contract version, included in router fingerprints. Bump when the
  * spawned argv shape, the home-isolation layout or the agent manifest
  * contract changes, so a code update can never serve stale health data.
+ * v3: the per-call manifest pins the same candidate as the CLI model argument.
  * v2: immutable construction-time manifest bytes (no per-call re-read).
  */
-export const OPENCODE_RUN_TRANSPORT_VERSION = 2;
+export const OPENCODE_RUN_TRANSPORT_VERSION = 3;
 
 /**
  * Repo-pinned tools-denied agent manifest, copied into the isolated home on
@@ -148,9 +149,10 @@ export const OPENCODE_RUN_MAX_MESSAGE_BYTES = 96 * 1024;
 export const OPENCODE_RUN_MAX_OUTPUT_BYTES = 256 * 1024;
 
 /**
- * Environment allowlist: only these names cross into the child. Everything
- * else — including every `*_API_KEY` — stays behind, so a compromised or
- * curious subprocess cannot exfiltrate operator credentials.
+ * Environment allowlist: only these names cross into the child. The only
+ * credential exception is the OpenCode Console key required by its native
+ * provider; other provider keys never cross. The agent has no tools, and the
+ * key is not included in logs or reports.
  */
 export const OPENCODE_RUN_ENV_ALLOWLIST: readonly string[] = Object.freeze([
   "PATH",
@@ -167,6 +169,10 @@ export const OPENCODE_RUN_ENV_ALLOWLIST: readonly string[] = Object.freeze([
   "OS",
   "HOMEDRIVE",
   "HOMEPATH",
+  // OpenCode's own provider credential is the only secret intentionally
+  // passed to this trusted CLI process. It is not exposed to the agent's
+  // tools (all tools remain denied) and is never written to diagnostics.
+  "OPENCODE_API_KEY",
 ]);
 
 /** Explicit opt-in; the transport is never on by default. */
@@ -263,6 +269,8 @@ export interface OpenCodeRunTransport {
   /** Best-effort `session delete` afterwards; default true. */
   readonly cleanupSession?: boolean | undefined;
   readonly cleanupTimeoutMs?: number | undefined;
+  /** Optional service environment snapshot; it is allowlisted before spawn. */
+  readonly env?: NodeJS.ProcessEnv | undefined;
   readonly spawnImpl?: SpawnFn | undefined;
 }
 
@@ -336,6 +344,12 @@ export function sanitizeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     const value = env[key];
     if (typeof value === "string" && value.length > 0) out[key] = value;
   }
+  // Console's native OpenCode provider reads OPENCODE_API_KEY. Keep Skald's
+  // secret name private to the parent and translate it only for this child.
+  const consoleKey = env.OPENCODE_API_KEY ?? env.SKALD_OPENCODE_ZEN_API_KEY;
+  if (typeof consoleKey === "string" && consoleKey.length > 0 && consoleKey.length <= 8192) {
+    out.OPENCODE_API_KEY = consoleKey;
+  }
   return out;
 }
 
@@ -354,7 +368,15 @@ export type NdjsonParseResult =
     readonly sessionId: string | undefined;
     readonly usage: ParsedRunUsage;
   }
-  | { readonly ok: false; readonly reason: "decode" | "run_error" | "tool_activity" | "empty" };
+  | {
+    readonly ok: false;
+    readonly reason: "decode" | "run_error" | "tool_activity" | "empty";
+    readonly failure?: {
+      readonly httpStatus?: number;
+      readonly providerCode?: string;
+      readonly retryAfterMs?: number;
+    };
+  };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -368,6 +390,84 @@ function asCount(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
+function safeHttpStatus(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : undefined;
+}
+
+function safeProviderCode(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0 || value.length > 80) return undefined;
+  return /^[A-Za-z0-9_.:-]+$/u.test(value) ? value : undefined;
+}
+
+function boundedRetryAfterMs(value: unknown, nowMs: number, numericUnit: "milliseconds" | "seconds"): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    const multiplier = numericUnit === "seconds" ? 1_000 : 1;
+    return Math.min(60_000, Math.floor(value * multiplier));
+  }
+  if (typeof value !== "string" || value.length > 128) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+(?:\.\d+)?$/u.test(trimmed)) {
+    const multiplier = numericUnit === "seconds" ? 1_000 : 1;
+    return Math.min(60_000, Math.floor(Number(trimmed) * multiplier));
+  }
+  const date = Date.parse(trimmed);
+  return Number.isFinite(date) ? Math.min(60_000, Math.max(0, date - nowMs)) : undefined;
+}
+
+function boundedRetryAfterHeader(value: unknown, nowMs: number): number | undefined {
+  return boundedRetryAfterMs(value, nowMs, "seconds");
+}
+
+function structuredRunFailure(
+  event: Record<string, unknown>,
+  nowMs: number,
+): NonNullable<Extract<NdjsonParseResult, { ok: false }>["failure"]> {
+  const roots = [event.error, event.part, event.data].filter(isRecord);
+  const records: Record<string, unknown>[] = [];
+  for (const root of roots) {
+    records.push(root);
+    for (const nestedKey of ["data", "response", "error"] as const) {
+      const nested = root[nestedKey];
+      if (isRecord(nested)) {
+        records.push(nested);
+        for (const innerKey of ["data", "response"] as const) {
+          const inner = nested[innerKey];
+          if (isRecord(inner)) records.push(inner);
+        }
+      }
+    }
+    if (isRecord(root.headers)) {
+      records.push({ retryAfterHeader: root.headers["retry-after"] ?? root.headers["Retry-After"] });
+    }
+  }
+  for (const record of [...records]) {
+    if (isRecord(record.headers)) {
+      records.push({ retryAfterHeader: record.headers["retry-after"] ?? record.headers["Retry-After"] });
+    }
+  }
+  const statusRecord = records.find((record) =>
+    safeHttpStatus(record.httpStatus) !== undefined
+    || safeHttpStatus(record.statusCode) !== undefined
+    || safeHttpStatus(record.status) !== undefined);
+  const httpStatus = statusRecord
+    ? safeHttpStatus(statusRecord.httpStatus) ?? safeHttpStatus(statusRecord.statusCode) ?? safeHttpStatus(statusRecord.status)
+    : undefined;
+  const providerCode = records.map((record) => safeProviderCode(record.code)).find((value) => value !== undefined)
+    ?? records.map((record) => safeProviderCode(record.name)).find((value) => value !== undefined);
+  let retryAfterMs: number | undefined;
+  for (const retryRecord of records) {
+    retryAfterMs = boundedRetryAfterMs(retryRecord.retryAfterMs, nowMs, "milliseconds")
+      ?? boundedRetryAfterMs(retryRecord.retryAfter, nowMs, "seconds")
+      ?? boundedRetryAfterHeader(retryRecord.retryAfterHeader, nowMs);
+    if (retryAfterMs !== undefined) break;
+  }
+  return {
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+    ...(providerCode ? { providerCode } : {}),
+    ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+  };
+}
+
 /**
  * Parse one `--format json` NDJSON stdout blob. Pure and total: blank lines
  * are skipped and unknown non-tool event types are ignored for forward
@@ -375,7 +475,7 @@ function asCount(value: unknown): number {
  * tool-shaped activity fails closed — the caller maps those to
  * `ProviderRequestError` and the existing deterministic fallback engages.
  */
-export function parseOpenCodeNdjsonEvents(stdout: string): NdjsonParseResult {
+export function parseOpenCodeNdjsonEvents(stdout: string, nowMs = 0): NdjsonParseResult {
   const texts: string[] = [];
   let sessionId: string | undefined;
   let usage: ParsedRunUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
@@ -393,7 +493,10 @@ export function parseOpenCodeNdjsonEvents(stdout: string): NdjsonParseResult {
       if (candidate !== undefined) sessionId = candidate;
     }
     const type = event.type;
-    if (type === "error") return { ok: false, reason: "run_error" };
+    if (type === "error") {
+      const failure = structuredRunFailure(event, nowMs);
+      return { ok: false, reason: "run_error", ...(Object.keys(failure).length > 0 ? { failure } : {}) };
+    }
     if (type.toLowerCase().includes("tool")) return { ok: false, reason: "tool_activity" };
     if (type !== "text" && type !== "step_start" && type !== "step_finish") continue;
     const part = (event as { part?: unknown }).part;
@@ -554,6 +657,7 @@ function providerError(
   phase: "configuration" | "request" | "transport" | "response_decode" | "response_shape" | "schema_validation",
   reason: string,
   retryable: boolean,
+  failure: { readonly httpStatus?: number; readonly providerCode?: string; readonly retryAfterMs?: number } = {},
 ): ProviderRequestError {
   return new ProviderRequestError({
     provider: OPENCODE_RUN_PROVIDER_ID,
@@ -562,6 +666,7 @@ function providerError(
     phase,
     reason,
     retryable,
+    ...failure,
   });
 }
 
@@ -651,7 +756,12 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
       mkdirSync(join(homeDir, "work"), { recursive: true });
       // Construction-time bytes only: never re-read the checkout here, so a
       // deploy pull racing a live call cannot swap the agent mid-process.
-      writeFileSync(join(homeDir, ".config", "opencode", "agents", `${input.agent}.md`), manifest, "utf8");
+      const frontmatter = /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/u.exec(manifest);
+      const servedManifest = frontmatter
+        ? frontmatter[1]! + frontmatter[2]!.replace(/^model:[^\r\n]*$/mu, "model: " + JSON.stringify(input.model))
+          + frontmatter[3]! + manifest.slice(frontmatter[0].length)
+        : manifest;
+      writeFileSync(join(homeDir, ".config", "opencode", "agents", `${input.agent}.md`), servedManifest, "utf8");
       writeFileSync(join(homeDir, ".config", "opencode", "opencode.jsonc"), OPENCODE_RUN_ISOLATED_CONFIG_JSON, "utf8");
     } catch {
       if (ownedHome && homeDir !== undefined) {
@@ -715,15 +825,19 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
       throw providerError(input.model, input.category, "response_decode", "output budget exceeded", false);
     }
     if (exit.exitCode !== 0) {
+      const failureEvent = parseOpenCodeNdjsonEvents(exit.stdout, Date.now());
+      if (!failureEvent.ok && failureEvent.reason === "run_error") {
+        throw providerError(input.model, input.category, "request", "run reported error", false, failureEvent.failure);
+      }
       throw providerError(input.model, input.category, "request", `exit code ${exit.exitCode ?? "unknown"}`, false);
     }
-    const parsed = parseOpenCodeNdjsonEvents(exit.stdout);
+    const parsed = parseOpenCodeNdjsonEvents(exit.stdout, Date.now());
     if (!parsed.ok) {
       if (parsed.reason === "tool_activity") {
         throw providerError(input.model, input.category, "schema_validation", "unexpected tool activity", false);
       }
       if (parsed.reason === "run_error") {
-        throw providerError(input.model, input.category, "request", "run reported error", false);
+        throw providerError(input.model, input.category, "request", "run reported error", false, parsed.failure);
       }
       throw providerError(input.model, input.category, "response_decode", "malformed NDJSON response", false);
     }
@@ -802,6 +916,7 @@ export class OpenCodeRunProvider extends ModelRouter {
   private readonly runMaxMessageBytes: number;
   private readonly runCleanupSession: boolean;
   private readonly runCleanupTimeoutMs: number;
+  private readonly runEnvironment: NodeJS.ProcessEnv | undefined;
   private readonly runSpawnImpl: SpawnFn;
 
   constructor(opts?: OpenCodeRunProviderOptions) {
@@ -829,6 +944,7 @@ export class OpenCodeRunProvider extends ModelRouter {
     this.runMaxMessageBytes = transport?.maxMessageBytes ?? OPENCODE_RUN_MAX_MESSAGE_BYTES;
     this.runCleanupSession = transport?.cleanupSession ?? true;
     this.runCleanupTimeoutMs = transport?.cleanupTimeoutMs ?? OPENCODE_RUN_CLEANUP_TIMEOUT_MS;
+    this.runEnvironment = transport?.env === undefined ? undefined : sanitizeEnv(transport.env);
     this.runSpawnImpl = transport?.spawnImpl ?? spawnChildProcess;
   }
 
@@ -876,6 +992,7 @@ export class OpenCodeRunProvider extends ModelRouter {
       maxOutputBytes: this.runMaxOutputBytes,
       cleanupSession: this.runCleanupSession,
       cleanupTimeoutMs: this.runCleanupTimeoutMs,
+      ...(this.runEnvironment !== undefined ? { env: this.runEnvironment } : {}),
       spawnImpl: this.runSpawnImpl,
     });
     return {
@@ -915,6 +1032,7 @@ export class OpenCodeRunProvider extends ModelRouter {
       maxOutputBytes: this.runMaxOutputBytes,
       cleanupSession: this.runCleanupSession,
       cleanupTimeoutMs: this.runCleanupTimeoutMs,
+      ...(this.runEnvironment !== undefined ? { env: this.runEnvironment } : {}),
       spawnImpl: this.runSpawnImpl,
     });
     return { text: result.text, responseModel: model, latencyMs: result.latencyMs, usage: result.usage };

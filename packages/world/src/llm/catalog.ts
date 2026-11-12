@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { LLM_CONFIG, OLLAMA_CLOUD_PREFERRED_MODELS, OPENCODE_PREFERRED_MODELS, OPENROUTER_PREFERRED_MODELS, openCodeProtocolForModel } from "./config.js";
 import { chatOnce, readProviderErrorCode } from "./http.js";
 import { isProviderScopedFailure, toProviderFailure } from "./errors.js";
-import type { ChatMessage, ProviderId, ProviderPhase, ProviderProtocol, RouteCandidate } from "./types.js";
+import type { ChatMessage, ProviderId, ProviderPhase, RouteCandidate } from "./types.js";
 
-const OPENCODE_ZEN_BASE_URL = "https://opencode.ai/zen/v1";
+/** Public metadata endpoint; it does not require an inference credential. */
+export const OPENCODE_PUBLIC_CATALOG_URL = "https://opencode.ai/inference/v1/models";
 const CATALOG_TIMEOUT_MS = 10_000;
 const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:@/+~-]{0,159}$/;
 
@@ -21,11 +22,31 @@ const NARRATE_MESSAGES: readonly ChatMessage[] = Object.freeze([
 export type OpenCodeCatalogStatus = "ok" | "auth_failure" | "unavailable" | "failed";
 export type CatalogPhase = "configuration" | "request" | "response_status" | "response_decode" | "response_shape";
 
+export interface OpenCodeCatalogModel {
+  readonly id: string;
+  readonly type: string | null;
+  readonly name?: string;
+  readonly inputModalities: readonly string[];
+  readonly outputModalities: readonly string[];
+  readonly apiFamilies: readonly string[];
+  readonly textInputPrice: number | null;
+  readonly textOutputPrice: number | null;
+  readonly hasConditionalTextPricing: boolean;
+  readonly zeroPriceTextChat: boolean | null;
+  readonly clientRestriction: "opencode_cli" | "direct_http" | "unknown";
+}
+
 export interface OpenCodeCatalogReport {
   readonly provider: "opencode_zen";
   readonly status: OpenCodeCatalogStatus;
   readonly phase: CatalogPhase;
+  /** Time the public catalogue request began, even when it failed. */
+  readonly fetchedAt?: string;
   readonly modelIds: readonly string[];
+  readonly models?: readonly OpenCodeCatalogModel[];
+  readonly eligibleFreeChatIds?: readonly string[];
+  readonly catalogDigest?: string;
+  readonly sourceUrl?: string;
   readonly httpStatus?: number;
   readonly providerCode?: string;
 }
@@ -42,6 +63,11 @@ export interface CandidateProbeResult {
 
 export type ModelExclusionReason =
   | "not_in_catalog"
+  | "not_free"
+  | "price_unknown"
+  | "unsupported_api"
+  | "unsupported_modality"
+  | "restricted_to_opencode"
   | "catalog_auth_failure"
   | "catalog_unavailable"
   | "missing_credential"
@@ -54,6 +80,8 @@ export type ModelExclusionReason =
 export interface ModelCandidateReport {
   readonly model: string;
   readonly inCatalog: boolean;
+  readonly zeroPriceTextChat?: boolean | null;
+  readonly clientRestriction?: OpenCodeCatalogModel["clientRestriction"];
   readonly interpret: CandidateProbeResult;
   readonly narrate: CandidateProbeResult;
   readonly active: boolean;
@@ -83,10 +111,15 @@ export interface LiveModelSelectionReport {
 }
 
 export interface OpenCodeCatalogOptions {
+  /** Public catalogue URL. The response is never used as an inference route. */
+  readonly catalogUrl?: string;
+  /** Legacy base URL override for tests and compatible mirrors. */
   readonly apiKey?: string;
   readonly baseUrl?: string;
   readonly timeoutMs?: number;
   readonly fetchImpl?: typeof fetch;
+  /** Deterministic timestamp seam for evidence tests. */
+  readonly now?: () => Date;
 }
 
 export interface LiveModelSelectionOptions extends OpenCodeCatalogOptions {
@@ -107,41 +140,109 @@ function safeModelId(value: unknown): string | undefined {
   return typeof value === "string" && MODEL_ID_RE.test(value) ? value : undefined;
 }
 
-function catalogIds(payload: unknown): readonly string[] {
-  const entries = Array.isArray(payload)
-    ? payload
-    : payload !== null && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
-      ? (payload as { data: unknown[] }).data
-      : [];
-  const ids: string[] = [];
-  for (const entry of entries) {
-    const id = safeModelId(typeof entry === "string" ? entry : entry !== null && typeof entry === "object" ? (entry as { id?: unknown }).id : undefined);
-    if (id && !ids.includes(id)) ids.push(id);
+function stringList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? Object.freeze([...new Set(value.filter((item): item is string => typeof item === "string" && item.length <= 64))]) : Object.freeze([]);
+}
+
+function catalogEntries(payload: unknown): readonly unknown[] {
+  return payload !== null && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
+    ? (payload as { data: unknown[] }).data
+    : Array.isArray(payload) ? payload : [];
+}
+
+function numericPrice(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function parseCatalogModels(payload: unknown): readonly OpenCodeCatalogModel[] {
+  const models: OpenCodeCatalogModel[] = [];
+  const seen = new Set<string>();
+  for (const entry of catalogEntries(payload)) {
+    if (entry === null || typeof entry !== "object") continue;
+    const source = entry as Record<string, unknown>;
+    const id = safeModelId(source.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const modalities = source.modalities !== null && typeof source.modalities === "object"
+      ? source.modalities as Record<string, unknown>
+      : {};
+    const cost = source.cost !== null && typeof source.cost === "object"
+      ? source.cost as Record<string, unknown>
+      : {};
+    const textCost = cost.text !== null && typeof cost.text === "object"
+      ? cost.text as Record<string, unknown>
+      : {};
+    const inputCost = textCost.input !== null && typeof textCost.input === "object"
+      ? textCost.input as Record<string, unknown>
+      : {};
+    const outputCost = textCost.output !== null && typeof textCost.output === "object"
+      ? textCost.output as Record<string, unknown>
+      : {};
+    const textInputPrice = numericPrice(inputCost.price);
+    const textOutputPrice = numericPrice(outputCost.price);
+    const hasConditionalTextPricing = (Array.isArray(inputCost.overrides) && inputCost.overrides.length > 0)
+      || (Array.isArray(outputCost.overrides) && outputCost.overrides.length > 0)
+      || (Array.isArray(cost.multipliers) && cost.multipliers.length > 0);
+    const type = typeof source.type === "string" ? source.type : null;
+    const inputModalities = stringList(modalities.input);
+    const outputModalities = stringList(modalities.output);
+    const api = source.api !== null && typeof source.api === "object" ? source.api as Record<string, unknown> : {};
+    const apiFamilies = Object.freeze(Object.keys(api).filter((key) => /^[a-z0-9-]{1,48}$/u.test(key)).sort());
+    const supportsTextChat = type === "chat"
+      && inputModalities.includes("text")
+      && outputModalities.includes("text")
+      && apiFamilies.includes("chat-completions");
+    const zeroPriceTextChat = !supportsTextChat
+      ? false
+      : textInputPrice === null || textOutputPrice === null
+        ? null
+        : textInputPrice !== 0 || textOutputPrice !== 0
+          ? false
+          : hasConditionalTextPricing ? null : true;
+    const clientRestriction: OpenCodeCatalogModel["clientRestriction"] = zeroPriceTextChat === true
+      ? "opencode_cli"
+      : zeroPriceTextChat === false
+        ? "direct_http"
+        : "unknown";
+    const name = typeof source.name === "string" && source.name.length <= 160 ? source.name : undefined;
+    models.push(Object.freeze({
+      id,
+      type,
+      ...(name ? { name } : {}),
+      inputModalities,
+      outputModalities,
+      apiFamilies,
+      textInputPrice,
+      textOutputPrice,
+      hasConditionalTextPricing,
+      zeroPriceTextChat,
+      clientRestriction,
+    }));
   }
-  return Object.freeze(ids);
+  return Object.freeze(models);
 }
 
 /**
- * Fetch the authenticated OpenCode Zen model catalogue. Only model IDs and
- * sanitized status metadata leave this function; response bodies are dropped.
+ * Fetch the public OpenCode catalogue without credentials. Only normalized,
+ * non-sensitive model metadata leaves this function; response bodies are dropped.
  */
 export async function fetchOpenCodeCatalog(options: OpenCodeCatalogOptions = {}): Promise<OpenCodeCatalogReport> {
-  const apiKey = options.apiKey ?? "";
-  const baseUrl = (options.baseUrl ?? OPENCODE_ZEN_BASE_URL).replace(/\/+$/, "");
-  if (!apiKey) return { provider: "opencode_zen", status: "auth_failure", phase: "configuration", modelIds: [] };
+  const url = options.catalogUrl ?? (options.baseUrl ? `${options.baseUrl.replace(/\/+$/, "")}/models` : OPENCODE_PUBLIC_CATALOG_URL);
+  const fetchedAt = (options.now ?? (() => new Date()))().toISOString();
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), boundedTimeout(options.timeoutMs));
   try {
     let response: Response;
     try {
-      response = await (options.fetchImpl ?? fetch)(`${baseUrl}/models`, {
+      response = await (options.fetchImpl ?? fetch)(url, {
         method: "GET",
-        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        headers: { Accept: "application/json" },
+        redirect: "error",
         signal: controller.signal,
       });
     } catch {
-      return { provider: "opencode_zen", status: "unavailable", phase: "request", modelIds: [] };
+      return { provider: "opencode_zen", status: "unavailable", phase: "request", fetchedAt, sourceUrl: url, modelIds: [] };
     }
     if (!response.ok) {
       const providerCode = await readProviderErrorCode(response);
@@ -154,6 +255,8 @@ export async function fetchOpenCodeCatalog(options: OpenCodeCatalogOptions = {})
         provider: "opencode_zen",
         status,
         phase: "response_status",
+        fetchedAt,
+        sourceUrl: url,
         modelIds: [],
         httpStatus: response.status,
         ...(providerCode ? { providerCode } : {}),
@@ -163,11 +266,17 @@ export async function fetchOpenCodeCatalog(options: OpenCodeCatalogOptions = {})
     try {
       payload = await response.json();
     } catch {
-      return { provider: "opencode_zen", status: "failed", phase: "response_decode", modelIds: [] };
+      return { provider: "opencode_zen", status: "failed", phase: "response_decode", fetchedAt, sourceUrl: url, modelIds: [] };
     }
-    const modelIds = catalogIds(payload);
-    if (modelIds.length === 0) return { provider: "opencode_zen", status: "failed", phase: "response_shape", modelIds };
-    return { provider: "opencode_zen", status: "ok", phase: "response_shape", modelIds };
+    const models = parseCatalogModels(payload);
+    const modelIds = Object.freeze(models.map((model) => model.id));
+    if (models.length === 0) return { provider: "opencode_zen", status: "failed", phase: "response_shape", fetchedAt, modelIds, sourceUrl: url };
+    const eligibleFreeChatIds = Object.freeze(models.filter((model) => model.zeroPriceTextChat === true).map((model) => model.id));
+    const digestMaterial = models.map(({ id, type, inputModalities, outputModalities, apiFamilies, textInputPrice, textOutputPrice, hasConditionalTextPricing, zeroPriceTextChat, clientRestriction }) => ({
+      id, type, inputModalities, outputModalities, apiFamilies, textInputPrice, textOutputPrice, hasConditionalTextPricing, zeroPriceTextChat, clientRestriction,
+    })).sort((a, b) => a.id.localeCompare(b.id));
+    const catalogDigest = createHash("sha256").update(JSON.stringify(digestMaterial), "utf8").digest("hex");
+    return { provider: "opencode_zen", status: "ok", phase: "response_shape", fetchedAt, modelIds, models, eligibleFreeChatIds, catalogDigest, sourceUrl: url };
   } finally {
     clearTimeout(timeout);
   }
@@ -188,41 +297,6 @@ function probeText(category: "interpret" | "narrate", text: string): CandidatePr
     return valid ? { status: "ok", phase: "schema_validation" } : { status: "failed", phase: "schema_validation" };
   } catch {
     return { status: "failed", phase: "response_decode" };
-  }
-}
-
-async function probeOpenCodeModel(category: "interpret" | "narrate", model: string, options: { apiKey: string; baseUrl: string; timeoutMs: number; fetchImpl?: typeof fetch }): Promise<CandidateProbeResult> {
-  const protocol: ProviderProtocol = openCodeProtocolForModel(model);
-  try {
-    // Probe budgets must cover reasoning traces: live evidence shows Zen
-    // thinking models (effort high) spending a dozen-plus tokens before any
-    // content, so terse budgets starve the marker (`incomplete`,
-    // `max_output_tokens`) and healthy models look dead.
-    const maxTokens = category === "interpret" ? 1024 : 512;
-    const result = await chatOnce(options.baseUrl, options.apiKey, model, category === "interpret" ? INTERPRET_MESSAGES : NARRATE_MESSAGES, {
-      provider: "opencode_zen",
-      protocol,
-      category,
-      maxTokens,
-      timeoutMs: options.timeoutMs,
-      ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
-    });
-    const checked = probeText(category, result.text.trim());
-    if (!checked) return { status: "failed", phase: "response_shape" };
-    if (result.responseModel && result.responseModel !== model) return { status: "failed", phase: "model_selection", responseModel: result.responseModel };
-    return { ...checked, ...(result.responseModel ? { responseModel: result.responseModel } : {}) };
-  } catch (error) {
-    const failure = toProviderFailure(error, { provider: "opencode_zen", model, category });
-    if (failure && (isProviderScopedFailure(failure.httpStatus, failure.providerCode) || failure.httpStatus === 400 || failure.httpStatus === 404)) {
-      if (failure.httpStatus === 401 || failure.httpStatus === 403) return { status: "auth_failure", phase: failure.phase, httpStatus: failure.httpStatus, ...(failure.providerCode ? { providerCode: failure.providerCode } : {}) };
-      if (failure.httpStatus === 400 || failure.httpStatus === 404) return { status: "model_unavailable", phase: failure.phase, httpStatus: failure.httpStatus, ...(failure.providerCode ? { providerCode: failure.providerCode } : {}) };
-    }
-    return {
-      status: "failed",
-      phase: failure?.phase ?? "request",
-      ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
-      ...(failure?.providerCode ? { providerCode: failure.providerCode } : {}),
-    };
   }
 }
 
@@ -249,25 +323,21 @@ function selectionStatus(catalog: OpenCodeCatalogReport, activeCount: number, ca
 }
 
 /**
- * Discover and probe the preferred Zen models once at runtime/deploy startup.
- * No model is routed until it is present in the live catalogue and passes both
- * authenticated no-world probes. Each candidate is attempted at most once per
- * route; unavailable models are excluded instead of retried indefinitely.
+ * Inspect OpenCode candidates in the public catalog. Free chat is OpenCode-CLI
+ * only, so this HTTP discovery path deliberately never probes or routes those
+ * models. Native CLI screening lives in the CLI operations layer.
  */
 export async function discoverOpenCodeRoutes(options: LiveModelSelectionOptions = {}): Promise<LiveModelSelectionReport> {
   const startedAt = performance.now();
   const checkedAt = options.checkedAt ?? (() => new Date().toISOString());
   const preferredModels = Object.freeze([...(options.preferredModels ?? OPENCODE_PREFERRED_MODELS)]);
   const timeoutMs = boundedTimeout(options.timeoutMs);
-  const apiKey = options.apiKey ?? "";
-  const baseUrl = (options.baseUrl ?? OPENCODE_ZEN_BASE_URL).replace(/\/+$/, "");
-  const catalog = await fetchOpenCodeCatalog({ apiKey, baseUrl, timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
+  const catalog = await fetchOpenCodeCatalog({ ...(options.catalogUrl ? { catalogUrl: options.catalogUrl } : {}), timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) });
   const catalogSet = new Set(catalog.modelIds);
-  const candidates = await Promise.all(preferredModels.map(async (model): Promise<ModelCandidateReport> => {
+  const catalogModels = new Map((catalog.models ?? []).map((model) => [model.id, model]));
+  const modelIds = [...preferredModels, ...(catalog.eligibleFreeChatIds ?? []).filter((id) => !preferredModels.includes(id))];
+  const candidates = modelIds.map((model): ModelCandidateReport => {
     const inCatalog = catalogSet.has(model);
-    if (!apiKey) {
-      return { model, inCatalog, interpret: inactiveProbe("configuration"), narrate: inactiveProbe("configuration"), active: false, exclusionReason: "missing_credential" };
-    }
     if (catalog.status === "auth_failure") {
       return { model, inCatalog, interpret: inactiveProbe("response_status"), narrate: inactiveProbe("response_status"), active: false, exclusionReason: "catalog_auth_failure" };
     }
@@ -277,24 +347,21 @@ export async function discoverOpenCodeRoutes(options: LiveModelSelectionOptions 
     if (!inCatalog) {
       return { model, inCatalog, interpret: inactiveProbe("response_shape"), narrate: inactiveProbe("response_shape"), active: false, exclusionReason: "not_in_catalog" };
     }
-    const [interpret, narrate] = await Promise.all([
-      options.probe
-        ? options.probe("interpret", model, { apiKey, baseUrl, timeoutMs })
-        : probeOpenCodeModel("interpret", model, { apiKey, baseUrl, timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) }),
-      options.probe
-        ? options.probe("narrate", model, { apiKey, baseUrl, timeoutMs })
-        : probeOpenCodeModel("narrate", model, { apiKey, baseUrl, timeoutMs, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) }),
-    ]);
-    const active = interpret.status === "ok" && narrate.status === "ok";
-    const exclusionReason = active
-      ? undefined
-      : interpret.status === "auth_failure" || narrate.status === "auth_failure"
-        ? "auth_failure"
-        : interpret.status === "model_unavailable" || narrate.status === "model_unavailable"
-          ? "model_unavailable"
-          : interpret.status !== "ok" ? "interpret_probe_failed" : "narrate_probe_failed";
-    return { model, inCatalog, interpret, narrate, active, ...(exclusionReason ? { exclusionReason } : {}) };
-  }));
+    const catalogModel = catalogModels.get(model);
+    if (!catalogModel) return { model, inCatalog, interpret: inactiveProbe("response_shape"), narrate: inactiveProbe("response_shape"), active: false, exclusionReason: "price_unknown" };
+    if (catalogModel.type !== "chat" || !catalogModel.inputModalities.includes("text") || !catalogModel.outputModalities.includes("text")) {
+      return { model, inCatalog, zeroPriceTextChat: catalogModel.zeroPriceTextChat, clientRestriction: catalogModel.clientRestriction, interpret: inactiveProbe("response_shape"), narrate: inactiveProbe("response_shape"), active: false, exclusionReason: "unsupported_modality" };
+    }
+    if (!catalogModel.apiFamilies.includes("chat-completions")) {
+      return { model, inCatalog, zeroPriceTextChat: catalogModel.zeroPriceTextChat, clientRestriction: catalogModel.clientRestriction, interpret: inactiveProbe("response_shape"), narrate: inactiveProbe("response_shape"), active: false, exclusionReason: "unsupported_api" };
+    }
+    const reason: ModelExclusionReason = catalogModel.zeroPriceTextChat === null
+      ? "price_unknown"
+      : catalogModel.zeroPriceTextChat === false
+        ? "not_free"
+        : "restricted_to_opencode";
+    return { model, inCatalog, zeroPriceTextChat: catalogModel.zeroPriceTextChat, clientRestriction: catalogModel.clientRestriction, interpret: inactiveProbe("configuration"), narrate: inactiveProbe("configuration"), active: false, exclusionReason: reason };
+  });
 
   const activeModels = candidates.filter((candidate) => candidate.active).map((candidate) => candidate.model);
   const routes = routeForModels(activeModels);
