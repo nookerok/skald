@@ -39,6 +39,20 @@
 - Codex heartbeat `skald` is ACTIVE, daily 09:00 Europe/Moscow: read-only
   report review and operator confirmation, no automatic nomination/promotion.
   Pi timer still awaits sudo authentication in the interactive installer window.
+- Final device verification: production 18df168, clean main; updater full gate
+  259/3235, service/timers/health and live contract PASS. Scratch smoke again
+  passed ten turns, same-key replay and conflicting-key 409.
+- Latest survey is in the configured durable directory: run
+  20261112T044336Z-2521f2c8-b6ae-44cf-88ab-196ca56199c9, SHA
+  5e46fbff4bf47c590f5c38f9962868fa4de75e391c3ccb02cfe04740a5ef50b1.
+  Eight 429s, one timeout, shared transport breaker, nine calls; no eligible
+  candidate. Loopback nomination of an unscreened candidate returned 400.
+- MD-3/MD-4 are NOT fully closed: the legacy uptime serving refresher remains
+  separate, keeps last-good routes and captures credentials at startup. The
+  readiness cache TTL is not a serving-route expiry policy. Do not claim the
+  survey timer replaces that mechanism or automatically promotes candidates.
+  Existing fallback selection uses the updated OpenRouter preference after
+  its short probes, but its Director task-quality acceptance remains failed.
 - See docs/operations/opencode-model-discovery-2026-11-11.md. Completion still
   requires live receipts, operational scheduling and the next daily run.
 

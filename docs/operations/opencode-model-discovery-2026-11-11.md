@@ -5,11 +5,11 @@
 
 ## Состояние реализации
 
-**Текущий live-срез 2026-11-12:** e3219b4 развёрнут штатным updater на Pi;
-backup/integrity, 259/3233 gate на устройстве, health и intent/narration
+**Текущий live-срез 2026-11-12:** 18df168 развёрнут штатным updater на Pi;
+backup/integrity, 259/3235 gate на устройстве, health и intent/narration
 contract PASS. Scratch smoke: 10/10 ходов, replay/conflict PASS. Ни один
-существующий player world не изменён. Последующие локальные регрессии
-cooldown/env-directory прошли 259/3235 и должны быть довезены отдельным выпуском.
+существующий player world не изменён. Исправления cooldown/env-directory
+также проверены и довезены на Pi.
 
 Настоящий V2 screening всех 10 RU-кандидатов дал только 429 с Retry-After 60s:
 partial, 0 passed, 40 calls. Run
@@ -22,7 +22,26 @@ Standalone CLI выбирает durable directory после чтения SKALD_
 
 OpenRouter Nemotron Ultra: короткие probes/contract PASS и prose 9/10 не
 доказывают пригодность Director. Настоящий corpus-v5 прогон на рабочем
-таймауте 4s дал 0/11 accepted (provider errors). Автопродвижения нет.
+таймауте 4s дал 0/11 accepted (provider errors). Survey не продвигает OpenCode
+кандидатов. Существующий serving failover после коротких probes выбирает
+обновлённый OpenRouter fallback; это не приёмка качества Director.
+
+Последний run с исправлениями:
+20261112T044336Z-2521f2c8-b6ae-44cf-88ab-196ca56199c9, SHA
+5e46fbff4bf47c590f5c38f9962868fa4de75e391c3ccb02cfe04740a5ef50b1.
+Он записан непосредственно в настроенный durable directory: восемь 429,
+один timeout, затем shared transport breaker; 9 calls, partial. Номинация
+непрошедшего screening кандидата через настоящий loopback API вернула 400;
+внешний LAN-запрос к admin endpoint — 404, loopback — 200.
+
+**Не закрыто в MD-3/MD-4:** прежний uptime-based serving refresher остаётся
+отдельным владельцем serving discovery и сохраняет last-good routes без
+истечения selection TTL; provider credentials в нём захвачены при старте.
+TTL readiness cache не равен TTL самих маршрутов. Новый survey не применяет
+selection к router автоматически. Объединение serving schedule, credential
+refresh и согласованная политика expiry требуют отдельного runtime-среза и
+его acceptance, а не только установки этого timer. Полное выполнение плана
+пока не заявляется.
 
 Codex heartbeat `skald` создан ACTIVE на 09:00 МСК: читает Pi loopback
 report/marker/SHA/timer, сообщает о новых сбоях/кандидатах и спрашивает
