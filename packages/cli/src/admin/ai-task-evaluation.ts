@@ -34,6 +34,7 @@ import {
   OPENCODE_RUN_PROVIDER_ID,
   OpenCodeRunProvider,
   isOpenCodeRunEnabled,
+  openCodeRunCliMajor,
 } from "../runtime/opencode-run-provider.js";
 import {
   buildGmFixtureScene,
@@ -408,6 +409,7 @@ function createPinnedRouter(candidateId: string, env: NodeJS.ProcessEnv): Counti
     routeCandidates: { interpret: [candidate], narrate: [candidate] },
     timeoutMs: AI_TASK_EVALUATION_TIMEOUT_MS,
     opencodeRun: {
+      cliMajor: openCodeRunCliMajor(env),
       binary: env.SKALD_OPENCODE_BIN ?? OPENCODE_RUN_DEFAULT_BINARY,
       agent: env.SKALD_OPENCODE_RUN_AGENT ?? OPENCODE_RUN_DEFAULT_AGENT,
       model,

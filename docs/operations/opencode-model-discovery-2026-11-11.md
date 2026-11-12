@@ -401,3 +401,36 @@ runs на той точке не были установлены и не под�
 - Проверка own-user linger через loginctl закончилась Access denied.
   Persistent user-systemd не считается альтернативой установленному timer.
   Для system units по-прежнему требуется sudo-аутентификация администратора.
+
+### Hardware follow-up
+
+- Выяснено, что Pi хранил более старые OpenCode/Ollama ключи, чем известный
+  Windows OpenCode auth store. Текущие локальные ключи получили 200 на своих
+  catalogue endpoints и перенесены на Pi через encrypted SSH stdin.
+  Env обновлён атомарно с backup
+  skald.env.bak-model-discovery-2026-11-12T04-10-01-452Z; значения ключей
+  не публиковались. Ollama после ротации всё равно ответил 402: это отдельное
+  ограничение account quota, а не отсутствие каталога.
+- Первый durable Pi-survey с прежним ключом: provider_auth_failure, два 401.
+  После ротации V1 native calls упёрлись в transport budget. Оба immutable
+  run/SHA/completion receipt читаются и проверяются store.
+- У OpenCode существуют отдельные V1/V2 каналы: v2.2.7 проверен прямым GitHub
+  tag API и официальным V2 installer. ARM64 artifact SHA-256:
+  c1682057f0815cb2abdd6e00305f1146ebaf1c167f0335cdb74ddc80008120e7.
+  Бинарник расположен рядом с V1 в
+  /home/nooker/skald-data/tools/opencode-v2.2.7/opencode.
+  V2 убрал --dir и использует --standalone для private server; adapter имеет
+  явный SKALD_OPENCODE_CLI_MAJOR=2, отдельный all-tools-deny config и private
+  session cleanup. Старый V1 бинарник не заменялся.
+- V2 на MiMo и DeepSeek вернул структурированный 429, cleanup завершился с 0.
+  Неизвестный model-level 429 теперь получает bounded retry и не отбрасывает
+  остальные модели; явно account-level quota/rate limit останавливает scan.
+- Удалённые OpenRouter fallback ID заменены текущим
+  nvidia/nemotron-3-ultra-550b-a55b:free, для которого официальная metadata
+  дала input/output=0. На Pi dual probes и live intent/narration contract PASS;
+  production allowed-facts guard принял 9/10 prose задач, одна завершилась
+  provider error. Human review остаётся required. ERNIE не выбран: guard
+  принял только 6/10, в одном принятом тексте найден лишний вывод.
+- Полный isolated release gate: 259 файлов, 3233 passed, 1 skipped;
+  [validate] PASS. Это другой срез, чем исторический dirty-P3 gate 260/3277:
+  неопубликованные P3/досье изменения в выпуск не вошли.

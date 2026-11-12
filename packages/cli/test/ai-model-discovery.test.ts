@@ -295,6 +295,42 @@ describe("screenOpenCodeFreeModels", () => {
     expect(report.candidates[1]?.screening).toBe("not_run");
   });
 
+  it("continues other candidates after a model-scoped 429 while retaining partial status", async () => {
+    let limitedCalls = 0;
+    const report = await screenOpenCodeFreeModels({
+      catalog: makeCatalog([makeModel("rate-limited-model"), makeModel("available-model")]),
+      env: probeEnvironment,
+      sleepImpl: async () => undefined,
+      probe: async (model, category) => {
+        if (model === "rate-limited-model") {
+          limitedCalls += 1;
+          throw new ProviderRequestError({ provider: "opencode_run", model, category, phase: "response_status", httpStatus: 429 });
+        }
+        return { text: marker(category), latencyMs: 1 };
+      },
+    });
+    expect(report.circuitBreaker).toBeUndefined();
+    expect(report.status).toBe("partial");
+    expect(report.candidates.find((candidate) => candidate.id === "available-model")?.screening).toBe("pass");
+    expect(limitedCalls).toBe(4);
+  });
+
+  it("opens a shared breaker only when 429 explicitly identifies an account rate limit", async () => {
+    let calls = 0;
+    const report = await screenOpenCodeFreeModels({
+      catalog: makeCatalog([makeModel("account-limited")]),
+      env: probeEnvironment,
+      sleepImpl: async () => undefined,
+      probe: async (model, category) => {
+        calls += 1;
+        throw new ProviderRequestError({ provider: "opencode_run", model, category, phase: "response_status", httpStatus: 429, providerCode: "account_rate_limited" });
+      },
+    });
+    expect(calls).toBe(2);
+    expect(report.circuitBreaker).toBe("provider_rate_limited");
+    expect(report.candidates[0]?.narrate.status).toBe("not_run");
+  });
+
   it("treats model-unavailable status as candidate-scoped and continues the catalogue", async () => {
     const report = await screenOpenCodeFreeModels({
       catalog: makeCatalog([makeModel("unavailable-model"), makeModel("available-model")]),

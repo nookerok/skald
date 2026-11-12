@@ -80,7 +80,7 @@ export const OPENCODE_RUN_SESSION_TITLE = "skald-narrate";
  * v3: the per-call manifest pins the same candidate as the CLI model argument.
  * v2: immutable construction-time manifest bytes (no per-call re-read).
  */
-export const OPENCODE_RUN_TRANSPORT_VERSION = 3;
+export const OPENCODE_RUN_TRANSPORT_VERSION = 4;
 
 /**
  * Repo-pinned tools-denied agent manifest, copied into the isolated home on
@@ -132,6 +132,14 @@ export const OPENCODE_RUN_ISOLATE_HOME_ENV = "SKALD_OPENCODE_ISOLATE_HOME";
  * carries the containment role and `-m` pins the model per call.
  */
 export const OPENCODE_RUN_ISOLATED_CONFIG_JSON = '{"$schema":"https://opencode.ai/config.json"}';
+
+/** V2 denies every tool action and uses a private server per CLI invocation. */
+export const OPENCODE_RUN_V2_ISOLATED_CONFIG_JSON = '{"$schema":"https://opencode.ai/config.json","permissions":[{"action":"*","resource":"*","effect":"deny"}]}';
+
+/** Select the explicit CLI contract; absent or unknown values retain V1. */
+export function openCodeRunCliMajor(env: NodeJS.ProcessEnv = process.env): 1 | 2 {
+  return env.SKALD_OPENCODE_CLI_MAJOR === "2" ? 2 : 1;
+}
 
 /** Agent names accepted into the skeleton path (operator-controlled input). */
 const AGENT_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -234,6 +242,8 @@ export type SpawnFn = (
 
 /** Transport knobs; everything optional with documented defaults. */
 export interface OpenCodeRunTransport {
+  /** Explicit CLI contract; V2 uses --standalone and process cwd. */
+  readonly cliMajor?: 1 | 2 | undefined;
   readonly binary?: string | undefined;
   readonly agent?: string | undefined;
   readonly model?: string | undefined;
@@ -317,7 +327,15 @@ export function buildOpenCodeRunArgs(input: {
   readonly model: string;
   readonly workdir: string;
   readonly message: string;
+  readonly cliMajor?: 1 | 2 | undefined;
 }): readonly string[] {
+  if (input.cliMajor === 2) {
+    return Object.freeze([
+      "run", "--standalone", "--archived", "--format", "json", "--agent",
+      input.agent, "-m", input.model, "--title", OPENCODE_RUN_SESSION_TITLE,
+      input.message,
+    ]);
+  }
   return Object.freeze([
     "run",
     "--format",
@@ -619,6 +637,7 @@ export function spawnChildProcess(binary: string, args: readonly string[], opts:
 
 /** Input for one subprocess chat round-trip. */
 export interface RunOpenCodeChatInput {
+  readonly cliMajor?: 1 | 2 | undefined;
   readonly binary: string;
   readonly agent: string;
   readonly model: string;
@@ -683,8 +702,12 @@ async function deleteSessionBestEffort(input: {
   readonly env: NodeJS.ProcessEnv;
   readonly timeoutMs: number;
   readonly spawnImpl: SpawnFn;
+  readonly cliMajor?: 1 | 2 | undefined;
 }): Promise<void> {
-  const child = input.spawnImpl(input.binary, ["session", "delete", input.sessionId], {
+  const args = input.cliMajor === 2
+    ? ["--standalone", "session", "delete", input.sessionId]
+    : ["session", "delete", input.sessionId];
+  const child = input.spawnImpl(input.binary, args, {
     cwd: input.cwd,
     env: input.env,
     maxOutputBytes: 4096,
@@ -762,7 +785,7 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
           + frontmatter[3]! + manifest.slice(frontmatter[0].length)
         : manifest;
       writeFileSync(join(homeDir, ".config", "opencode", "agents", `${input.agent}.md`), servedManifest, "utf8");
-      writeFileSync(join(homeDir, ".config", "opencode", "opencode.jsonc"), OPENCODE_RUN_ISOLATED_CONFIG_JSON, "utf8");
+      writeFileSync(join(homeDir, ".config", "opencode", "opencode.jsonc"), input.cliMajor === 2 ? OPENCODE_RUN_V2_ISOLATED_CONFIG_JSON : OPENCODE_RUN_ISOLATED_CONFIG_JSON, "utf8");
     } catch {
       if (ownedHome && homeDir !== undefined) {
         try {
@@ -780,7 +803,7 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
     workdir = mkdtempSync(join(tmpdir(), "skald-narrate-"));
     ownedWorkdir = true;
   }
-  const args = buildOpenCodeRunArgs({ agent: input.agent, model: input.model, workdir, message });
+  const args = buildOpenCodeRunArgs({ agent: input.agent, model: input.model, workdir, message, cliMajor: input.cliMajor });
   const spawnImpl = input.spawnImpl ?? spawnChildProcess;
   const spawnOpts = { cwd: workdir, env, maxOutputBytes: input.maxOutputBytes };
   // Best-effort session cleanup that never masks the narration outcome:
@@ -797,6 +820,7 @@ export async function runOpencodeChat(input: RunOpenCodeChatInput): Promise<RunO
         env,
         timeoutMs: input.cleanupTimeoutMs,
         spawnImpl,
+        cliMajor: input.cliMajor,
       });
     } catch {
       // Best effort; the session row is opencode-internal either way.
@@ -917,11 +941,13 @@ export class OpenCodeRunProvider extends ModelRouter {
   private readonly runCleanupSession: boolean;
   private readonly runCleanupTimeoutMs: number;
   private readonly runEnvironment: NodeJS.ProcessEnv | undefined;
+  private readonly runCliMajor: 1 | 2;
   private readonly runSpawnImpl: SpawnFn;
 
   constructor(opts?: OpenCodeRunProviderOptions) {
     super(opts);
     const transport = opts?.opencodeRun;
+    this.runCliMajor = transport?.cliMajor ?? openCodeRunCliMajor(transport?.env ?? process.env);
     this.runBinary = transport?.binary ?? OPENCODE_RUN_DEFAULT_BINARY;
     this.runAgent = transport?.agent ?? OPENCODE_RUN_DEFAULT_AGENT;
     this.runModel = transport?.model ?? OPENCODE_RUN_DEFAULT_MODEL;
@@ -993,6 +1019,7 @@ export class OpenCodeRunProvider extends ModelRouter {
       cleanupSession: this.runCleanupSession,
       cleanupTimeoutMs: this.runCleanupTimeoutMs,
       ...(this.runEnvironment !== undefined ? { env: this.runEnvironment } : {}),
+      cliMajor: this.runCliMajor,
       spawnImpl: this.runSpawnImpl,
     });
     return {
@@ -1033,6 +1060,7 @@ export class OpenCodeRunProvider extends ModelRouter {
       cleanupSession: this.runCleanupSession,
       cleanupTimeoutMs: this.runCleanupTimeoutMs,
       ...(this.runEnvironment !== undefined ? { env: this.runEnvironment } : {}),
+      cliMajor: this.runCliMajor,
       spawnImpl: this.runSpawnImpl,
     });
     return { text: result.text, responseModel: model, latencyMs: result.latencyMs, usage: result.usage };

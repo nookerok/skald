@@ -7,12 +7,14 @@ import {
   OPENCODE_RUN_DEFAULT_BINARY,
   OPENCODE_RUN_DEFAULT_MODEL,
   OPENCODE_RUN_ISOLATED_CONFIG_JSON,
+  OPENCODE_RUN_V2_ISOLATED_CONFIG_JSON,
   OPENCODE_RUN_SESSION_TITLE,
   OpenCodeRunProvider,
   buildOpenCodeRunArgs,
   extractOpenCodeSessionId,
   isOpenCodeRunEnabled,
   openCodeRunCandidate,
+  openCodeRunCliMajor,
   parseOpenCodeNdjsonEvents,
   runOpencodeChat,
   sanitizeEnv,
@@ -119,6 +121,18 @@ function baseInput(overrides: Partial<Parameters<typeof runOpencodeChat>[0]> = {
 }
 
 describe("opencode run argv and environment", () => {
+  it("selects V2 only through its explicit compatibility setting", () => {
+    expect(openCodeRunCliMajor({})).toBe(1);
+    expect(openCodeRunCliMajor({ SKALD_OPENCODE_CLI_MAJOR: "2" })).toBe(2);
+    expect(openCodeRunCliMajor({ SKALD_OPENCODE_CLI_MAJOR: "unknown" })).toBe(1);
+  });
+
+  it("uses V2 private-server argv without the removed --dir or permission auto-approval", () => {
+    const args = buildOpenCodeRunArgs({ agent: "narrative", model: NARRATE_MODEL, workdir: "/tmp/w", message: "hi", cliMajor: 2 });
+    expect(args).toEqual(["run", "--standalone", "--archived", "--format", "json", "--agent", "narrative", "-m", NARRATE_MODEL, "--title", "skald-narrate", "hi"]);
+    expect(args).not.toContain("--dir");
+    expect(args).not.toContain("--auto");
+  });
   it("builds the verified CLI shape with the message last", () => {
     expect(buildOpenCodeRunArgs({ agent: "narrative", model: NARRATE_MODEL, workdir: "/tmp/w", message: "hi" })).toEqual([
       "run", "--format", "json", "--agent", "narrative", "-m", NARRATE_MODEL, "--title", "skald-narrate", "--dir", "/tmp/w", "hi",
@@ -535,6 +549,20 @@ describe("OpenCodeRunProvider", () => {
 });
 
 describe("home isolation and agent manifest", () => {
+  it("denies every V2 tool and cleans the session using a private server", async () => {
+    const fake = fakeSpawn([{ stdout: ndjsonOk("ok", "ses_v2") }, {}]);
+    let seenHome = "";
+    const probing: SpawnFn = (binary, args, opts) => {
+      seenHome = opts.env.HOME!;
+      expect(readFileSync(join(seenHome, ".config", "opencode", "opencode.jsonc"), "utf8")).toBe(OPENCODE_RUN_V2_ISOLATED_CONFIG_JSON);
+      expect(JSON.parse(OPENCODE_RUN_V2_ISOLATED_CONFIG_JSON).permissions).toEqual([{ action: "*", resource: "*", effect: "deny" }]);
+      expect(opts.cwd).toBe(join(seenHome, "work"));
+      return fake.fn(binary, args, opts);
+    };
+    await runOpencodeChat({ ...baseInput(), cliMajor: 2, isolateHome: true, agentManifest: "---\nmode: primary\n---\nOnly facts.", cleanupSession: true, spawnImpl: probing });
+    expect(fake.calls[1]?.args).toEqual(["--standalone", "session", "delete", "ses_v2"]);
+    expect(existsSync(seenHome)).toBe(false);
+  });
   function manifestFile(content = "pinned-agent-bytes"): string {
     const dir = mkdtempSync(join(tmpdir(), "skald-manifest-"));
     const path = join(dir, "narrative.md");

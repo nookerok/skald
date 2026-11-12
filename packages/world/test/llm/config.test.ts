@@ -24,7 +24,7 @@ describe("LLM provider registry", () => {
     for (const model of OPENROUTER_PREFERRED_MODELS) {
       expect(model.endsWith(":free")).toBe(true);
     }
-    expect(OPENROUTER_PREFERRED_MODELS[0]).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+    expect(OPENROUTER_PREFERRED_MODELS[0]).toBe("nvidia/nemotron-3-ultra-550b-a55b:free");
   });
   it("pins the quality-screened ordered Ollama Cloud list with a legacy primary alias", () => {
     expect(OLLAMA_CLOUD_PREFERRED_MODELS).toEqual([

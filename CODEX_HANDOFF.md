@@ -10,9 +10,20 @@
 - User authorized the necessary commit/push/deploy, daily-job installation and
   real-provider checks on 2026-11-12. Pi preflight: clean main at 5edb94c,
   Node 22.23.1, OpenCode 1.18.30, game service and existing timers active.
-- Full repository gate on this isolated release passed (typecheck, tests,
-  canon/simulation/eval/adventure and diff check). Native transport evaluation
-  continues on Pi. A systemd timer is not yet installed; sudo requires
+- Full repository gate on this isolated release passed: 259 files, 3233
+  passed / 1 skipped, including canon/simulation/eval/adventure/diff checks.
+  V2 CLI support adds --standalone, process cwd, wildcard tool denial and
+  private-server cleanup; V1 remains the default compatibility contract.
+- Pi held older OpenCode/Ollama credentials than the documented Windows
+  auth store. Current catalog-validated keys were synced over SSH stdin with
+  atomic env backup; neither values nor player inputs enter receipts.
+- The historical OpenRouter IDs return 404. Nemotron Ultra's current exact
+  free ID passed both route probes and the live intent/narration contract;
+  9/10 prose tasks passed the guard, one provider error. It replaces the dead
+  last-resort preference, with human quality review still pending.
+- OpenCode V2 2.2.7 is side-by-side and SHA-verified. MiMo/DeepSeek returned
+  structured 429; a model-scoped 429 no longer suppresses all later candidates.
+  A systemd timer is not yet installed; sudo requires
   interactive authentication and linger is disabled by policy.
 - See docs/operations/opencode-model-discovery-2026-11-11.md. Completion still
   requires live receipts, operational scheduling and the next daily run.

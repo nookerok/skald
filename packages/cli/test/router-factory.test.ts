@@ -16,6 +16,10 @@ function freeChatModel(id: string): Record<string, unknown> {
 }
 
 describe("router factory", () => {
+  it("includes the native CLI generation in the transport fingerprint", () => {
+    expect(openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1" }, "fixed"))
+      .not.toBe(openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1", SKALD_OPENCODE_CLI_MAJOR: "2" }, "fixed"));
+  });
   it("captures provider-scoped keys in the runtime router without returning them", () => {
     const config = createRouterConfiguration({
       SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",

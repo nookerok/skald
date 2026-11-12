@@ -26,6 +26,7 @@ import {
   isOpenCodeRunNarrateFallbackEnabled,
   loadAgentManifestSnapshot,
   openCodeRunCandidate,
+  openCodeRunCliMajor,
 } from "./opencode-run-provider.js";
 import type { OpenCodeRunManifestSnapshot } from "./opencode-run-provider.js";
 
@@ -78,7 +79,7 @@ export function openCodeRunIdentity(env: NodeJS.ProcessEnv = process.env, manife
   const narrateFallbackEnabled = isOpenCodeRunNarrateFallbackEnabled(env);
   const model = env[OPENCODE_RUN_MODEL_ENV] ?? OPENCODE_RUN_DEFAULT_MODEL;
   const agent = env[OPENCODE_RUN_AGENT_ENV] ?? OPENCODE_RUN_DEFAULT_AGENT;
-  const isolate = env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? "shared" : "isolated";
+  const isolate = (env[OPENCODE_RUN_ISOLATE_HOME_ENV] === "0" ? "shared" : "isolated") + ":cli" + openCodeRunCliMajor(env);
   // Explicit digest wins: callers holding the served snapshot (startup,
   // live-router refresh) pass it so the identity describes those exact
   // bytes. Without one, fall back to reading the file — same file the
@@ -216,6 +217,7 @@ function buildRouter(
     ...(routeCandidates ? { routeCandidates } : {}),
     ...(liveSelection ? { liveSelection } : {}),
     opencodeRun: {
+      cliMajor: openCodeRunCliMajor(env),
       ...(env[OPENCODE_RUN_BINARY_ENV] ? { binary: env[OPENCODE_RUN_BINARY_ENV] } : {}),
       ...(env[OPENCODE_RUN_AGENT_ENV] ? { agent: env[OPENCODE_RUN_AGENT_ENV] } : {}),
       ...(env[OPENCODE_RUN_MODEL_ENV] ? { model: env[OPENCODE_RUN_MODEL_ENV] } : {}),

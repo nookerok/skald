@@ -91,7 +91,7 @@ export const OLLAMA_CLOUD_BACKUP_MODEL = OLLAMA_CLOUD_PREFERRED_MODELS[0]!;
  * Pinned OpenRouter free-model preferences, last-resort rung after Ollama.
  * OpenAI-compatible `/chat/completions`, so no new wire protocol is needed.
  *
- * Live recon (2026-09-10, production device, throwaway Go probe, 8 calls):
+ * Historical recon (2026-09-10, production device, throwaway Go probe, 8 calls):
  * `nvidia/nemotron-3-super-120b-a12b:free` passed interpret+ narrate in
  * 726/342ms; `poolside/laguna-s-2.1:free` passed interpret in 697ms
  * (narrate hit a 429 burst cap); `nvidia/nemotron-3.5-lightning:free`
@@ -104,14 +104,20 @@ export const OLLAMA_CLOUD_BACKUP_MODEL = OLLAMA_CLOUD_PREFERRED_MODELS[0]!;
  * touches OpenRouter when Zen and Ollama both activate nothing, so the
  * daily re-discovery normally spends zero of that budget.
  *
+ * Current recon (2026-11-12, Orange Pi): the two historical IDs return 404.
+ * The exact zero-input/zero-output catalogue entry
+ * nvidia/nemotron-3-ultra-550b-a55b:free passed both route probes and the live
+ * intent/narration contract; nine of ten closed-facts prose cases passed the
+ * production guard, one had a request failure. This is a bounded last-resort
+ * screen, not a general quality guarantee or human acceptance.
+ *
  * Privacy note: free OpenRouter endpoints may retain or train on prompts
  * per provider policy. Routing `player_input` there is an explicit operator
  * decision made by configuring the key; revisit if a no-train requirement
  * appears (paid/ZDR endpoints).
  */
 export const OPENROUTER_PREFERRED_MODELS: readonly string[] = Object.freeze([
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "poolside/laguna-s-2.1:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
 ]);
 
 const CATEGORIES: readonly Category[] = ["narrate", "analyze", "interpret"];

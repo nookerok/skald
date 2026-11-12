@@ -24,6 +24,7 @@ import {
   OPENCODE_RUN_MAX_OUTPUT_BYTES,
   OPENCODE_RUN_CLEANUP_TIMEOUT_MS,
   isOpenCodeRunEnabled,
+  openCodeRunCliMajor,
   loadAgentManifestSnapshot,
   runOpencodeChat,
   sanitizeEnv,
@@ -49,6 +50,7 @@ const DISCOVERY_ENV_KEYS = [
   "OPENCODE_API_KEY",
   "SKALD_OPENCODE_ZEN_API_KEY",
   "SKALD_OPENCODE_RUN",
+  "SKALD_OPENCODE_CLI_MAJOR",
   "SKALD_OPENCODE_BIN",
   "SKALD_OPENCODE_RUN_AGENT",
   "SKALD_OPENCODE_AGENT_MANIFEST",
@@ -378,6 +380,7 @@ async function nativeProbe(model: string, category: "interpret" | "narrate", tim
   if (!manifest) throw new Error("agent manifest unavailable");
   const messages = category === "interpret" ? INTERPRET_PROBE_MESSAGES : NARRATE_PROBE_MESSAGES;
   const result = await runOpencodeChat({
+    cliMajor: openCodeRunCliMajor(env),
     binary,
     agent,
     model: `opencode/${model}`,
@@ -499,7 +502,7 @@ export async function screenOpenCodeFreeModels(options: OpenCodeDiscoveryOptions
             }
             if (status === 401 || status === 403) circuitBreaker = "provider_auth_failure";
             else if (status === 402) circuitBreaker = "provider_quota_exhausted";
-            else if (status === 429) circuitBreaker = "provider_rate_limited";
+            else if (status === 429 && /account.*rate|rate.*account|account_quota|daily_limit_exceeded/iu.test(failure.providerCode ?? "")) circuitBreaker = "provider_rate_limited";
             else if (status === undefined || status >= 500) circuitBreaker = "provider_transport_error";
             const reason = status === 401 || status === 403 ? "provider_auth" as const
               : status === 402 ? "provider_quota" as const
@@ -546,7 +549,7 @@ export async function screenOpenCodeFreeModels(options: OpenCodeDiscoveryOptions
   }
   const status = circuitBreaker === "native_transport_disabled" || circuitBreaker === "credential_missing"
     ? "blocked"
-    : circuitBreaker || truncated.length > 0 || runtimeBudgetExhausted ? "partial" : "complete";
+    : circuitBreaker || truncated.length > 0 || runtimeBudgetExhausted || candidates.some((candidate) => candidate.screening === "not_run") ? "partial" : "complete";
   return {
     schema: AI_DISCOVERY_SCHEMA,
     status,
