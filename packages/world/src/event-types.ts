@@ -130,6 +130,7 @@ export const EventType = {
   ProficiencyEvidenceRecorded: "ProficiencyEvidenceRecorded",
   TestimonyReceived: "TestimonyReceived",
   EpistemicEvidenceRecorded: "EpistemicEvidenceRecorded",
+  NpcDossierEstablished: "NpcDossierEstablished",
   PhenomenonObserved: "PhenomenonObserved",
   PhenomenonInteracted: "PhenomenonInteracted",
 

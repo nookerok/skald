@@ -38,6 +38,7 @@ interface VerbEntry {
 const VERBS: readonly VerbEntry[] = [
   // observe (canonical v1, Slice 1 — ADR-0013 §2)
   { verb: "осмотреть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
+  { verb: "осмотри", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
   { verb: "осматрива", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
   { verb: "рассмотреть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
   { verb: "оглядеть", mode: "perceive", operation: "observe", canonical: "observe", target: "optional", targetPrepositions: ["на", "в", "вокруг"] },
@@ -562,8 +563,9 @@ function extractUtterance(text: string): { utterance: string | undefined; cleane
 }
 
 function extractTarget(text: string): IntentReference | undefined {
-  const cleaned = stripMannerAdverb(text.trim());
-  if (cleaned.length === 0) return undefined;
+  const original = text.trim();
+  const cleaned = stripMannerAdverb(original.replace(/[?!.,;:]+$/u, ""));
+  if (cleaned.length === 0) return original.length > 0 ? { raw: original } : undefined;
 
   const withoutPrep = cleaned
     .replace(/^(?:к|в|на|у|из|от|до|по|про|для|между|перед|над|под|за|через)\s+/i, "")
@@ -577,30 +579,22 @@ function extractTarget(text: string): IntentReference | undefined {
 }
 
 function hasDirectionWords(text: string): boolean {
-  const lower = text.toLowerCase();
-  const directions = [
-    "на север", "на юг", "на восток", "на запад",
-    "север", "юг", "восток", "запад",
-    "north", "south", "east", "west",
-  ];
-  return directions.some((d) => lower.includes(d));
+  return extractDirectionFromText(text) !== undefined;
 }
 
+const DIRECTION_PATTERNS: readonly (readonly [RegExp, string])[] = [
+  [/(?:^|\s)(?:на\s+)?север(?:а|у|ом)?(?=$|\s|[.,!?;:])/iu, "north"],
+  [/(?:^|\s)(?:на\s+)?юг(?:а|у|ом)?(?=$|\s|[.,!?;:])/iu, "south"],
+  [/(?:^|\s)(?:на\s+)?восток(?:а|у|ом)?(?=$|\s|[.,!?;:])/iu, "east"],
+  [/(?:^|\s)(?:на\s+)?запад(?:а|у|ом)?(?=$|\s|[.,!?;:])/iu, "west"],
+  [/(?:^|\s)north(?=$|\s|[.,!?;:])/iu, "north"],
+  [/(?:^|\s)south(?=$|\s|[.,!?;:])/iu, "south"],
+  [/(?:^|\s)east(?=$|\s|[.,!?;:])/iu, "east"],
+  [/(?:^|\s)west(?=$|\s|[.,!?;:])/iu, "west"],
+];
+
 function extractDirectionFromText(text: string): string | undefined {
-  const lower = text.toLowerCase();
-  const map: Record<string, string> = {
-    "на север": "north",
-    "север": "north",
-    "на юг": "south",
-    "юг": "south",
-    "на восток": "east",
-    "восток": "east",
-    "на запад": "west",
-    "запад": "west",
-  };
-  for (const [ru, en] of Object.entries(map)) {
-    if (lower.includes(ru)) return en;
-  }
+  for (const [pattern, direction] of DIRECTION_PATTERNS) if (pattern.test(text)) return direction;
   return undefined;
 }
 
@@ -858,6 +852,8 @@ const MANNER_ADVERBS: readonly string[] = [
   "внимательно",
   "внимательнее",
   "осторожно",
+  "поближе",
+  "еще раз",
   "тихо",
   "тише",
   "медленно",
@@ -875,8 +871,14 @@ const MANNER_ADVERBS: readonly string[] = [
 
 function stripMannerAdverb(text: string): string {
   const words = text.trim().split(/\s+/u);
-  while (words.length > 1 && MANNER_ADVERBS.includes(words[words.length - 1]!.toLowerCase())) {
-    words.pop();
+  while (words.length > 1) {
+    const normalizedWords = words.map((word) => word.toLowerCase().replace(/ё/gu, "е"));
+    const matched = MANNER_ADVERBS.find((adverb) => {
+      const suffix = adverb.split(/\s+/u);
+      return words.length > suffix.length && normalizedWords.slice(-suffix.length).join(" ") === adverb;
+    });
+    if (!matched) break;
+    words.splice(words.length - matched.split(/\s+/u).length);
   }
   return words.join(" ");
 }

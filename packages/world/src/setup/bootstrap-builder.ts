@@ -6,6 +6,7 @@ import { OLD_TOWER_OBJECTS, OLD_TOWER_LOCATIONS } from "../objects/definitions.j
 import { LEGACY_LOCATIONS, LEGACY_OBJECTS } from "../objects/definitions.js";
 import { buildRegionBootstrapEvents, getRegionBackgroundBinding } from "../region/compiler.js";
 import { getDefaultRegionEntrypoint, getRegionEntrypoint } from "./entrypoints.js";
+import { dossierEventFromContactPlacement } from "../npc-dossier.js";
 
 export interface BootstrapSelection {
   readonly templateId: string;
@@ -25,6 +26,7 @@ function dedupeContactFacts(events: readonly DomainEvent[]): DomainEvent[] {
   const placed = new Set<string>();
   const relations = new Set<string>();
   const out: DomainEvent[] = [];
+  const dossierEvents: DomainEvent[] = [];
   for (const event of events) {
     if (event.type === "ObjectPlaced") {
       const entityId = (event.payload as { entityId?: unknown }).entityId;
@@ -42,8 +44,10 @@ function dedupeContactFacts(events: readonly DomainEvent[]): DomainEvent[] {
       }
     }
     out.push(event);
+    const dossier = dossierEventFromContactPlacement(event);
+    if (dossier) dossierEvents.push(dossier);
   }
-  return out;
+  return [...out, ...dossierEvents];
 }
 
 /** Materialize only author-approved entrypoint knowledge as domain facts. */

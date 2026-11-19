@@ -5,16 +5,32 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { ModelRouter } from "@skald/world";
+import {
+  buildBeliefModel, buildBootstrapEvents, buildMasterTurnSceneContext, buildPlayerKnowledgePresentation,
+  parseNpcDossier, ProviderRequestError, ProviderUnavailableError, rebuildProjection, sceneEngagementView,
+} from "@skald/world";
 import { validateGmTurnDecision } from "@skald/intent-parser";
 import { buildGmContext } from "../src/conversation/gm-context.js";
-import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight, gmDirectorLiveEnabled } from "../src/runtime/conversation-director.js";
+import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight, gmDirectorLiveEnabled, gmDirectorLiveTimeoutMs } from "../src/runtime/conversation-director.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
-import type { MasterConversationContext } from "../src/conversation/context-builder.js";
+import { EMPTY_MASTER_CONVERSATION, type MasterConversationContext } from "../src/conversation/context-builder.js";
 import { buildGmFixtureScene, GM_CORPUS, expectedCandidateHandles, expectedNpcHandle, expectedSubjectHandle, type GmFixture } from "../src/acceptance/gm-corpus.js";
 import { GM_DIRECTOR_SYSTEM_PROMPT, buildGmDecisionPrompt } from "../src/conversation/gm-prompt.js";
+import { OPENCODE_SERVER_MAX_MESSAGE_BYTES } from "../src/runtime/opencode-server-provider.js";
 
 const ferrymanLabel = "Перевозчик у переправы";
+
+describe("live Director timeout budget", () => {
+  it("retains the default and accepts only bounded explicit milliseconds", () => {
+    expect(gmDirectorLiveTimeoutMs({})).toBe(4000);
+    expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: "12000" })).toBe(12000);
+    expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: "20000" })).toBe(20000);
+    for (const value of ["", "abc", "0", "999", "20001", "-2", "1.5", "012000"]) {
+      expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: value })).toBe(4000);
+    }
+  });
+});
 
 function conversationOf(fixture: GmFixture): MasterConversationContext {
   return {
@@ -88,6 +104,54 @@ describe("buildGmContext", () => {
     expect(unknownActor.visibleDescription).toContain("смотритель");
     expect(unknownActor.visibleDescription).toContain("страж ворот");
     expect(JSON.stringify(context)).not.toContain(fixture.people[0]!.label);
+  });
+
+  it("passes only eligible dossier facts for visible NPCs with opaque fact ids", () => {
+    const fixture = GM_CORPUS[1];
+    const originalScene = buildGmFixtureScene(fixture);
+    const scene = {
+      ...originalScene,
+      knownPeople: originalScene.knownPeople.map((entry, index) => index === 0 ? { ...entry, known: false } : entry),
+    };
+    const person = scene.knownPeople[0]!;
+    const internalNpcId = "contact:private-test-contact";
+    const canonicalFactId = internalNpcId + ":private-secret";
+    const dossier = parseNpcDossier({
+      npcId: internalNpcId,
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: internalNpcId + ":public", kind: "world_truth", content: { type: "text", text: "На рукаве синяя нить." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+        { factId: internalNpcId + ":acquaintance", kind: "npc_belief", content: { type: "text", text: "Я предпочитаю тихие разговоры." }, disclosure: { minimumFamiliarityTier: "acquaintance", requiredConditions: [] } },
+        { factId: canonicalFactId, kind: "npc_secret", content: { type: "text", text: "Спрятанный ключ лежит в сундуке." }, disclosure: { minimumFamiliarityTier: "trusted", requiredConditions: ["promise_kept"] } },
+      ],
+    });
+    expect(dossier).not.toBeNull();
+    const sceneReferences = new Map([[person.observerRef, { kind: "person" as const, internalId: internalNpcId, label: person.label }]]);
+    const { context: strangerContext } = buildGmContext({
+      scene,
+      conversation: conversationOf(fixture),
+      sceneReferences,
+      npcDossiers: new Map([[internalNpcId, dossier!]]),
+    });
+    expect(strangerContext.npcFacts.map((fact) => fact.text)).toEqual(["На рукаве синяя нить."]);
+    expect(strangerContext.npcFacts[0]?.subjectHandle).toBe(stableActorHandle(person.observerRef));
+    expect(strangerContext.schemaVersion).toBe(3);
+    const prompt = buildGmDecisionPrompt("Скажи о синей нити.", strangerContext);
+    expect(prompt).toContain(strangerContext.npcFacts[0]!.factId);
+    const serialized = JSON.stringify(strangerContext);
+    expect(serialized).not.toContain(internalNpcId);
+    expect(serialized).not.toContain(canonicalFactId);
+    expect(serialized).not.toContain("Спрятанный ключ");
+
+    const knownScene = { ...scene, knownPeople: scene.knownPeople.map((entry) => entry.observerRef === person.observerRef ? { ...entry, known: true } : entry) };
+    const { context: knownContext } = buildGmContext({
+      scene: knownScene,
+      conversation: conversationOf(fixture),
+      sceneReferences,
+      npcDossiers: new Map([[internalNpcId, dossier!]]),
+    });
+    expect(knownContext.npcFacts.map((fact) => fact.kind)).toEqual(["world_truth", "npc_belief"]);
   });
 
   it("carries the real sceneEngagement and bounded known facts", () => {
@@ -180,6 +244,23 @@ describe("interpretGmDecision — fallbacks", () => {
     turnKey: "intent-fb",
   };
 
+  it("accepts a plain clarification string only after closed normalization and full validation", async () => {
+    const result = await interpretGmDecision({
+      ...base,
+      router: routerReturning({
+        schemaVersion: 2,
+        addressee: { kind: "gm" },
+        kind: "clarification",
+        clarification: "Какое действие ты имеешь в виду?",
+      }),
+    });
+
+    expect(result.status).toBe("decision");
+    if (result.status !== "decision") return;
+    expect(result.decision).toMatchObject({ kind: "clarification", clarification: { question: "Какое действие ты имеешь в виду?" } });
+    expect(result.trace).toMatchObject({ rawSchemaValid: false, schemaValid: true, decisionAccepted: true });
+  });
+
   it("falls back on a non-JSON reply", async () => {
     const result = await interpretGmDecision({ ...base, router: { apiKey: "", chat: vi.fn(async () => ({ text: "I am not JSON" })) } as unknown as ModelRouter });
     expect(result).toMatchObject({ status: "fallback", reason: "shape:not_json" });
@@ -239,6 +320,38 @@ describe("interpretGmDecision — fallbacks", () => {
     expect(result.trace.provider).toBe("openrouter");
     expect(result.trace.model).toBe("nvidia/nemotron-3-super-120b-a12b:free");
   });
+
+  it("preserves sanitized structured metadata from a wrapped provider failure", async () => {
+    const failure = new ProviderRequestError({
+      provider: "opencode_server", model: "opencode-go/glm-5.3-flash", category: "interpret",
+      phase: "response_status", httpStatus: 429, gatewayHttpStatus: 502,
+      providerCode: "rate_limit_exceeded", providerTraceId: "trace-123",
+      retryAfterHeaderRaw: "60", retryAfterMsParsed: 60_000, retryAfterMsApplied: null,
+      cause: new Error("secret response body: api-key=never-log-this"),
+    });
+    const wrapped = new ProviderUnavailableError("provider unavailable", {
+      provider: "opencode_server", model: "opencode-go/glm-5.3-flash",
+      configuredModel: "opencode-go/glm-5.3-flash", cause: failure,
+    });
+    const result = await interpretGmDecision({
+      ...base,
+      router: { apiKey: "", chat: vi.fn(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); throw wrapped; }) } as unknown as ModelRouter,
+    });
+
+    expect(result).toMatchObject({ status: "fallback", reason: "provider_error" });
+    if (result.status !== "fallback") throw new Error("expected provider fallback");
+    expect(result.trace).toMatchObject({
+      provider: "opencode_server", model: "opencode-go/glm-5.3-flash",
+      providerFailure: {
+        category: "interpret", phase: "response_status", httpStatus: 429, gatewayHttpStatus: 502,
+        providerCode: "rate_limit_exceeded", providerTraceId: "trace-123", retryAfterHeaderRaw: "60",
+        retryAfterMsParsed: 60_000, retryAfterMsApplied: null, retryable: true,
+      },
+    });
+    expect(result.trace.providerLatencyMs).toBeGreaterThan(0);
+    expect(JSON.stringify(result.trace)).not.toContain("secret response body");
+    expect(JSON.stringify(result.trace)).not.toContain("never-log-this");
+  });
 });
 
 describe("extractJsonObject", () => {
@@ -255,6 +368,21 @@ describe("extractJsonObject", () => {
 });
 
 describe("normalizeDecisionShape", () => {
+  it("normalizes a plain clarification string but still validates the resulting shape", () => {
+    const raw = { schemaVersion: 2, addressee: { kind: "gm" }, kind: "clarification", clarification: "Какое действие ты имеешь в виду?" };
+    expect(validateGmTurnDecision(raw, { allowedHandles: [] }))
+      .toMatchObject({ ok: false, errors: expect.arrayContaining(["clarification: must be an object"]) });
+    const normalized = normalizeDecisionShape(raw);
+    expect(normalized).toEqual({ ...raw, clarification: { question: "Какое действие ты имеешь в виду?" } });
+    expect(validateGmTurnDecision(normalized, { allowedHandles: [] }).ok).toBe(true);
+  });
+
+  it("does not normalize an empty clarification string or unrelated string fields", () => {
+    const empty = { schemaVersion: 2, addressee: { kind: "gm" }, kind: "clarification", clarification: "  " };
+    expect(normalizeDecisionShape(empty)).toBe(empty);
+    const unrelated = { schemaVersion: 2, addressee: "unknown", kind: "conversation", clarification: "hello" };
+    expect(normalizeDecisionShape(unrelated)).toBe(unrelated);
+  });
   it("maps a closed addressee alias and leaves a bare handle untouched", () => {
     const gm = normalizeDecisionShape({ schemaVersion: 1, addressee: "gm", kind: "conversation" }) as Record<string, unknown>;
     expect(gm["addressee"]).toEqual({ kind: "gm" });
@@ -512,6 +640,58 @@ describe("scoreGmCorpus", () => {
     });
     expect(noPlan.dimensions.find((d) => d.dimension === "question")!.passed).toBe(0);
   });
+
+  it("scores the exact closed social response expected for an addressed NPC question", () => {
+    const expected = {
+      addresseeKind: "npc" as const,
+      kind: "conversation",
+      allowedHandles: ["eaaa111"],
+      expectedHandle: "eaaa111",
+      expectedResponseAct: "no_knowledge" as const,
+    };
+    const score = (act: string) => scoreGmCorpus([{
+      input: "addressed-question",
+      expected,
+      trace: trace(true),
+      decision: {
+        schemaVersion: 2,
+        addressee: { kind: "npc", handle: "eaaa111" },
+        kind: "conversation",
+        response: { segments: [{ kind: "social", act }] },
+      } as never,
+    }]);
+    const good = score("no_knowledge");
+    expect(good.dimensions.find((dimension) => dimension.dimension === "response")!.passed).toBe(1);
+    expect(good.cases[0]?.actual.responseAct).toBe("no_knowledge");
+    expect(score("greeting").dimensions.find((dimension) => dimension.dimension === "response")!.passed).toBe(0);
+    expect(score("no_knowledge").cases[0]?.passes.response).toBe(true);
+  });
+
+  it("scores player gratitude as a different act from NPC thanks", () => {
+    const fixture = GM_CORPUS.find((entry) => entry.id === "thanks-after-topic-prompt")!;
+    const handle = expectedNpcHandle(fixture)!;
+    const expected = {
+      addresseeKind: "npc" as const,
+      kind: "conversation",
+      allowedHandles: [handle],
+      expectedHandle: handle,
+      expectedResponseAct: "gratitude_acknowledgement" as const,
+    };
+    const score = (act: string) => scoreGmCorpus([{
+      input: fixture.input,
+      expected,
+      trace: trace(true),
+      decision: {
+        schemaVersion: 2,
+        addressee: { kind: "npc", handle },
+        kind: "conversation",
+        response: { segments: [{ kind: "social", act }] },
+      } as never,
+    }]);
+
+    expect(score("gratitude_acknowledgement").dimensions.find((dimension) => dimension.dimension === "response")!.passed).toBe(1);
+    expect(score("thanks").dimensions.find((dimension) => dimension.dimension === "response")!.passed).toBe(0);
+  });
   it("scores the subject dimension end-to-end (missing or wrong topic fails)", () => {
     const base = { allowedHandles: ["eaaa111", "ebbb222"], expectedSubjectHandle: "eaaa111" };
     const right = scoreGmCorpus([{
@@ -684,6 +864,95 @@ describe("interpretGmDecision — single-flight", () => {
 });
 
 describe("gm prompt", () => {
+  function keeperContext(conversation: MasterConversationContext = EMPTY_MASTER_CONVERSATION) {
+    const events = buildBootstrapEvents({
+      templateId: "living_region", entrypointId: "riverwatch_city_arrival", backgroundId: "keeper",
+    });
+    const world = rebuildProjection(events).getSnapshot();
+    const scene = buildMasterTurnSceneContext(events, world);
+    const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), {
+      startup: false, maxEntries: 8,
+    });
+    const { context } = buildGmContext({
+      scene: scene.context, conversation,
+      sceneReferences: scene.references, npcDossiers: world.npcDossiers,
+      sceneEngagement: sceneEngagementView(world), knowledgeTexts: knowledge.entries.map((entry) => entry.text),
+    });
+    return { context, world };
+  }
+
+  function messageBytes(prompt: string) {
+    return Buffer.byteLength(JSON.stringify([
+      { role: "system", content: GM_DIRECTOR_SYSTEM_PROMPT },
+      { role: "user", content: prompt },
+    ]), "utf8");
+  }
+
+  it("fits the fresh riverwatch keeper greeting below the OpenCode byte limit with headroom", () => {
+    const { context, world } = keeperContext();
+    const replica = "Привет, смотритель";
+    const prompt = buildGmDecisionPrompt(replica, context);
+
+    expect(world.time).toBe(0);
+    expect(context.actors.some((actor) => /смотритель/iu.test(actor.visibleDescription))).toBe(true);
+    expect(prompt).toContain(JSON.stringify(context));
+    expect(prompt).toContain(replica);
+    expect(messageBytes(prompt)).toBeLessThanOrEqual(OPENCODE_SERVER_MAX_MESSAGE_BYTES - 4 * 1024);
+  });
+
+  it("keeps the newest complete exchanges below the UTF-8 frame limit without trimming protected context", () => {
+    const recentTurns = Array.from({ length: 10 }, (_, i) =>
+      (["player", "master"] as const).map((speaker) => Object.freeze({
+        speaker,
+        turnSeq: i + 1,
+        text: (i < 9 ? `${speaker} ${i + 1} «Дальняя дорога» "\\"\n `.repeat(30).slice(0, 500)
+          : speaker === "player" ? "Я говорю об Архивисте." : "Что ты хочешь узнать о нём?"),
+      })),
+    ).flat();
+    const pending = { question: "Что именно тебе интересно о нём?", options: [], turnSeq: 10 };
+    const { context } = keeperContext({
+      ...EMPTY_MASTER_CONVERSATION,
+      recentTurns: Object.freeze(recentTurns),
+      pendingClarification: pending,
+    });
+    const replica = "Как он выглядит и что делает сейчас?";
+    const prompt = buildGmDecisionPrompt(replica, context);
+    const contextLine = prompt.split("Контекст (JSON):\n")[1]!.split("\n")[0]!;
+    const fitted = JSON.parse(contextLine) as typeof context;
+
+    expect(context.recentTurns).toHaveLength(20);
+    expect(messageBytes(prompt.replace(contextLine, JSON.stringify(context)))).toBeGreaterThan(OPENCODE_SERVER_MAX_MESSAGE_BYTES);
+    expect(messageBytes(prompt)).toBeLessThanOrEqual(OPENCODE_SERVER_MAX_MESSAGE_BYTES - 1024);
+    expect(fitted.recentTurns.length).toBeGreaterThanOrEqual(2);
+    expect(fitted.recentTurns.length).toBeLessThan(20);
+    expect(fitted.recentTurns.length % 2).toBe(0);
+    expect(fitted.recentTurns).toEqual(recentTurns.slice(-fitted.recentTurns.length));
+    expect(fitted.recentTurns.at(-1)?.text).toBe("Что ты хочешь узнать о нём?");
+    expect(fitted).toEqual({ ...context, recentTurns: fitted.recentTurns });
+    expect(fitted.pendingQuestion).toEqual({ question: pending.question });
+    expect(prompt).toContain(replica);
+  });
+
+  it("does not silently cut the replica or facts when the required base cannot fit", () => {
+    const { context } = keeperContext();
+    const replica = "Я спрашиваю о видимой сцене. ".repeat(600);
+    const prompt = buildGmDecisionPrompt(replica, context);
+    expect(messageBytes(prompt)).toBeGreaterThan(OPENCODE_SERVER_MAX_MESSAGE_BYTES);
+    expect(prompt).toContain(replica);
+    expect(prompt).toContain(JSON.stringify(context));
+  });
+
+  it("provides schema-valid object clarifications even when no actors or candidate handles exist", () => {
+    const examples = GM_DIRECTOR_SYSTEM_PROMPT.split("\n")
+      .filter((line) => line.startsWith("10)") || line.startsWith("11)"));
+    expect(examples).toHaveLength(2);
+    for (const line of examples) {
+      const decision = JSON.parse(line.slice(line.indexOf("→") + 1).trim());
+      expect(decision.clarification).toEqual({ question: expect.any(String) });
+      expect(validateGmTurnDecision(decision, { allowedHandles: [], allowedActorHandles: [] })).toMatchObject({ ok: true });
+    }
+    expect(GM_DIRECTOR_SYSTEM_PROMPT).toContain("clarification — ВСЕГДА объект");
+  });
   it("contrasts real addressee ambiguity with lists, roles and settled focus", () => {
     expect(GM_DIRECTOR_SYSTEM_PROMPT).not.toContain("Это ВСЕГДА clarification");
     for (const id of ["ambiguous-recipient", "people-list-multiple-actors", "identify-person-by-visible-role", "pronoun-with-multiple-actors-and-focus"]) {
@@ -698,6 +967,17 @@ describe("gm prompt", () => {
       }
       expect(fixture.expected.kind).toBe(id === "ambiguous-recipient" ? "clarification" : "world_question");
     }
+  });
+
+  it("keeps a thanks-after-topic-prompt fixture in the NPC conversation class", () => {
+    const fixture = GM_CORPUS.find((entry) => entry.id === "thanks-after-topic-prompt")!;
+    expect(fixture.expected).toMatchObject({
+      addresseeKind: "npc",
+      kind: "conversation",
+      responseAct: "gratitude_acknowledgement",
+    });
+    expect(fixture.recentTurns.at(-1)?.text).toContain("О чём ты хочешь поговорить?");
+    expect(GM_DIRECTOR_SYSTEM_PROMPT).toContain("не превращай благодарность в тему разговора");
   });
 
   it("carries no literal placeholder handles and embeds the scene's real ones", async () => {
@@ -735,6 +1015,28 @@ describe("gm prompt", () => {
     const listValidation = validateGmTurnDecision(listRaw, { allowedHandles: [], allowedActorHandles: [], allowedFactIds: [] });
     expect(listValidation.ok).toBe(true);
     expect(listRaw.proposal.primaryIntent.queryId).toBe("who_is_nearby");
+  });
+
+  it("provides a valid mixed ruins example without inventing an actor handle or query id", () => {
+    const fixture = GM_CORPUS[0];
+    const { context } = buildGmContext({ scene: buildGmFixtureScene(fixture), conversation: conversationOf(fixture) });
+    const userPrompt = buildGmDecisionPrompt(fixture.input, context);
+    const line = userPrompt.split("\n").find((value) => value.startsWith("12) "));
+    expect(line).toContain("Я внимательно осматриваю древние развалины и пытаюсь понять, что здесь произошло");
+    const raw = JSON.parse(line!.slice(line!.indexOf("{")));
+    const result = validateGmTurnDecision(raw, {
+      allowedHandles: [],
+      allowedActorHandles: [],
+      allowedFactIds: [],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(raw.kind).toBe("mixed");
+    expect(raw.subjectHandle).toBeUndefined();
+    expect(raw.proposal.question).toBeUndefined();
+    expect(raw.proposal.questionPlan.subjects[0]).toMatchObject({ kind: "place", surface: "здесь" });
+    expect(raw.proposal.questionPlan.subjects[0].observerRef).toBeUndefined();
+    expect(raw.proposal.readings).toEqual([{ partId: "history", source: "known_events" }]);
   });
 
   it("never uses an unknown actor's canonical name as a prompt reference surface", () => {
@@ -791,6 +1093,17 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     }
   });
 
+  it("preserves a validated clarification for an unsupported physical action without executing it", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "clarification",
+      clarification: { question: "Такое действие здесь недоступно. Что ты хочешь попробовать вместо него?" },
+    }, bundle, "Я взлетаю над рекой без крыльев и улетаю на Луну.", snapshot)).toEqual({
+      status: "clarification", question: "Такое действие здесь недоступно. Что ты хочешь попробовать вместо него?",
+      options: [{ optionId: "rephrase", label: "Уточнить намерение" }],
+    });
+  });
+
   it("does not let a social draft erase an indirect topic-shift question", () => {
     const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
     const question = "Не об этом — лучше расскажи, кто ходит через реку ночью.";
@@ -802,6 +1115,47 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
       schemaVersion: 2, addressee: { kind: "gm" }, kind: "conversation",
       response: { segments: [{ kind: "social", act: "no_knowledge" }] },
     }, bundle, question, snapshot)).toMatchObject({ status: "conversation", text: "У меня нет подтверждённых сведений об этом." });
+  });
+
+  it("answers an explicitly addressed unsupported NPC question only with closed no_knowledge", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const ferryHandle = stableActorHandle("person_1");
+    const decision = {
+      schemaVersion: 2 as const,
+      addressee: { kind: "npc" as const, handle: ferryHandle },
+      kind: "conversation" as const,
+      response: { segments: [{ kind: "social" as const, act: "no_knowledge" as const }] },
+    };
+    const outcome = applyGmDirectorDecision(
+      decision, bundle, "Перевозчик у переправы, почему ты не переправляешь ночью?", snapshot,
+    );
+    expect(outcome).toMatchObject({
+      status: "conversation",
+      text: "Перевозчик у переправы: «У меня нет подтверждённых сведений об этом.»",
+      speaker: { observerRef: "person_1", label: "Перевозчик у переправы", internalId: "contact:ferryman" },
+    });
+    expect(applyGmDirectorDecision(
+      { ...decision, addressee: { kind: "npc", handle: stableActorHandle("person_2") } },
+      bundle, "Перевозчик у переправы, почему ты не переправляешь ночью?", snapshot,
+    )).toBeNull();
+    expect(applyGmDirectorDecision(
+      decision, bundle, "Почему ты не переправляешь ночью?", snapshot,
+    )).toBeNull();
+    expect(applyGmDirectorDecision({
+      ...decision,
+      response: { segments: [{ kind: "social", act: "greeting" }] },
+    }, bundle, "Перевозчик у переправы, почему ты не переправляешь ночью?", snapshot)).toBeNull();
+  });
+
+  it("does not let no_knowledge erase an action embedded in an addressed question", () => {
+    const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
+    const outcome = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: stableActorHandle("person_1") },
+      kind: "conversation",
+      response: { segments: [{ kind: "social", act: "no_knowledge" }] },
+    }, bundle, "Перевозчик у переправы, отдай ключ и скажи, кто рядом?", snapshot);
+    expect(outcome).toBeNull();
   });
 
   it("rejects an opaque handle embedded in a selected knowledge fact", () => {

@@ -270,6 +270,35 @@ describe("master turn contextual validation", () => {
     expect(result.plan.deferredClauses).toEqual([{ text: "осмотреть лагерь", reason: "secondary_action" }]);
   });
 
+  it("accepts a mixed observe action with a self-contained QuestionPlan and no fake query", () => {
+    const { world, scene } = livingWorld();
+    const result = validateMasterTurnPlan({
+      proposal: {
+        schemaVersion: 2,
+        kind: "mixed",
+        primaryIntent: {
+          kind: "interaction",
+          verb: "observe",
+          sourceText: "внимательно осматриваю древние развалины",
+        },
+        supportingClauses: [],
+        referents: [],
+        questionPlan: {
+          subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+          parts: [{ id: "history", subjectRefs: ["here"], aspect: "known_event", time: "past", purpose: "explain" }],
+        },
+        readings: [{ partId: "history", source: "known_events" }],
+      } as TurnProposalV2,
+      scene,
+      world,
+      rawText: "Я внимательно осматриваю древние развалины и пытаюсь понять, что здесь произошло",
+    });
+
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") return;
+    expect(result.plan.execution).not.toBeNull();
+  });
+
   it("does not drop a second action hidden in primary sourceText", () => {
     const { world, scene, target } = campWithPlacedTorch();
     const primaryIntent = { kind: "interaction" as const, verb: "observe" as const, sourceText: "осматриваю факел и осматриваюсь" };

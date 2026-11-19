@@ -183,10 +183,9 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  // Use the SAME router construction as skald.service: live discovery
-  // activates the provider's working models. The sync configuration would
-  // leave the interpret route on unprobed candidates and score fallback
-  // instead of the model.
+  // Use the SAME router construction as skald.service: discovered providers
+  // are activated through live selection; an explicit OpenCode Server pin is
+  // kept as its configured effective route without probing unrelated models.
   const configuration = process.env["SKALD_AI_REQUIRED"] === "1"
     ? await createLiveRouterConfiguration()
     : createRouterConfiguration();
@@ -210,6 +209,11 @@ async function main(): Promise<number> {
     provider: {
       activeModel,
       provider: liveSelection?.provider ?? configuration?.selectionReport?.provider ?? null,
+      effectiveRouteProviders: [...new Set((router?.routeCandidates("interpret") ?? []).map((candidate) => candidate.provider))],
+      effectiveRoutes: {
+        interpret: (router?.routeCandidates("interpret") ?? []).map(({ provider, model, tier }) => ({ provider, model, tier })),
+        narrate: (router?.routeCandidates("narrate") ?? []).map(({ provider, model, tier }) => ({ provider, model, tier })),
+      },
       configFingerprint: configuration?.configFingerprint ?? null,
       required: configuration?.required ?? false,
       missingProviders: configuration?.missingProviders ?? [],

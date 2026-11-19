@@ -194,6 +194,38 @@ function matchSurface(context: QuestionReadingContext, target: ResolvedSubject):
   return "";
 }
 
+const CURRENT_PLACE_DEICTICS = new Set([
+  "здесь", "тут", "сюда", "здесь же", "тут же", "в этом месте", "на этом месте",
+]);
+
+function normalizedSurface(value: string): string {
+  return value.toLowerCase().replace(/ё/gu, "е").replace(/[^a-zа-я0-9]+/giu, " ").replace(/\s+/gu, " ").trim();
+}
+
+function knownEventSurface(context: QuestionReadingContext, target: ResolvedSubject): string {
+  if (target.subject.kind === "place" && CURRENT_PLACE_DEICTICS.has(normalizedSurface(target.subject.surface))) {
+    return context.scene.context.currentLocation.name;
+  }
+  return matchSurface(context, target);
+}
+
+/** A place-linked proposition must mention every content word of its place label. */
+function textMentionsPlace(text: string, placeSurface: string): boolean {
+  const placeWords = words(placeSurface);
+  const textWords = words(text);
+  return placeWords.length > 0
+    && placeWords.every((placeWord) => textWords.some((textWord) => sameRussianStem(placeWord, textWord)));
+}
+
+function knownEventMatchesSubject(context: QuestionReadingContext, target: ResolvedSubject, text: string): boolean {
+  if (target.subject.kind === "self") return true;
+  const surface = knownEventSurface(context, target);
+  if (!surface) return false;
+  return target.subject.kind === "place"
+    ? textMentionsPlace(text, surface)
+    : textMentions(text, surface);
+}
+
 /** Scene item lookup by transient handle (object_N namespace). */
 function itemByRef(context: QuestionReadingContext, ref: string | null): (typeof context.scene.context.accessibleItems)[number] | null {
   if (!ref) return null;
@@ -353,11 +385,9 @@ function knownEventsAdapter(subjects: readonly ResolvedSubject[], part: Proposed
   const gaps: QuestionReadingGap[] = [];
   for (const target of subjects) {
     const { subject } = target;
-    const universal = subject.kind === "self" || subject.kind === "place";
     let matched = 0;
-    const match = matchSurface(context, target);
     for (const { entry, local } of entries) {
-      if (!universal && !textMentions(entry.text, match)) continue;
+      if (!knownEventMatchesSubject(context, target, entry.text)) continue;
       matched += 1;
       facts.push(narrativeFact("known_events", subject.id, `${subject.id}:${local}`, entry, ["known_event"], "unspecified"));
     }

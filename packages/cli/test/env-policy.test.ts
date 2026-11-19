@@ -7,6 +7,87 @@ describe("env containment policy", () => {
       .toEqual({ accepted: true, reason: "Containment env policy holds." });
   });
 
+  it("accepts only a fully pinned OpenCode Server primary transport", () => {
+    const accepted = decideEnvPolicy([
+      "SKALD_OPENCODE_SERVER_ENABLED=1",
+      "SKALD_OPENCODE_SERVER_MODEL=opencode/deepseek-v4-flash-free",
+      "SKALD_OPENCODE_ZEN_API_KEY=present",
+      "SKALD_OPENCODE_SERVER_PORT=4097",
+      "SKALD_OPENCODE_SERVER_STATE_DIR=/home/nooker/skald-data/opencode-server",
+    ].join("\n"));
+    expect(accepted.accepted).toBe(true);
+  });
+
+  it("accepts an explicit model fallback and bounded concurrency", () => {
+    const accepted = decideEnvPolicy([
+      "SKALD_OPENCODE_SERVER_ENABLED=1",
+      "SKALD_OPENCODE_SERVER_MODEL=opencode/free-primary",
+      "SKALD_OPENCODE_SERVER_FALLBACK_MODEL=opencode/free-backup",
+      "SKALD_OPENCODE_SERVER_MAX_CONCURRENCY=3",
+      "SKALD_OPENCODE_ZEN_API_KEY=present",
+    ].join("\n"));
+    expect(accepted.accepted).toBe(true);
+  });
+
+  it("permits paid fallback only with a separate explicit opt-in and pin", () => {
+    const accepted = decideEnvPolicy([
+      "SKALD_OPENCODE_SERVER_ENABLED=1",
+      "SKALD_OPENCODE_SERVER_MODEL=opencode/free-primary",
+      "SKALD_OPENCODE_SERVER_FALLBACK_MODEL=opencode/paid-backup",
+      "SKALD_OPENCODE_SERVER_ALLOW_PAID_FALLBACK=1",
+      "SKALD_OPENCODE_ZEN_API_KEY=present",
+    ].join("\n"));
+    expect(accepted.accepted).toBe(true);
+  });
+
+  it("accepts explicit paid primary permission with an exact pin, without requiring fallback", () => {
+    const common = [
+      "SKALD_OPENCODE_SERVER_ENABLED=1", "SKALD_OPENCODE_SERVER_MODEL=opencode/paid-primary",
+      "SKALD_OPENCODE_ZEN_API_KEY=present",
+    ];
+    expect(decideEnvPolicy([...common, "SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY=1"].join("\n")).accepted).toBe(true);
+    for (const value of ["yes", "", "2", "true"]) {
+      expect(decideEnvPolicy([...common, `SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY=${value}`].join("\n")).accepted).toBe(false);
+    }
+    expect(decideEnvPolicy([
+      "SKALD_OPENCODE_SERVER_ENABLED=1", "SKALD_OPENCODE_ZEN_API_KEY=present",
+      "SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY=1",
+    ].join("\n")).accepted).toBe(false);
+  });
+
+  it("rejects malformed fallback, unapproved paid fallback and unbounded concurrency", () => {
+    const common = [
+      "SKALD_OPENCODE_SERVER_ENABLED=1",
+      "SKALD_OPENCODE_SERVER_MODEL=opencode/free-primary",
+      "SKALD_OPENCODE_ZEN_API_KEY=present",
+    ];
+    for (const extra of [
+      ["SKALD_OPENCODE_SERVER_FALLBACK_MODEL=opencode/free-primary"],
+      ["SKALD_OPENCODE_SERVER_FALLBACK_MODEL=not-a-model"],
+      ["SKALD_OPENCODE_SERVER_ALLOW_PAID_FALLBACK=1"],
+      ["SKALD_OPENCODE_SERVER_ALLOW_PAID_FALLBACK=yes", "SKALD_OPENCODE_SERVER_FALLBACK_MODEL=opencode/paid"],
+      ["SKALD_OPENCODE_SERVER_MAX_CONCURRENCY=5"],
+      ["SKALD_OPENCODE_SERVER_MAX_CONCURRENCY=1.5"],
+    ]) {
+      expect(decideEnvPolicy([...common, ...extra].join("\n")).accepted).toBe(false);
+    }
+  });
+
+  it("fails closed on missing or malformed OpenCode Server primary configuration", () => {
+    for (const text of [
+      "SKALD_OPENCODE_SERVER_ENABLED=1\nSKALD_OPENCODE_ZEN_API_KEY=present\n",
+      "SKALD_OPENCODE_SERVER_ENABLED=1\nSKALD_OPENCODE_SERVER_MODEL=not-a-model\nSKALD_OPENCODE_ZEN_API_KEY=present\n",
+      "SKALD_OPENCODE_SERVER_ENABLED=1\nSKALD_OPENCODE_SERVER_MODEL=opencode/model\n",
+      "SKALD_OPENCODE_SERVER_ENABLED=1\nSKALD_OPENCODE_SERVER_MODEL=opencode/model\nSKALD_OPENCODE_ZEN_API_KEY=present\nSKALD_OPENCODE_SERVER_PORT=4096\n",
+      "SKALD_OPENCODE_SERVER_ENABLED=1\nSKALD_OPENCODE_SERVER_MODEL=opencode/model\nSKALD_OPENCODE_ZEN_API_KEY=present\nSKALD_OPENCODE_SERVER_STATE_DIR=/home/nooker/skald\n",
+      "SKALD_OPENCODE_SERVER_ENABLED=yes\n",
+    ]) {
+      const decision = decideEnvPolicy(text);
+      expect(decision.accepted).toBe(false);
+      expect(decision.reason).not.toContain("present");
+    }
+  });
+
   it("accepts a disabled transport regardless of other keys", () => {
     expect(decideEnvPolicy("SKALD_OPENCODE_RUN=0\nSKALD_OPENCODE_ISOLATE_HOME=0\nSKALD_OPENCODE_AGENT_MANIFEST=\n").accepted).toBe(true);
     expect(decideEnvPolicy("").accepted).toBe(true);

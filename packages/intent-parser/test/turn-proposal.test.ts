@@ -83,6 +83,29 @@ describe("TurnProposalV2 schema", () => {
     expect(validateTurnProposal(meta).status).toBe("accepted");
   });
 
+  it("accepts a mixed action whose QuestionPlan is the complete embedded question", () => {
+    const mixed = {
+      schemaVersion: 2,
+      kind: "mixed",
+      primaryIntent: {
+        kind: "interaction",
+        verb: "observe",
+        sourceText: "внимательно осматриваю древние развалины",
+      },
+      supportingClauses: [],
+      referents: [],
+      questionPlan: {
+        subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+        parts: [{ id: "history", subjectRefs: ["here"], aspect: "known_event", time: "past", purpose: "explain" }],
+      },
+      readings: [{ partId: "history", source: "known_events" }],
+    };
+
+    expect(validateTurnProposal(mixed).status).toBe("accepted");
+    const { questionPlan: _questionPlan, readings: _readings, ...withoutQuestion } = mixed;
+    expect(validateTurnProposal(withoutQuestion).status).toBe("invalid");
+  });
+
   it("rejects unknown top-level and nested fields", () => {
     expect(validateTurnProposal({ ...actionProposal(), extra: 1 }).status).toBe("invalid");
     expect(validateTurnProposal({

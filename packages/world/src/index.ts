@@ -3,6 +3,8 @@ export * from "./projection.js";
 export * from "./command-handler.js";
 export * from "./bootstrap.js";
 export * from "./event-types.js";
+export { dossierEventFromContactPlacement, eligibleNpcDossierFacts, parseNpcDossier } from "./npc-dossier.js";
+export type { NpcDossier, NpcDossierFact, NpcDossierFactContent, NpcDossierFactKind, NpcDossierFamiliarityTier } from "./npc-dossier.js";
 export * from "./ids.js";
 export * from "./command-time-policy.js";
 export * from "./command-diagnostics.js";

@@ -147,6 +147,17 @@ Before handoff, commit or deployment run npm run validate. Update
 CODEX_HANDOFF.md only when milestone, next step, blocker or validation state
 changes. Git and executable code outrank handoff.
 
+### WSL workspace access recovery
+
+The repository is WSL-native. If a normal `wsl.exe` command returns
+`Wsl/Service/E_ACCESSDENIED`, verify distro/workspace access with a narrowly
+scoped approved `exec_command` invocation; do not restart WSL or alter distro
+settings as a workaround. If the patch tool rejects the workspace UNC path as
+a reparse point, use PowerShell at the exact repository UNC path and Codex's
+bundled `codex.exe --codex-run-as-apply-patch` with a single-quoted here-string.
+Then verify the resulting diff and status from WSL. Do not write repository
+files with shell redirection or broad filesystem rewrites.
+
 ## Project skills
 
 Project-specific operational workflows live under `.agents/skills/`.

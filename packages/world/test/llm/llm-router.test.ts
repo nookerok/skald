@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { LLM_CONFIG, OPENCODE_PREFERRED_MODELS, criticalRouteConfigIssues, openCodeProtocolForModel } from "../../src/llm/config.js";
 import { ModelRouter } from "../../src/llm/router.js";
-import { ProviderUnavailableError } from "../../src/llm/errors.js";
+import { ProviderRequestError, ProviderUnavailableError } from "../../src/llm/errors.js";
 import type { ChatMessage, RouteCandidate } from "../../src/llm/types.js";
 
 function msg(content: string): ChatMessage[] {
@@ -235,6 +235,62 @@ describe("ModelRouter", () => {
       if (previousKey === undefined) delete process.env.SKALD_OLLAMA_CLOUD_API_KEY;
       else process.env.SKALD_OLLAMA_CLOUD_API_KEY = previousKey;
     }
+  });
+
+  it("does not retry or fail over a caller-cancelled request", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => {
+      controller.abort();
+      throw new DOMException("Cancelled", "AbortError");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const diagnostics: Array<Record<string, unknown>> = [];
+    try {
+      const router = new ModelRouter({
+        apiKey: "zen-key",
+        providerId: "opencode_zen",
+        availableProviders: ["opencode_zen", "ollama_cloud"],
+        routeCandidates: { narrate: mixedCandidates.slice(0, 2) },
+      });
+      await expect(router.chat("narrate", msg("hello"), {
+        signal: controller.signal,
+        diagnostics: (event) => diagnostics.push(event as unknown as Record<string, unknown>),
+      })).rejects.toMatchObject({ phase: "transport", retryable: false });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({ outcome: "failed", provider: "opencode_zen", phase: "transport" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("forwards only the sanitized provider trace ID into failure diagnostics", async () => {
+    const traceError = new ProviderRequestError({
+      provider: "opencode_server",
+      model: "opencode/free-model",
+      category: "narrate",
+      phase: "response_status",
+      httpStatus: 403,
+      providerTraceId: "request-123",
+      retryable: false,
+    });
+    class TraceFailureRouter extends ModelRouter {
+      override async chatCandidate(): Promise<never> { throw traceError; }
+    }
+    const router = new TraceFailureRouter({
+      providerId: "opencode_server",
+      providerKeys: { opencode_server: "server-key" },
+      availableProviders: ["opencode_server"],
+      routeCandidates: {
+        narrate: [{ provider: "opencode_server", model: "opencode/free-model", protocol: "opencode_server", tier: "catalog_candidate" }],
+      },
+    });
+    const diagnostics: Array<Record<string, unknown>> = [];
+    await expect(router.chat("narrate", msg("hello"), {
+      diagnostics: (event) => diagnostics.push(event as unknown as Record<string, unknown>),
+    })).rejects.toBeInstanceOf(ProviderUnavailableError);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ provider: "opencode_server", providerTraceId: "request-123", httpStatus: 403 });
   });
 
   it("preserves the provider of the final failed candidate", async () => {

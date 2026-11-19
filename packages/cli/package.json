@@ -12,6 +12,7 @@
     }
   },
   "dependencies": {
+    "@opencode/client": "2.3.0",
     "@skald/event-bus": "*",
     "@skald/intent-parser": "*",
     "@skald/rule-engine": "*",

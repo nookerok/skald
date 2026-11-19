@@ -45,6 +45,22 @@ describe("interpretIntent — observe (canonical v1, Slice 1)", () => {
     expect(cmd.verb).toBe(expectedVerb);
     expect(cmd.target?.raw).toContain("дверь");
   });
+
+  it("keeps a close-inspection manner phrase out of the observed target", () => {
+    const result = interpretIntent("осмотрю знак поближе");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("observe");
+    expect(cmd.target?.raw).toBe("знак");
+  });
+
+  it("recognizes an imperative inspection of a northern object without treating its name as a compass direction", () => {
+    const result = interpretIntent("Осмотри обломок северного дорожного знака поближе.");
+    expect(result.type).toBe("InteractionCommand");
+    const cmd = result as InteractionCommand;
+    expect(cmd.verb).toBe("observe");
+    expect(cmd.target?.raw).toBe("обломок северного дорожного знака");
+  });
 });
 
 describe("interpretIntent — listen (canonical v1, Slice 2)", () => {
@@ -103,11 +119,21 @@ describe("interpretIntent — approach/relocate", () => {
   });
 
   it("recognizes direction from text", () => {
-    const result = interpretIntent("идти на север");
+    const result = interpretIntent("идти на север.");
     expect(result.type).toBe("ActionIntentCommand");
     const cmd = result as ActionIntentCommand;
     expect(cmd.mode).toBe("relocate");
     expect(cmd.target?.normalized).toBe("north");
+  });
+
+  it("removes sentence punctuation and a repeat modifier from approach targets", () => {
+    const repeated = parseIntent("Подойду к смотрителю ещё раз.");
+    expect(repeated.type).toBe("ActionIntentCommand");
+    expect((repeated as ActionIntentCommand).target?.raw).toBe("смотрителю");
+
+    const absent = parseIntent("Подойти к перевозчику.");
+    expect(absent.type).toBe("ActionIntentCommand");
+    expect((absent as ActionIntentCommand).target?.raw).toBe("перевозчику");
   });
 });
 

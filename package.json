@@ -36,6 +36,7 @@
     "acceptance:adventure:review": "node --import tsx packages/cli/src/acceptance/run-playtest-review.ts",
     "acceptance:intent:contract": "node --import tsx packages/cli/src/acceptance/run-intent-contract.ts",
     "acceptance:command-time:live": "node --import tsx packages/cli/src/acceptance/command-time-live.ts",
+    "acceptance:gm-p3:live": "node --import tsx packages/cli/src/acceptance/gm-p3-live-session.ts",
     "admin:world-retention": "node --import tsx packages/cli/src/admin/run-world-retention.ts",
     "admin:ai-model-discovery": "node --import tsx packages/cli/src/admin/run-ai-model-discovery.ts",
     "acceptance:gm-shadow:scorecard": "node --import tsx packages/cli/src/acceptance/gm-shadow-scorecard.ts",

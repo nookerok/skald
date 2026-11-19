@@ -103,4 +103,59 @@ describe("scene engagement actions", () => {
       store.close();
     }
   });
+
+  it("binds a named withdraw to the engaged contact without leaking its reference", async () => {
+    const { store, runtime } = await fresh("withdraw-named");
+    try {
+      await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "approach" });
+      const beforeTime = runtime.projection.getSnapshot().time;
+      const beforeEventCount = runtime.bus.query().length;
+
+      const wrongTarget = parse(await handleWorldCommand(runtime, {
+        input: "Отхожу от смотрителя.",
+        idempotencyKey: "withdraw-wrong-target",
+      }));
+      expect(wrongTarget.conversationTurn.responseKind).toBe("clarification");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(runtime.projection.getSnapshot().sceneEngagement?.state).toBe("near");
+      expect(runtime.bus.query()).toHaveLength(beforeEventCount);
+
+      const response = parse(await handleWorldCommand(runtime, {
+        input: "Отхожу от перевозчика.",
+        idempotencyKey: "withdraw-named",
+      }));
+      const committed = runtime.bus.query().slice(beforeEventCount);
+
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime + 1);
+      expect(runtime.projection.getSnapshot().sceneEngagement).toBeNull();
+      expect(committed).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: "ActionResolved", payload: expect.objectContaining({ result: "withdraw" }) }),
+        expect.objectContaining({ type: "TickPassed" }),
+      ]));
+      expect(committed.filter((event) => event.type === "TickPassed")).toHaveLength(1);
+      expect(response.conversationTurn.responseText).toContain("отходишь");
+      expect(JSON.stringify(response)).not.toMatch(/targetRef|contactRef|establishedAt|internalId|person_/iu);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("does not spend a turn when a named withdraw has no current engagement", async () => {
+    const { store, runtime } = await fresh("withdraw-unengaged");
+    try {
+      const beforeTime = runtime.projection.getSnapshot().time;
+      const beforeEvents = runtime.bus.query();
+      const response = parse(await handleWorldCommand(runtime, {
+        input: "Отхожу от перевозчика.",
+        idempotencyKey: "withdraw-unengaged",
+      }));
+
+      expect(response.conversationTurn.responseKind).toBe("clarification");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(runtime.bus.query()).toEqual(beforeEvents);
+      expect(runtime.projection.getSnapshot().sceneEngagement).toBeNull();
+    } finally {
+      store.close();
+    }
+  });
 });

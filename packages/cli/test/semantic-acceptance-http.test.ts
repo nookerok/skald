@@ -233,6 +233,8 @@ describe("T6 series 3 — group question answered whole", () => {
         listRef: "scene_people",
         members: ["Перевозчик у переправы", "Торговец"],
       }]);
+      expect(nearby.inquiry.shownLists[0]).not.toHaveProperty("observerRefs");
+      expect(JSON.stringify(nearby)).not.toMatch(/observerRefs|person_[0-9]+/u);
 
       const timeBefore = runtime.projection.getSnapshot().time;
       const eventsBefore = runtime.bus.query().length;

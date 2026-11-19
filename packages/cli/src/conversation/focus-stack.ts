@@ -77,9 +77,11 @@ const TOPIC_FORMS: ReadonlySet<string> = new Set([
   "такой", "такая", "такое", "такие",
 ]);
 
-/** Locative adverbs pointing at routes/destinations. */
+/** Anaphoric locatives pointing at routes/destinations. Current-location
+ * deictics здесь/тут/отсюда belong to scene/question binding, not route memory.
+ */
 const PLACE_FORMS: ReadonlySet<string> = new Set([
-  "туда", "сюда", "там", "здесь", "тут", "оттуда", "отсюда",
+  "туда", "сюда", "там", "оттуда",
 ]);
 
 /** Prepositions captured before a pronoun for later relation mapping. */

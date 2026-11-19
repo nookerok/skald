@@ -124,10 +124,10 @@ export type {
 } from "./turn-proposal.js";
 export { findAuthorityField, inferAmbiguitySlot, validateTurnProposal } from "./turn-proposal-validator.js";
 export type { AmbiguitySlot, FramedProposalCandidate, TurnProposalValidation } from "./turn-proposal-validator.js";
-export { GM_CONTRACT_VERSION, supportedOperations, validateGmTurnDecision } from "./gm-contract.js";
+export { GM_CONTEXT_VERSION, GM_CONTRACT_VERSION, supportedOperations, validateGmTurnDecision } from "./gm-contract.js";
 export { parseGmProposal, bindGmProposal } from "./gm-proposal.js";
 export type { GmResponseSegment } from "./gm-contract.js";
-export type { GmContext, GmTurnDecision, GmValidationResult, GmAddressee, GmTurnKind, GmActor, GmHistoryTurn, GmKnownFact, GmSceneContext, SupportedOperationDescriptor, VisibleActorKey, FamiliarityTier } from "./gm-contract.js";
+export type { GmContext, GmTurnDecision, GmValidationResult, GmAddressee, GmTurnKind, GmActor, GmHistoryTurn, GmKnownFact, GmNpcFact, GmSceneContext, SupportedOperationDescriptor, VisibleActorKey, FamiliarityTier } from "./gm-contract.js";
 export {
   QUESTION_ASPECTS,
   QUESTION_LIST_REFS,

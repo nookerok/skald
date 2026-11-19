@@ -1,5 +1,5 @@
 /**
- * Production containment policy for the opencode_run transport env.
+ * Production containment policy for OpenCode transports.
  *
  * systemd `EnvironmentFile` honors quoted values, so a regex gate over the
  * raw text can be bypassed with `SKALD_OPENCODE_RUN="1"` (runtime sees `1`,
@@ -20,6 +20,11 @@
  * - any duplicate key or malformed line rejects the whole file: values never
  *   enter reports or logs (only offending key names do — names are not
  *   secrets, values stay out).
+ *
+ * When the v2 server transport is enabled, it additionally requires an exact
+ * provider/model pin, the configured credential, a safe loopback port and the
+ * fixed service-owned state directory. Runtime still rechecks explicit model
+ * prices immediately before every generation request.
  *
  * CLI: `node --import tsx packages/cli/deploy/env-policy.ts [file]`
  * (stdin when omitted) prints one line and exits 0 on accept, 1 on reject.
@@ -112,7 +117,14 @@ export function decideEnvPolicy(text: string): EnvPolicy {
     return { accepted: false, reason: `Containment env policy failed: duplicate keys: ${parsed.duplicates.join(",")}.` };
   }
   if (parsed.vars.get("SKALD_OPENCODE_RUN") !== "1") {
-    return { accepted: true, reason: "Containment env policy holds: transport disabled." };
+    const serverEnabled = parsed.vars.get("SKALD_OPENCODE_SERVER_ENABLED");
+    if (serverEnabled !== undefined && serverEnabled !== "0" && serverEnabled !== "1") {
+      return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_ENABLED must be 0 or 1." };
+    }
+    if (serverEnabled !== "1") {
+      return { accepted: true, reason: "Containment env policy holds: OpenCode transports disabled." };
+    }
+    return decideOpenCodeServerPolicy(parsed.vars);
   }
   if (parsed.vars.get("SKALD_OPENCODE_ISOLATE_HOME") === "0") {
     return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_ISOLATE_HOME=0 is forbidden in production." };
@@ -120,6 +132,52 @@ export function decideEnvPolicy(text: string): EnvPolicy {
   const manifest = parsed.vars.get("SKALD_OPENCODE_AGENT_MANIFEST");
   if (manifest !== undefined && manifest !== "") {
     return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_AGENT_MANIFEST override is forbidden in production." };
+  }
+  const serverPolicy = decideOpenCodeServerPolicy(parsed.vars);
+  if (!serverPolicy.accepted) return serverPolicy;
+  return { accepted: true, reason: "Containment env policy holds." };
+}
+
+function decideOpenCodeServerPolicy(vars: ReadonlyMap<string, string>): EnvPolicy {
+  const enabled = vars.get("SKALD_OPENCODE_SERVER_ENABLED");
+  if (enabled !== undefined && enabled !== "0" && enabled !== "1") {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_ENABLED must be 0 or 1." };
+  }
+  if (enabled !== "1") return { accepted: true, reason: "Containment env policy holds." };
+
+  const model = vars.get("SKALD_OPENCODE_SERVER_MODEL") ?? "";
+  if (!/^[A-Za-z0-9._:-]{1,200}\/[A-Za-z0-9._:-]{1,200}$/u.test(model)) {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_MODEL must be an explicit provider/model pin." };
+  }
+  const fallbackModel = vars.get("SKALD_OPENCODE_SERVER_FALLBACK_MODEL") ?? "";
+  if (fallbackModel && (!/^[A-Za-z0-9._:-]{1,200}\/[A-Za-z0-9._:-]{1,200}$/u.test(fallbackModel) || fallbackModel === model)) {
+    return { accepted: false, reason: "Containment env policy failed: fallback must be a distinct explicit provider/model pin." };
+  }
+  const allowPaidFallback = vars.get("SKALD_OPENCODE_SERVER_ALLOW_PAID_FALLBACK");
+  const allowPaidPrimary = vars.get("SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY");
+  if (allowPaidPrimary !== undefined && allowPaidPrimary !== "0" && allowPaidPrimary !== "1") {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY must be 0 or 1." };
+  }
+  if (allowPaidFallback !== undefined && allowPaidFallback !== "0" && allowPaidFallback !== "1") {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_ALLOW_PAID_FALLBACK must be 0 or 1." };
+  }
+  if (allowPaidFallback === "1" && !fallbackModel) {
+    return { accepted: false, reason: "Containment env policy failed: paid fallback requires SKALD_OPENCODE_SERVER_FALLBACK_MODEL." };
+  }
+  const maxConcurrency = vars.get("SKALD_OPENCODE_SERVER_MAX_CONCURRENCY");
+  if (maxConcurrency !== undefined && (!/^\d+$/u.test(maxConcurrency) || Number(maxConcurrency) < 1 || Number(maxConcurrency) > 4)) {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_MAX_CONCURRENCY must be an integer from 1 to 4." };
+  }
+  if (!vars.get("SKALD_OPENCODE_ZEN_API_KEY")) {
+    return { accepted: false, reason: "Containment env policy failed: OpenCode Server requires SKALD_OPENCODE_ZEN_API_KEY." };
+  }
+  const port = vars.get("SKALD_OPENCODE_SERVER_PORT");
+  if (port !== undefined && (!/^\d{1,5}$/u.test(port) || Number(port) < 1024 || Number(port) > 65535 || Number(port) === 4096)) {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_PORT is invalid or conflicts with the default OpenCode port." };
+  }
+  const stateDir = vars.get("SKALD_OPENCODE_SERVER_STATE_DIR");
+  if (stateDir !== undefined && stateDir !== "/home/nooker/skald-data/opencode-server") {
+    return { accepted: false, reason: "Containment env policy failed: SKALD_OPENCODE_SERVER_STATE_DIR must use the dedicated production state directory." };
   }
   return { accepted: true, reason: "Containment env policy holds." };
 }

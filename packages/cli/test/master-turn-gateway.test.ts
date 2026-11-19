@@ -853,12 +853,35 @@ describe("P3 live gateway safeguards", () => {
       const diagnostics: any[] = [];
       const result = await interpretMasterTurn("Что на нём в карманах?", citySnapshot(), router, { mode: "fallback", diagnostics: (entry) => { diagnostics.push(entry); } });
       expect(result.status).toBe("clarification");
+      expect(router.chat).toHaveBeenCalledTimes(1);
       expect(diagnostics.filter((entry) => entry.category === "gm_director")).toHaveLength(1);
     } finally {
       if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
       else process.env["GM_DIRECTOR_LIVE"] = previous;
     }
   });
+
+  it("fails closed after an invalid live decision without a second model call or action plan", async () => {
+    const previous = process.env["GM_DIRECTOR_LIVE"];
+    process.env["GM_DIRECTOR_LIVE"] = "1";
+    try {
+      const input = "Я взлетаю над рекой без крыльев и улетаю на Луну.";
+      const snap = citySnapshot();
+      const before = { time: snap.world.time, eventNumber: snap.world.eventNumber };
+      const router = routerReturning("{invalid decision JSON");
+
+      const result = await interpretMasterTurn(input, snap, router, { mode: "fallback" });
+
+      expect(router.chat).toHaveBeenCalledTimes(1);
+      expect(result.status).toBe("clarification");
+      expect(snap.world.time).toBe(before.time);
+      expect(snap.world.eventNumber).toBe(before.eventNumber);
+    } finally {
+      if (previous === undefined) delete process.env["GM_DIRECTOR_LIVE"];
+      else process.env["GM_DIRECTOR_LIVE"] = previous;
+    }
+  });
+
 });
 
   it("resolves the flagship replica into one action plus both questions", async () => {
@@ -1367,6 +1390,23 @@ describe("unified frame selection (review P1)", () => {
 });
 
 describe("whole-replica inquiry completeness (T3)", () => {
+  it("fails closed on a compound current-place question after Director failure without duplicating route labels", async () => {
+    vi.stubEnv("GM_DIRECTOR_LIVE", "1");
+    const snap = snapshot();
+    const scene = { ...snap.scene, context: { ...snap.scene.context, knownRoutes: [
+      { observerRef: "route_1", kind: "route" as const, label: "Речной Страж", knownAs: [], status: "open" as const },
+      { observerRef: "route_2", kind: "route" as const, label: "Речной Страж", knownAs: [], status: "open" as const },
+    ] } };
+    const router = routerReturning("{invalid decision JSON");
+    const input = "Я внимательно осматриваю древние развалины и пытаюсь понять, что здесь произошло";
+    const result = await interpretMasterTurn(input, { ...snap, scene }, router);
+    expect(result.status).toBe("clarification");
+    if (result.status !== "clarification") return;
+    expect(result.question).not.toContain("Речной Страж или Речной Страж");
+    expect(router.chat).toHaveBeenCalledTimes(1);
+    expect(snap.world.time).toBe(0);
+  });
+
   const COMPOUND_REPLICA = "Что на нём одето и как он себя ведёт?";
 
   function proposalReturning(extra?: Record<string, unknown>) {
@@ -1380,13 +1420,12 @@ describe("whole-replica inquiry completeness (T3)", () => {
     };
   }
 
-  it("defers an incomplete inquiry replica to the semantic interpreter", async () => {
+  it("fails closed when the semantic interpreter omits a QuestionPlan for an unregistered question", async () => {
     const router = routerReturning(JSON.stringify(proposalReturning()));
     const result = await interpretMasterTurn(COMPOUND_REPLICA, snapshot(), router);
 
     expect(router.chat).toHaveBeenCalledTimes(1);
-    expect(result.status).not.toBe("inquiry");
-    expect(result.status).toBe("plan");
+    expect(result.status).toBe("clarification");
   });
 
   it("clarifies instead of answering an unrelated query when the model is unavailable", async () => {
@@ -1424,6 +1463,46 @@ describe("whole-replica inquiry completeness (T3)", () => {
       worldTime: snap.world.time,
       eventNumber: snap.world.eventNumber,
     });
+  });
+
+  it("keeps the exact ruins observation plus QuestionPlan-only question as one mixed turn", async () => {
+    vi.stubEnv("GM_DIRECTOR_LIVE", "1");
+    const input = "Я внимательно осматриваю древние развалины и пытаюсь понять, что здесь произошло";
+    const router = routerReturning(JSON.stringify({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "mixed",
+      proposal: proposalReturning({
+        kind: "mixed",
+        primaryIntent: {
+          kind: "interaction",
+          verb: "observe",
+          sourceText: "внимательно осматриваю древние развалины",
+        },
+        supportingClauses: [],
+        referents: [],
+        questionPlan: {
+          subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+          parts: [{ id: "history", subjectRefs: ["here"], aspect: "known_event", time: "past", purpose: "explain" }],
+        },
+        readings: [{ partId: "history", source: "known_events" }],
+      }),
+    }));
+    const snap = snapshot();
+    const beforeEventNumber = snap.world.eventNumber;
+    const result = await interpretMasterTurn(input, snap, router, { mode: "fallback" });
+
+    expect(router.chat).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("plan");
+    if (result.status !== "plan") return;
+    expect(result.plan.execution).not.toBeNull();
+    expect(result.questionRound?.readings).toEqual([{ partId: "history", source: "known_events" }]);
+    expect(result.questionRound?.questionPlan.parts).toEqual([
+      { id: "history", subjectRefs: ["here"], aspect: "known_event", time: "past", purpose: "explain" },
+    ]);
+    expect(result.questionRound?.questionPlan.actionIntent).toBeTruthy();
+    expect(snap.world.eventNumber).toBe(beforeEventNumber);
+    expect(snap.world.time).toBe(0);
   });
 
   it("emits a sanitized rejected-plan summary when the model omits group members (T6 R1)", async () => {
@@ -1605,6 +1684,11 @@ describe("whole-replica inquiry completeness (T3)", () => {
     expect(seen.filter((event) => event.category === "proposal_schema_rejected" && event.failureCategory === "question_dropped").length).toBeGreaterThanOrEqual(1);
     expect(result.status).toBe("clarification");
     expect(result.status).not.toBe("plan");
+    if (result.status !== "clarification") return;
+    expect(result.options).toContainEqual(expect.objectContaining({ optionId: "rephrase_question" }));
+    expect(isGenericFallbackText(result.question)).toBe(false);
+    expect(seen.some((event) => event.category === "clarification_returned" && event.outcome === "clarification")).toBe(true);
+    expect(seen.some((event) => event.category === "generic_clarification_fallback")).toBe(false);
   });
 
   it("the degraded path never executes deterministic speech for a question-bearing replica (live control)", async () => {
@@ -1797,7 +1881,7 @@ describe("whole-replica inquiry completeness (T3)", () => {
       expect(conversation.pendingClarification?.options).toEqual(first.options);
 
       const selected = conversation.pendingClarification!.options[1]!;
-      const answer = await interpretMasterTurn(selected.label, { ...snap, scene, conversation }, router);
+      const answer = await interpretMasterTurn("Я имею в виду " + selected.label, { ...snap, scene, conversation }, router);
       expect(answer.status).toBe("plan");
       if (answer.status !== "plan") return;
       expect(answer.plan.execution).toBeNull();

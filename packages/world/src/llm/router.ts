@@ -77,12 +77,16 @@ export interface ChatCandidateOptions {
   readonly maxTokens?: number | undefined;
   readonly timeoutMs?: number | undefined;
   readonly dataClass?: string | undefined;
+  /** Caller cancellation; providers must not retry or fail over after abort. */
+  readonly signal?: AbortSignal | undefined;
 }
 
 export interface ChatOptions {
   readonly dataClass?: string | undefined;
   /** Total budget for all candidate attempts and the one retry. */
   readonly timeoutMs?: number | undefined;
+  /** Caller cancellation for provider requests and queued attempts. */
+  readonly signal?: AbortSignal | undefined;
   /** Read-side sink for one structured event per provider attempt. */
   readonly diagnostics?: ((event: {
     readonly kind: "provider";
@@ -94,6 +98,7 @@ export interface ChatOptions {
     readonly phase: ProviderPhase;
     readonly httpStatus?: number;
     readonly providerCode?: string;
+    readonly providerTraceId?: string;
     readonly attempt: number;
     readonly durationMs: number;
     readonly timeoutMs: number;
@@ -146,6 +151,9 @@ export class ModelRouter {
     this.routeOverrides = Object.freeze({ ...(opts?.routeCandidates ?? {}) });
     this.startupSelection = opts?.liveSelection;
   }
+
+  /** Release any provider-owned resources; the base router owns none. */
+  async close(): Promise<void> {}
 
   diagnostics(): RouterDiagnostic[] {
     const diag: RouterDiagnostic[] = [];
@@ -233,6 +241,7 @@ export class ModelRouter {
       category,
       maxTokens: opts?.maxTokens ?? route.maxTokens,
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      ...(opts?.signal ? { signal: opts.signal } : {}),
     });
 
     return {
@@ -252,8 +261,8 @@ export class ModelRouter {
   async chatOnce(
     model: string,
     messages: readonly ChatMessage[],
-    opts: { provider?: ProviderId; maxTokens?: number; timeoutMs?: number; category?: Category } = {},
-  ): Promise<{ text: string; responseModel: string; latencyMs: number; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+    opts: { provider?: ProviderId; maxTokens?: number; timeoutMs?: number; category?: Category; signal?: AbortSignal } = {},
+  ): Promise<{ text: string; responseModel: string; latencyMs: number; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; reportedCostUsd?: number }> {
     const provider = opts.provider ?? providerForModel(model);
     const configuredProtocol = candidateForModel("interpret", model) ?? candidateForModel("narrate", model) ?? candidateForModel("analyze", model);
     const target: SendTarget = {
@@ -268,13 +277,14 @@ export class ModelRouter {
       category: opts.category ?? "narrate",
       maxTokens: opts.maxTokens,
       ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
     });
   }
 
   private _send(
     target: SendTarget,
     messages: readonly ChatMessage[],
-    opts: { category: Category; maxTokens: number | undefined; timeoutMs?: number },
+    opts: { category: Category; maxTokens: number | undefined; timeoutMs?: number; signal?: AbortSignal },
   ): Promise<{ text: string; responseModel: string; latencyMs: number; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     const provConf = LLM_CONFIG.providers[target.provider];
     const baseUrl = (target.provider === this.providerId
@@ -300,6 +310,7 @@ export class ModelRouter {
       category: opts.category,
       maxTokens: opts.maxTokens,
       ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
     });
   }
 
@@ -358,6 +369,7 @@ export class ModelRouter {
   }
 
   async chat(category: Category, messages: readonly ChatMessage[], opts?: ChatOptions): Promise<ChatResult> {
+    if (opts?.signal?.aborted) throw opts.signal.reason ?? new Error("request cancelled");
     const route = this._route(category);
     if (!route) throw new Error(`Unknown category: ${category}`);
 
@@ -377,6 +389,7 @@ export class ModelRouter {
       const ctx: ProviderFailureContext = { provider: candidate.provider, model: candidate.model, category };
 
       if (performance.now() >= deadline) break;
+      if (opts?.signal?.aborted) throw opts.signal.reason ?? new Error("request cancelled");
 
       // At most one same-candidate retry for the whole chat call.
       const attempts = retryUsed ? 1 : 2;
@@ -387,6 +400,7 @@ export class ModelRouter {
           const result = await this.chatCandidate(category, candidate, messages, {
             maxTokens: route.maxTokens,
             timeoutMs: remainingMs,
+            ...(opts?.signal ? { signal: opts.signal } : {}),
           });
           this.emitProviderDiagnostic(category, opts, {
             outcome: candidate.provider !== configuredProvider
@@ -422,10 +436,16 @@ export class ModelRouter {
             configuredModel: decision.selectedModel,
             configuredProvider,
             ...(failure
-              ? { phase: failure.phase, httpStatus: failure.httpStatus, providerCode: failure.providerCode }
+              ? {
+                phase: failure.phase,
+                httpStatus: failure.httpStatus,
+                providerCode: failure.providerCode,
+                providerTraceId: failure.providerTraceId,
+              }
               : {}),
           });
-          const retrySameCandidate = attempt === 0 && !retryUsed && shouldRetrySameCandidate(error, ctx);
+          const retrySameCandidate = !opts?.signal?.aborted
+            && attempt === 0 && !retryUsed && shouldRetrySameCandidate(error, ctx);
           this.emitProviderDiagnostic(category, opts, {
             outcome: retrySameCandidate ? "retrying" : "failed",
             candidate,
@@ -433,6 +453,7 @@ export class ModelRouter {
             phase: failure?.phase ?? "request",
             ...(failure?.httpStatus !== undefined ? { httpStatus: failure.httpStatus } : {}),
             ...(failure?.providerCode !== undefined ? { providerCode: failure.providerCode } : {}),
+            ...(failure?.providerTraceId !== undefined ? { providerTraceId: failure.providerTraceId } : {}),
             attempt: attempt + 1,
             startedAt: attemptStartedAt,
             timeoutMs: totalTimeoutMs,
@@ -441,6 +462,7 @@ export class ModelRouter {
             retryUsed = true;
             continue;
           }
+          if (opts?.signal?.aborted) throw error;
           break;
         }
       }
@@ -461,6 +483,7 @@ export class ModelRouter {
       }
     }
 
+    if (opts?.signal?.aborted) throw opts.signal.reason ?? lastError ?? new Error("request cancelled");
     if (lastError && isExplicitProviderUnavailable(lastError)) {
       const failure = toProviderFailure(lastError);
       throw new ProviderUnavailableError(lastError.message, {
@@ -484,6 +507,7 @@ export class ModelRouter {
       readonly phase: ProviderPhase;
       readonly httpStatus?: number;
       readonly providerCode?: string;
+      readonly providerTraceId?: string;
       readonly attempt: number;
       readonly startedAt: number;
       readonly timeoutMs: number;
@@ -501,6 +525,7 @@ export class ModelRouter {
         phase: event.phase,
         ...(event.httpStatus !== undefined ? { httpStatus: event.httpStatus } : {}),
         ...(event.providerCode !== undefined ? { providerCode: event.providerCode } : {}),
+        ...(event.providerTraceId !== undefined ? { providerTraceId: event.providerTraceId } : {}),
         attempt: event.attempt,
         durationMs: Math.round(performance.now() - event.startedAt),
         timeoutMs: event.timeoutMs,

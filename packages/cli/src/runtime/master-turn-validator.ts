@@ -593,7 +593,7 @@ function validateMasterTurnPlanInner(input: MasterTurnValidationInput): MasterTu
   if (primary.kind !== "interaction" && primary.kind !== "journey" && primary.kind !== "legacy") {
     return { status: "invalid", reason: "action turn requires an action primary intent" };
   }
-  if (proposal.kind === "mixed" && !proposal.question && proposal.supportingClauses.length === 0) {
+  if (proposal.kind === "mixed" && !proposal.question && proposal.supportingClauses.length === 0 && !proposal.questionPlan) {
     return { status: "invalid", reason: "mixed turn requires a question or supporting clause" };
   }
 

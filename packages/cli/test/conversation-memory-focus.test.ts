@@ -210,6 +210,7 @@ it("persists shown identities through SQLite reload without events or DTO leakag
     expect(store.getTurnNarrations(worldId).size).toBe(0);
     expect(runtime.bus.query()).toEqual(before);
     expect(JSON.stringify(reply)).not.toContain("memberIdentities");
+    expect(JSON.stringify(reply)).not.toMatch(/observerRefs|person_[0-9]+/u);
     const stored = store.getConversationTurn(worldId, "shown-list")?.contextMetadata?.shownLists?.[0];
     expect(stored?.memberIdentities?.[0]?.internalId).toBeTruthy();
     const reloaded = createMultiWorldStore(dbPath);

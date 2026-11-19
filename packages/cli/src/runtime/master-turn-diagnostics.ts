@@ -69,6 +69,15 @@ export interface MasterTurnDiagnosticDimensions {
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
   readonly phase?: string | undefined;
+  readonly providerPhase?: string | undefined;
+  readonly httpStatus?: number | undefined;
+  readonly gatewayHttpStatus?: number | undefined;
+  readonly providerCode?: string | undefined;
+  readonly providerTraceId?: string | undefined;
+  readonly retryAfterHeaderRaw?: string | undefined;
+  readonly retryAfterMsParsed?: number | undefined;
+  readonly retryAfterMsApplied?: number | null | undefined;
+  readonly providerRetryable?: boolean | undefined;
   readonly durationMs?: number | undefined;
   readonly correlationId?: string | undefined;
   readonly worldTime?: number | undefined;
@@ -141,6 +150,21 @@ function asText(value: unknown, max = 80): string | undefined {
   return typeof value === "string" && value.length > 0 ? value.slice(0, max) : undefined;
 }
 
+function asSafeToken(value: unknown, max = 128): string | undefined {
+  const text = asText(value, max);
+  return text && /^[A-Za-z0-9_.:-]+$/u.test(text) ? text : undefined;
+}
+
+function asSafeRetryAfter(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 && value.length <= 128
+    && /^[\x20-\x7e]+$/u.test(value) ? value : undefined;
+}
+
+function asHttpStatus(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
+    ? value : undefined;
+}
+
 /**
  * Emits one taxonomy event to the sink. Best-effort: never throws, never
  * carries unlisted keys. Unknown categories pass through untouched so
@@ -159,6 +183,18 @@ export function emitMasterTurnDiagnostic(
       provider: asText(dimensions.provider) ?? "master_turn",
       ...(asText(dimensions.model, 128) ? { model: asText(dimensions.model, 128)! } : {}),
       ...(asText(dimensions.phase) ? { phase: asText(dimensions.phase)! } : {}),
+      ...(asSafeToken(dimensions.providerPhase, 32) ? { providerPhase: asSafeToken(dimensions.providerPhase, 32)! } : {}),
+      ...(asHttpStatus(dimensions.httpStatus) !== undefined ? { httpStatus: asHttpStatus(dimensions.httpStatus)! } : {}),
+      ...(asHttpStatus(dimensions.gatewayHttpStatus) !== undefined ? { gatewayHttpStatus: asHttpStatus(dimensions.gatewayHttpStatus)! } : {}),
+      ...(asSafeToken(dimensions.providerCode, 80) ? { providerCode: asSafeToken(dimensions.providerCode, 80)! } : {}),
+      ...(asSafeToken(dimensions.providerTraceId, 128) ? { providerTraceId: asSafeToken(dimensions.providerTraceId, 128)! } : {}),
+      ...(asSafeRetryAfter(dimensions.retryAfterHeaderRaw) ? { retryAfterHeaderRaw: asSafeRetryAfter(dimensions.retryAfterHeaderRaw)! } : {}),
+      ...(asCount(dimensions.retryAfterMsParsed) !== undefined && asCount(dimensions.retryAfterMsParsed)! >= 0
+        ? { retryAfterMsParsed: asCount(dimensions.retryAfterMsParsed)! } : {}),
+      ...(dimensions.retryAfterMsApplied === null ? { retryAfterMsApplied: null }
+        : asCount(dimensions.retryAfterMsApplied) !== undefined && asCount(dimensions.retryAfterMsApplied)! >= 0
+          ? { retryAfterMsApplied: asCount(dimensions.retryAfterMsApplied)! } : {}),
+      ...(typeof dimensions.providerRetryable === "boolean" ? { providerRetryable: dimensions.providerRetryable } : {}),
       attempt: 1,
       durationMs: asCount(dimensions.durationMs) ?? 0,
       timeoutMs: 0,

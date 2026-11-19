@@ -174,6 +174,12 @@ export class WorldRuntimeManager {
     this.discoveryRefresher = null;
   }
 
+  /** Stop discovery and release provider-owned transports on server shutdown. */
+  async close(): Promise<void> {
+    this.stopDiscoveryRefresh();
+    if (typeof this.sharedRouter?.close === "function") await this.sharedRouter.close();
+  }
+
   async get(worldId: WorldId): Promise<WorldRuntime> {
     const record = this.store.getWorldRecord(worldId);
     if (!record) throw Object.assign(new Error(`World not found: ${worldId}`), { statusCode: 404 });

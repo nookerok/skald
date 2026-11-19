@@ -32,6 +32,7 @@ export interface GmScoreExpectation {
   readonly expectedSubjectHandle?: string | null | undefined;
   readonly expectedQueryId?: string | undefined;
   readonly expectedCandidateHandles?: readonly string[] | undefined;
+  readonly expectedResponseAct?: "greeting" | "farewell" | "thanks" | "gratitude_acknowledgement" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment" | undefined;
 }
 
 export interface GmScoreEntry {
@@ -69,6 +70,7 @@ export interface GmCaseFact {
     readonly expectedSubjectHandle?: string | null | undefined;
     readonly expectedQueryId?: string | undefined;
     readonly expectedCandidateHandles?: readonly string[] | undefined;
+    readonly expectedResponseAct?: string | undefined;
     /** Scene allowlist the decision was validated against. */
     readonly allowedHandles?: readonly string[] | undefined;
   };
@@ -79,6 +81,7 @@ export interface GmCaseFact {
     readonly subjectHandle?: string | undefined;
     readonly candidateHandles?: readonly string[] | undefined;
     readonly queryId?: string | undefined;
+    readonly responseAct?: string | undefined;
   };
   readonly passes: {
     readonly decisionAccepted: boolean;
@@ -88,6 +91,7 @@ export interface GmCaseFact {
     readonly handles: boolean;
     readonly subject: boolean;
     readonly question: boolean;
+    readonly response: boolean;
     readonly privacy: boolean;
   };
   readonly fallbackReason?: string | undefined;
@@ -174,6 +178,16 @@ function questionPass(entry: GmScoreEntry, decision: GmTurnDecision | undefined)
   return primary?.kind === "inquiry" && primary.queryId === expectedQueryId;
 }
 
+/** Require one exact closed social act when a corpus case specifies it. */
+function responsePass(entry: GmScoreEntry, decision: GmTurnDecision | undefined): boolean {
+  const expected = entry.expected.expectedResponseAct;
+  if (expected === undefined) return true;
+  const segments = decision?.response?.segments;
+  return segments?.length === 1
+    && segments[0]?.kind === "social"
+    && segments[0].act === expected;
+}
+
 /** Every string leaf of a decision (question, handle fields, free text). */
 function decisionStrings(value: unknown, out: string[] = []): string[] {
   if (typeof value === "string") { out.push(value); return out; }
@@ -213,6 +227,7 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     handles: { total, passed: 0, failures: [] },
     subject: { total, passed: 0, failures: [] },
     question: { total, passed: 0, failures: [] },
+    response: { total, passed: 0, failures: [] },
     privacy: { total, passed: 0, failures: [] },
   };
   const latencies: number[] = [];
@@ -240,6 +255,9 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
     const questionOk = questionPass(entry, decisionValue);
     if (questionOk) dims.question.passed += 1;
     else dims.question.failures.push(entry.input);
+    const responseOk = responsePass(entry, decisionValue);
+    if (responseOk) dims.response.passed += 1;
+    else dims.response.failures.push(entry.input);
 
     if (decisionValue !== undefined) {
       dims.decisionAccepted.passed += 1;
@@ -265,6 +283,7 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
         expectedSubjectHandle: entry.expected.expectedSubjectHandle,
         expectedQueryId: entry.expected.expectedQueryId,
         expectedCandidateHandles: entry.expected.expectedCandidateHandles !== undefined ? Object.freeze([...entry.expected.expectedCandidateHandles]) : undefined,
+        expectedResponseAct: entry.expected.expectedResponseAct,
         allowedHandles: entry.expected.allowedHandles !== undefined ? Object.freeze([...entry.expected.allowedHandles]) : undefined,
       },
       actual: {
@@ -274,8 +293,10 @@ export function scoreGmCorpus(entries: readonly GmScoreEntry[]): GmScorecard {
         subjectHandle: decisionValue?.subjectHandle,
         candidateHandles: decisionValue?.kind === "clarification" ? decisionValue.clarification?.candidateHandles : undefined,
         queryId: decisionValue?.proposal?.primaryIntent?.kind === "inquiry" ? decisionValue.proposal.primaryIntent.queryId : undefined,
+        responseAct: decisionValue?.response?.segments.length === 1 && decisionValue.response.segments[0]?.kind === "social"
+          ? decisionValue.response.segments[0].act : undefined,
       },
-      passes: { decisionAccepted: decisionValue !== undefined, schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, question: questionOk, privacy: privacyOk },
+      passes: { decisionAccepted: decisionValue !== undefined, schema: entry.trace.schemaValid, addressee: addresseeOk, kind: kindOk, handles: handlesOk, subject: subjectOk, question: questionOk, response: responseOk, privacy: privacyOk },
       fallbackReason: entry.trace.fallbackReason,
       provider: entry.trace.provider,
       model: entry.trace.model,

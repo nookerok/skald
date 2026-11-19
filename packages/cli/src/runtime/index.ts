@@ -5,9 +5,9 @@ export { NarrationScheduler, resolveNarrationState } from "./narration-scheduler
 export type { NarrationJob, NarrationPriority, NarrationRuntimeStatus, NarrationState } from "./narration-scheduler.js";
 export { NarrationDiagnosticLog } from "./narration-diagnostic-log.js";
 export { createProductionDiagnosticSink } from "./narration-diagnostic-prod-sink.js";
-export { AIReadinessService, AI_READINESS_PROBE_TIMEOUT_MS } from "./ai-readiness.js";
+export { AIReadinessService, AI_READINESS_CACHE_MAX_AGE_MS, AI_READINESS_PROBE_TIMEOUT_MS } from "./ai-readiness.js";
 export type { AIReadinessOptions } from "./ai-readiness.js";
-export { createLiveRouterConfiguration, createRouter, createRouterConfiguration, openCodeRunIdentity, refreshRouterSelection, selectionConfigFingerprint } from "./router-factory.js";
+export { createLiveRouterConfiguration, createRouter, createRouterConfiguration, openCodeRunIdentity, openCodeServerIdentity, refreshRouterSelection, selectionConfigFingerprint } from "./router-factory.js";
 export type { LiveRouterConfigurationOptions, RouterConfiguration } from "./router-factory.js";
 export { DISCOVERY_REFRESH_INTERVAL_MS, DiscoveryRefresher, MIN_DISCOVERY_REFRESH_INTERVAL_MS, resolveRefreshIntervalMs } from "./discovery-refresh.js";
 export type { DiscoveryRefreshEvent, DiscoveryRefreshOutcome, DiscoveryRefreshSummary, DiscoveryRefresherOptions } from "./discovery-refresh.js";
@@ -58,3 +58,25 @@ export type {
   SpawnFn,
   SpawnHandle,
 } from "./opencode-run-provider.js";
+export {
+  isOpenCodeServerEnabled,
+  openCodeServerCandidate,
+  parseOpenCodeServerModelRef,
+  OPENCODE_SERVER_DEFAULT_429_COOLDOWN_MS,
+  OPENCODE_SERVER_DEFAULT_PORT,
+  OPENCODE_SERVER_ENABLE_ENV,
+  OPENCODE_SERVER_ALLOW_PAID_PRIMARY_ENV,
+  OPENCODE_SERVER_MAX_MESSAGE_BYTES,
+  OPENCODE_SERVER_MAX_RESPONSE_BYTES,
+  OPENCODE_SERVER_MODEL_ENV,
+  OPENCODE_SERVER_PORT_ENV,
+  OPENCODE_SERVER_PROVIDER_ID,
+  OPENCODE_SERVER_STATE_DIR_ENV,
+  OPENCODE_SERVER_VERSION,
+  OpenCodeServerProvider,
+} from "./opencode-server-provider.js";
+export type {
+  OpenCodeServerModelRef,
+  OpenCodeServerProviderOptions,
+  OpenCodeServerTransport,
+} from "./opencode-server-provider.js";

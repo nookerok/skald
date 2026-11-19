@@ -11,12 +11,21 @@ import { startServer, type StartedServer } from "../src/http-server.js";
 let server: StartedServer | undefined;
 let root: string | undefined;
 
+// One shared instance: the loopback decision endpoint checks evidence
+// freshness against the real clock (recordDecision has no HTTP clock
+// parameter), so the fixture must be date-relative and the persisted report
+// must be compared against the SAME object the screen stub returned.
+let sharedReport: OpenCodeDiscoveryReport | undefined;
+
 function makeReport(): OpenCodeDiscoveryReport {
-  return {
+  if (sharedReport) return sharedReport;
+  const startedAt = new Date(Date.now() - 60_000);
+  const finishedAt = new Date(Date.now() - 59_000);
+  sharedReport = {
     schema: "SKALD_AI_MODEL_DISCOVERY_V1",
     status: "complete",
-    startedAt: "2026-11-11T01:00:00.000Z",
-    finishedAt: "2026-11-11T01:01:00.000Z",
+    startedAt: startedAt.toISOString(),
+    finishedAt: finishedAt.toISOString(),
     source: { region: "RU", catalogModelCount: 1, freeChatCount: 1, catalogDigest: "c".repeat(64) },
     policy: { maxConcurrency: 2, maxCandidates: 24, maxCalls: 96, timeoutMs: 25_000, maxDurationMs: 12 * 60_000, transport: "opencode_cli" },
     providerCallCount: 2,
@@ -47,6 +56,7 @@ function makeReport(): OpenCodeDiscoveryReport {
     }],
     exclusions: [],
   };
+  return sharedReport;
 }
 
 function makeTaskReport(input: {
@@ -61,8 +71,8 @@ function makeTaskReport(input: {
     status: "complete",
     machineVerdict: "pass",
     humanReview: "required",
-    startedAt: "2026-11-11T02:01:00.000Z",
-    finishedAt: "2026-11-11T02:02:00.000Z",
+    startedAt: new Date(Date.now() - 60_000).toISOString(),
+    finishedAt: new Date(Date.now() - 59_000).toISOString(),
     actualCommit: input.actualCommit,
     evidence: {
       discoveryRunId: input.discoveryRunId,

@@ -40,6 +40,8 @@ export interface GmFixture {
     readonly subjectLabel?: string | null;
     readonly queryId?: string;
     readonly candidateLabels?: readonly string[];
+    /** Exact closed social act required for this conversation scenario. */
+    readonly responseAct?: "greeting" | "farewell" | "thanks" | "gratitude_acknowledgement" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment";
   };
   /** Substrings that must never appear in the serialized context. */
   readonly forbidden: readonly string[];
@@ -89,8 +91,11 @@ export function buildGmFixtureScene(fixture: GmFixture): MasterTurnSceneContext 
  * add multi-actor focus, and carry the observable roles used by role questions.
  * v4: assert the exact nearby query, exact clarification candidates and absent subject.
  * v5 (2026-11-04): exercise observer-safe public address forms for an unfamiliar NPC.
+ * v6 (2026-11-07): score the closed no-knowledge response to a direct NPC question.
+ * v7 (2026-11-08): distinguish player gratitude from an NPC topic continuation.
+ * v8 (2026-11-11): require honest no-knowledge for an unsupported NPC dossier question.
  */
-export const GM_CORPUS_VERSION = "gm-corpus-v5";
+export const GM_CORPUS_VERSION = "gm-corpus-v8";
 
 /**
  * The handle the npc expectation names. The corpus stores `npcLabel` and the
@@ -187,6 +192,42 @@ export const GM_CORPUS: readonly GmFixture[] = [
     recentTurns: [],
     expected: { addresseeKind: "npc", kind: "conversation", npcLabel: gatekeeper.label },
     forbidden: ["contact:riverwatch-gatekeeper", gatekeeper.label],
+  },
+  {
+    id: "addressed-npc-question-no-knowledge",
+    input: "Смотритель, почему вы ведёте журнал проходов?",
+    people: [{ ...gatekeeper, addressForms: ["смотритель", "страж ворот"] }],
+    recentTurns: [],
+    expected: {
+      addresseeKind: "npc", kind: "conversation", npcLabel: gatekeeper.label,
+      responseAct: "no_knowledge",
+    },
+    forbidden: ["contact:riverwatch-gatekeeper", gatekeeper.label],
+  },
+  {
+    id: "addressed-npc-question-unsupported-detail",
+    input: "Смотритель, кто последним ушёл по восточному тракту?",
+    people: [{ ...gatekeeper, addressForms: ["смотритель", "страж ворот"] }],
+    recentTurns: [],
+    expected: {
+      addresseeKind: "npc", kind: "conversation", npcLabel: gatekeeper.label,
+      responseAct: "no_knowledge",
+    },
+    forbidden: ["contact:riverwatch-gatekeeper", gatekeeper.label, "вёл журнал проходов"],
+  },
+  {
+    id: "thanks-after-topic-prompt",
+    input: "Спасибо.",
+    people: [ferryman],
+    recentTurns: [
+      { speaker: "player", text: "Хочу поговорить с ним", turnSeq: 1 },
+      { speaker: "master", text: "Перевозчик у переправы: «О чём ты хочешь поговорить?»", turnSeq: 2 },
+    ],
+    expected: {
+      addresseeKind: "npc", kind: "conversation", npcLabel: ferryman.label,
+      responseAct: "gratitude_acknowledgement",
+    },
+    forbidden: ["contact:"],
   },
   {
     id: "retry-request",

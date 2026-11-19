@@ -48,6 +48,19 @@ describe("turn focus stack", () => {
     expect(bindTurnPronouns("иду к Речной Страже", EMPTY_CONVERSATION, scene())).toEqual([]);
   });
 
+  it.each(["здесь", "тут", "отсюда"])("does not bind current-location %s to remembered destination routes", (word) => {
+    const routes = scene({ knownRoutes: [
+      { observerRef: "route_1", kind: "route", label: "Речной Страж", knownAs: [], status: "open" },
+      { observerRef: "route_2", kind: "route", label: "Речной Страж", knownAs: [], status: "open" },
+    ] });
+    const memory = conversation({ recentFocus: [{ kind: "destination", surface: "Речной Страж", turnSeq: 4 }] });
+    expect(bindTurnPronouns(`Я осматриваю развалины и пытаюсь понять, что ${word} произошло`, memory, routes)).toEqual([]);
+    // A genuinely anaphoric destination still retains both distinct identities.
+    const [there] = bindTurnPronouns("Иду туда", memory, routes);
+    expect(there?.candidates).toEqual(["route_1", "route_2"]);
+    expect(there?.resolution).toBe("ambiguous");
+  });
+
   it("resolves a lone person to a single candidate", () => {
     const alone = scene({
       visibleObjects: [],

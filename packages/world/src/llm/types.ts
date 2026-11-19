@@ -1,4 +1,4 @@
-export type ProviderId = "opencode_zen" | "ollama_cloud" | "openrouter" | "opencode_run";
+export type ProviderId = "opencode_zen" | "ollama_cloud" | "openrouter" | "opencode_run" | "opencode_server";
 export type Category = "narrate" | "analyze" | "interpret";
 export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "network_error" | "server_error" | "unknown";
 
@@ -9,11 +9,12 @@ export type HealthStatus = "ok" | "degraded" | "rate_limited" | "forbidden" | "n
  * `openai_chat` is `/chat/completions` with `messages`/`max_tokens` and a
  * `choices` response. `openai_responses` is `/responses` with
  * `input`/`max_output_tokens` and an `output_text`/`output` response.
- * `opencode_run` is not HTTP at all: one local `opencode run --format json`
- * subprocess per call, served by `OpenCodeRunProvider` in `packages/cli`.
- * It must never reach the HTTP transport (see `chatOnce` fail-closed branch).
+ * `opencode_run` is one local CLI subprocess per call. `opencode_server` is
+ * the OpenCode v2 HTTP Server API reached through its official client SDK.
+ * Both are implemented in `packages/cli` and must fail closed if they reach
+ * the generic HTTP provider transport.
  */
-export type ProviderProtocol = "openai_chat" | "openai_responses" | "ollama_chat" | "opencode_run";
+export type ProviderProtocol = "openai_chat" | "openai_responses" | "ollama_chat" | "opencode_run" | "opencode_server";
 
 /**
  * Role of a candidate inside a route matrix.
@@ -61,7 +62,9 @@ export type ProviderPhase =
 
 /**
  * Sanitized description of a failed provider interaction. Contains only
- * operational metadata: never a prompt, response body, header or API key.
+ * operational metadata: never a prompt, response body, API key or arbitrary
+ * provider header. Only bounded Retry-After and request/trace identifiers are
+ * retained from an upstream response.
  */
 export interface ProviderRequestFailure {
   readonly provider: ProviderId;
@@ -69,8 +72,18 @@ export interface ProviderRequestFailure {
   readonly category: Category;
   readonly phase: ProviderPhase;
   readonly httpStatus?: number | undefined;
+  /** Outer gateway status when it wraps a separately reported upstream status. */
+  readonly gatewayHttpStatus?: number | undefined;
   /** Provider error code after sanitization; `undefined` when unusable. */
   readonly providerCode?: string | undefined;
+  /** Bounded request/trace identifier returned by the provider gateway. */
+  readonly providerTraceId?: string | undefined;
+  /** Bounded single-line Retry-After value returned by the provider. */
+  readonly retryAfterHeaderRaw?: string | undefined;
+  /** Parsed provider delay in milliseconds; never application-clamped. */
+  readonly retryAfterMsParsed?: number | undefined;
+  /** Delay actually applied by Skald; null means no delay was applied. */
+  readonly retryAfterMsApplied?: number | null | undefined;
   /** Whether repeating the identical request may succeed. */
   readonly retryable: boolean;
 }
@@ -111,6 +124,8 @@ export interface ChatResult {
   readonly text: string;
   readonly latencyMs: number;
   readonly usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  /** Provider-reported USD cost when the transport exposes a trustworthy value. */
+  readonly reportedCostUsd?: number | undefined;
   readonly provider: ProviderId;
   /** Tier of the candidate that produced this result. */
   readonly tier?: RouteTier | undefined;

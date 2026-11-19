@@ -78,7 +78,18 @@ export interface NarrationLLMDiagnosticEvent {
   readonly phase?: string | undefined;
   /** Safe provider HTTP status/code, when available. */
   readonly httpStatus?: number | undefined;
+  /** Outer gateway status when it wraps a distinct upstream status. */
+  readonly gatewayHttpStatus?: number | undefined;
   readonly providerCode?: string | undefined;
+  /** Bounded opaque provider request/trace identifier. */
+  readonly providerTraceId?: string | undefined;
+  /** Provider protocol phase; separate from the Skald diagnostic phase. */
+  readonly providerPhase?: string | undefined;
+  /** Bounded printable Retry-After header value, if one was received. */
+  readonly retryAfterHeaderRaw?: string | undefined;
+  readonly retryAfterMsParsed?: number | undefined;
+  readonly retryAfterMsApplied?: number | null | undefined;
+  readonly providerRetryable?: boolean | undefined;
   /** Closed failure sub-code for a rejected narration (e.g. allowed_violation:unknown_ref). */
   readonly failureCategory?: string | undefined;
   readonly retryOutcome: RetryOutcome;
@@ -159,7 +170,14 @@ export interface AIDiagnosticEvent {
   readonly configuredModel?: string;
   readonly phase?: string;
   readonly httpStatus?: number;
+  readonly gatewayHttpStatus?: number;
   readonly providerCode?: string;
+  readonly providerTraceId?: string;
+  readonly providerPhase?: string;
+  readonly retryAfterHeaderRaw?: string;
+  readonly retryAfterMsParsed?: number;
+  readonly retryAfterMsApplied?: number | null;
+  readonly providerRetryable?: boolean;
   readonly attempt: number;
   readonly durationMs: number;
   /** New name used by the operational contract. */

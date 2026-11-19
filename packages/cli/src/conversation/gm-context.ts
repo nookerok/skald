@@ -8,13 +8,15 @@
  * back to internal IDs.
  */
 
-import type { MasterTurnSceneContext, SceneEngagementView } from "@skald/world";
+import { eligibleNpcDossierFacts, type MasterSceneReference, type MasterTurnSceneContext, type NpcDossier, type SceneEngagementView } from "@skald/world";
 import type { MasterConversationContext } from "./context-builder.js";
 import { createHash } from "node:crypto";
-import { GM_CONTRACT_VERSION, supportedOperations, type GmContext, type VisibleActorKey } from "@skald/intent-parser";
+import { GM_CONTEXT_VERSION, supportedOperations, type GmContext, type GmNpcFact, type VisibleActorKey } from "@skald/intent-parser";
 
 /** Hard cap on the known-facts slice; the builder owns the bound. */
 export const MAX_KNOWN_FACTS = 8;
+/** Bound NPC dossier material independently from player-known facts. */
+export const MAX_NPC_DOSSIER_FACTS = 16;
 
 /**
  * A stable, opaque handle for one scene observerRef (no shifting on insert).
@@ -32,6 +34,10 @@ export interface GmContextInputs {
   readonly sceneEngagement?: SceneEngagementView | null;
   /** Bounded, observer-safe known facts (max ~8; never the whole belief model). */
   readonly knowledgeTexts?: readonly string[];
+  /** Transient server-only reference table; never copied into the prompt. */
+  readonly sceneReferences?: ReadonlyMap<string, MasterSceneReference>;
+  /** Replay-derived dossier projection, looked up only for visible people. */
+  readonly npcDossiers?: ReadonlyMap<string, NpcDossier>;
 }
 
 export interface GmContextBundle {
@@ -42,6 +48,15 @@ export interface GmContextBundle {
 
 function familiarityOf(known: boolean | undefined): "stranger" | "acquaintance" {
   return known ? "acquaintance" : "stranger";
+}
+
+function opaqueNpcFactId(npcId: string, factId: string): string {
+  return "nf" + createHash("sha256").update(npcId + "\u0000" + factId).digest("hex").slice(0, 16);
+}
+
+function isSafeDossierText(text: string): boolean {
+  return text.trim().length > 0
+    && !/(?:person|object|route|location)_[a-z0-9_-]+|contact:[a-z0-9:_-]+|\b(?:targetRef|internalId|locationId|observerRef)\b|\be[a-f0-9]{12}\b/iu.test(text);
 }
 
 /** Build the observer-safe `GmContext` and the server-side handle map. */
@@ -74,6 +89,31 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
     } as const;
   });
 
+  const visibleKnownText = new Set((inputs.knowledgeTexts ?? []).map((text) => text.trim().toLocaleLowerCase("ru-RU").replace(/ё/gu, "е")));
+  const npcFactIds = new Map<string, string>();
+  const npcFacts: GmNpcFact[] = [];
+  for (const person of ordered) {
+    const reference = inputs.sceneReferences?.get(person.observerRef);
+    if (!reference || reference.kind !== "person") continue;
+    const dossier = inputs.npcDossiers?.get(reference.internalId);
+    if (!dossier || dossier.npcId !== reference.internalId) continue;
+    const subjectHandle = stableActorHandle(person.observerRef);
+    for (const fact of eligibleNpcDossierFacts(dossier, familiarityOf(person.known))) {
+      const text = fact.content.text.trim();
+      if (!isSafeDossierText(text)) continue;
+      if (visibleKnownText.has(text.toLocaleLowerCase("ru-RU").replace(/ё/gu, "е"))) continue;
+      const opaqueId = opaqueNpcFactId(dossier.npcId, fact.factId);
+      const source = dossier.npcId + "\u0000" + fact.factId;
+      const existingSource = npcFactIds.get(opaqueId);
+      if (existingSource !== undefined && existingSource !== source) throw new Error("gm-context: NPC fact handle collision");
+      if (existingSource !== undefined) continue;
+      npcFactIds.set(opaqueId, source);
+      npcFacts.push(Object.freeze({ factId: opaqueId, subjectHandle, kind: fact.kind, text }));
+      if (npcFacts.length >= MAX_NPC_DOSSIER_FACTS) break;
+    }
+    if (npcFacts.length >= MAX_NPC_DOSSIER_FACTS) break;
+  }
+
   const nonPeople = [
     ...inputs.scene.visibleObjects,
     ...inputs.scene.knownRoutes,
@@ -92,7 +132,7 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
   });
 
   const context: GmContext = {
-    schemaVersion: GM_CONTRACT_VERSION,
+    schemaVersion: GM_CONTEXT_VERSION,
     scene: {
       locationDescription: inputs.scene.currentSituation?.description ?? inputs.scene.currentLocation.description,
       worldTime: String(inputs.scene.revision.worldTime),
@@ -109,6 +149,7 @@ export function buildGmContext(inputs: GmContextInputs): GmContextBundle {
       ? { question: inputs.conversation.pendingClarification.question }
       : null,
     knownFacts: (inputs.knowledgeTexts ?? []).slice(0, MAX_KNOWN_FACTS).map((text, index) => ({ factId: `k${index + 1}`, text })),
+    npcFacts,
     supportedOperations: supportedOperations(),
   };
 

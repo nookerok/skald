@@ -19,6 +19,9 @@ import { parseGmProposal } from "./gm-proposal.js";
 /** Contract version carried on every context and decision. */
 export const GM_CONTRACT_VERSION = 2;
 
+/** Context payload version; kept separate from the decision wire version. */
+export const GM_CONTEXT_VERSION = 3;
+
 /** An opaque, server-assigned actor handle (e.g. "e1"). Never a domain ID. */
 export type VisibleActorKey = string;
 
@@ -53,6 +56,14 @@ export interface GmKnownFact {
   readonly text: string;
 }
 
+/** One currently disclosable NPC dossier fact, addressed only by opaque ID. */
+export interface GmNpcFact {
+  readonly factId: string;
+  readonly subjectHandle: VisibleActorKey;
+  readonly kind: "world_truth" | "npc_belief" | "npc_secret";
+  readonly text: string;
+}
+
 export interface SupportedOperationDescriptor {
   readonly verb: string;
   readonly kind: "interaction" | "legacy" | "journey";
@@ -60,7 +71,7 @@ export interface SupportedOperationDescriptor {
 
 /** The observer-safe context the model receives. Never the whole World. */
 export interface GmContext {
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
   scene: GmSceneContext;
   actors: readonly GmActor[];
   /** Non-person scene candidates; handles are opaque, just like actor handles. */
@@ -68,6 +79,8 @@ export interface GmContext {
   recentTurns: readonly GmHistoryTurn[];
   pendingQuestion: { question: string; candidateHandles?: readonly VisibleActorKey[] } | null;
   knownFacts: readonly GmKnownFact[];
+  /** Eligible facts from visible NPC dossiers; never canonical fact IDs. */
+  npcFacts: readonly GmNpcFact[];
   supportedOperations: readonly SupportedOperationDescriptor[];
 }
 
@@ -84,8 +97,9 @@ export type GmTurnKind = "conversation" | "world_question" | "clarification" | "
  * Free NPC knowledge/voice requires the separate dossier/disclosure contract.
  */
 export type GmResponseSegment =
-  | { readonly kind: "social"; readonly act: "greeting" | "farewell" | "thanks" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment" }
-  | { readonly kind: "fact"; readonly factId: string };
+  | { readonly kind: "social"; readonly act: "greeting" | "farewell" | "thanks" | "gratitude_acknowledgement" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment" }
+  | { readonly kind: "fact"; readonly factId: string }
+  | { readonly kind: "npc_fact"; readonly factId: string };
 
 /** Structured interpretation. Plans are proposals, never executable authority. */
 export interface GmTurnDecision {
@@ -141,7 +155,12 @@ function validateHandle(handle: unknown, path: string, errors: string[]): handle
  */
 export function validateGmTurnDecision(
   raw: unknown,
-  options: { readonly allowedHandles?: readonly VisibleActorKey[]; readonly allowedActorHandles?: readonly VisibleActorKey[]; readonly allowedFactIds?: readonly string[] } = {},
+  options: {
+    readonly allowedHandles?: readonly VisibleActorKey[];
+    readonly allowedActorHandles?: readonly VisibleActorKey[];
+    readonly allowedFactIds?: readonly string[];
+    readonly allowedNpcFacts?: readonly { readonly factId: string; readonly subjectHandle: VisibleActorKey }[];
+  } = {},
 ): GmValidationResult {
   const errors: string[] = [];
   const actorHandles = options.allowedActorHandles ?? options.allowedHandles;
@@ -242,7 +261,7 @@ export function validateGmTurnDecision(
         if (!isPlainObject(segment)) { errors.push("response.segment: not an object"); continue; }
         if (segment["kind"] === "social") {
           collectExtraKeys(segment, ["kind", "act"], "response.segment", errors);
-          if (typeof segment["act"] !== "string" || !["greeting", "farewell", "thanks", "acknowledge", "ask_topic", "no_knowledge", "no_commitment"].includes(segment["act"])) {
+          if (typeof segment["act"] !== "string" || !["greeting", "farewell", "thanks", "gratitude_acknowledgement", "acknowledge", "ask_topic", "no_knowledge", "no_commitment"].includes(segment["act"])) {
             errors.push("response.segment: unsupported social act");
           }
         } else if (segment["kind"] === "fact") {
@@ -251,6 +270,17 @@ export function validateGmTurnDecision(
             || !options.allowedFactIds?.includes(segment["factId"])) errors.push("response.segment: unknown fact");
           // Knowing a player fact does not grant an NPC knowledge of it.
           if (isPlainObject(addressee) && addressee["kind"] === "npc") errors.push("response.segment: NPC disclosure requires a dossier");
+        } else if (segment["kind"] === "npc_fact") {
+          collectExtraKeys(segment, ["kind", "factId"], "response.segment", errors);
+          const fact = typeof segment["factId"] === "string"
+            ? options.allowedNpcFacts?.find((entry) => entry.factId === segment["factId"])
+            : undefined;
+          if (!fact) errors.push("response.segment: unknown NPC dossier fact");
+          if (!isPlainObject(addressee) || addressee["kind"] !== "npc") {
+            errors.push("response.segment: NPC dossier facts require an NPC addressee");
+          } else if (fact && addressee["handle"] !== fact.subjectHandle) {
+            errors.push("response.segment: NPC dossier fact belongs to a different actor");
+          }
         } else errors.push("response.segment: unknown kind");
       }
     }

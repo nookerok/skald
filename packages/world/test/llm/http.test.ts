@@ -60,6 +60,58 @@ describe("provider HTTP transport", () => {
     expect(shouldRetrySameCandidate(error)).toBe([429, 500, 502, 503, 504].includes(status));
   });
 
+  it("keeps Retry-After source, parsed value and unapplied delay distinct", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers({ "retry-after": "90" }),
+      text: async () => JSON.stringify({ error: { code: "rate_limited", message: "secret provider body" } }),
+    }));
+
+    const thrown = await chatOnce("https://provider.invalid/v1", "secret-api-key", OPEN_CODE.model, messages, {
+      provider: OPEN_CODE.provider,
+      protocol: OPEN_CODE.protocol,
+      category: "interpret",
+      maxTokens: 8,
+    }).catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(ProviderRequestError);
+    const error = thrown as ProviderRequestError;
+    expect(error).toMatchObject({
+      httpStatus: 429,
+      providerCode: "rate_limited",
+      retryAfterHeaderRaw: "90",
+      retryAfterMsParsed: 90_000,
+      retryAfterMs: 90_000,
+      retryAfterMsApplied: null,
+    });
+    const failure = toProviderFailure(error);
+    expect(failure).toMatchObject({ retryAfterHeaderRaw: "90", retryAfterMsParsed: 90_000, retryAfterMsApplied: null });
+    expect(JSON.stringify(failure)).not.toContain("secret provider body");
+    expect(JSON.stringify(failure)).not.toContain("secret-api-key");
+  });
+
+  it("retains only a bounded safe provider trace identifier", () => {
+    const safe = new ProviderRequestError({
+      provider: "opencode_server",
+      model: "opencode/free-model",
+      category: "narrate",
+      phase: "response_status",
+      httpStatus: 500,
+      providerTraceId: "req-123.trace:1",
+    });
+    const unsafe = new ProviderRequestError({
+      provider: "opencode_server",
+      model: "opencode/free-model",
+      category: "narrate",
+      phase: "response_status",
+      httpStatus: 500,
+      providerTraceId: "trace id with spaces",
+    });
+    expect(toProviderFailure(safe)?.providerTraceId).toBe("req-123.trace:1");
+    expect(toProviderFailure(unsafe)?.providerTraceId).toBeUndefined();
+  });
+
   it("maps Ollama string-shaped missing-model errors without leaking the provider text", async () => {
     const code = await readProviderErrorCode({
       text: async () => JSON.stringify({ error: "model 'missing-model' not found, try pulling it first" }),
@@ -419,6 +471,21 @@ describe("per-model Zen wire protocol", () => {
       retryable: false,
     });
     expect((denied as Error).message).toContain("OpenCodeRunProvider");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("refuses the OpenCode Server protocol at the generic HTTP layer without network", async () => {
+    const fetchImpl = vi.fn();
+    const denied = await chatOnce("http://127.0.0.1:4097", "key", "opencode/model", messages, {
+      provider: "opencode_server",
+      protocol: "opencode_server",
+      category: "narrate",
+      maxTokens: 16,
+      fetchImpl,
+    }).catch((error: unknown) => error);
+    expect(denied).toBeInstanceOf(ProviderRequestError);
+    expect(denied as ProviderRequestError).toMatchObject({ provider: "opencode_server", phase: "configuration", retryable: false });
+    expect((denied as Error).message).toContain("OpenCodeServerProvider");
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

@@ -3,9 +3,9 @@
  *
  * `ProviderUnavailableError` marks a deliberate provider refusal.
  * `ProviderRequestError` carries a sanitized, structured description of any
- * failed provider round-trip: phase, HTTP status and a sanitized provider
- * error code. Raw provider bodies, messages, headers and API keys never
- * enter these objects.
+ * failed provider round-trip: phase, HTTP status, a sanitized provider code,
+ * and narrowly scoped Retry-After metadata. Raw provider bodies, messages,
+ * other headers and API keys never enter these objects.
  */
 
 import { LLM_CONFIG } from "./config.js";
@@ -33,8 +33,10 @@ export const MODEL_SCOPED_PROVIDER_CODES: readonly string[] = Object.freeze([
 
 /** Maximum accepted length of a sanitized provider error code. */
 export const MAX_PROVIDER_CODE_LENGTH = 80;
+const MAX_RETRY_AFTER_HEADER_LENGTH = 128;
 
 const SAFE_PROVIDER_CODE = /^[a-zA-Z0-9_.:-]+$/;
+const SAFE_PROVIDER_TRACE_ID = /^[a-zA-Z0-9_.:-]{1,128}$/;
 const LEGACY_HTTP_STATUS = /HTTP\s+(\d{3})/i;
 const PROVIDER_PHASES: readonly ProviderPhase[] = Object.freeze([
   "configuration",
@@ -62,6 +64,23 @@ export function sanitizeProviderCode(raw: unknown): string | undefined {
   if (trimmed.length === 0 || trimmed.length > MAX_PROVIDER_CODE_LENGTH) return undefined;
   if (!SAFE_PROVIDER_CODE.test(trimmed)) return undefined;
   return trimmed;
+}
+
+function sanitizeRetryAfterHeader(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_RETRY_AFTER_HEADER_LENGTH) return undefined;
+  return /^[\x20-\x7e]+$/u.test(raw) ? raw : undefined;
+}
+
+function sanitizeProviderTraceId(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw.length > 128) return undefined;
+  const value = raw.trim();
+  return SAFE_PROVIDER_TRACE_ID.test(value) ? value : undefined;
+}
+
+function safeRetryDelayMs(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER
+    ? Math.floor(value)
+    : undefined;
 }
 
 /**
@@ -110,9 +129,18 @@ export interface ProviderRequestErrorOptions {
   readonly phase: ProviderPhase;
   readonly category?: Category | undefined;
   readonly httpStatus?: number | undefined;
+  readonly gatewayHttpStatus?: number | undefined;
   /** Raw provider code; sanitized before it is stored. */
   readonly providerCode?: string | undefined;
-  /** Bounded retry delay parsed from a structured provider error, in ms. */
+  /** Provider request identifier; sanitized before it is stored. */
+  readonly providerTraceId?: string | undefined;
+  /** Retry-After value returned by the provider (bounded and single-line). */
+  readonly retryAfterHeaderRaw?: string | undefined;
+  /** Parsed Retry-After delay in milliseconds, without application clamping. */
+  readonly retryAfterMsParsed?: number | undefined;
+  /** Delay actually applied by Skald; null means no delay was applied. */
+  readonly retryAfterMsApplied?: number | null | undefined;
+  /** @deprecated Use retryAfterMsParsed; retained for compatibility. */
   readonly retryAfterMs?: number | undefined;
   readonly retryable?: boolean | undefined;
   /** Short safe reason used when there is no HTTP status. */
@@ -128,7 +156,13 @@ export class ProviderRequestError extends Error {
   readonly category: Category;
   readonly phase: ProviderPhase;
   readonly httpStatus: number | undefined;
+  readonly gatewayHttpStatus: number | undefined;
   readonly providerCode: string | undefined;
+  readonly providerTraceId: string | undefined;
+  readonly retryAfterHeaderRaw: string | undefined;
+  readonly retryAfterMsParsed: number | undefined;
+  readonly retryAfterMsApplied: number | null;
+  /** @deprecated Use retryAfterMsParsed; retained for compatibility. */
   readonly retryAfterMs: number | undefined;
   readonly retryable: boolean;
 
@@ -142,10 +176,16 @@ export class ProviderRequestError extends Error {
     this.category = opts.category ?? "narrate";
     this.phase = opts.phase;
     this.httpStatus = httpStatus;
+    this.gatewayHttpStatus = Number.isInteger(opts.gatewayHttpStatus) && opts.gatewayHttpStatus! >= 100 && opts.gatewayHttpStatus! <= 599
+      ? opts.gatewayHttpStatus : undefined;
     this.providerCode = providerCode;
-    this.retryAfterMs = typeof opts.retryAfterMs === "number" && Number.isFinite(opts.retryAfterMs)
-      ? Math.min(60_000, Math.max(0, Math.floor(opts.retryAfterMs)))
-      : undefined;
+    this.providerTraceId = sanitizeProviderTraceId(opts.providerTraceId);
+    this.retryAfterHeaderRaw = sanitizeRetryAfterHeader(opts.retryAfterHeaderRaw);
+    this.retryAfterMsParsed = safeRetryDelayMs(opts.retryAfterMsParsed ?? opts.retryAfterMs);
+    this.retryAfterMs = this.retryAfterMsParsed;
+    this.retryAfterMsApplied = opts.retryAfterMsApplied === null
+      ? null
+      : safeRetryDelayMs(opts.retryAfterMsApplied) ?? null;
     this.retryable = opts.retryable ?? isRetryableProviderFailure(opts.phase, httpStatus);
   }
 
@@ -157,7 +197,12 @@ export class ProviderRequestError extends Error {
       category: this.category,
       phase: this.phase,
       httpStatus: this.httpStatus,
+      ...(this.gatewayHttpStatus !== undefined ? { gatewayHttpStatus: this.gatewayHttpStatus } : {}),
       providerCode: this.providerCode,
+      ...(this.providerTraceId !== undefined ? { providerTraceId: this.providerTraceId } : {}),
+      ...(this.retryAfterHeaderRaw !== undefined ? { retryAfterHeaderRaw: this.retryAfterHeaderRaw } : {}),
+      ...(this.retryAfterMsParsed !== undefined ? { retryAfterMsParsed: this.retryAfterMsParsed } : {}),
+      retryAfterMsApplied: this.retryAfterMsApplied,
       retryable: this.retryable,
     };
   }
@@ -202,7 +247,8 @@ function defaultProvider(): ProviderId {
 }
 
 function isProviderId(value: unknown): value is ProviderId {
-  return value === "opencode_zen" || value === "ollama_cloud" || value === "openrouter";
+  return value === "opencode_zen" || value === "ollama_cloud" || value === "openrouter"
+    || value === "opencode_run" || value === "opencode_server";
 }
 
 /**
@@ -229,6 +275,18 @@ export function toProviderFailure(err: unknown, ctx: ProviderFailureContext = {}
         phase,
         httpStatus,
         providerCode: sanitizeProviderCode(typed.providerCode),
+        ...(sanitizeProviderTraceId(typed.providerTraceId) !== undefined
+          ? { providerTraceId: sanitizeProviderTraceId(typed.providerTraceId) }
+          : {}),
+        ...(sanitizeRetryAfterHeader(typed.retryAfterHeaderRaw) !== undefined
+          ? { retryAfterHeaderRaw: sanitizeRetryAfterHeader(typed.retryAfterHeaderRaw) }
+          : {}),
+        ...(safeRetryDelayMs(typed.retryAfterMsParsed) !== undefined
+          ? { retryAfterMsParsed: safeRetryDelayMs(typed.retryAfterMsParsed) }
+          : {}),
+        retryAfterMsApplied: typed.retryAfterMsApplied === null
+          ? null
+          : safeRetryDelayMs(typed.retryAfterMsApplied) ?? null,
         retryable: typeof typed.retryable === "boolean" ? typed.retryable : isRetryableProviderFailure(phase, httpStatus),
       };
     }

@@ -29,6 +29,21 @@ import {
   openCodeRunCliMajor,
 } from "./opencode-run-provider.js";
 import type { OpenCodeRunManifestSnapshot } from "./opencode-run-provider.js";
+import {
+  isOpenCodeServerEnabled,
+  OPENCODE_SERVER_MODEL_ENV,
+  OPENCODE_SERVER_FALLBACK_MODEL_ENV,
+  OPENCODE_SERVER_ALLOW_PAID_FALLBACK_ENV,
+  OPENCODE_SERVER_ALLOW_PAID_PRIMARY_ENV,
+  OPENCODE_SERVER_PORT_ENV,
+  OPENCODE_SERVER_MAX_CONCURRENCY_ENV,
+  OPENCODE_SERVER_STATE_DIR_ENV,
+  OPENCODE_SERVER_VERSION,
+  OPENCODE_SERVER_PROVIDER_ID,
+  openCodeServerCandidates,
+  openCodeServerAgentConfigDigest,
+  OpenCodeServerProvider,
+} from "./opencode-server-provider.js";
 
 export interface RouterConfiguration {
   readonly router: ModelRouter | null;
@@ -36,6 +51,8 @@ export interface RouterConfiguration {
   readonly missingProviders: readonly ProviderId[];
   readonly configFingerprint: string;
   readonly selectionReport?: LiveModelSelectionReport;
+  /** Read-only provider startup probe; absent for transports that need no prewarm. */
+  readonly prewarm?: () => Promise<void>;
 }
 
 export interface LiveRouterConfigurationOptions {
@@ -62,7 +79,50 @@ function routerMaterial(
     `required=${env.SKALD_AI_REQUIRED === "1" ? "1" : "0"}`,
     ...providers.map((provider) => `${provider}:${providerKeys[provider] ? "configured" : "missing"}`),
     openCodeRunIdentity(env, manifestDigest),
+    openCodeServerIdentity(env),
   ].join("|");
+}
+
+/** Secret-free identity for the explicitly pinned OpenCode Server transport. */
+export function openCodeServerIdentity(env: NodeJS.ProcessEnv = process.env): string {
+  const enabled = isOpenCodeServerEnabled(env);
+  const model = env[OPENCODE_SERVER_MODEL_ENV] ?? "missing";
+  const fallback = env[OPENCODE_SERVER_FALLBACK_MODEL_ENV] ?? "none";
+  const allowPaidFallback = env[OPENCODE_SERVER_ALLOW_PAID_FALLBACK_ENV] === "1" ? "1" : "0";
+  const allowPaidPrimary = env[OPENCODE_SERVER_ALLOW_PAID_PRIMARY_ENV] === "1" ? "1" : "0";
+  const port = env[OPENCODE_SERVER_PORT_ENV] ?? "default";
+  const concurrency = env[OPENCODE_SERVER_MAX_CONCURRENCY_ENV] ?? "default";
+  return "opencode_server:" + (enabled ? "enabled" : "disabled") + ":" + model
+    + ":fallback=" + fallback + ":paidPrimary=" + allowPaidPrimary + ":paidFallback=" + allowPaidFallback
+    + ":port=" + port + ":concurrency=" + concurrency + ":v" + OPENCODE_SERVER_VERSION
+    + ":agents=" + openCodeServerAgentConfigDigest();
+}
+
+function withOpenCodeServerPrimary(selection: LiveModelSelectionReport, env: NodeJS.ProcessEnv): LiveModelSelectionReport {
+  const serverCandidates = isOpenCodeServerEnabled(env) ? openCodeServerCandidates(env) : [];
+  if (serverCandidates.length === 0) return selection;
+  return {
+    ...selection,
+    routes: {
+      ...selection.routes,
+      // Only the explicitly pinned OpenCode primary and fallback may handle
+      // gameplay requests. Do not silently fall through to an unrelated
+      // provider (which could be paid) when the selected OpenCode model fails.
+      interpret: serverCandidates,
+      narrate: serverCandidates,
+    },
+  };
+}
+
+function openCodeServerStaticRoutes(env: NodeJS.ProcessEnv): Partial<Record<"interpret" | "narrate" | "analyze", readonly RouteCandidate[]>> | undefined {
+  if (!isOpenCodeServerEnabled(env)) return undefined;
+  const candidates = openCodeServerCandidates(env);
+  if (candidates.length === 0) return undefined;
+  return {
+    interpret: candidates,
+    narrate: candidates,
+    analyze: [],
+  };
 }
 
 /**
@@ -165,7 +225,7 @@ export function refreshRouterSelection(
 ): string {
   // The subprocess is not trusted as an active fallback by default. Refresh
   // mirrors startup and removes stale candidates unless both opt-ins hold.
-  const effective = withOpenCodeRunNarrateFallback(selection, env);
+  const effective = withOpenCodeServerPrimary(withOpenCodeRunNarrateFallback(selection, env), env);
   // Fingerprint what the live router actually serves: prefer its pinned
   // manifest digest over re-reading the file, so a checkout change after
   // startup cannot desync reporting from serving.
@@ -187,13 +247,17 @@ function buildRouter(
   // The local-subprocess transport is keyless by design, so it never appears
   // in providerKeys; its presence is an explicit per-host opt-in instead.
   const useOpenCodeRun = isOpenCodeRunEnabled(env);
+  const useOpenCodeServer = isOpenCodeServerEnabled(env);
   const availableProviders = [
-    ...providers.filter((provider) => Boolean(providerKeys[provider])),
+    ...providers.filter((provider) => provider !== OPENCODE_SERVER_PROVIDER_ID && Boolean(providerKeys[provider])),
     ...(useOpenCodeRun ? ["opencode_run" as const] : []),
+    ...(useOpenCodeServer ? [OPENCODE_SERVER_PROVIDER_ID] : []),
   ];
-  const primary = availableProviders.includes("opencode_zen") ? "opencode_zen" : availableProviders[0];
+  const primary = useOpenCodeServer
+    ? OPENCODE_SERVER_PROVIDER_ID
+    : availableProviders.includes("opencode_zen") ? "opencode_zen" : availableProviders[0];
   if (!primary) return null;
-  if (!useOpenCodeRun) {
+  if (!useOpenCodeRun && !useOpenCodeServer) {
     return new ModelRouter({
       providerKeys,
       ...(providerKeys[primary] !== undefined ? { apiKey: providerKeys[primary] } : {}),
@@ -206,7 +270,7 @@ function buildRouter(
       ...(liveSelection ? { liveSelection } : {}),
     });
   }
-  return new OpenCodeRunProvider({
+  const providerOptions = {
     providerKeys,
     ...(providerKeys[primary] !== undefined ? { apiKey: providerKeys[primary] } : {}),
     boundedRetries: true,
@@ -225,7 +289,26 @@ function buildRouter(
       ...(env[OPENCODE_RUN_MANIFEST_ENV] ? { agentManifestPath: env[OPENCODE_RUN_MANIFEST_ENV] } : {}),
       ...(transportSnapshot ? { agentManifestContent: transportSnapshot.content, agentManifestDigest: transportSnapshot.sha256 } : {}),
     },
-  });
+  };
+  if (useOpenCodeServer) {
+    return new OpenCodeServerProvider({
+      ...providerOptions,
+      opencodeServer: {
+        enabled: true,
+        ...(env[OPENCODE_SERVER_MODEL_ENV] ? { model: env[OPENCODE_SERVER_MODEL_ENV] } : {}),
+        ...(env[OPENCODE_SERVER_FALLBACK_MODEL_ENV] ? { fallbackModel: env[OPENCODE_SERVER_FALLBACK_MODEL_ENV] } : {}),
+        allowPaidFallback: env[OPENCODE_SERVER_ALLOW_PAID_FALLBACK_ENV] === "1",
+        allowPaidPrimary: env[OPENCODE_SERVER_ALLOW_PAID_PRIMARY_ENV] === "1",
+        ...(env[OPENCODE_SERVER_MAX_CONCURRENCY_ENV] ? { maxConcurrency: Number(env[OPENCODE_SERVER_MAX_CONCURRENCY_ENV]) } : {}),
+        ...(env.SKALD_OPENCODE_BIN ? { binary: env.SKALD_OPENCODE_BIN } : {}),
+        ...(env[OPENCODE_SERVER_PORT_ENV] ? { port: Number(env[OPENCODE_SERVER_PORT_ENV]) } : {}),
+        ...(env[OPENCODE_SERVER_STATE_DIR_ENV] ? { stateDir: env[OPENCODE_SERVER_STATE_DIR_ENV] } : {}),
+        apiKey: keyValue(env, "opencode_server"),
+        expectedVersion: OPENCODE_SERVER_VERSION,
+      },
+    });
+  }
+  return new OpenCodeRunProvider(providerOptions);
 }
 
 /**
@@ -243,19 +326,23 @@ export function createRouterConfiguration(env: NodeJS.ProcessEnv = process.env):
   const requiredProviders: readonly ProviderId[] = ["opencode_zen"];
   const missingProviders = required ? requiredProviders.filter((provider) => !providerKeys[provider]) : [];
   const configFingerprint = createHash("sha256").update(routerMaterial(env, providers, providerKeys), "utf8").digest("hex");
-  const router = buildRouter(env, providerKeys, providers, configFingerprint);
+  const router = buildRouter(env, providerKeys, providers, configFingerprint, openCodeServerStaticRoutes(env));
+  const prewarm = router instanceof OpenCodeServerProvider ? () => router.prewarm() : undefined;
   return {
     router,
     required,
     missingProviders: Object.freeze([...missingProviders]),
     configFingerprint,
+    ...(prewarm ? { prewarm } : {}),
   };
 }
 
 /**
  * Discover the live Zen catalogue and activate only candidates that pass both
  * authenticated no-world probes. This is intentionally async and is called
- * before the production HTTP server begins accepting requests.
+ * before the production HTTP server begins accepting requests. An explicit
+ * OpenCode Server pin returns its static routes without probing providers that
+ * would be discarded.
  *
  * When Zen activates nothing and an Ollama Cloud credential is configured,
  * the pinned Ollama backup model is probed instead (Zen-first ordering is
@@ -266,6 +353,10 @@ export async function createLiveRouterConfiguration(
   options: LiveRouterConfigurationOptions = {},
 ): Promise<RouterConfiguration> {
   const base = createRouterConfiguration(env);
+  // An explicitly pinned OpenCode Server route is already the complete
+  // effective selection. Do not probe unrelated providers (which will be
+  // discarded below), and do not imply live route discovery validated it.
+  if (isOpenCodeServerEnabled(env)) return base;
   const zenKey = keyValue(env, "opencode_zen");
   const ollamaKey = keyValue(env, "ollama_cloud");
   const openrouterKey = keyValue(env, "openrouter");
@@ -290,7 +381,7 @@ export async function createLiveRouterConfiguration(
     ? loadAgentManifestSnapshot(env[OPENCODE_RUN_MANIFEST_ENV] ?? OPENCODE_RUN_AGENT_MANIFEST_DEFAULT_PATH)
     : null;
   // Startup and refresh share the same fail-closed fallback policy.
-  const effectiveSelection = withOpenCodeRunNarrateFallback(selectionReport, env);
+  const effectiveSelection = withOpenCodeServerPrimary(withOpenCodeRunNarrateFallback(selectionReport, env), env);
   const configFingerprint = selectionConfigFingerprint(env, effectiveSelection, transportSnapshot?.sha256 ?? null);
   // opencode_run goes last on narrate only: it is the newest, slowest
   // transport, so existing candidates keep priority until data says otherwise.
@@ -301,12 +392,14 @@ export async function createLiveRouterConfiguration(
     analyze: [] as readonly RouteCandidate[],
   };
   const router = buildRouter(env, providerKeys, providers, configFingerprint, routes, effectiveSelection, transportSnapshot);
+  const prewarm = router instanceof OpenCodeServerProvider ? () => router.prewarm() : undefined;
   return {
     router,
     required: base.required,
     missingProviders: base.missingProviders,
     configFingerprint,
     selectionReport: effectiveSelection,
+    ...(prewarm ? { prewarm } : {}),
   };
 }
 

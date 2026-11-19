@@ -1227,7 +1227,11 @@ function hasNegation(text: string): boolean {
  * Semantic grounding is not provable here — negative tests and the live corpus
  * cover it.
  */
-export function verifyAllowedNarration(response: string, allowed: AllowedNarrativeFacts): AllowedNarrationVerification {
+export function verifyAllowedNarration(
+  response: string,
+  allowed: AllowedNarrativeFacts,
+  options?: { readonly exactFacts?: boolean },
+): AllowedNarrationVerification {
   const fail = (reason: string): AllowedNarrationVerification => ({ ok: false, narration: "", usedRefs: [], reason });
   let parsed: { narration?: unknown; claims?: unknown; coveredMandatory?: unknown };
   // The model often wraps the object in a markdown fence or prose. Extract the
@@ -1249,6 +1253,7 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
   if (claims.length === 0) return fail("missing_claims");
   const usedRefs: string[] = [];
   const claimTexts: string[] = [];
+  const compact = (text: string) => text.trim().replace(/\s+/gu, " ");
   for (const raw of claims) {
     if (typeof raw !== "object" || raw === null) return fail("invalid_claim");
     const claim = raw as { text?: unknown; ref?: unknown; assertion?: unknown };
@@ -1257,6 +1262,7 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
     if (!isAllowedAssertion(claim.assertion)) return fail("invalid_assertion");
     const fact = byRef.get(claim.ref)!;
     if (ALLOWED_ASSERTION_STRENGTH[claim.assertion] > ALLOWED_ASSERTION_STRENGTH[fact.assertion]) return fail("class_upgrade");
+    if (options?.exactFacts && compact(claim.text) !== compact(fact.content)) return fail("fact_mismatch");
     if (wordOverlap(contentWords(claim.text), new Set(contentWords(fact.content))) < CLAIM_FACT_MIN_OVERLAP) return fail("fact_mismatch");
     // Parity on top of the overlap filter: a claim may not flip the fact's
     // negation («проход открыт» citing «проход не открыт»).
@@ -1267,6 +1273,7 @@ export function verifyAllowedNarration(response: string, allowed: AllowedNarrati
     usedRefs.push(claim.ref);
     claimTexts.push(claim.text);
   }
+  if (options?.exactFacts && compact(narration) !== compact(claimTexts.join(" "))) return fail("undeclared_content");
   // The final text must agree with the declared parts: every claim is present
   // in the narration, and every substantive narration sentence is declared by a
   // claim. This is structural — semantic truth stays with the live corpus.
@@ -1312,9 +1319,13 @@ function allowedAnswerSystemPrompt(): string {
  * Exported so fixed-corpus evaluations can fingerprint and exercise the same
  * prompt without duplicating prompt policy.
  */
-export function buildAllowedAnswerMessages(allowed: AllowedNarrativeFacts): readonly ChatMessage[] {
+export function buildAllowedAnswerMessages(allowed: AllowedNarrativeFacts, options?: { readonly exactFacts?: boolean }): readonly ChatMessage[] {
+  const exactFactsInstruction = options?.exactFacts
+    ? " В этом ходе allowed.facts уже сформулированы для игрока. Скопируй каждую обязательную строку дословно в claims с её ref и assertion, сохрани порядок: результат действия, затем ответ на вопрос. " +
+      "Поле narration — только соединение claims[i].text через один пробел в том же порядке, без вступления, заголовков, новых деталей или заключения. В coveredMandatory скопируй allowed.mandatory."
+    : "";
   return Object.freeze([
-    Object.freeze({ role: "system" as const, content: allowedAnswerSystemPrompt() }),
+    Object.freeze({ role: "system" as const, content: allowedAnswerSystemPrompt() + exactFactsInstruction }),
     Object.freeze({ role: "user" as const, content: JSON.stringify({ allowed }) }),
   ]);
 }
@@ -1328,7 +1339,7 @@ export async function narrateAllowedAnswerLLM(
   allowed: AllowedNarrativeFacts,
   worldTime: number,
   router: ModelRouter | null,
-  opts?: NarrationOptions,
+  opts?: NarrationOptions & { readonly exactFacts?: boolean },
 ): Promise<TurnNarration> {
   const sink = opts?.diagnostics;
   const priority = opts?.priority ?? "interactive";
@@ -1355,7 +1366,7 @@ export async function narrateAllowedAnswerLLM(
 
   const maxAttempts = 1 + retryCount(opts?.maxRetries);
   const retryBaseMs = opts?.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
-  const messages: ChatMessage[] = [...buildAllowedAnswerMessages(allowed)];
+  const messages: ChatMessage[] = [...buildAllowedAnswerMessages(allowed, opts)];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const start = performance.now();
@@ -1368,7 +1379,7 @@ export async function narrateAllowedAnswerLLM(
         priority,
       });
       const durationMs = Math.round(performance.now() - start);
-      const verification = verifyAllowedNarration(result.text, allowed);
+      const verification = verifyAllowedNarration(result.text, allowed, opts);
       if (!verification.ok) {
         // One repair attempt with the exact schema: the model often echoes an
         // older shape (sourceFactId/epistemicClass) on the first call.

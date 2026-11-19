@@ -138,6 +138,26 @@ describe("master turn diagnostic taxonomy", () => {
     expect(JSON.stringify(seen)).not.toContain("С кем?");
   });
 
+  it("emits only sanitized provider failure metadata", () => {
+    const seen: unknown[] = [];
+    emitMasterTurnDiagnostic((event) => seen.push(event), {
+      category: "gm_director", outcome: "fallback", providerPhase: "response_status",
+      httpStatus: 429, gatewayHttpStatus: 502, providerCode: "rate_limit_exceeded",
+      providerTraceId: "trace-123", retryAfterMsParsed: 60_000, retryAfterMsApplied: null,
+      providerRetryable: true, retryAfterHeaderRaw: "60\r\nAuthorization: leaked",
+      rawBody: "secret response body",
+    } as any);
+
+    expect(seen[0]).toMatchObject({
+      providerPhase: "response_status", httpStatus: 429, gatewayHttpStatus: 502,
+      providerCode: "rate_limit_exceeded", providerTraceId: "trace-123",
+      retryAfterMsParsed: 60_000, retryAfterMsApplied: null, providerRetryable: true,
+    });
+    expect(seen[0]).not.toHaveProperty("retryAfterHeaderRaw");
+    expect(JSON.stringify(seen)).not.toContain("Authorization");
+    expect(JSON.stringify(seen)).not.toContain("secret response body");
+  });
+
   it("never throws and no-ops without a sink", () => {
     expect(() => emitMasterTurnDiagnostic(undefined, { category: "primary_executed", outcome: "accepted" })).not.toThrow();
     expect(() => emitMasterTurnDiagnostic(() => { throw new Error("sink down"); }, { category: "primary_executed", outcome: "accepted" })).not.toThrow();

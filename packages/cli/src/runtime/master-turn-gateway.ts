@@ -14,6 +14,7 @@
 
 import { createHash } from "node:crypto";
 import type { DomainEvent } from "@skald/event-bus";
+import { resolveApproachTarget } from "@skald/world";
 import {
   classifyPlayerInput,
   bindGmProposal,
@@ -56,7 +57,7 @@ import { bindSceneSurface, resolveAmbiguityAgainstScene, validateMasterTurnPlan,
 import { resolveQuestionPlanBindings } from "./question-plan-resolver.js";
 import { emitMasterTurnDiagnostic, type MasterTurnDiagnosticDimensions } from "./master-turn-diagnostics.js";
 import { buildGmContext, type GmContextBundle } from "../conversation/gm-context.js";
-import { applyGmDirectorDecision, gmDirectorLiveEnabled, interpretGmDecision, type GmDirectorFlight } from "./conversation-director.js";
+import { applyGmDirectorDecision, fallbackForUnsupportedAddressedNpcQuestion, gmDirectorLiveEnabled, gmDirectorLiveTimeoutMs, interpretGmDecision, type GmDirectorFlight } from "./conversation-director.js";
 import {
   clarificationFromDeterministic,
   fallbackForDeterministic,
@@ -164,6 +165,25 @@ function clarificationFallback(): MasterTurnGatewayOutcome {
     status: "clarification",
     question: "Я не уверен, что правильно понял. Скажи, чего ты хочешь добиться первым.",
     options: [{ optionId: "rephrase", label: "Уточнить намерение" }],
+  };
+}
+
+/** Preserve question intent when no safe inquiry or complete mixed plan exists. */
+function questionClarificationFallback(
+  options?: MasterTurnGatewayOptions,
+  question = "Я понял, что ты задаёшь вопрос, но не могу надёжно определить, что именно нужно выяснить. Переформулируй, пожалуйста, сам вопрос.",
+): MasterTurnGatewayOutcome {
+  emitMasterTurnDiagnostic(options?.diagnostics, {
+    category: "clarification_returned",
+    outcome: "clarification",
+    phase: "fallback",
+    correlationId: options?.correlationId,
+    worldTime: options?.worldTime,
+  });
+  return {
+    status: "clarification",
+    question,
+    options: [{ optionId: "rephrase_question", label: "Уточнить вопрос" }],
   };
 }
 
@@ -1369,6 +1389,42 @@ function inquiryCoversWholeReplica(input: string): boolean {
   return clauses.actions.length + clauses.inquiries.length + clauses.unknown.length < 2;
 }
 
+/**
+ * Binds an explicitly named withdraw target to the current scene engagement.
+ * The domain operation itself remains targetless; this adapter strips the
+ * named surface only when the observer-safe resolver proves it is the exact
+ * contact whose engagement would be cleared. It never picks a first match.
+ */
+function resolveTargetedWithdraw(input: string, snapshot: MasterTurnSnapshot): MasterTurnGatewayOutcome | null {
+  const match = /^(?:я\s+)?(?:отхожу|отступаю|отойти|отступить|отступлю|отойду)\s+от\s+(.+?)\s*[.!?…]*$/iu.exec(input.trim());
+  if (!match) return null;
+
+  const targetSurface = match[1]?.trim().replace(/[.!?…]+$/u, "").trim();
+  const engagement = snapshot.world.sceneEngagement;
+  const clarification = (question: string): MasterTurnGatewayOutcome => ({
+    status: "clarification",
+    question,
+    options: [{ optionId: "rephrase", label: "Уточнить цель" }],
+  });
+  if (!targetSurface || !engagement || engagement.locationId !== snapshot.world.currentLocationId) {
+    return clarification("Сейчас нет установленного сближения, от которого можно отойти.");
+  }
+
+  const target = resolveApproachTarget(snapshot.world, targetSurface);
+  if (target.kind !== "contact" || target.ref !== engagement.targetRef) {
+    return clarification("Ты не стоишь рядом с названным человеком, поэтому отойти от него сейчас нельзя.");
+  }
+
+  const bareWithdraw = parseIntent("отойти");
+  if (bareWithdraw.type !== "ActionIntentCommand" || bareWithdraw.operation !== "withdraw") {
+    return clarification("Не удалось безопасно определить действие. Попробуй ещё раз.");
+  }
+  const intent: ActionIntentCommand = { ...bareWithdraw, rawText: input };
+  const structural = validateActionProposal(intent);
+  if (!structural.ok) return clarification(structural.clarification);
+  return { status: "deterministic", intent };
+}
+
 function resolveDeterministicCompound(
   input: string,
   snapshot: MasterTurnSnapshot,
@@ -1565,7 +1621,12 @@ function resolvePronounConversationTopic(
 
   let bundle: GmContextBundle;
   try {
-    bundle = options?.gmContextBundle ?? buildGmContext({ scene: snapshot.scene.context, conversation: snapshot.conversation });
+    bundle = options?.gmContextBundle ?? buildGmContext({
+      scene: snapshot.scene.context,
+      conversation: snapshot.conversation,
+      sceneReferences: snapshot.scene.references,
+      npcDossiers: snapshot.world.npcDossiers,
+    });
   } catch {
     return null;
   }
@@ -1607,6 +1668,10 @@ function resolveConversationTopicAnswer(
     && /^(?:я\s+)?хочу\s+поговорить\s+с\s+(?:ним|ней)[.!?]*$/iu.test(lastPlayer.text.trim().toLowerCase().replace(/ё/gu, "е")));
   if (!masterAskedForTopic && !playerJustRequestedNpcTopic) return null;
   const normalized = input.trim().toLowerCase().replace(/ё/gu, "е");
+  // A social courtesy is not a topic fragment, even when it follows the
+  // NPC's open "what would you like to discuss?" prompt. Let the Director
+  // answer it as conversation instead of quoting "Спасибо" back as a topic.
+  if (/^(?:спасибо|большое спасибо|огромное спасибо|благодарю|благодарствую|я благодарю(?: тебя| вас)?)[.!?…]*$/iu.test(normalized)) return null;
   const topicFragment = /^(?:о|об|про|насчет|касательно|по\s+поводу)\s+\S/iu.test(normalized);
   const explicitQuestion = (!topicFragment && /[?？]/u.test(normalized))
     || /^(?:а\s+)?(?:кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|чьи|сколько)(?=$|[^\p{L}\p{N}])/iu.test(normalized);
@@ -1838,6 +1903,8 @@ async function tryLiveGmDirector(
     bundle = options?.gmContextBundle ?? buildGmContext({
       scene: snapshot.scene.context,
       conversation: snapshot.conversation,
+      sceneReferences: snapshot.scene.references,
+      npcDossiers: snapshot.world.npcDossiers,
     });
   } catch {
     emitMasterTurnDiagnostic(options?.diagnostics, {
@@ -1863,7 +1930,7 @@ async function tryLiveGmDirector(
       handleKeys: [...bundle.handleToObserverRef.keys()],
       router,
       turnKey: scopedKey,
-      timeoutMs: Math.min(options?.timeoutMs ?? 4_000, 4_000),
+      timeoutMs: Math.min(options?.timeoutMs ?? gmDirectorLiveTimeoutMs(), gmDirectorLiveTimeoutMs()),
       ...(options?.gmDirectorFlight ? { flight: options.gmDirectorFlight } : {}),
     });
   } catch {
@@ -1889,9 +1956,24 @@ async function tryLiveGmDirector(
       bridged = applyGmDirectorDecision(result.decision, bundle, input, snapshot);
     }
   }
+  const correctiveAction = recognizedActionAfterCorrection(input);
+  const modelDroppedCorrectiveAction = correctiveAction !== null
+    && (bridged === null
+      || bridged.status === "inquiry"
+      || bridged.status === "clarification"
+      || bridged.status === "conversation"
+      || (bridged.status === "plan" && bridged.plan.execution === null));
+  if (modelDroppedCorrectiveAction) {
+    // A closed corrective preamble is not a competing world action. If the
+    // remaining replica is exactly one safe deterministic action, the Director
+    // may not turn it into a read-only answer or lose it in a clarification.
+    // The existing action resolver still revalidates target and capability.
+    bridged = { status: "deterministic", intent: correctiveAction };
+  }
   const modelAnswerContainsQuestionResponse = result.status === "decision"
     && result.decision.kind === "conversation"
     && Boolean(result.decision.response?.segments.some((segment) => segment.kind === "fact"
+      || segment.kind === "npc_fact"
       || (segment.kind === "social" && (segment.act === "no_knowledge" || segment.act === "no_commitment"))));
   const modelDroppedQuestion = result.status === "decision"
     && replicaAsksQuestion(input)
@@ -1903,14 +1985,15 @@ async function tryLiveGmDirector(
   const questionGuardFallback = !bridged
     && replicaAsksQuestion(input)
     && !(result.status === "fallback" && result.reason === "provider_error");
-  if (questionGuardFallback) bridged = fallbackAfterModelFailure(input, parseIntent(input), snapshot, options);
+  if (questionGuardFallback) bridged = failClosedLiveDirectorFallback(input, options);
   const outcome = result.shared
     ? "shared"
-    : result.status === "fallback" || questionGuardFallback
+    : result.status === "fallback" || questionGuardFallback || modelDroppedCorrectiveAction
       ? "fallback"
       : bridged
         ? "accepted"
         : "unbridged";
+  const providerFailure = result.trace.providerFailure;
   emitMasterTurnDiagnostic(options?.diagnostics, {
     category: "gm_director",
     outcome,
@@ -1918,9 +2001,21 @@ async function tryLiveGmDirector(
     correlationId: diagnosticCorrelation,
     worldTime: snapshot.world.time,
     durationMs: result.trace.totalLatencyMs,
+    totalLatencyMs: result.trace.totalLatencyMs,
     providerLatencyMs: result.trace.providerLatencyMs,
     ...(result.trace.provider ? { provider: result.trace.provider } : {}),
     ...(result.trace.model ? { model: result.trace.model } : {}),
+    ...(providerFailure ? {
+      providerPhase: providerFailure.phase,
+      httpStatus: providerFailure.httpStatus,
+      gatewayHttpStatus: providerFailure.gatewayHttpStatus,
+      providerCode: providerFailure.providerCode,
+      providerTraceId: providerFailure.providerTraceId,
+      retryAfterHeaderRaw: providerFailure.retryAfterHeaderRaw,
+      retryAfterMsParsed: providerFailure.retryAfterMsParsed,
+      retryAfterMsApplied: providerFailure.retryAfterMsApplied,
+      providerRetryable: providerFailure.retryable,
+    } : {}),
     ...(result.trace.decisionKind ? { decisionKind: result.trace.decisionKind } : {}),
     ...(result.trace.addresseeKind ? { addresseeKind: result.trace.addresseeKind } : {}),
     schemaValid: result.trace.schemaValid,
@@ -1930,6 +2025,8 @@ async function tryLiveGmDirector(
     ...(result.trace.validationErrors.length > 0 ? { validationErrors: result.trace.validationErrors.slice(0, 6).join(" | ") } : {}),
     ...(result.status === "fallback"
       ? { failureCategory: result.reason }
+      : modelDroppedCorrectiveAction
+        ? { failureCategory: "recognized_corrective_action_preserved" }
       : !bridged
         ? { failureCategory: "unsupported_bridge" }
         : {}),
@@ -1943,8 +2040,14 @@ async function tryLiveGmDirector(
     }
     const intent = parseIntent(input);
     if (replicaAsksQuestion(input)) {
+      const addressedNpcFallback = fallbackForUnsupportedAddressedNpcQuestion(input, bundle, snapshot);
+      if (addressedNpcFallback) return addressedNpcFallback;
       return fallbackAfterModelFailure(input, intent, snapshot, options);
     }
+    const bareGreeting = routeBareGreetingReadSide(input, bundle, snapshot);
+    if (bareGreeting) return bareGreeting;
+    const bareGratitude = routeBareGratitudeReadSide(input, bundle, snapshot);
+    if (bareGratitude) return bareGratitude;
     if ((intent.type === "ActionIntentCommand" && intent.operation === "speak")
       || /^(?:привет|здравствуй(?:те)?|добрый (?:день|вечер))(?:[\s,!?.]|$)/iu.test(input.trim())) {
       return {
@@ -1954,7 +2057,73 @@ async function tryLiveGmDirector(
     }
     return fallbackAfterModelFailure(input, intent, snapshot, options);
   }
-  return bridged;
+  return bridged ?? failClosedLiveDirectorFallback(input, options);
+}
+
+/**
+ * A live Director response that is malformed or cannot be bridged is not
+ * handed to legacy V2 for a second model guess. Keep only a complete,
+ * deterministic, read-only inquiry; otherwise ask for clarification. In
+ * particular, do not execute a partially parsed action after an invalid
+ * model response.
+ */
+function failClosedLiveDirectorFallback(
+  input: string,
+  options?: MasterTurnGatewayOptions,
+): MasterTurnGatewayOutcome {
+  const clauses = classifyReplicaClauses(input, parseIntent);
+  const classification = classifyPlayerInput(input, parseIntent);
+  const deterministic = parseIntent(input);
+  const actionSurfaces = clauses.actions
+    .filter(({ intent }) => !(intent.type === "ActionIntentCommand" && intent.operation === "unknown"))
+    .map(({ intent }) => intent.rawText.trim().slice(0, 160))
+    .filter(Boolean);
+  const inquirySurfaces = clauses.inquiries
+    .map(({ inquiry }) => inquiry.rawText.trim().slice(0, 160))
+    .filter(Boolean);
+  if (replicaAsksQuestion(input)
+    && deterministic.type === "ActionIntentCommand"
+    && deterministic.utterance?.trim()) {
+    inquirySurfaces.push(deterministic.utterance.trim().slice(0, 160));
+  }
+  if (actionSurfaces.length > 0 && inquirySurfaces.length > 0) {
+    const actions = actionSurfaces.map((surface) => `«${surface}»`).join("; ");
+    const inquiries = inquirySurfaces.map((surface) => `«${surface}»`).join("; ");
+    return questionClarificationFallback(
+      options,
+      `Я распознал действие ${actions} и вопрос ${inquiries}, но не могу надёжно связать их в один результат. Ничего не выполнено. Уточни, пожалуйста, что сделать и что узнать.`,
+    );
+  }
+  if (classification.kind === "inquiry"
+    && inquiryCoversWholeReplica(input)
+    && clauses.actions.length === 0
+    && clauses.unknown.length === 0) {
+    return { status: "inquiry", inquiry: classification.inquiry };
+  }
+  return replicaAsksQuestion(input)
+    ? questionClarificationFallback(options)
+    : genericFallback(options);
+}
+
+/**
+ * Returns the one deterministic action after a small, explicit discourse
+ * correction prefix. The preamble itself is non-authoritative prose; only a
+ * fully classified, structurally valid action tail may proceed.
+ */
+function recognizedActionAfterCorrection(input: string): ExecutableIntent | null {
+  const normalized = input.trim().replace(/ё/giu, "е");
+  const prefixes = [
+    /^(?:нет\s*[,;:—–-]\s*)?(?:(?:я\s+)?передумал(?:а|и)?)\s*(?:[,;:—–-]\s*|\s+и\s+)(.+)$/iu,
+    /^отменяю\s+(?:разговор|эту\s+тему|это)\s+(?:и\s*|[,;:—–-]\s*)(.+)$/iu,
+  ] as const;
+  const actionText = prefixes.map((pattern) => pattern.exec(normalized)?.[1]?.trim() ?? "").find(Boolean);
+  if (!actionText) return null;
+
+  const clauses = classifyReplicaClauses(actionText, parseIntent);
+  if (clauses.actions.length !== 1 || clauses.inquiries.length !== 0 || clauses.unknown.length !== 0) return null;
+  const intent = clauses.actions[0]!.intent;
+  if (!isSafeDeterministic(intent) || !validateActionProposal(intent).ok) return null;
+  return intent;
 }
 
 /**
@@ -2008,6 +2177,21 @@ function routeBareGreetingReadSide(
     ?? { status: "clarification", question: "Кому ты хочешь адресовать приветствие?", options: [{ optionId: "rephrase", label: "Уточнить адресата" }] };
 }
 
+/** Read-only courtesy fallback for a bare thanks when the live provider fails. */
+function routeBareGratitudeReadSide(
+  input: string,
+  bundle: GmContextBundle,
+  snapshot: MasterTurnSnapshot,
+): MasterTurnGatewayOutcome | null {
+  if (!/^(?:спасибо(?:\s+большое)?|большое\s+спасибо|благодарю)[.!?]*$/iu.test(input.trim())) return null;
+  return applyGmDirectorDecision({
+    schemaVersion: 2,
+    addressee: { kind: "gm" },
+    kind: "conversation",
+    response: { segments: [{ kind: "social", act: "gratitude_acknowledgement" }] },
+  }, bundle, input, snapshot);
+}
+
 /**
  * Interprets one replica outside the world queue.
  * Pure orchestration: fast path, V2 proposal, static + contextual validation.
@@ -2032,6 +2216,8 @@ export async function interpretMasterTurn(
   if (topicAnswer) return topicAnswer;
   const meta = resolveDeterministicMeta(input, snapshot, options);
   if (meta) return meta;
+  const targetedWithdraw = resolveTargetedWithdraw(input, snapshot);
+  if (targetedWithdraw) return targetedWithdraw;
   const checkIn = resolveMasterConversationalCheckIn(input, options);
   if (checkIn) return checkIn;
   const disambiguated = resolveExplicitReferentStatement(input, snapshot, options);
@@ -2051,7 +2237,29 @@ export async function interpretMasterTurn(
     if (!isSimpleSafeDeterministic(input, exact)
       || (exact.type === "ActionIntentCommand" && (exact.operation === "speak" || exact.operation === "call"))) {
       const live = await tryLiveGmDirector(input, snapshot, router, options);
-      if (live) return live;
+      if (live) {
+        const clauses = classifyReplicaClauses(input, parseIntent);
+        const modelDroppedRecognizedAction = clauses.actions.length === 1
+          && clauses.inquiries.length > 0
+          && clauses.unknown.length === 0
+          && (live.status === "inquiry"
+            || live.status === "clarification"
+            || (live.status === "plan" && !live.plan.execution));
+        if (modelDroppedRecognizedAction) {
+          // Keep the live route for interpretation, but do not accept a
+          // question-only answer when a deterministic action clause was also
+          // understood. Reuse the closed compound path; it either executes
+          // the complete supported pair or clarifies an unavailable target.
+          const compound = resolveDeterministicCompound(input, snapshot, options);
+          if (compound) return compound;
+          return questionClarificationFallback(options);
+        }
+        return live;
+      }
+      // P3 owns the single interpretation attempt. If it could not produce a
+      // validated bridge, fail closed instead of falling through to legacy
+      // V2 and possibly issuing a second model request.
+      return failClosedLiveDirectorFallback(input, options);
     }
   }
   let classification = classifyPlayerInput(input, parseIntent);
@@ -2190,7 +2398,7 @@ export async function interpretMasterTurn(
   const budgetMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
     raw = await withTimeout(
-      requestProposal(router, promptInput, snapshot, options, budgetMs, startedAt, () => {
+      requestProposal(router, promptInput, snapshot, options, budgetMs, startedAt, input, () => {
         emitMasterTurnDiagnostic(options?.diagnostics, {
           category: "proposal_repair_requested",
           outcome: "requested",
@@ -2246,6 +2454,38 @@ export async function interpretMasterTurn(
 }
 
 /** Both Director and legacy proposals pass exactly the same semantic gates. */
+function personTargetConflictsWithPlayer(
+  proposal: TurnProposalV2,
+  input: string,
+  snapshot: MasterTurnSnapshot,
+): boolean {
+  if ((proposal.kind !== "action" && proposal.kind !== "mixed") || !proposal.target) return false;
+  const first = classifyReplicaClauses(input, parseIntent).actions[0]?.intent;
+  if (!first || (first.type !== "InteractionCommand" && first.type !== "ActionIntentCommand")) return false;
+  // The deterministic parser can retain a comma-delimited secondary
+  // question/manner inside its raw target. Only the primary surface names the
+  // target; comparing the tail would reject valid «к старосте, как он...?».
+  const original = first.target?.raw.split(/[,;:—–]/u)[0]?.trim();
+  if (!original || isUnresolvedFocusSurface(original)) return false;
+  const people = snapshot.scene.context.knownPeople;
+  const selected = proposal.target.observerRef
+    ? people.find((person) => person.observerRef === proposal.target?.observerRef)
+    : (() => {
+      const bound = bindSceneSurface(proposal.target!.surface, people.map((person) => ({
+        observerRef: person.observerRef, label: person.label, knownAs: person.knownAs,
+        addressForms: person.portrait?.addressForms ?? [],
+      })));
+      return bound.status === "unique" ? people.find((person) => person.observerRef === bound.entry.observerRef) : undefined;
+    })();
+  if (!selected) return false;
+  const words = (text: string) => text.toLowerCase().replace(/ё/gu, "е").match(/[а-яa-z0-9]+/giu) ?? [];
+  const stopWords = new Set(["для", "это", "этот", "этого", "этой", "именно"]);
+  const targetWords = words(original).filter((word) => word.length >= 3 && !stopWords.has(word));
+  if (targetWords.length === 0) return false;
+  const names = [selected.label, ...selected.knownAs, ...(selected.portrait?.addressForms ?? [])].flatMap(words);
+  return !targetWords.every((word) => names.some((name) => sameRussianStem(word, name)));
+}
+
 function resolveProposedMasterTurn(
   parsed: unknown,
   input: string,
@@ -2261,15 +2501,25 @@ function resolveProposedMasterTurn(
   // player to pick again ("к архивисту" names one visible person).
   const inputClass = classifyPlayerInput(input, parseIntent);
   const typedProposal = parseTurnProposal(parsed);
+  // A valid scene handle only proves that a person exists, not that the
+  // player named that person. Preserve the player's explicit target rather
+  // than letting a model turn e.g. gates into their gatekeeper.
+  if (typedProposal && personTargetConflictsWithPlayer(typedProposal, input, snapshot)) {
+    return {
+      status: "clarification",
+      question: "Я не могу надёжно связать указанную цель с этим человеком. Уточни, что именно ты хочешь осмотреть или сделать.",
+      options: [{ optionId: "rephrase", label: "Уточнить цель" }],
+    };
+  }
   // An unregistered free-form question cannot be converted into an unrelated
   // registered query just because the model knows that query's enum value.
   // Only a QuestionPlan can establish how its declared facts answer the
-  // player's actual question; unsupported candidates fail closed.
+  // player's actual question; direct registered inquiries have already been
+  // classified as inquiry and retain their closed deterministic mapping.
   if (inputClass.kind === "inquiry_candidate"
     && typedProposal?.kind === "inquiry"
     && typedProposal.primaryIntent?.kind === "inquiry"
-    && /^(?:а\s+)?(?:кто|кого|кому|кем)\b/iu.test(input.trim())
-    && typedProposal.primaryIntent.queryId === "known_place_knowledge"
+    && classifyReplicaClauses(input, parseIntent).unknown.length > 0
     && !typedProposal.questionPlan) {
     emitMasterTurnDiagnostic(options?.diagnostics, {
       category: "proposal_schema_rejected",
@@ -2281,7 +2531,7 @@ function resolveProposedMasterTurn(
     });
     return {
       status: "clarification",
-      question: "Я не могу уверенно определить, о ком или о чём ты спрашиваешь. Уточни вопрос.",
+      question: "Я не могу надёжно связать этот вопрос с наблюдениями. Уточни, что именно узнать.",
       options: [{ optionId: "rephrase", label: "Уточнить вопрос" }],
     };
   }
@@ -2441,7 +2691,7 @@ function fallbackAfterModelFailure(
   if (replicaAsksQuestion(input)) {
     const questionCompound = resolveDeterministicCompound(input, snapshot, options);
     if (questionCompound) return questionCompound;
-    return genericFallback(options);
+    return questionClarificationFallback(options);
   }
   if (
     deterministic.type === "ActionIntentCommand"
@@ -2586,7 +2836,7 @@ function executesActionForQuestionReply(parsed: unknown): boolean {
 function replicaAsksQuestion(input: string): boolean {
   const classification = classifyPlayerInput(input, parseIntent);
   if (classification.kind === "inquiry" || classification.kind === "inquiry_candidate") return true;
-  return /(?:^|[^\p{L}\p{N}_])(?:спрашиваю|спрошу|спросил(?:а)?|интересуюсь|поинтересуюсь|задаю\s+вопрос)(?:$|[^\p{L}\p{N}_])[^.!?]{0,160}(?:^|[^\p{L}\p{N}_])(?:кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|чьё|чьи|сколько|есть\s+ли)(?:$|[^\p{L}\p{N}_])/iu.test(input);
+  return /(?:^|[^\p{L}\p{N}_])(?:спрашиваю|спросить|спроси|спросите|спрошу|спросишь|спросит|спросим|спросил(?:а)?|расспросить|расспрошу|интересуюсь|поинтересуюсь|поинтересоваться|задаю\s+вопрос)(?:$|[^\p{L}\p{N}_])[^.!?]{0,160}(?:^|[^\p{L}\p{N}_])(?:кто|что|где|куда|откуда|когда|почему|зачем|как|какой|какая|какое|какие|чей|чья|чье|чьё|чьи|сколько|есть\s+ли)(?:$|[^\p{L}\p{N}_])/iu.test(input);
 }
 
 /**
@@ -2703,9 +2953,10 @@ async function requestProposal(
   options: MasterTurnGatewayOptions | undefined,
   budgetMs: number,
   startedAt: number,
+  bindingSourceInput: string,
   onRepair: () => void,
 ): Promise<unknown> {
-  const first = await proposeTurn(router, input, snapshot, options);
+  const first = await proposeTurn(router, input, snapshot, options, bindingSourceInput);
   const decision = repairDecisionFor(first, input);
   if (!decision) return first;
   // The round-1 rejection is logged with its sanitized structural dims
@@ -2723,7 +2974,7 @@ async function requestProposal(
     repairNote: decision.note,
     assistantPrefill: typeof first === "string" ? first.slice(0, 2000) : null,
     timeoutMs: remaining,
-  });
+  }, bindingSourceInput);
 }
 
 async function proposeTurn(
@@ -2734,10 +2985,12 @@ async function proposeTurn(
     readonly repairNote?: string | undefined;
     readonly assistantPrefill?: string | null | undefined;
   },
+  bindingSourceInput = input,
 ): Promise<unknown> {
-  // Pronoun bindings resolve against the same snapshot the model sees;
-  // the validator and the queue revalidate every referent afterwards.
-  const pronounBindings = bindTurnPronouns(input, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
+  // Resolve bindings from the player's exact wording even when the gateway
+  // gives the model a server-normalized pronoun surface. The validator and
+  // execution queue revalidate every observerRef afterwards.
+  const pronounBindings = bindTurnPronouns(bindingSourceInput, snapshot.conversation, snapshot.scene.context, snapshot.scene.references);
   const prompt = buildMasterTurnPrompt({
     playerText: input,
     scene: snapshot.scene.context,

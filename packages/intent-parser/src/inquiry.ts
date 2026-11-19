@@ -119,6 +119,9 @@ const INQUIRY_PATTERNS: readonly [InquiryQueryId, readonly RegExp[]][] = [
     /^я\s+знаком\s+с/iu,
   ]],
   ["who_is_nearby", [
+    // Time/additive modifiers do not make a people-list request ambiguous.
+    // Match the whole form so a trailing role or action is not discarded.
+    /^кто\s+(?:(?:еще|сейчас)\s+){1,2}(?:находится\s+)?(?:рядом(?:\s+со\s+мной)?|здесь|тут|поблизости)$/iu,
     /^кто\s+(?:находится\s+)?рядом(?:\s+со\s+мной)?/iu,
     /^кто\s+(?:находится\s+)?(?:здесь|тут|поблизости)(?:\s+(?:есть|находится))?/iu,
     /^(?:есть\s+ли\s+)?кто-нибудь\s+рядом/iu,

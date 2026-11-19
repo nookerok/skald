@@ -60,7 +60,7 @@ export function conversationCorrelationId(idempotencyKey: string): string {
 }
 
 /** Shared outcome prose for action turns: presentation text or a deterministic fallback. */
-function actionOutcomeText(
+export function actionOutcomeText(
   playerText: string,
   stagedEvents: readonly DomainEvent[],
   projectedWorld: ReadonlyWorld,
@@ -213,6 +213,8 @@ export function buildMixedConversationTurn(params: {
   } | null;
   inquiries: readonly InquiryRequest[];
   deferred: readonly DeferredClause[];
+  /** Semantic question parts already read from the staged post-action snapshot. */
+  questionStatements?: readonly string[] | undefined;
   continuationHint?: ContinuationHint;
   contextMetadata?: ConversationMemoryMetadataV1 | null | undefined;
 }): ConversationTurnDraft {
@@ -233,7 +235,7 @@ export function buildMixedConversationTurn(params: {
   const response = composeMasterTurnResponse({
     kind: "mixed",
     actionPresentation: { text: outcome.text, rejected: outcome.rejected },
-    inquiryAnswers: inquiryTexts.map((text) => ({ text })),
+    inquiryAnswers: [...inquiryTexts, ...(params.questionStatements ?? [])].map((text) => ({ text })),
     speechReaction: null,
     metaAnswer: null,
     deferredClauses: params.deferred,

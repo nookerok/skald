@@ -68,6 +68,8 @@ export interface ChatOnceOptions {
   /** Defaults to the provider's configured protocol. */
   readonly protocol?: ProviderProtocol | undefined;
   readonly timeoutMs?: number | undefined;
+  /** Caller cancellation combined with the per-request timeout. */
+  readonly signal?: AbortSignal | undefined;
   /** Injectable transport for deterministic runtime acceptance tests. */
   readonly fetchImpl?: typeof fetch | undefined;
 }
@@ -136,6 +138,34 @@ export async function readProviderErrorCode(
   if (/^model\s+not\s+found$/.test(normalized) || /^model\s+.{1,120}?\s+not\s+found\b/i.test(normalized)) return "model_not_found";
   if (/^model\s+not\s+supported$/.test(normalized)) return "model_not_supported";
   return undefined;
+}
+
+function readRetryAfterHeader(response: unknown): string | undefined {
+  if (response === null || typeof response !== "object") return undefined;
+  const headers = (response as { headers?: { get?: (name: string) => unknown } }).headers;
+  if (headers === undefined || typeof headers.get !== "function") return undefined;
+  let value: unknown;
+  try {
+    value = headers.get.call(headers, "retry-after");
+  } catch {
+    return undefined;
+  }
+  return typeof value === "string" && value.length > 0 && value.length <= 128 && /^[\x20-\x7e]+$/u.test(value)
+    ? value
+    : undefined;
+}
+
+function parseRetryAfterMs(raw: string | undefined, nowMs = Date.now()): number | undefined {
+  if (raw === undefined) return undefined;
+  const value = raw.trim();
+  if (/^\d+(?:\.\d+)?$/u.test(value)) {
+    const milliseconds = Number(value) * 1_000;
+    return Number.isSafeInteger(Math.floor(milliseconds)) ? Math.floor(milliseconds) : undefined;
+  }
+  const retryAtMs = Date.parse(value);
+  if (!Number.isFinite(retryAtMs)) return undefined;
+  const delayMs = Math.max(0, Math.floor(retryAtMs - nowMs));
+  return Number.isSafeInteger(delayMs) ? delayMs : undefined;
 }
 
 /**
@@ -218,12 +248,16 @@ export async function chatOnce(
   // The local-subprocess transport has no HTTP surface. A candidate that
   // reaches this branch is miswired (use OpenCodeRunProvider); fail closed
   // instead of posting an opencode_run model id to some other endpoint.
-  if (protocol === "opencode_run") {
-    throw new ProviderRequestError({ provider, model, category, phase: "configuration", reason: "opencode_run requires OpenCodeRunProvider" });
+  if (protocol === "opencode_run" || protocol === "opencode_server") {
+    const reason = protocol === "opencode_run"
+      ? "opencode_run requires OpenCodeRunProvider"
+      : "opencode_server requires OpenCodeServerProvider";
+    throw new ProviderRequestError({ provider, model, category, phase: "configuration", reason });
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal;
 
   try {
     const url = protocol === "ollama_chat"
@@ -255,16 +289,18 @@ export async function chatOnce(
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal,
       });
     } catch (cause) {
       if (isAbortError(cause)) {
+        const callerCancelled = opts.signal?.aborted === true;
         throw new ProviderRequestError({
           provider,
           model,
           category,
           phase: "transport",
-          reason: `request timeout after ${timeoutMs}ms`,
+          reason: callerCancelled ? "request cancelled" : `request timeout after ${timeoutMs}ms`,
+          retryable: !callerCancelled,
           cause,
         });
       }
@@ -273,6 +309,8 @@ export async function chatOnce(
 
     if (!response.ok) {
       const providerCode = await readProviderErrorCode(response);
+      const retryAfterHeaderRaw = readRetryAfterHeader(response);
+      const retryAfterMsParsed = parseRetryAfterMs(retryAfterHeaderRaw);
       throw new ProviderRequestError({
         provider,
         model,
@@ -280,6 +318,9 @@ export async function chatOnce(
         phase: "response_status",
         httpStatus: response.status,
         ...(providerCode !== undefined ? { providerCode } : {}),
+        ...(retryAfterHeaderRaw !== undefined ? { retryAfterHeaderRaw } : {}),
+        ...(retryAfterMsParsed !== undefined ? { retryAfterMsParsed } : {}),
+        retryAfterMsApplied: null,
       });
     }
 

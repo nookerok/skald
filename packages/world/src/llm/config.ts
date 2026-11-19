@@ -207,6 +207,12 @@ export const LLM_CONFIG: LLMConfig = {
       usageScope: "remote",
       protocol: "openai_chat",
     },
+    opencode_server: {
+      baseUrl: "http://127.0.0.1:4097",
+      apiKeyEnv: "SKALD_OPENCODE_ZEN_API_KEY",
+      usageScope: "remote",
+      protocol: "opencode_server",
+    },
   },
   routes,
 };

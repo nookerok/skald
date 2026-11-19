@@ -28,8 +28,10 @@ import {
   narrateTurnLLM,
   narrateAnswerLLM,
   narrateAllowedAnswerLLM,
+  buildAllowedNarrativeFacts,
   buildAnswerPlanAllowedFacts,
   buildAnswerPlan,
+  ANSWER_GAP_STATEMENT,
   buildBackgroundNarrativeContext,
   buildNarrativeAdapterContext,
   localizedPlayerText,
@@ -67,6 +69,7 @@ import { buildGameDirectorContext, buildContinuationHint } from "@skald/world";
 import type { GameDirectorContext } from "@skald/world";
 import { getMapDetailAsset } from "./map-detail-catalog.js";
 import {
+  actionOutcomeText,
   buildActionConversationTurn,
   buildMixedConversationTurn,
   buildReadSideConversationTurn,
@@ -83,7 +86,7 @@ import type { MasterTurnDTO } from "../conversation/master-turn.js";
 import { buildMasterConversationContext, EMPTY_MASTER_CONVERSATION } from "../conversation/context-builder.js";
 import { answerMetaRequest } from "../conversation/meta-answer.js";
 import { buildGmContext } from "../conversation/gm-context.js";
-import { interpretGmDecision, gmDirectorLiveEnabled, gmDirectorShadowEnabled } from "../runtime/conversation-director.js";
+import { interpretGmDecision, gmDirectorLiveEnabled, gmDirectorLiveTimeoutMs, gmDirectorShadowEnabled } from "../runtime/conversation-director.js";
 import { interpretMasterTurn } from "../runtime/master-turn-gateway.js";
 import type { PendingClarificationLink } from "../runtime/master-turn-gateway.js";
 import { splitTargetCompound } from "../runtime/master-turn-validator.js";
@@ -661,11 +664,18 @@ export function handleWorldState(runtime: WorldRuntime): JsonResponse {
  * generation for the same turn. A transient `chat_error` therefore never
  * permanently deprives a turn of its literary narration.
  */
+type ClosedTurnNarration = {
+  readonly allowed: AllowedNarrativeFacts;
+  /** Uncertainty/clarification is a server-owned part of the answer, not expendable prose. */
+  readonly verbatim: readonly string[];
+};
+
 type NarrationTurn = {
   input: string;
   pres: ReturnType<typeof selectTurnPresentation>;
   correlationId?: string | undefined;
   narrativeContext?: NarrativeAdapterContext | undefined;
+  closedAnswer?: ClosedTurnNarration | undefined;
 };
 
 /**
@@ -679,13 +689,8 @@ export function shouldPersistNarration(narration: { usedFallback: boolean; text:
   return !narration.usedFallback && narration.text.trim().length > 0;
 }
 
-function scheduleNarration(
-  runtime: WorldRuntime,
-  input: string,
-  pres: ReturnType<typeof selectTurnPresentation>,
-  correlationId?: string,
-  narrativeContext?: NarrativeAdapterContext,
-): void {
+function scheduleNarration(runtime: WorldRuntime, turn: NarrationTurn): void {
+  const { input, pres, correlationId, narrativeContext, closedAnswer } = turn;
   const router = runtime.router;
   if (!router || input.trim().length === 0) return;
   const worldId = runtime.worldId;
@@ -695,18 +700,29 @@ function scheduleNarration(
     worldTime,
     run: async () => {
       // 1. LLM call (with retry — diagnostics flow through the sink if provided)
-      const gameDirector = buildGameDirectorForNarration(runtime, pres, narrativeContext);
-      const narration = await narrateTurnLLM(input, pres, router, {
+      const options = {
         diagnostics: runtime.diagnostics,
-        priority: "interactive",
+        priority: "interactive" as const,
         timeoutMs: router.timeoutSeconds * 1000,
         worldId,
         ...(correlationId ? { correlationId } : {}),
-        ...(narrativeContext ? { narrativeContext } : {}),
-        ...(gameDirector ? { gameDirector } : {}),
-      });
+      };
+      const gameDirector = !closedAnswer ? buildGameDirectorForNarration(runtime, pres, narrativeContext) : null;
+      const narration = closedAnswer
+        ? await narrateAllowedAnswerLLM(closedAnswer.allowed, worldTime, router, {
+          ...options, exactFacts: true, maxRetries: 0,
+        })
+        : await narrateTurnLLM(input, pres, router, {
+          ...options,
+          ...(narrativeContext ? { narrativeContext } : {}),
+          ...(gameDirector ? { gameDirector } : {}),
+        });
       // 2. Classify LLM result
-      if (!shouldPersistNarration(narration)) { runtime.narration.markUnavailable(worldTime, correlationId); return; }
+      const narrativeText = narration.text.replace(/\s+/gu, " ");
+      if (!shouldPersistNarration(narration) || closedAnswer?.verbatim.some((line) => !narrativeText.includes(line))) {
+        runtime.narration.markUnavailable(worldTime, correlationId);
+        return;
+      }
       // 3. Persist (separate try/catch for persistence diagnostics)
       try {
         runtime.store.saveTurnNarration(worldId, worldTime, narration, correlationId);
@@ -851,6 +867,22 @@ function toPlayerFacingQuestionReadingResults(results: QuestionReadingRound["res
       factId: "fact-" + (++nextFactNumber),
     })),
   }));
+}
+
+/**
+ * Remove transient scene handles from inquiry data before it crosses the
+ * normal player HTTP boundary. The original DTO remains available to the
+ * server-side conversation-memory builder.
+ */
+function toPlayerFacingInquiryAnswer(answer: InquiryAnswerDTO) {
+  return {
+    queryId: answer.queryId,
+    answer: answer.answer,
+    revision: answer.revision,
+    ...(answer.shownLists ? {
+      shownLists: answer.shownLists.map(({ listRef, members }) => ({ listRef, members })),
+    } : {}),
+  };
 }
 
 /**
@@ -1224,6 +1256,8 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
           const bundle = buildGmContext({
             scene: shadowSnapshot.scene.context,
             conversation: shadowSnapshot.conversation,
+            sceneReferences: shadowSnapshot.scene.references,
+            npcDossiers: shadowSnapshot.world.npcDossiers,
             sceneEngagement: sceneEngagementView(shadowSnapshot.world),
             knowledgeTexts: knowledge.entries.map((entry) => entry.text),
           });
@@ -1233,7 +1267,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             handleKeys: [...bundle.handleToObserverRef.keys()],
             router: runtime.router!,
             turnKey: shadowCorrelation,
-            timeoutMs: 4000,
+            timeoutMs: gmDirectorLiveTimeoutMs(),
             // Owned by this world's runtime (per-world lifecycle, no global).
             flight: runtime.gmDirectorFlight,
           });
@@ -1266,6 +1300,17 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
             ...(director.trace.replyShape ? { replyShape: director.trace.replyShape } : {}),
             ...(director.trace.provider ? { provider: director.trace.provider } : {}),
             ...(director.trace.model ? { model: director.trace.model } : {}),
+            ...(director.trace.providerFailure ? {
+              providerPhase: director.trace.providerFailure.phase,
+              ...(director.trace.providerFailure.httpStatus !== undefined ? { httpStatus: director.trace.providerFailure.httpStatus } : {}),
+              ...(director.trace.providerFailure.gatewayHttpStatus !== undefined ? { gatewayHttpStatus: director.trace.providerFailure.gatewayHttpStatus } : {}),
+              ...(director.trace.providerFailure.providerCode ? { providerCode: director.trace.providerFailure.providerCode } : {}),
+              ...(director.trace.providerFailure.providerTraceId ? { providerTraceId: director.trace.providerFailure.providerTraceId } : {}),
+              ...(director.trace.providerFailure.retryAfterHeaderRaw !== undefined ? { retryAfterHeaderRaw: director.trace.providerFailure.retryAfterHeaderRaw } : {}),
+              ...(director.trace.providerFailure.retryAfterMsParsed !== undefined ? { retryAfterMsParsed: director.trace.providerFailure.retryAfterMsParsed } : {}),
+              ...(director.trace.providerFailure.retryAfterMsApplied !== undefined ? { retryAfterMsApplied: director.trace.providerFailure.retryAfterMsApplied } : {}),
+              providerRetryable: director.trace.providerFailure.retryable,
+            } : {}),
             schemaValid: director.trace.schemaValid,
             rawSchemaValid: director.trace.rawSchemaValid,
             decisionAccepted: director.trace.decisionAccepted,
@@ -1311,6 +1356,8 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
           gmContextBundle = buildGmContext({
             scene: snapshot.scene.context,
             conversation: snapshot.conversation,
+            sceneReferences: snapshot.scene.references,
+            npcDossiers: snapshot.world.npcDossiers,
             sceneEngagement: sceneEngagementView(snapshot.world),
             knowledgeTexts: knowledge.entries.map((entry) => entry.text),
           });
@@ -1390,7 +1437,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
           readOnlyCommandDiagnostics({ worldTime: world.time, outcome: "none" }),
           { phase: "read_only" },
         );
-        return json({ ok: true, status: "inquiry", inquiry, conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
+        return json({ ok: true, status: "inquiry", inquiry: toPlayerFacingInquiryAnswer(inquiry), conversationTurn: { ...conversationTurn, narrationState: scheduled ? "pending" : "not_requested" }, knowledge, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, scheduled) });
       });
     }
     pendingClarificationSeq = snapshot.conversation.pendingClarification?.turnSeq ?? null;
@@ -1506,7 +1553,7 @@ async function handleWorldCommandInner(runtime: WorldRuntime, input: string, ide
   });
 
   const pendingNarration = narrationTurn as NarrationTurn | null;
-  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId, pendingNarration.narrativeContext);
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration);
   const pendingTicks = advanceNarrationTicks as DomainEvent[] | null;
   if (pendingTicks && pendingTicks.length > 0) scheduleNarrationForTicks(runtime, input, pendingTicks);
   return response;
@@ -1567,7 +1614,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
         const scene = sceneSnapshot.context;
         const inquiry = buildInquiryAnswer(classification.inquiry, { shell, background, scene, arrivalReason: arrivalReasonForProfile(profile) });
         const conversationTurn = persistReadSideTurn(runtime, input, idempotencyKey, "inquiry", "inquiry_answer", inquiry.answer);
-        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry, conversationTurn, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
+        return json({ ok: true, resolution: "inquiry", message: null, reason: null, inquiry: toPlayerFacingInquiryAnswer(inquiry), conversationTurn, masterTurn: masterTurnFromTurn(runtime, idempotencyKey, conversationTurn, { kind: "inquiry_answer", deterministicText: inquiry.answer }, false) });
       }
       const parsed = classification.kind === "inquiry_candidate" ? parseIntent(input) : classification.intent;
       if (parsed.type !== "InteractionCommand") {
@@ -1638,7 +1685,7 @@ export async function handleOfflineCommand(runtime: WorldRuntime, body: unknown)
   });
 
   const pendingNarration = narrationTurn as NarrationTurn | null;
-  if (pendingNarration) scheduleNarration(runtime, pendingNarration.input, pendingNarration.pres, pendingNarration.correlationId, pendingNarration.narrativeContext);
+  if (pendingNarration) scheduleNarration(runtime, pendingNarration);
   return response;
 }
 
@@ -2420,6 +2467,41 @@ function executePlanQuestionRound(
   }
 }
 
+/** Scope mixed prose to this action and the exact post-action answer plan. */
+function mixedClosedNarration(
+  input: string,
+  outcome: string,
+  answerPlan: AnswerPlan,
+  deterministicText: string,
+): ClosedTurnNarration | undefined {
+  const verbatim = [...new Set([
+    ...answerPlan.parts.flatMap((part) =>
+      part.gapStatement && answerPlan.statements.includes(part.gapStatement) ? [part.gapStatement] : []),
+    ...(answerPlan.narrowClarification ? [answerPlan.narrowClarification] : []),
+  ])];
+  const exactLines = [outcome, ...verbatim];
+  const mandatory = [...new Set([
+    ...exactLines,
+    ...answerPlan.parts.flatMap((part) => part.facts.map((fact) => fact.content)),
+  ])];
+  // Never pass prose removed by the deterministic composer to the model.
+  const canonicalText = deterministicText.replace(/\s+/gu, " ");
+  if (mandatory.some((line) => !canonicalText.includes(line.replace(/\s+/gu, " ")))) return undefined;
+  const allowed = buildAllowedNarrativeFacts({
+    question: input,
+    answerPlan,
+    mandatory,
+    extraFacts: exactLines.map((content) => ({
+      content,
+      provenance: "observation" as const,
+      assertion: "observed" as const,
+    })),
+  });
+  if (!allowed.coverageComplete || allowed.facts.some((fact) => !fact.available)
+    || allowed.mandatory.some((line) => !allowed.facts.some((fact) => fact.content === line))) return undefined;
+  return { allowed, verbatim };
+}
+
 async function runValidatedMasterTurnResponse(
   runtime: WorldRuntime,
   input: string,
@@ -2509,11 +2591,12 @@ async function runValidatedMasterTurnResponse(
       buildInquiryAllowedFacts({ input, events, world, record, profile, scene, answer: answerText, answerPlan }),
       shown.shownSubjects.length > 0 || shown.shownLists.length > 0 || shown.shownGroups.length > 0);
     const knowledge = buildPlayerKnowledgePresentation(events, world, buildBeliefModel(events, world), { startup: true, maxEntries: 3 });
+    const playerInquiries = inquiries.map(toPlayerFacingInquiryAnswer);
     return json({
       ok: true,
       status: "inquiry",
-      inquiries,
-      inquiry: inquiries[0],
+      inquiries: playerInquiries,
+      inquiry: playerInquiries[0],
       ...(questionReadings ? {
         questionReadings: {
           revision: questionReadings.revision,
@@ -2537,6 +2620,8 @@ async function runValidatedMasterTurnResponse(
   const postInquiries = plan.postActionInquiries;
   const deferred = plan.deferredClauses;
   const kind = plan.kind;
+  const mixedQuestion = kind === "mixed" ? questionRound : null;
+  const mixedDraft: { readings: QuestionReadingRound | null; narration?: ClosedTurnNarration } = { readings: null };
 
   // Parity (ADR-0039 §2): a model-proposed action passes the SAME
   // pre-execution target preflight as the deterministic path, so an absent
@@ -2569,7 +2654,19 @@ async function runValidatedMasterTurnResponse(
             ?? `cmd-${projectedWorld.time}`;
           const continuationHint = deterministicContinuationHint(runtime, preEvents, staged, projectedWorld);
           if (kind === "mixed") {
-            return buildMixedConversationTurn({
+            mixedDraft.readings = mixedQuestion
+              ? executePlanQuestionRound(runtime, mixedQuestion, {
+                events: [...preEvents, ...staged],
+                world: projectedWorld,
+                record,
+                profile,
+              })
+              : null;
+            const answerPlan = mixedDraft.readings ? buildAnswerPlan({ readings: mixedDraft.readings }) : null;
+            const questionStatements = answerPlan
+              ? [...answerPlan.statements, ...(answerPlan.narrowClarification ? [answerPlan.narrowClarification] : [])]
+              : mixedQuestion ? [ANSWER_GAP_STATEMENT] : [];
+            const draft = buildMixedConversationTurn({
               worldId: runtime.worldId,
               correlationId: draftCorrelation,
               idempotencyKey,
@@ -2582,9 +2679,23 @@ async function runValidatedMasterTurnResponse(
               characterProfile,
               inquiries: postInquiries,
               deferred,
+              questionStatements,
               continuationHint,
               contextMetadata: planMemory,
             });
+            // Legacy inquiry answers and deferred-clause notes do not have
+            // a closed fact mapping here. Keep the full deterministic answer
+            // rather than let a prose replacement silently omit them.
+            if (answerPlan && postInquiries.length === 0 && deferred.length === 0) {
+              const narration = mixedClosedNarration(
+                input,
+                actionOutcomeText(input, staged, projectedWorld).text,
+                answerPlan,
+                draft.responseText,
+              );
+              if (narration) mixedDraft.narration = narration;
+            }
+            return draft;
           }
           if (kind === "speech") {
             return buildSpeechConversationTurn({
@@ -2636,13 +2747,21 @@ async function runValidatedMasterTurnResponse(
   // world that result produced; a rejected action leaves the scene
   // unchanged, so descriptive parts still read one consistent state. The
   // stale-revalidation branch above already returned before this point.
-  const questionReadings = questionRound
+  const questionReadings = mixedQuestion ? mixedDraft.readings : questionRound
     ? executePlanQuestionRound(runtime, questionRound, { events: runtime.bus.query(), world: worldAfter, record, profile })
     : null;
   const conversationTurn = runtime.store.getConversationTurn(runtime.worldId, idempotencyKey);
   const correlationId = result.commandEvents[0]?.correlationId ?? result.tickEvents[0]?.correlationId;
-  const narrativeContext = buildNarrationContext(runtime, pres, runtime.bus.query(), worldAfter, isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
-  setNarration({ input, pres, narrativeContext, ...(correlationId ? { correlationId } : {}) });
+  const narrationPending = runtime.router !== null && (!mixedQuestion || mixedDraft.narration !== undefined);
+  if (narrationPending) {
+    const narrativeContext = mixedQuestion ? undefined
+      : buildNarrationContext(runtime, pres, runtime.bus.query(), worldAfter, isOpeningNarrationWindow(runtime, idempotencyKey), correlationId);
+    setNarration({
+      input, pres, narrativeContext,
+      ...(correlationId ? { correlationId } : {}),
+      ...(mixedDraft.narration ? { closedAnswer: mixedDraft.narration } : {}),
+    });
+  }
 
   const playerPresentation = toPlayerFacingPresentation(pres);
   const base = {
@@ -2669,7 +2788,7 @@ async function runValidatedMasterTurnResponse(
         kind: kind === "mixed" ? "mixed_outcome" : kind === "speech" ? "speech_reaction" : "action_outcome",
         deterministicText: playerPresentation.primary?.text ?? "",
       },
-      runtime.router !== null),
+      narrationPending),
     ...(conversationTurn ? { conversationTurn: toConversationTurnDTO(conversationTurn) } : {}),
   };
   if (kind === "mixed") {

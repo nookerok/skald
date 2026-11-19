@@ -6,11 +6,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildBootstrapEvents, buildMasterTurnSceneContext } from "@skald/world";
+import { ANSWER_GAP_STATEMENT, buildBootstrapEvents, buildMasterTurnSceneContext, buildNarrativeAdapterContext, executeQuestionReadingRound, ProviderRequestError, ProviderUnavailableError, type AllowedNarrativeFacts } from "@skald/world";
 import type { DomainEvent } from "@skald/event-bus";
 import { createMultiWorldStore } from "../src/persistence/sqlite-store.js";
 import { WorldRuntimeManager, type WorldRuntime } from "../src/runtime/world-runtime-manager.js";
-import { handleWorldCommand } from "../src/http/world-handlers.js";
+import { handleWorldCommand, handleWorldJournal } from "../src/http/world-handlers.js";
+import {
+  extractP3PlayerVisibleResponse, readP3RuinsQuestionSpec, verifyP3RuinsNarration,
+  verifyP3RuinsPerception, verifyP3RuinsQuestionReading,
+} from "../src/acceptance/gm-p3-live-gate.js";
+import { actionOutcomeText } from "../src/conversation/builder.js";
+import { buildGmContext } from "../src/conversation/gm-context.js";
+import { EMPTY_MASTER_CONVERSATION } from "../src/conversation/context-builder.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 
 const WORLD = "director-live";
@@ -55,8 +62,9 @@ async function fresh(
     characterWound: "none", characterPromise: "observe", characterPrinciple: "care", characterProfileVersion: 1,
     bootstrapEvents: worldBootstrapEvents,
   });
-  const runtime = await new WorldRuntimeManager(store, router).get(WORLD);
-  return { path, store, runtime };
+  const manager = new WorldRuntimeManager(store, router);
+  const runtime = await manager.get(WORLD);
+  return { path, store, runtime, manager };
 }
 function ferry(runtime: WorldRuntime) {
   const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
@@ -70,6 +78,55 @@ const social = (act = "greeting") => ({
 });
 
 describe("P3 Director production path", () => {
+  it("keeps an unsupported action's validated question instead of dropping it into generic fallback", async () => {
+    const question = "Такое действие здесь недоступно. Что ты хочешь попробовать вместо него?";
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "clarification", clarification: { question },
+    }));
+    const { store, runtime } = await fresh(router);
+    const before = runtime.projection.getSnapshot().time;
+    const events = store.loadEvents(WORLD);
+    const request = { input: "Я взлетаю над рекой без крыльев и улетаю на Луну.", idempotencyKey: "unsupported-action-question" };
+    try {
+      const body = parse(await handleWorldCommand(runtime, request));
+      expect(body).toMatchObject({ status: "clarification", masterTurn: { deterministicText: question } });
+      expect(runtime.projection.getSnapshot().time).toBe(before);
+      expect(store.loadEvents(WORLD)).toEqual(events);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+      const replay = parse(await handleWorldCommand(runtime, request));
+      expect(replay.replayed).toBe(true);
+      expect(replay.masterTurn).toEqual(body.masterTurn);
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(store.loadEvents(WORLD)).toEqual(events);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("normalizes a model's plain clarification string through the real handler without changing the world", async () => {
+    const question = "Такое действие здесь недоступно. Что ты хочешь попробовать вместо него?";
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "clarification", clarification: question,
+    }));
+    const { store, runtime } = await fresh(router);
+    const beforeTime = runtime.projection.getSnapshot().time;
+    const beforeEvents = store.loadEvents(WORLD);
+    const request = { input: "Я взлетаю над рекой без крыльев и улетаю на Луну.", idempotencyKey: "string-clarification-alias" };
+    try {
+      const body = parse(await handleWorldCommand(runtime, request));
+      expect(body).toMatchObject({ status: "clarification", masterTurn: { deterministicText: question } });
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toEqual(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+      const replay = parse(await handleWorldCommand(runtime, request));
+      expect(replay.replayed).toBe(true);
+      expect(replay.masterTurn).toEqual(body.masterTurn);
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(store.loadEvents(WORLD)).toEqual(beforeEvents);
+    } finally { store.close(); }
+  });
+
   it("persists NPC conversation with one model call, zero events/time, and replay after restart", async () => {
     let decision: unknown = social();
     const { router, chat } = routerFor(() => decision);
@@ -124,6 +181,167 @@ describe("P3 Director production path", () => {
       expect(runtime.projection.getSnapshot().time).toBe(0);
       expect(runtime.bus.query()).toHaveLength(eventCount);
       expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("keeps a direct unsupported question with its explicitly addressed unknown NPC", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const gatekeeper = scene.context.knownPeople.find((person) => person.portrait?.addressForms.includes("смотритель"));
+    expect(gatekeeper).toBeDefined();
+    expect(gatekeeper).toMatchObject({ label: "Незнакомый человек", known: false });
+    decision = {
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: stableActorHandle(gatekeeper!.observerRef) },
+      kind: "conversation",
+      response: { segments: [{ kind: "social", act: "no_knowledge" }] },
+    };
+    const beforeTime = runtime.projection.getSnapshot().time;
+    const beforeEvents = store.loadEvents(WORLD).length;
+    const input = "Смотритель, почему вы ведёте журнал проходов?";
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-question-no-knowledge" }));
+      expect(body.status).toBe("conversation");
+      expect(body.conversationTurn.responseKind).toBe("speech_reaction");
+      expect(body.masterTurn.deterministicText).toContain("Незнакомый человек");
+      expect(body.masterTurn.deterministicText).toContain("У меня нет подтверждённых сведений об этом.");
+      expect(body.masterTurn.deterministicText).not.toContain("Смотритель речных ворот");
+      expect(JSON.stringify(body)).not.toMatch(/person_|contact:|targetRef|internalId|Смотритель речных ворот/iu);
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+
+      const replay = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-question-no-knowledge" }));
+      expect(replay.replayed).toBe(true);
+      expect(replay.masterTurn).toEqual(body.masterTurn);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it.each([true, false])("binds a speech-wrapped NPC question to the named person (correct speaker: %s)", async (correctSpeaker) => {
+    let decision: unknown;
+    const { router } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const people = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot()).context.knownPeople;
+    const keeper = people.find((person) => person.label.includes("Смотритель"));
+    const archivist = people.find((person) => person.label.includes("Архивист"));
+    expect(keeper).toBeDefined();
+    expect(archivist).toBeDefined();
+    const speaker = correctSpeaker ? keeper! : archivist!;
+    decision = {
+      schemaVersion: 2, addressee: { kind: "npc", handle: stableActorHandle(speaker.observerRef) },
+      kind: "conversation", response: { segments: [{ kind: "social", act: "no_knowledge" }] },
+    };
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Спросить у Смотрителя, кто последним ушёл по восточному тракту.",
+        idempotencyKey: "speech-wrapped-person-" + String(correctSpeaker),
+      }));
+      if (correctSpeaker) {
+        expect(body.conversationTurn.responseKind).toBe("speech_reaction");
+        expect(body.masterTurn.deterministicText).toContain("Смотритель");
+        expect(body.masterTurn.deterministicText).toContain("нет подтверждённых сведений");
+      } else {
+        expect(body.conversationTurn.responseKind).toBe("clarification");
+        expect(body.masterTurn.deterministicText).not.toContain("Архивист Речного Стража:");
+      }
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+    } finally { store.close(); }
+  });
+
+  it.each([
+    "Смотритель, кто последним ушёл по восточному тракту?",
+    "Спросить у Смотрителя, кто последним ушёл по восточному тракту.",
+  ])("answers an unsupported NPC question honestly instead of disclosing an unrelated fact: %s", async (input) => {
+    let decision: unknown;
+    const { router } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const world = runtime.projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), world);
+    const keeper = scene.context.knownPeople.find((person) => person.label.includes("Смотритель"));
+    expect(keeper).toBeDefined();
+    const handle = stableActorHandle(keeper!.observerRef);
+    const bundle = buildGmContext({ scene: scene.context, conversation: EMPTY_MASTER_CONVERSATION,
+      sceneReferences: scene.references, npcDossiers: world.npcDossiers });
+    const roleFact = bundle.context.npcFacts.find((fact) => fact.subjectHandle === handle && fact.text.includes("журнал проходов"));
+    expect(roleFact).toBeDefined();
+    decision = { schemaVersion: 2, addressee: { kind: "npc", handle }, kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId: roleFact!.factId }] } };
+    const eventsBefore = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input, idempotencyKey: "npc-unrelated-role-fact",
+      }));
+      expect(body.conversationTurn.responseKind).toBe("speech_reaction");
+      expect(body.masterTurn.deterministicText).toContain("нет подтверждённых сведений");
+      expect(body.masterTurn.deterministicText).not.toContain("ведёт журнал проходов");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(eventsBefore);
+    } finally { store.close(); }
+  });
+
+  it("renders only a disclosed dossier fact selected for the explicitly addressed NPC", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const world = runtime.projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), world);
+    const gatekeeper = scene.context.knownPeople.find((person) => person.portrait?.addressForms.includes("смотритель"));
+    expect(gatekeeper).toBeDefined();
+    const handle = stableActorHandle(gatekeeper!.observerRef);
+    const bundle = buildGmContext({
+      scene: scene.context,
+      conversation: EMPTY_MASTER_CONVERSATION,
+      sceneReferences: scene.references,
+      npcDossiers: world.npcDossiers,
+    });
+    const publicFact = bundle.context.npcFacts.find((fact) => fact.subjectHandle === handle && fact.text.includes("журнал проходов"));
+    expect(publicFact).toBeDefined();
+    expect(bundle.context.npcFacts.some((fact) => /contact:|person_|locationId/iu.test(fact.factId + fact.text))).toBe(false);
+    decision = {
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId: publicFact!.factId }] },
+    };
+    const beforeTime = world.time;
+    const beforeEvents = store.loadEvents(WORLD).length;
+    const input = "Смотритель, что вы ведёте у ворот?";
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-dossier-disclosure" }));
+      expect(body.status, JSON.stringify(body)).toBe("conversation");
+      expect(body.masterTurn.deterministicText).toContain(publicFact!.text);
+      expect(body.masterTurn.deterministicText).toContain("Незнакомый человек");
+      expect(body.masterTurn.deterministicText).not.toMatch(/person_|contact:|targetRef|internalId|locationId|observerRef/iu);
+      expect(body.conversationTurn.worldTimeBefore).toBe(beforeTime);
+      expect(body.conversationTurn.worldTimeAfter).toBe(beforeTime);
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+
+      decision = {
+        schemaVersion: 2,
+        addressee: { kind: "npc", handle },
+        kind: "conversation",
+        response: { segments: [{ kind: "npc_fact", factId: "nf0000000000000000" }] },
+      };
+      const denied = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-dossier-fabricated-fact" }));
+      expect(denied.status).not.toBe("conversation");
+      expect(JSON.stringify(denied)).not.toContain(publicFact!.text);
+      expect(JSON.stringify(denied)).not.toMatch(/contact:|person_|targetRef|internalId|locationId|observerRef/iu);
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(2);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(2);
     } finally { store.close(); }
   });
 
@@ -207,8 +425,16 @@ describe("P3 Director production path", () => {
     const count = store.loadEvents(WORLD).length;
     try {
       const body = parse(await handleWorldCommand(runtime, { input: "Что именно известно о ночном следе?", idempotencyKey: "offline-question" }));
+      expect(body.status).toBe("clarification");
+      expect(body.conversationTurn.responseKind).toBe("clarification");
       expect(body.masterTurn.kind).not.toBe("speech_reaction");
       expect(body.masterTurn.kind).not.toBe("action_outcome");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+      const replay = parse(await handleWorldCommand(runtime, { input: "Что именно известно о ночном следе?", idempotencyKey: "offline-question" }));
+      expect(replay.replayed).toBe(true);
+      expect(replay.masterTurn).toEqual(body.masterTurn);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
       expect(runtime.projection.getSnapshot().time).toBe(0);
       expect(store.loadEvents(WORLD)).toHaveLength(count);
       expect(chat).toHaveBeenCalledTimes(1);
@@ -231,6 +457,193 @@ describe("P3 Director production path", () => {
       expect(body.masterTurn.deterministicText).not.toContain("Перед пожаром из архива");
       expect(runtime.projection.getSnapshot().time).toBe(0);
       expect(runtime.bus.query()).toHaveLength(beforeEvents);
+    } finally { store.close(); }
+  });
+
+  it("does not answer an unregistered topic question with a generic visible-scene query", async () => {
+    const input = "Что известно о ночном шуме?";
+    const { router } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+      proposal: {
+        schemaVersion: 2,
+        kind: "inquiry",
+        primaryIntent: { kind: "inquiry", queryId: "visible_scene", sourceText: input },
+        supportingClauses: [],
+        referents: [],
+      },
+    }));
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival");
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "unregistered-night-noise-question" }));
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(body.masterTurn.kind).toBe("contextual_clarification");
+      expect(body.masterTurn.deterministicText).not.toContain("Город за стенами");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+    } finally { store.close(); }
+  });
+
+  it.each(["Кто рядом?", "Кто ещё рядом?", "Кто сейчас рядом?"])("answers people-list %j with safe DTO and retained server memory", async (input) => {
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+      proposal: {
+        schemaVersion: 2,
+        kind: "inquiry",
+        primaryIntent: { kind: "inquiry", queryId: "who_is_nearby", sourceText: input },
+        supportingClauses: [],
+        referents: [],
+      },
+    }));
+    const { store, runtime } = await fresh(router);
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "model-nearby-dto" }));
+      expect(body.status).toBe("inquiry");
+      expect(body.inquiries).toHaveLength(1);
+      expect(body.inquiry.shownLists[0]).toMatchObject({ listRef: "scene_people" });
+      expect(body.inquiry.shownLists[0]).not.toHaveProperty("observerRefs");
+      expect(JSON.stringify(body)).not.toMatch(/observerRefs|person_[0-9]+|internalId/u);
+      const stored = store.getConversationTurn(WORLD, "model-nearby-dto")?.contextMetadata?.shownLists?.[0];
+      expect(stored?.memberIdentities?.[0]?.internalId).toBeTruthy();
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("fails closed instead of letting a live world-question silently drop an unavailable observation target", async () => {
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+      proposal: {
+        schemaVersion: 2,
+        kind: "inquiry",
+        primaryIntent: { kind: "inquiry", queryId: "visible_scene", sourceText: "что я вижу?" },
+        supportingClauses: [],
+        referents: [],
+      },
+    }));
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival");
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Осматриваю двор, что я вижу?",
+        idempotencyKey: "recognized-observation-question",
+      }));
+      expect(body.status).toBe("clarification");
+      expect(body.masterTurn.kind).toBe("contextual_clarification");
+      expect(body.question).toContain("двор");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("executes a recognized observation plus question through the bounded deterministic compound path", async () => {
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+      proposal: {
+        schemaVersion: 2,
+        kind: "inquiry",
+        primaryIntent: { kind: "inquiry", queryId: "visible_scene", sourceText: "что я вижу?" },
+        supportingClauses: [],
+        referents: [],
+      },
+    }));
+    const { store, runtime } = await fresh(router);
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Осматриваю ограду, что я вижу?",
+        idempotencyKey: "recognized-fence-observation-question",
+      }));
+      expect(body.masterTurn.kind).toBe("mixed_outcome");
+      expect(body.masterTurn.deterministicText).toMatch(/оград|перед тобой|видишь/iu);
+      expect(runtime.projection.getSnapshot().time).toBe(1);
+      expect(runtime.bus.query().length).toBeGreaterThan(beforeEvents);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it.each([
+    "Нет, передумал: осматриваюсь.",
+    "Отменяю разговор и осматриваюсь.",
+    "Я передумал: осмотрю знак поближе.",
+  ])("preserves a recognized observation after corrective framing: %s", async (input) => {
+    const { router, chat } = routerFor(() => ({
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "world_question",
+      proposal: {
+        schemaVersion: 2,
+        kind: "inquiry",
+        primaryIntent: { kind: "inquiry", queryId: "visible_scene", sourceText: "осматриваюсь" },
+        supportingClauses: [],
+        referents: [],
+      },
+    }));
+    const signEvents: DomainEvent[] = input.includes("знак") ? [
+      {
+        eventId: "corrective-sign-placed", type: "WorldObjectPlaced", schemaVersion: 1,
+        payload: {
+          id: "sign", name: "Знак", aliases: ["знак", "знака", "знаком", "знаку"],
+          description: "Потёртый знак у переправы.", material: "wood", locationId: "river_waystation",
+          integrity: 100, temperature: 20, state: {},
+        }, timestamp: 0, correlationId: "bootstrap", causationId: null,
+      },
+      {
+        eventId: "corrective-sign-observed", type: "ObjectObserved", schemaVersion: 1,
+        payload: { objectId: "sign", observerId: "player", description: "Потёртый знак у переправы." },
+        timestamp: 0, correlationId: "bootstrap", causationId: "corrective-sign-placed",
+      },
+    ] : [];
+    const { store, runtime } = await fresh(router, "river_waystation_arrival", undefined, signEvents, "wanderer");
+    try {
+      const beforeEvents = runtime.bus.query().length;
+      const beforeTime = runtime.projection.getSnapshot().time;
+      const body = parse(await handleWorldCommand(runtime, {
+        input,
+        idempotencyKey: "corrective-observation-" + input.length,
+      }));
+      expect(body.masterTurn.kind, JSON.stringify(body)).toBe("action_outcome");
+      expect(body.conversationTurn.responseKind).toBe("action_outcome");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime + 1);
+      const emittedEvents = runtime.bus.query().slice(beforeEvents);
+      expect(emittedEvents.length).toBeGreaterThan(0);
+      if (input.includes("знак")) {
+        const observedIds = emittedEvents
+        .filter((event) => event.type === "ObjectObserved")
+        .map((event) => (event.payload as { objectId?: string }).objectId);
+        expect(observedIds).toContain("sign");
+      }
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it("executes a supported mixed action and question from the closed path when the provider is unavailable", async () => {
+    const chat = vi.fn(async (category: string) => {
+      if (category !== "interpret") return { text: "" };
+      throw new Error("provider unavailable");
+    });
+    const { store, runtime } = await fresh({ apiKey: "", chat });
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Осматриваюсь, что я вижу?",
+        idempotencyKey: "provider-down-supported-mixed",
+      }));
+
+      expect(body.masterTurn.kind).toBe("mixed_outcome");
+      expect(body.masterTurn.deterministicText).toMatch(/оград|перед тобой|видишь/iu);
+      expect(runtime.projection.getSnapshot().time).toBe(1);
+      expect(runtime.bus.query().length).toBeGreaterThan(beforeEvents);
+      expect(runtime.bus.query().slice(beforeEvents).some((event) => event.type === "InteractionRequested")).toBe(true);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
     } finally { store.close(); }
   });
 
@@ -337,6 +750,36 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("returns a question-specific clarification when the live proposal drops a standalone question", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router);
+    const person = ferry(runtime);
+    decision = {
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "action",
+      proposal: {
+        schemaVersion: 2, kind: "action",
+        primaryIntent: { kind: "legacy", operation: "approach", sourceText: "Подойти к Перевозчику у переправы" },
+        target: { role: "target", surface: person.label, observerRef: person.handle },
+        supportingClauses: [], referents: [{ role: "target", surface: person.label, observerRef: person.handle }],
+      },
+    };
+    const count = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Что именно известно о ночном следе?", idempotencyKey: "dropped-standalone-question",
+      }));
+      expect(body.status).toBe("clarification");
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(body.question).toContain("задаёшь вопрос");
+      expect(["clarification", "contextual_clarification"]).toContain(body.masterTurn.kind);
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(store.loadEvents(WORLD)).toHaveLength(count);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
   it("fails closed when the live proposal drops the question after an action", async () => {
     let decision: unknown;
     const { router, chat } = routerFor(() => decision);
@@ -356,6 +799,10 @@ describe("P3 Director production path", () => {
       const body = parse(await handleWorldCommand(runtime, {
         input: "Подойти к Перевозчику у переправы и спроси: кто рядом?", idempotencyKey: "dropped-question",
       }));
+      expect(body.status).toBe("clarification");
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(body.question).toContain("Подойти к Перевозчику");
+      expect(body.question).toContain("кто рядом");
       expect(["clarification", "contextual_clarification"]).toContain(body.masterTurn.kind);
       expect(runtime.projection.getSnapshot().time).toBe(0);
       expect(store.loadEvents(WORLD)).toHaveLength(count);
@@ -425,6 +872,130 @@ describe("P3 Director production path", () => {
       expect(store.listConversationTurns(WORLD)[0]?.inputClass).toBe("mixed");
       expect(runtime.projection.getSnapshot().time).toBe(before + 1);
       expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
+  it.each(["grounded", "fabricated", "extra-prose"] as const)("combines exact ruins inspection and its question with %s narration", async (mode) => {
+    const input = "Я внимательно осматриваю древние развалины и пытаюсь понять, что здесь произошло";
+    const decision = {
+      schemaVersion: 2,
+      addressee: { kind: "gm" },
+      kind: "mixed",
+      proposal: {
+        schemaVersion: 2,
+        kind: "mixed",
+        primaryIntent: {
+          kind: "interaction",
+          verb: "observe",
+          sourceText: "внимательно осматриваю древние развалины",
+        },
+        supportingClauses: [],
+        referents: [],
+        questionPlan: {
+          subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+          parts: [{ id: "history", subjectRefs: ["here"], aspect: "known_event", time: "past", purpose: "explain" }],
+        },
+        readings: [{ partId: "history", source: "known_events" }],
+      },
+    };
+    let supplied: AllowedNarrativeFacts | undefined;
+    let generated: string | null = null;
+    const chat = vi.fn(async (category: string, messages: readonly { content: string }[]) => {
+      if (category === "interpret") return { text: JSON.stringify(decision), provider: "test", model: "director", usedFallback: false };
+      const { allowed } = JSON.parse(messages[1]!.content) as { allowed: AllowedNarrativeFacts };
+      supplied = allowed;
+      expect(messages[0]!.content).toContain("только соединение claims[i].text");
+      const text = mode !== "fabricated" ? JSON.stringify({
+        narration: allowed.mandatory.join(" ") + (mode === "extra-prose" ? " Вокруг тихо." : ""),
+        claims: allowed.facts.map((fact) => ({ text: fact.content, ref: fact.ref, assertion: fact.assertion })),
+        coveredMandatory: allowed.mandatory,
+      }) : JSON.stringify({
+        narration: "Здесь стоял король.",
+        claims: [{ text: "Здесь стоял король.", ref: "f99", assertion: "observed" }],
+        coveredMandatory: allowed.mandatory,
+      });
+      generated = text;
+      return { text, provider: "test", model: "narrator", usedFallback: false, latencyMs: 1 };
+    });
+    const router = { apiKey: "test-only", timeoutSeconds: 1, chat };
+    const ruinsArrival: DomainEvent = {
+      eventId: "test-setup-player-location-old-ruins",
+      type: "PlayerLocationChanged",
+      schemaVersion: 1,
+      payload: { locationId: "old_ruins" },
+      timestamp: 0,
+      correlationId: "test-setup",
+      causationId: null,
+    };
+    const { store, runtime } = await fresh(router, "river_waystation_arrival", undefined, [ruinsArrival]);
+    const beforeTime = runtime.projection.getSnapshot().time;
+    const beforeEvents = runtime.bus.query().length;
+
+    try {
+      expect(runtime.projection.getSnapshot().currentLocationId).toBe("old_ruins");
+      const body = parse(await handleWorldCommand(runtime, {
+        input,
+        idempotencyKey: "exact-ruins-observation-with-question",
+      }));
+
+      expect(body.masterTurn.kind).toBe("mixed_outcome");
+      expect(body.conversationTurn.responseKind).toBe("mixed_outcome");
+      expect(body.conversationTurn.responseText).toContain(ANSWER_GAP_STATEMENT);
+      expect(body.masterTurn.narration.status).toBe("pending");
+      expect(store.listConversationTurns(WORLD)[0]?.responseText).toContain(ANSWER_GAP_STATEMENT);
+      expect(body.questionReadings.coveredParts).not.toContain("history");
+      expect(body.questionReadings.results).toHaveLength(1);
+      expect(body.questionReadings.results[0]).toMatchObject({
+        request: { partId: "history", source: "known_events" },
+        status: "no_data",
+        facts: [],
+      });
+      expect(body.questionReadings.results[0].gaps).toContainEqual(
+        expect.objectContaining({ partId: "history", status: "no_data", aspect: "known_event" }),
+      );
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime + 1);
+      const emitted = runtime.bus.query().slice(beforeEvents);
+      const world = runtime.projection.getSnapshot();
+      const description = world.locations.get("old_ruins")!.description!;
+      expect(verifyP3RuinsPerception("old_ruins", "old_ruins", beforeTime, world.time, description, emitted)).toBe(true);
+      expect(verifyP3RuinsPerception("old_ruins", "riverwatch_city", beforeTime, world.time, description, emitted)).toBe(false);
+      expect(verifyP3RuinsPerception("old_ruins", "old_ruins", beforeTime, world.time, description, emitted.filter((event) => event.type !== "TargetResolved"))).toBe(false);
+      const locationLabel = world.locations.get("old_ruins")!.name!;
+      const spec = readP3RuinsQuestionSpec(decision, locationLabel, { worldTime: beforeTime, eventNumber: beforeEvents });
+      expect(spec).not.toBeNull();
+      expect(readP3RuinsQuestionSpec({ ...decision, kind: "world_question" }, locationLabel, { worldTime: beforeTime, eventNumber: beforeEvents })).toBeNull();
+      const round = executeQuestionReadingRound(spec!, {
+        scene: buildMasterTurnSceneContext(runtime.bus.query(), world),
+        revision: { worldTime: world.time, eventNumber: world.eventNumber }, transcript: null,
+        narrative: buildNarrativeAdapterContext(runtime.bus.query(), world, {
+          characterName: null, entrypoint: null, presentation: null, openingWindow: false,
+          profile: store.getCharacterProfile(store.getWorldRecord(WORLD)!.characterId!),
+        }),
+      });
+      const statements = verifyP3RuinsQuestionReading(round, body.questionReadings);
+      expect(statements).toContain(ANSWER_GAP_STATEMENT);
+      expect(verifyP3RuinsQuestionReading(round, { ...body.questionReadings, results: [] })).toBeNull();
+      expect(JSON.stringify(body)).not.toMatch(/person_\d+|object_\d+|route_\d+|targetRef|locationId|contactRef|internalId/u);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+      await vi.waitFor(() => {
+        const journal = parse(handleWorldJournal(runtime, new URL("http://127.0.0.1/journal?limit=10")));
+        const turn = journal.turns.find((entry: any) => entry.narrationHandle === body.conversationTurn.narrationHandle);
+        expect(turn?.narrationState).toBe(mode === "grounded" ? "ready" : "unavailable");
+        expect(verifyP3RuinsNarration(
+          actionOutcomeText(input, emitted, world).text, statements, supplied ?? null, generated,
+          extractP3PlayerVisibleResponse({ ...body, journalTurn: turn }), true,
+        )).toBe(mode === "grounded");
+        if (mode === "grounded") expect(turn?.narrativeLLM?.text).toContain(ANSWER_GAP_STATEMENT);
+        else expect(turn?.narrativeLLM).toBeFalsy();
+      });
+      expect(supplied?.mandatory).toContain(ANSWER_GAP_STATEMENT);
+      expect(chat.mock.calls.filter(([category]) => category === "narrate")).toHaveLength(1);
+      const replay = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "exact-ruins-observation-with-question" }));
+      expect(replay.replayed).toBe(true);
+      expect(replay.conversationTurn.responseText).toBe(body.conversationTurn.responseText);
+      expect(replay.questionReadings).toEqual(body.questionReadings);
+      expect(chat).toHaveBeenCalledTimes(2);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents + emitted.length);
     } finally { store.close(); }
   });
 
@@ -509,9 +1080,44 @@ describe("P3 Director production path", () => {
     try {
       const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "down-speech" }));
       expect(body.masterTurn.kind).toBe("speech_reaction");
-      expect(body.masterTurn.deterministicText).toContain("не удаётся продолжить");
+      expect(body.masterTurn.deterministicText).toContain("Здравствуй.");
       expect(runtime.projection.getSnapshot().time).toBe(0);
       expect(runtime.bus.query()).toHaveLength(count);
+      expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
+
+  it("acknowledges bare gratitude read-only when the live provider is unavailable", async () => {
+    const chat = vi.fn(async () => { throw new Error("provider down"); });
+    const { store, runtime } = await fresh({ apiKey: "", chat });
+    const beforeTime = runtime.projection.getSnapshot().time;
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input: "Спасибо.", idempotencyKey: "offline-thanks" }));
+      expect(body).toMatchObject({ status: "conversation", conversationTurn: { responseKind: "speech_reaction", worldTimeBefore: beforeTime, worldTimeAfter: beforeTime } });
+      expect(body.masterTurn.deterministicText).toBe("Пожалуйста.");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+    } finally { store.close(); }
+  });
+
+  it("answers an explicitly addressed unsupported NPC question with no-knowledge on provider failure", async () => {
+    const chat = vi.fn(async () => { throw new Error("provider down"); });
+    const { store, runtime } = await fresh({ apiKey: "", chat }, "riverwatch_city_arrival");
+    const beforeTime = runtime.projection.getSnapshot().time;
+    const beforeEvents = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, {
+        input: "Смотритель, кто последним ушёл по восточному тракту?",
+        idempotencyKey: "offline-npc-unknown",
+      }));
+      expect(body.masterTurn.kind).toBe("speech_reaction");
+      expect(body.masterTurn.deterministicText).toContain("нет подтверждённых сведений");
+      expect(body.masterTurn.deterministicText).not.toContain("ведёт журнал проходов");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
       expect(chat).toHaveBeenCalledTimes(1);
     } finally { store.close(); }
   });
@@ -554,6 +1160,52 @@ describe("P3 Director production path", () => {
       expect(router.chat.mock.calls.filter(([category]: [string]) => category === "interpret")).toHaveLength(1);
     } finally { store.close(); }
   });
+
+  it("records structured live provider failures only in trusted diagnostics", async () => {
+    const transport = { provider: "opencode_server" as const, model: "opencode/free-model" };
+    const traceId = "upstream-test-trace";
+    const chat = vi.fn(async () => {
+      throw new ProviderUnavailableError("PRIVATE_ROUTER_ERROR", {
+        ...transport,
+        configuredModel: transport.model,
+        cause: new ProviderRequestError({
+          ...transport, category: "interpret", phase: "response_status",
+          httpStatus: 429, gatewayHttpStatus: 502, providerCode: "rate_limited", providerTraceId: traceId,
+          retryAfterHeaderRaw: "75", retryAfterMsParsed: 75_000, retryAfterMsApplied: 75_000,
+          retryable: false, cause: new Error("PRIVATE_UPSTREAM_BODY"),
+        }),
+      });
+    });
+    const { store, runtime, manager } = await fresh({ apiKey: "", chat }, "riverwatch_city_arrival");
+    const before = runtime.projection.getSnapshot().time;
+    const events = store.loadEvents(WORLD);
+    const request = { input: "Привет, смотритель", idempotencyKey: "live-provider-diagnostics" };
+    try {
+      const body = parse(await handleWorldCommand(runtime, request));
+      expect(body.conversationTurn).toMatchObject({ responseKind: "speech_reaction", worldTimeAfter: before });
+      expect(JSON.stringify(body)).not.toMatch(/PRIVATE_(?:ROUTER_ERROR|UPSTREAM_BODY)|upstream-test-trace/u);
+      const diagnostics = manager.narrationDiagnostics().filter((entry) => entry.category === "gm_director");
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
+        ...transport, phase: "live", outcome: "fallback", failureCategory: "provider_error",
+        providerPhase: "response_status", httpStatus: 429, gatewayHttpStatus: 502,
+        providerCode: "rate_limited", providerTraceId: traceId,
+        retryAfterHeaderRaw: "75", retryAfterMsParsed: 75_000, retryAfterMsApplied: 75_000,
+        providerRetryable: false, decisionAccepted: false,
+        providerLatencyMs: expect.any(Number), totalLatencyMs: expect.any(Number),
+      });
+      expect(JSON.stringify(diagnostics)).not.toMatch(/PRIVATE_(?:ROUTER_ERROR|UPSTREAM_BODY)/u);
+
+      const replay = parse(await handleWorldCommand(runtime, request));
+      expect(replay.replayed).toBe(true);
+      expect(manager.narrationDiagnostics().filter((entry) => entry.category === "gm_director")).toHaveLength(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(store.loadEvents(WORLD)).toEqual(events);
+      expect(runtime.projection.getSnapshot().time).toBe(before);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+    } finally { store.close(); }
+  });
+
   it("continues a persisted person focus for a pronominal talk request after SQLite reopen", async () => {
     const { router, chat } = routerFor(() => ({
       schemaVersion: 2,
@@ -667,6 +1319,89 @@ describe("P3 Director production path", () => {
       expect(chat).not.toHaveBeenCalled();
       expect(JSON.stringify(body)).not.toMatch(/person_|object_|route_|locationId|internalId/iu);
     } finally { reopened.close(); }
+  });
+
+  it.each([
+    "Спросить у Смотрителя, кто последним ушёл по восточному тракту.",
+    "Спроси у Смотрителя, что случилось у переправы.",
+    "Расспросить Смотрителя, где находится журнал.",
+  ])("does not turn an explicitly asked NPC question %j into a generic speak action", async (input) => {
+    let decision: unknown;
+    const { router } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const keeper = scene.context.knownPeople.find((person) => person.label.includes("Смотритель"));
+    expect(keeper).toBeDefined();
+    const handle = stableActorHandle(keeper!.observerRef);
+    const addressee = { role: "addressee", surface: keeper!.label, observerRef: handle };
+    decision = {
+      schemaVersion: 2, addressee: { kind: "npc", handle }, kind: "action",
+      proposal: {
+        schemaVersion: 2, kind: "action",
+        primaryIntent: { kind: "legacy", operation: "speak", sourceText: input },
+        addressedEntity: addressee, referents: [addressee], supportingClauses: [],
+      },
+    };
+    const eventsBefore = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-question-no-question-mark" }));
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(eventsBefore);
+    } finally { store.close(); }
+  });
+
+  it("does not replace an explicitly named gate target with the nearby gatekeeper", async () => {
+    let decision: unknown;
+    const { router } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const keeper = scene.context.knownPeople.find((person) => person.label.includes("Смотритель"));
+    expect(keeper).toBeDefined();
+    const handle = stableActorHandle(keeper!.observerRef);
+    const input = "Оглянусь на городские ворота и прислушаюсь к торговому шуму.";
+    const target = { role: "target", surface: keeper!.label, observerRef: handle };
+    decision = {
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "mixed",
+      proposal: {
+        schemaVersion: 2, kind: "mixed",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Оглянусь на городские ворота" },
+        target, referents: [target], supportingClauses: [{ kind: "deferred_action", summary: "прислушаюсь к торговому шуму" }],
+      },
+    };
+    const eventsBefore = runtime.bus.query().length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "explicit-gates-not-gatekeeper" }));
+      expect(body.conversationTurn.responseKind).toBe("clarification");
+      expect(runtime.projection.getSnapshot().time).toBe(0);
+      expect(runtime.bus.query()).toHaveLength(eventsBefore);
+    } finally { store.close(); }
+  });
+
+  it("still allows a model proposal for the person explicitly named in an inflected form", async () => {
+    let decision: unknown;
+    const { router } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", undefined, [], "keeper");
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), runtime.projection.getSnapshot());
+    const keeper = scene.context.knownPeople.find((person) => person.label.includes("Смотритель"));
+    expect(keeper).toBeDefined();
+    const handle = stableActorHandle(keeper!.observerRef);
+    const input = "Оглянусь на смотрителя и прислушаюсь к торговому шуму.";
+    const target = { role: "target", surface: keeper!.label, observerRef: handle };
+    decision = {
+      schemaVersion: 2, addressee: { kind: "gm" }, kind: "mixed",
+      proposal: {
+        schemaVersion: 2, kind: "mixed",
+        primaryIntent: { kind: "interaction", verb: "observe", sourceText: "Оглянусь на смотрителя" },
+        target, referents: [target], supportingClauses: [{ kind: "deferred_action", summary: "прислушаюсь к торговому шуму" }],
+      },
+    };
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "explicit-gatekeeper-not-blocked" }));
+      expect(body.conversationTurn.responseKind).toBe("mixed_outcome");
+      expect(body.masterTurn.deterministicText).toContain("Смотритель");
+      expect(runtime.projection.getSnapshot().time).toBe(1);
+    } finally { store.close(); }
   });
 
   it("does not accept a social-only acknowledgement that drops a speech-wrapped question", async () => {
@@ -846,6 +1581,41 @@ describe("P3 Director production path", () => {
       expect(chat).not.toHaveBeenCalled();
       expect(beforeEvents).toBeGreaterThan(0);
     } finally { reopened.close(); }
+  });
+
+  it("does not turn thanks after an NPC topic prompt into a topic fragment", async () => {
+    let targetHandle = "";
+    const { router, chat } = routerFor(() => ({
+      ...social("gratitude_acknowledgement"),
+      addressee: { kind: "npc", handle: targetHandle },
+    }));
+    const { store, runtime } = await fresh(router);
+    const target = ferry(runtime);
+    targetHandle = target.handle;
+    try {
+      await handleWorldCommand(runtime, { input: "Подойти к перевозчику", idempotencyKey: "thanks-approach" });
+      const topicPrompt = parse(await handleWorldCommand(runtime, {
+        input: "Хочу поговорить с ним",
+        idempotencyKey: "thanks-topic-prompt",
+      }));
+      expect(topicPrompt.masterTurn.deterministicText).toContain("О чём ты хочешь поговорить?");
+
+      const beforeTime = runtime.projection.getSnapshot().time;
+      const beforeEvents = runtime.bus.query().length;
+      const thanks = parse(await handleWorldCommand(runtime, {
+        input: "Спасибо.",
+        idempotencyKey: "thanks-after-topic-prompt",
+      }));
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(thanks).toMatchObject({
+        status: "conversation",
+        conversationTurn: { responseKind: "speech_reaction", worldTimeBefore: beforeTime, worldTimeAfter: beforeTime },
+      });
+      expect(thanks.masterTurn.deterministicText).toBe(target.label + ": «Пожалуйста.»");
+      expect(thanks.masterTurn.deterministicText).not.toContain("речь о");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(runtime.bus.query()).toHaveLength(beforeEvents);
+    } finally { store.close(); }
   });
 
   it("persists an ambiguous appearance-and-reaction question across restart without events or invented mood", async () => {

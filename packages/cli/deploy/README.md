@@ -100,24 +100,111 @@ SKALD_OLLAMA_CLOUD_API_KEY=
 SKALD_OPENROUTER_API_KEY=
 SKALD_AI_REQUIRED=1
 # Optional local-subprocess narrative transport (off by default; narrate-route
-# backup only). Requires the containment `narrative` agent on the host; the
-# absolute path is required because `~/.opencode/bin` is not on the service
-# PATH. See packages/cli/deploy/skald.env.example.
+# backup only). Requires the containment `narrative` agent on the host. The
+# service PATH includes `/home/nooker/bin`; `SKALD_OPENCODE_BIN` can pin an
+# exact binary. See packages/cli/deploy/skald.env.example.
 # SKALD_OPENCODE_RUN=1
 # SKALD_OPENCODE_BIN=/home/nooker/.opencode/bin/opencode
+# OpenCode v2 Server primary transport (off by default; see the section below).
+# SKALD_OPENCODE_SERVER_ENABLED=1
+# SKALD_OPENCODE_SERVER_MODEL=opencode/<screened-zero-price-model-id>
 ```
 
-The systemd unit keeps `HOME` fully read-only: each `opencode_run` call runs
-in an empty per-call `HOME` (under the service-private `/tmp`) containing
-only the repo-pinned tools-denied agent manifest
-(`packages/cli/deploy/opencode-narrative-agent.md`, installed and
-hash/owner/permission-verified by deploy), so the child never sees the
-operator home, the Skald database or user files, and the unit admits no
-OpenCode state writes at all. Installer/updater enforce the containment env
-policy through the tested `env-policy.ts` before service-affecting steps
-(updater: before backup; installer: before units/scripts/agent go in). After changing
+The systemd unit keeps the operator `HOME` read-only. Each `opencode_run` call
+uses an empty per-call home under service-private `/tmp` containing only the
+repo-pinned tools-denied manifest. The optional v2 server uses a separate
+`HOME` and XDG tree under `/home/nooker/skald-data/opencode-server`. The local
+OpenCode Server, bound to loopback, creates a fresh, random session
+for each generation request; session history is never reused and the session
+is removed after the transient generation. OpenCode state is not game memory.
+Both transports stay inside the service boundary and never write Skald Events
+or Projection. Installer/updater enforce the containment env policy through
+the tested `env-policy.ts` before service-affecting steps (updater: before
+backup; installer: before units/scripts/agent go in). After changing
 `skald.service`, re-install the unit and reload systemd before restarting
 (installer step, requires root).
+
+### OpenCode v2 Server primary transport
+
+The server transport uses the official `@opencode/client` SDK pinned to
+OpenCode **2.3.0** and binds its private server to `127.0.0.1:4097`. The
+installed `/home/nooker/bin/opencode` launcher is expected on the service
+`PATH`; `SKALD_OPENCODE_BIN` can pin that exact path. The transport is off
+unless all three primary settings are present:
+
+```text
+SKALD_OPENCODE_SERVER_ENABLED=1
+SKALD_OPENCODE_SERVER_MODEL=opencode/<exact-model-id>
+SKALD_OPENCODE_ZEN_API_KEY=<credential>
+```
+
+When enabled, the pinned OpenCode candidates are the **only** `interpret` and
+`narrate` routes; direct Zen HTTP and unrelated provider failover are removed.
+This prevents a failed/rate-limited OpenCode call from silently reaching a
+possibly paid provider. An optional `SKALD_OPENCODE_SERVER_FALLBACK_MODEL` may
+follow the primary. Both candidates must be active chat models with explicit
+prices. Primary and fallback are zero-priced by default. After explicit
+operator approval of the model and spending budget, a paid primary requires
+`SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY=1`; a paid fallback independently
+requires `SKALD_OPENCODE_SERVER_ALLOW_PAID_FALLBACK=1`. Neither permission
+authorizes the other slot. The paid fallback opt-in requires a fallback pin
+and is rejected by the deploy policy otherwise. These flags are permissions,
+not billing caps; configure spending limits with the provider before use.
+This runtime price guard is not a quality or availability screen and does not
+nominate or activate models from discovery receipts.
+
+For each request the adapter creates a fresh session with a random ID and a
+deny-all permission rule, calls the official session.generate transient-text
+method, then deletes the session. The transient operation does not append
+dialogue history; the session exists only to select the pinned model and
+location. Failed cleanup turns the generation into a provider failure rather
+than silently retaining server-side conversation state. Tool permissions are
+denied both in the isolated OpenCode config and on the session; the adapter
+does not call prompt, shell, filesystem, MCP or plugin APIs.
+
+Provider concurrency defaults to two, has a hard maximum of four and a
+bounded queue of eight; caller cancellation is propagated and does not
+retry/fail over. A 429 is not retried in a hot loop;
+the bounded original `Retry-After`, parsed delay, applied cooldown, allowlisted
+provider code and sanitized trace ID are kept separate in failure diagnostics.
+OpenCode's typed gateway error may wrap an upstream 402/429 in HTTP 502;
+diagnostics retain the upstream `httpStatus` and outer `gatewayHttpStatus`
+separately. For a model that needs longer live interpretation, explicitly set
+`GM_DIRECTOR_LIVE_TIMEOUT_MS` to 1000..20000 milliseconds (default 4000).
+This changes only the interpretation budget, not authority or game-time cost.
+
+For free discovery candidates, keep the setting disabled unless a current
+scheduled screening pass and the operator's separate task-evaluation decision
+exist. A paid route instead needs explicit model/budget approval and a bounded
+control generation before live activation. Catalogue presence or a
+zero-price marker alone proves neither callability nor safe Russian prose.
+The v2 response includes token usage and model-reported cost; the adapter
+validates those numeric fields and returns them as usage and reportedCostUsd
+(the latter is a provider-reported estimate, not a billing receipt). The live
+P3 acceptance runner separately reserves worst-case cost from the pinned
+model's explicit catalogue rates and configured token limits before each
+model call, and appends that reservation to the operator's budget ledger.
+Missing prices, unverified session model identity, failed ledger writes or
+exhausted budget block the call before it reaches OpenCode. This acceptance
+cap is not a production billing cap; provider-side spending limits remain
+necessary for paid production use. The default route remains unchanged until
+an explicit model pin is approved and configured. The deploy env-policy also
+rejects a missing pin/credential, invalid port and alternate server-state path.
+
+The OpenCode Server child runs as the skald.service user with isolated HOME,
+XDG config/data/cache/state directories and a generated Basic-auth password
+known only to the local adapter. The configured OpenCode credential is passed
+only as OPENCODE_API_KEY to that child. The interactive operator's
+opencode auth list or HOME does not prove which credential the service uses.
+Verify the systemd User and EnvironmentFile path without printing environment
+values; never include a key in diagnostics or shell transcripts. GET
+/api/health is simulation liveness only. Use a single, intentionally bounded
+loopback intent/probe acceptance when verifying actual model access; it may
+make provider calls and must not be polled as a health check. On 429, stop
+repeated tests, inspect sanitized provider status and Retry-After/applied
+cooldown fields, verify provider quota/auth separately, and make at most one
+deliberate retry after the reported cooldown. Do not switch free model IDs or
+IPs to evade provider limits.
 
 `GET /api/health` is simulation liveness only and never calls a provider.
 `POST http://127.0.0.1:3000/api/ops/ai-probe` is loopback-only and returns 200

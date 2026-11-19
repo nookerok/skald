@@ -108,11 +108,9 @@ if (dirty.length > 0) blocked("worktree_dirty", { actualCommit: commit, offender
 const corpusErrors = corpusConfigErrors(GM_CORPUS);
 if (corpusErrors.length > 0) blocked("corpus_config_invalid", { errors: corpusErrors });
 
-// Live discovery, exactly like the HTTP server: the bare
-// `createRouterConfiguration()` carries no selection and falls back to the
-// static Zen candidates, which are dead server-side (free tier is locked to
-// the OpenCode app). Without live discovery every entry would score as a
-// provider fallback and prove nothing about the director.
+// Use the HTTP server's router construction: discovered providers receive the
+// same live selection, while an explicit OpenCode Server pin remains static
+// and avoids probing unrelated routes that will be discarded.
 const configuration = await createLiveRouterConfiguration();
 const configuredRouter = configuration?.router ?? null;
 if (!configuredRouter) blocked("no_router_configured");
@@ -126,8 +124,10 @@ const router = configuredRouter;
 const pinnedProvider = process.env["GM_SCORECARD_PROVIDER"] ?? null;
 if (pinnedProvider !== null) {
   const selection = configuration?.selectionReport;
-  const routes = selection?.routes;
-  if (!selection || !routes) blocked("provider_pin_no_selection", { provider: pinnedProvider });
+  const routes = selection?.routes ?? {
+    interpret: router.routeCandidates("interpret"),
+    narrate: router.routeCandidates("narrate"),
+  };
   const pin = <T extends { provider: string }>(list: readonly T[]): readonly T[] => list.filter((c) => c.provider === pinnedProvider);
   const pinnedRoutes = { interpret: pin(routes.interpret), narrate: pin(routes.narrate) };
   if (pinnedRoutes.interpret.length === 0) {
@@ -136,7 +136,10 @@ if (pinnedProvider !== null) {
       available: [...new Set(routes.interpret.map((candidate) => candidate.provider))],
     });
   }
-  refreshRouterSelection(router, { ...selection, routes: pinnedRoutes });
+  if (selection) refreshRouterSelection(router, { ...selection, routes: pinnedRoutes });
+  else if (routes.interpret.some((candidate) => candidate.provider !== pinnedProvider)) {
+    blocked("provider_pin_no_selection", { provider: pinnedProvider });
+  }
   // Fail-closed pin contract: the EFFECTIVE interpret route must be the pinned
   // provider only — otherwise this run would not be the A/B it claims to be.
   const leaked = router.routeCandidates("interpret").filter((candidate) => candidate.provider !== pinnedProvider);
@@ -200,6 +203,7 @@ async function runOnce(runIndex: number): Promise<{ ok: boolean; report: Record<
         expectedSubjectHandle: item.expectedSubjectHandle,
         expectedQueryId: item.fixture.expected.queryId,
         expectedCandidateHandles: item.expectedCandidateHandles,
+        expectedResponseAct: item.fixture.expected.responseAct,
       },
       contextJson: item.contextJson,
       forbidden: item.fixture.forbidden,

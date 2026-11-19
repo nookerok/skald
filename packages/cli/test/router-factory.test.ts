@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLiveRouterConfiguration, createRouterConfiguration, openCodeRunIdentity, refreshRouterSelection } from "../src/runtime/router-factory.js";
+import { createLiveRouterConfiguration, createRouterConfiguration, openCodeRunIdentity, openCodeServerIdentity, refreshRouterSelection } from "../src/runtime/router-factory.js";
 import { OpenCodeRunProvider } from "../src/runtime/opencode-run-provider.js";
+import { OpenCodeServerProvider } from "../src/runtime/opencode-server-provider.js";
 
 function freeChatModel(id: string): Record<string, unknown> {
   return {
@@ -16,10 +17,6 @@ function freeChatModel(id: string): Record<string, unknown> {
 }
 
 describe("router factory", () => {
-  it("includes the native CLI generation in the transport fingerprint", () => {
-    expect(openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1" }, "fixed"))
-      .not.toBe(openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1", SKALD_OPENCODE_CLI_MAJOR: "2" }, "fixed"));
-  });
   it("captures provider-scoped keys in the runtime router without returning them", () => {
     const config = createRouterConfiguration({
       SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
@@ -106,6 +103,54 @@ describe("router factory", () => {
     expect(probe).not.toHaveBeenCalled();
     expect(JSON.stringify(config)).not.toContain("zen-secret");
     expect(config.router?.configFingerprint()).toBe(config.configFingerprint);
+  });
+
+  it("makes an explicitly pinned v2 server the primary transport without direct Zen calls", async () => {
+    const preferred = ["big-pickle"];
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as unknown as Response));
+    const probe = vi.fn(async () => ({ status: "ok", phase: "schema_validation" } as const));
+    const env = {
+      SKALD_OPENCODE_ZEN_API_KEY: "zen-secret",
+      SKALD_OLLAMA_CLOUD_API_KEY: "ollama-secret",
+      SKALD_OPENROUTER_API_KEY: "openrouter-secret",
+      SKALD_OPENCODE_SERVER_ENABLED: "1",
+      SKALD_OPENCODE_SERVER_MODEL: "opencode/big-pickle",
+      SKALD_OPENCODE_SERVER_FALLBACK_MODEL: "opencode/free-backup",
+      SKALD_OPENCODE_SERVER_MAX_CONCURRENCY: "1",
+      SKALD_AI_REQUIRED: "1",
+    };
+    const config = await createLiveRouterConfiguration(env, { preferredModels: preferred, fetchImpl, probe });
+
+    const primary = {
+      provider: "opencode_server",
+      model: "opencode/big-pickle",
+      protocol: "opencode_server",
+      tier: "catalog_candidate",
+    };
+    const fallback = { ...primary, model: "opencode/free-backup" };
+    expect(config.router).toBeInstanceOf(OpenCodeServerProvider);
+    expect(config.prewarm).toBeTypeOf("function");
+    expect(config.router?.routeCandidates("interpret")).toEqual([primary, fallback]);
+    expect(config.router?.routeCandidates("narrate")).toEqual([primary, fallback]);
+    expect(config.router?.hasProviderKey("opencode_server")).toBe(true);
+    expect(probe).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(config.selectionReport).toBeUndefined();
+    expect(openCodeServerIdentity(env)).toContain("enabled:opencode/big-pickle");
+    expect(openCodeServerIdentity(env)).toMatch(/:agents=[a-f0-9]{64}$/u);
+    expect(openCodeServerIdentity(env)).toContain("fallback=opencode/free-backup");
+    const changedFallback = openCodeServerIdentity({ ...env, SKALD_OPENCODE_SERVER_FALLBACK_MODEL: "opencode/another-backup" });
+    expect(changedFallback).not.toBe(openCodeServerIdentity(env));
+    const paidEnv = { ...env, SKALD_OPENCODE_SERVER_ALLOW_PAID_PRIMARY: "1" };
+    expect(openCodeServerIdentity(paidEnv)).toContain("paidPrimary=1");
+    expect(openCodeServerIdentity(paidEnv)).not.toBe(openCodeServerIdentity(env));
+    const paidConfig = createRouterConfiguration(paidEnv);
+    expect(paidConfig.configFingerprint).not.toBe(createRouterConfiguration(env).configFingerprint);
+    expect(config.configFingerprint).not.toContain("zen-secret");
   });
 
   it("reapplies a fresh selection to a live router with a recomputed fingerprint", async () => {
@@ -475,6 +520,11 @@ describe("router factory", () => {
     expect(identity).not.toContain("zen-secret");
     expect(identity).not.toContain("skald-data");
     expect(identity).not.toContain(".opencode");
+  });
+
+  it("includes the native CLI generation in the transport fingerprint", () => {
+    expect(openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1" }, "fixed"))
+      .not.toBe(openCodeRunIdentity({ SKALD_OPENCODE_RUN: "1", SKALD_OPENCODE_CLI_MAJOR: "2" }, "fixed"));
   });
 
   it("fingerprints the served manifest bytes across file replacement", async () => {

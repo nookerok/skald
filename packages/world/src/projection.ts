@@ -15,6 +15,7 @@ import { ActionCapabilityProjector } from './action-capability/projector.js';
 import type { ActionCapabilityReadView } from './action-capability/types.js';
 import { createObserverSpatialKnowledge, freezeObserverSpatialKnowledge, mergeSpatialObservation } from "./region/observer-knowledge.js";
 import type { MutableObserverSpatialKnowledge, ObserverSpatialKnowledge } from "./region/observer-knowledge.js";
+import { parseNpcDossier, type NpcDossier } from "./npc-dossier.js";
 
 /** Event types whose read-view projection must be refreshed after apply. */
 const SPATIAL_EVENT_TYPES = new Set([
@@ -147,6 +148,8 @@ export interface ReadonlyWorld {
   readonly actionCapabilities: ActionCapabilityReadView | null;
   // Scene proximity (ADR-0039 §3): derived engagement state, not metres.
   readonly sceneEngagement: SceneEngagement | null;
+  /** Event-sourced NPC dossier facts; never exposed directly to normal UI DTOs. */
+  readonly npcDossiers: ReadonlyMap<string, NpcDossier>;
 }
 
 export interface WorldState {
@@ -187,6 +190,7 @@ export interface WorldState {
   spatialKnowledge: MutableObserverSpatialKnowledge | null;
   actionCapabilities: ActionCapabilityReadView | null;
   sceneEngagement: SceneEngagement | null;
+  npcDossiers: Map<string, NpcDossier>;
 }
 
 function deepCloneConsequence(c: Consequence): Consequence {
@@ -380,6 +384,7 @@ function freeze(state: WorldState): ReadonlyWorld {
     spatialKnowledge: state.spatialKnowledge ? freezeObserverSpatialKnowledge(state.spatialKnowledge) : null,
     actionCapabilities: state.actionCapabilities,
     sceneEngagement: state.sceneEngagement ? Object.freeze({ ...state.sceneEngagement }) : null,
+    npcDossiers: cloneMap(new Map([...state.npcDossiers].map(([id, dossier]) => [id, parseNpcDossier(dossier) as NpcDossier]))),
   }) as ReadonlyWorld;
 }
 
@@ -430,6 +435,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
       spatialKnowledge: createObserverSpatialKnowledge("player"),
       actionCapabilities: null,
       sceneEngagement: null,
+      npcDossiers: new Map<string, NpcDossier>(),
     };
   }
 
@@ -520,6 +526,16 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
           s.relations.delete(key);
         } else {
           s.relations.set(key, { from: p.from, to: p.to, kind: p.kind, value: newValue });
+        }
+        break;
+      }
+      case "NpcDossierEstablished": {
+        const dossier = parseNpcDossier(event.payload);
+        if (dossier) {
+          const existing = s.npcDossiers.get(dossier.npcId);
+          if (!existing || dossier.dossierVersion > existing.dossierVersion) {
+            s.npcDossiers.set(dossier.npcId, dossier);
+          }
         }
         break;
       }
@@ -842,6 +858,7 @@ export class WorldProjector implements ProjectionStore<ReadonlyWorld> {
         : null,
       actionCapabilities: this.state.actionCapabilities,
       sceneEngagement: this.state.sceneEngagement ? { ...this.state.sceneEngagement } : null,
+      npcDossiers: new Map([...this.state.npcDossiers].map(([id, dossier]) => [id, parseNpcDossier(dossier) as NpcDossier])),
     };
     copy.seedReadViewProjectors();
     return copy;

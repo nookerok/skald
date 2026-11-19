@@ -185,7 +185,10 @@ function checkKindConsistency(proposal: TurnProposalV2): TurnProposalValidation 
       if (!primary || (primary.kind !== "interaction" && primary.kind !== "journey" && primary.kind !== "legacy")) {
         return { status: "invalid", code: "kind_primary_mismatch", reason: "mixed turn requires one executable action primary intent" };
       }
-      if (!proposal.question && proposal.supportingClauses.length === 0) {
+      // A bounded QuestionPlan is itself the embedded read-only question.
+      // Requiring a redundant registered query here forced the model either
+      // to invent an unrelated queryId or to lose a valid mixed replica.
+      if (!proposal.question && proposal.supportingClauses.length === 0 && !proposal.questionPlan) {
         return { status: "invalid", code: "kind_primary_mismatch", reason: "mixed turn requires a question or supporting clause" };
       }
       return null;

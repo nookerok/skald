@@ -142,6 +142,10 @@ describe("AIDiscoveryStore", () => {
       candidateId: "candidate-good",
       decision: "reject",
       idempotencyKey: "decision-request-key-0001",
+      // Pinned clock: the fixture run finished 2026-11-11 and the store
+      // enforces a 36h evidence freshness window, so a real "now" would
+      // misattribute this rejection to staleness instead of idempotency.
+      now: new Date("2026-11-11T02:00:00.000Z"),
     })).rejects.toThrow("decision idempotency conflict");
     await expect(store.recordDecision({
       runId: run.runId,
@@ -149,6 +153,7 @@ describe("AIDiscoveryStore", () => {
       candidateId: "candidate-good",
       decision: "nominate_for_task_evaluation",
       idempotencyKey: "decision-request-key-0002",
+      now: new Date("2026-11-11T02:00:00.000Z"),
     })).rejects.toThrow("discovery evidence mismatch");
     await expect(store.recordDecision({
       runId: run.runId,
@@ -156,6 +161,7 @@ describe("AIDiscoveryStore", () => {
       candidateId: "candidate-bad",
       decision: "nominate_for_task_evaluation",
       idempotencyKey: "decision-request-key-0003",
+      now: new Date("2026-11-11T02:00:00.000Z"),
     })).rejects.toThrow("candidate screening did not pass");
   });
 

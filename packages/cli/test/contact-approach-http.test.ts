@@ -368,7 +368,7 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
     }
   });
 
-  it("«Где староста?» — a question stays read-only", async () => {
+  it("«Где староста?» — does not answer with the player's current location", async () => {
     const inquiryProposal = {
       schemaVersion: 2,
       kind: "inquiry",
@@ -382,7 +382,8 @@ describe("T6/npc-close-approach — HTTP acceptance", () => {
       const eventsBefore = runtime.bus.query().length;
       const response = parse(await handleWorldCommand(runtime, { input: "Где староста?", idempotencyKey: "ca-6" }));
 
-      expect(response.status).toBe("inquiry");
+      expect(response.status).toBe("clarification");
+      expect(response.masterTurn.deterministicText).not.toContain("Ты находишься у");
       expect(runtime.projection.getSnapshot().time).toBe(before.time);
       expect(runtime.bus.query().length).toBe(eventsBefore);
     } finally {

@@ -25,6 +25,10 @@ describe("player input inquiry classification", () => {
     ["с кем я знаком?", "known_contacts"],
     ["почему карта показывает это место?", "map_position"],
     ["кто рядом?", "who_is_nearby"],
+    ["Кто ещё рядом?", "who_is_nearby"],
+    ["Кто сейчас рядом?", "who_is_nearby"],
+    ["Кто ещё сейчас здесь?", "who_is_nearby"],
+    ["Кто сейчас находится рядом со мной?", "who_is_nearby"],
     ["кто из людей здесь?", "who_is_nearby"],
     ["что впереди на дороге?", "visible_scene"],
     ["куда отсюда можно пойти?", "available_routes"],
@@ -47,6 +51,12 @@ describe("player input inquiry classification", () => {
     const input = "Не об этом — лучше расскажи, кто ходит через реку ночью.";
     expect(classifyPlayerInput(input, parseIntent)).toEqual({ kind: "inquiry_candidate", rawText: input });
   });
+
+  it.each(["Кто сейчас рядом ведёт журнал?", "Кто ещё здесь и что он знает?"])(
+    "does not reduce an extended question %j to a people list", (input) => {
+      expect(classifyPlayerInput(input, parseIntent).kind).toBe("inquiry_candidate");
+    },
+  );
 
   it("accepts a direct question without a question mark", () => {
     const result = classifyPlayerInput("где я", parseIntent);

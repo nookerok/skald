@@ -118,7 +118,12 @@ const receipt = {
   commitMatches,
   mode: "in-process-concurrent with REAL provider (live discovery)",
   httpLayerNote: "Over HTTP a duplicate usually wins the durable replay race (12/12 bursts replayed in the parallel probe); replay proves idempotency only. This receipt proves SHARING: both requests reached the shadow path in one process.",
-  environment: { envFile: envFile ?? null, providerSelection: configuration.selectionReport?.routes ? "live" : "unknown" },
+  environment: {
+    envFile: envFile ?? null,
+    providerSelection: configuration.selectionReport?.routes
+      ? "live_discovery"
+      : configuration.router?.routeCandidates("interpret").length ? "explicit_effective_route" : "unknown",
+  },
   request: { worldId, input: "Где я?", idempotencyKey: "sf-live-proof", parallel: 2, httpStatus: [a.statusCode, b.statusCode], replayedFlags: [ra.replayed ?? false, rb.replayed ?? false] },
   guards: { statusesOk, neitherReplayed, commitMatches, oneDecision: dec.length === 1, oneShared: sh.length === 1, oneInterpretCall: interpretChatCalls === 1 },
   evidence: {

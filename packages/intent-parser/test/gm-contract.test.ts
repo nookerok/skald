@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GM_CONTRACT_VERSION,
+  GM_CONTEXT_VERSION,
   supportedOperations,
   validateGmTurnDecision,
   type GmContext,
@@ -12,12 +13,13 @@ import {
 
 const scene = { locationDescription: "Переправа", worldTime: "0", sceneEngagement: null };
 const context: GmContext = {
-  schemaVersion: GM_CONTRACT_VERSION,
+  schemaVersion: GM_CONTEXT_VERSION,
   scene,
   actors: [],
   recentTurns: [],
   pendingQuestion: null,
   knownFacts: [],
+  npcFacts: [],
   supportedOperations: supportedOperations(),
 };
 
@@ -38,8 +40,30 @@ describe("validateGmTurnDecision — accepted", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("accepts the closed player-gratitude acknowledgement act", () => {
+    const result = validateGmTurnDecision({
+      ...base,
+      kind: "conversation",
+      response: { segments: [{ kind: "social", act: "gratitude_acknowledgement" }] },
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it("accepts an npc decision with a visible handle", () => {
     const result = validateGmTurnDecision({ ...base, addressee: { kind: "npc", handle: "e1" }, kind: "conversation" }, { allowedHandles: ["e1"] });
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts an NPC dossier fact only for its visible NPC addressee", () => {
+    const result = validateGmTurnDecision({
+      ...base,
+      addressee: { kind: "npc", handle: "e1" },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef" }] },
+    }, {
+      allowedActorHandles: ["e1", "e2"],
+      allowedNpcFacts: [{ factId: "nf1234567890abcdef", subjectHandle: "e1" }],
+    });
     expect(result.ok).toBe(true);
   });
 
@@ -136,6 +160,39 @@ describe("validateGmTurnDecision — rejected", () => {
     reject({ ...base, kind: "action", steps: [{ kind: "action", verb: "approach", target: "person_1" }] }, "unknown field");
     reject({ ...base, kind: "clarification" }, "clarification: required");
     reject({ ...base, kind: "action", clarification: { question: "?" } }, "clarification");
+  });
+
+  it("rejects NPC fact ids when they are unknown, cross-NPC, or addressed to the GM", () => {
+    const allowedNpcFacts = [{ factId: "nf1234567890abcdef", subjectHandle: "e1" }];
+    const baseFact = { kind: "npc_fact", factId: "nf1234567890abcdef" };
+    const unknown = validateGmTurnDecision({
+      ...base, addressee: { kind: "npc", handle: "e1" }, kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId: "nf0000000000000000" }] },
+    }, { allowedActorHandles: ["e1"], allowedNpcFacts });
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) expect(unknown.errors.join("\n")).toContain("unknown NPC dossier fact");
+
+    const crossNpc = validateGmTurnDecision({
+      ...base, addressee: { kind: "npc", handle: "e2" }, kind: "conversation",
+      response: { segments: [baseFact] },
+    }, { allowedActorHandles: ["e1", "e2"], allowedNpcFacts });
+    expect(crossNpc.ok).toBe(false);
+    if (!crossNpc.ok) expect(crossNpc.errors.join("\n")).toContain("different actor");
+
+    const gm = validateGmTurnDecision({
+      ...base, kind: "conversation", response: { segments: [baseFact] },
+    }, { allowedNpcFacts });
+    expect(gm.ok).toBe(false);
+    if (!gm.ok) expect(gm.errors.join("\n")).toContain("require an NPC addressee");
+
+    const freeText = validateGmTurnDecision({
+      ...base,
+      addressee: { kind: "npc", handle: "e1" },
+      kind: "conversation",
+      response: { segments: [{ ...baseFact, text: "выдуманный ответ" }] },
+    }, { allowedActorHandles: ["e1"], allowedNpcFacts });
+    expect(freeText.ok).toBe(false);
+    if (!freeText.ok) expect(freeText.errors.join("\n")).toContain("unknown field");
   });
 
   it("rejects an empty clarification question", () => {

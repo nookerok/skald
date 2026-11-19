@@ -39,7 +39,7 @@ import {
 } from "./http/world-handlers.js";
 import { LEGACY_WORLD_ID } from "./persistence/types.js";
 import { getMapDetailAsset } from "./http/map-detail-catalog.js";
-import type { ModelRouter, NarrationDiagnosticSink } from "@skald/world";
+import { ProviderRequestError, type ModelRouter, type NarrationDiagnosticSink } from "@skald/world";
 
 const __dirname = resolve(fileURLToPath(import.meta.url), "..");
 const PUBLIC_DIR = resolve(__dirname, "../public");
@@ -172,6 +172,29 @@ export async function startServer(options?: {
   const routerConfiguration = options?.router === undefined && discoverAI
     ? await createLiveRouterConfiguration()
     : null;
+  if (routerConfiguration?.prewarm) {
+    const startedAt = Date.now();
+    try {
+      await routerConfiguration.prewarm();
+      console.info(JSON.stringify({
+        kind: "provider", category: "opencode_server_startup", outcome: "ready",
+        provider: "opencode_server", durationMs: Math.max(0, Date.now() - startedAt),
+      }));
+    } catch (error) {
+      const failure = error instanceof ProviderRequestError
+        ? {
+          phase: error.phase,
+          ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}),
+          ...(error.providerCode ? { providerCode: error.providerCode } : {}),
+          retryable: error.retryable,
+        }
+        : { phase: "transport", retryable: true };
+      console.warn(JSON.stringify({
+        kind: "provider", category: "opencode_server_startup", outcome: "prewarm_failed",
+        provider: "opencode_server", durationMs: Math.max(0, Date.now() - startedAt), ...failure,
+      }));
+    }
+  }
   const runtimes = new WorldRuntimeManager(store, options?.router, options?.diagnostics, routerConfiguration);
   const aiDiscovery = options?.aiDiscoveryCoordinator ?? new AIDiscoveryCoordinator();
   const serverApp: ServerApp = { store, runtimes };
@@ -520,11 +543,18 @@ export async function startServer(options?: {
         app: serverApp,
         server,
         url: `http://${options?.host ?? "127.0.0.1"}:${port}`,
-        close: () => new Promise((res) => {
+        close: () => new Promise((res, reject) => {
           if (closed) { res(); return; }
           closed = true;
-          runtimes.stopDiscoveryRefresh();
-          server.close(() => { store.close(); res(); });
+          server.close(() => {
+            void runtimes.close().then(() => {
+              store.close();
+              res();
+            }, (error: unknown) => {
+              store.close();
+              reject(error);
+            });
+          });
         }),
       });
     });

@@ -250,6 +250,38 @@ describe("known_events, relations, items, conversation_topics", () => {
     expect(missing.gaps[0]!.status).toBe("no_data");
   });
 
+  it("scopes deictic place history to the current place and returns no_data for unrelated knowledge", () => {
+    const placePlan = plan({
+      subjects: [{ id: "here", surface: "здесь", kind: "place" }],
+      parts: [{ id: "p-history", subjectRefs: ["here"], aspect: "known_event", time: "past", purpose: "explain" }],
+    });
+    const currentScene = scene({ currentLocation: { name: "Развалины на уступе", description: "Каменная площадка над рекой." } });
+    const unrelatedKnowledge = [
+      narrativeFact("knowledge:ferry", "Ты знаешь место «Переправа у Чёрного леса».", "observed_fact"),
+      narrativeFact("knowledge:road", "Ты знаешь дорогу «Дорога к Речному Стражу».", "observed_fact"),
+    ];
+    const placeEvent = narrativeFact("testimony:ruins", "Перевозчик рассказывал, что на Развалинах на уступе погасли факелы.", "testimony");
+    const withPlaceEvent = executeQuestionReading({ partId: "p-history", source: "known_events" }, context({
+      plan: placePlan,
+      bindings: bindings(placePlan),
+      scene: currentScene,
+      narrative: narrative({ knowledge: { observed: unrelatedKnowledge, testimony: [placeEvent], hypotheses: [] } }),
+    }));
+    expect(withPlaceEvent.status).toBe("available");
+    expect(withPlaceEvent.facts.map((entry) => entry.text)).toEqual([placeEvent.text]);
+    expect(withPlaceEvent.facts[0]?.epistemicClass).toBe("testimony");
+
+    const withoutPlaceEvent = executeQuestionReading({ partId: "p-history", source: "known_events" }, context({
+      plan: placePlan,
+      bindings: bindings(placePlan),
+      scene: currentScene,
+      narrative: narrative({ knowledge: { observed: unrelatedKnowledge, testimony: [], hypotheses: [] } }),
+    }));
+    expect(withoutPlaceEvent.status).toBe("no_data");
+    expect(withoutPlaceEvent.facts).toHaveLength(0);
+    expect(withoutPlaceEvent.gaps).toContainEqual(expect.objectContaining({ status: "no_data", aspect: "known_event" }));
+  });
+
   it("links acquaintance by text and gives the known obligation for self", () => {
     const base = plan({
       parts: [{ id: "p-knows", subjectRefs: ["ferryman"], aspect: "acquaintance_link", time: "current", purpose: "describe" }],
