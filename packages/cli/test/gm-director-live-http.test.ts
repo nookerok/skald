@@ -345,6 +345,87 @@ describe("P3 Director production path", () => {
     } finally { store.close(); }
   });
 
+  it("answers a multi-part NPC question in one zero-event reply and fails closed on a dropped part", async () => {
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper");
+    const world = runtime.projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), world);
+    const gatekeeper = scene.context.knownPeople.find((person) => person.portrait?.addressForms.includes("смотритель"));
+    expect(gatekeeper).toBeDefined();
+    const handle = stableActorHandle(gatekeeper!.observerRef);
+    const bundle = buildGmContext({
+      scene: scene.context,
+      conversation: EMPTY_MASTER_CONVERSATION,
+      sceneReferences: scene.references,
+      npcDossiers: world.npcDossiers,
+    });
+    const publicFact = bundle.context.npcFacts.find((fact) => fact.subjectHandle === handle && fact.text.includes("журнал проходов"));
+    expect(publicFact).toBeDefined();
+    const input = "Смотритель, расскажите про журнал проходов у ворот и кто ещё дежурит с вами?";
+    const plan = {
+      subjects: [{ id: "s", surface: "смотритель", kind: "entity" as const }],
+      parts: [
+        { id: "p1", subjectRefs: ["s"], aspect: "identity_role" as const, time: "current" as const, purpose: "describe" as const },
+        { id: "p2", subjectRefs: ["s"], aspect: "current_activity" as const, time: "current" as const, purpose: "describe" as const },
+      ],
+      fragments: [
+        { partId: "p1", text: "расскажите про журнал проходов у ворот" },
+        { partId: "p2", text: "кто ещё дежурит с вами" },
+      ],
+    };
+    decision = {
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle },
+      kind: "conversation",
+      questionPlan: plan,
+      response: { segments: [
+        { kind: "npc_fact", factId: publicFact!.factId, partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    };
+    const beforeTime = world.time;
+    const beforeEvents = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-multipart-question" }));
+      expect(body.status, JSON.stringify(body)).toBe("conversation");
+      // One composed reply: the answered part keeps its authored fact, the
+      // unanswered part stays an explicit honest gap.
+      expect(body.masterTurn.deterministicText).toContain(publicFact!.text);
+      expect(body.masterTurn.deterministicText).toContain("Об этом я не могу сказать ничего определённого.");
+      expect(body.masterTurn.deterministicText).not.toMatch(/person_|contact:|targetRef|internalId|locationId|observerRef/iu);
+      expect(body.conversationTurn.worldTimeBefore).toBe(beforeTime);
+      expect(body.conversationTurn.worldTimeAfter).toBe(beforeTime);
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(1);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+
+      // Same key replays the persisted envelope without another model call.
+      const replay = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-multipart-question" }));
+      expect(replay.replayed).toBe(true);
+      expect(replay.masterTurn.deterministicText).toContain(publicFact!.text);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
+
+      // A decision that drops the second question part must never render a
+      // partial answer through the NPC.
+      decision = {
+        schemaVersion: 2,
+        addressee: { kind: "npc", handle },
+        kind: "conversation",
+        questionPlan: plan,
+        response: { segments: [{ kind: "npc_fact", factId: publicFact!.factId, partId: "p1" }] },
+      };
+      const dropped = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "npc-multipart-dropped-part" }));
+      expect(dropped.status).not.toBe("conversation");
+      expect(JSON.stringify(dropped)).not.toContain("Об этом я не могу сказать ничего определённого.");
+      expect(runtime.projection.getSnapshot().time).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(store.listConversationTurns(WORLD)).toHaveLength(2);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(2);
+    } finally { store.close(); }
+  });
+
   it("recovers a pure speech turn without its envelope, without another provider call", async () => {
     const { router } = routerFor(() => social());
     const { store, runtime } = await fresh(router);

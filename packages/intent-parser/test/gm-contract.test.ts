@@ -213,3 +213,132 @@ describe("GmContext shape", () => {
     expect(context.scene.sceneEngagement).toBeNull();
   });
 });
+
+describe("validateGmTurnDecision — conversation questionPlan (P3 multi-part)", () => {
+  const allowedNpcFacts = [{ factId: "nf1234567890abcdef", subjectHandle: "e1" }];
+  const npcBase = {
+    schemaVersion: GM_CONTRACT_VERSION,
+    addressee: { kind: "npc" as const, handle: "e1" },
+    kind: "conversation" as const,
+  };
+  const plan = {
+    subjects: [{ id: "s", surface: "перевозчик", kind: "entity" as const }],
+    parts: [
+      { id: "p1", subjectRefs: ["s"], aspect: "identity_role" as const, time: "current" as const, purpose: "describe" as const },
+      { id: "p2", subjectRefs: ["s"], aspect: "current_activity" as const, time: "current" as const, purpose: "describe" as const },
+    ],
+    fragments: [
+      { partId: "p1", text: "кто ты" },
+      { partId: "p2", text: "чем ты занят" },
+    ],
+  };
+  const options = { allowedActorHandles: ["e1"], allowedNpcFacts };
+
+  it("accepts a multi-part question plan with per-part segment bindings", () => {
+    const result = validateGmTurnDecision({
+      ...npcBase,
+      questionPlan: plan,
+      response: { segments: [
+        { kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, options);
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts a social preamble segment alongside part-bound answers", () => {
+    const result = validateGmTurnDecision({
+      ...npcBase,
+      questionPlan: plan,
+      response: { segments: [
+        { kind: "social", act: "greeting" },
+        { kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, options);
+    expect(result.ok).toBe(true);
+  });
+
+  const rejectWith = (raw: unknown, message: string): void => {
+    const result = validateGmTurnDecision(raw, options);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join("\n")).toContain(message);
+  };
+
+  it("rejects a question plan outside the conversation kind", () => {
+    rejectWith({ ...npcBase, kind: "world_question", questionPlan: plan }, "questionPlan: only allowed for conversation");
+  });
+
+  it("rejects a part without a verbatim fragment binding", () => {
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, fragments: [plan.fragments[0]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "has no fragment");
+  });
+
+  it("rejects fragments with unknown, duplicate or malformed part bindings", () => {
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, fragments: [{ ...plan.fragments[0], partId: "missing" }, plan.fragments[1]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "unknown partId");
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, fragments: [plan.fragments[0], plan.fragments[0]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "duplicate partId");
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, fragments: [{ partId: "p1", text: "   " }, plan.fragments[1]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "required 1..360 char text");
+  });
+
+  it("rejects an unclosed question vocabulary in the plan", () => {
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, parts: [{ ...plan.parts[0], aspect: "motivation" }, plan.parts[1]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "invalid closed subjects/parts");
+  });
+
+  it("rejects segment part bindings without a plan or with an unknown part", () => {
+    rejectWith({
+      ...npcBase,
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "partId requires a questionPlan");
+    rejectWith({
+      ...npcBase,
+      questionPlan: plan,
+      response: { segments: [
+        { kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p9" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, "unknown questionPlan partId");
+  });
+
+  it("rejects a part binding on player facts", () => {
+    const result = validateGmTurnDecision({
+      ...base,
+      kind: "conversation",
+      questionPlan: { ...plan, subjects: [{ id: "s", surface: "ты", kind: "entity" }] },
+      response: { segments: [{ kind: "fact", factId: "k1", partId: "p1" }] },
+    }, { allowedFactIds: ["k1"], allowedActorHandles: ["e1"] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join("\n")).toContain("partId is not allowed on player facts");
+  });
+
+  it("rejects unknown extra fields inside the plan and fragments", () => {
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, extra: 1 },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, 'questionPlan: unknown field "extra"');
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, fragments: [{ ...plan.fragments[0], source: "model" }, plan.fragments[1]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, 'questionPlan.fragment: unknown field "source"');
+  });
+});

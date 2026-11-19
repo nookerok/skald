@@ -27,6 +27,8 @@ export const GM_DIRECTOR_SYSTEM_PROMPT = [
   "- conversation требует response:{segments:[...]} в этом же ответе. Сегмент: {kind:\"social\",act:\"greeting|farewell|thanks|gratitude_acknowledgement|acknowledge|ask_topic|no_knowledge|no_commitment\"}, {kind:\"fact\",factId:…} из knownFacts или {kind:\"npc_fact\",factId:…} из npcFacts. Без свободного текста и пересказа фактов.",
   "- «Спасибо», «Благодарю»: gratitude_acknowledgement; не превращай благодарность в тему разговора. thanks — когда благодарит NPC. Обещания и сделки: no_commitment.",
   "- Факт NPC — только npc_fact с subjectHandle = handle адресата; не используй знания героя и не выдавай мнение за истину. На вопрос без подходящего раскрытого факта — один social/no_knowledge.",
+  "- Совпадение слов недостаточно: «почему/зачем», «кто…» о других и вопросы о прошлом фактом-состояния не покрываются. Отвечай no_knowledge, если в самом факте нет причины («потому что», «чтобы», «ради»), «я» или имени человека.",
+  "- Несколько вопросов одному NPC: добавь questionPlan:{subjects:[{id,surface,kind}],parts:[{id,subjectRefs:[id],aspect,time,purpose}],fragments:[{partId,text}]} — fragments точные куски реплики, по одному на part. Каждый part закрой npc_fact{factId,partId} или social/no_knowledge с тем же partId; часть без факта не теряй.",
   "- action/mixed требуют proposal; world_question с query/QuestionPlan — proposal.kind inquiry. Успех определяет движок. В proposal обязательны schemaVersion:2, kind, primaryIntent, supportingClauses:[], referents:[] (даже если пусты). Optional target,addressedEntity,question,questionPlan,readings,goal,manner,ambiguity,conversationRelation — опускай вместо null.",
   "- primaryIntent: {kind:\"legacy\",operation:<legacyOperations>,sourceText:…}, {kind:\"interaction\",verb:<interactionVerbs>,sourceText:…}, {kind:\"journey\",destination:{role:\"destination\",surface:…,observerRef:…},sourceText:…} или {kind:\"inquiry\",queryId:<inquiryQueries>,sourceText:…,focus?:{role:\"topic\",surface:…,observerRef:…}}. sourceText — клауза игрока. Остальные действия — supportingClauses kind deferred_action, не цепочка.",
   "- observerRef/subjectHandle: только выданные handles (actors — люди, referents — объекты/пути/темы), не внутренние ID и не скрытые имена. Referent = {role:\"target|addressee|topic|destination|instrument\",surface:…,observerRef:…}. target/addressedEntity/focus укажи в referents с тем же role и handle. Неизвестная цель — ambiguity/clarification, не догадка.",
@@ -80,6 +82,27 @@ export function buildGmDecisionPrompt(input: string, context: GmContext): string
       examples.push("9) Вопрос NPC о его раскрытом факте → " + JSON.stringify({
         schemaVersion: 2, addressee: { kind: "npc", handle: handles[0] }, kind: "conversation",
         response: { segments: [{ kind: "npc_fact", factId: npcFact.factId }] },
+      }));
+      const npcLabel = context.actors[0]?.displayLabel ?? context.actors[0]?.displayName ?? "Незнакомый человек";
+      examples.push("13) Два вопроса одному NPC в одной реплике → " + JSON.stringify({
+        schemaVersion: 2, addressee: { kind: "npc", handle: handles[0] }, kind: "conversation",
+        questionPlan: {
+          subjects: [{ id: "s", surface: npcLabel, kind: "entity" }],
+          parts: [
+            { id: "p1", subjectRefs: ["s"], aspect: "identity_role", time: "current", purpose: "describe" },
+            { id: "p2", subjectRefs: ["s"], aspect: "current_activity", time: "current", purpose: "describe" },
+          ],
+          fragments: [
+            { partId: "p1", text: "кто ты" },
+            { partId: "p2", text: "чем ты занят" },
+          ],
+        },
+        response: {
+          segments: [
+            { kind: "npc_fact", factId: npcFact.factId, partId: "p1" },
+            { kind: "social", act: "no_knowledge", partId: "p2" },
+          ],
+        },
       }));
     }
     const target = { role: "target", surface: context.actors[0]?.displayLabel ?? context.actors[0]?.displayName ?? "Незнакомый человек", observerRef: handles[0] };

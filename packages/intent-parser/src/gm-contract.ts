@@ -15,6 +15,7 @@
 import { INTENT_CAPABILITIES } from "./intent-proposal.js";
 import { TURN_LEGACY_OPERATIONS, type TurnProposalV2 } from "./turn-proposal.js";
 import { parseGmProposal } from "./gm-proposal.js";
+import { parseProposedQuestionPlan, type QuestionPart, type QuestionSubject } from "./question-plan.js";
 
 /** Contract version carried on every context and decision. */
 export const GM_CONTRACT_VERSION = 2;
@@ -95,11 +96,37 @@ export type GmTurnKind = "conversation" | "world_question" | "clarification" | "
  * A one-call conversation draft: facts are selected by ID, never rewritten.
  * Social acts carry no asserted world fact, NPC permission or commitment.
  * Free NPC knowledge/voice requires the separate dossier/disclosure contract.
+ *
+ * P3 multi-part extension: when the player's replica asks an NPC several
+ * questions at once, each selected disclosure/explicit gap is bound to ONE
+ * declared question part through `partId`, and the parts are grounded in the
+ * replica through `questionPlan.fragments`. The server verifies the binding;
+ * the model only proposes it.
  */
 export type GmResponseSegment =
-  | { readonly kind: "social"; readonly act: "greeting" | "farewell" | "thanks" | "gratitude_acknowledgement" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment" }
+  | { readonly kind: "social"; readonly act: "greeting" | "farewell" | "thanks" | "gratitude_acknowledgement" | "acknowledge" | "ask_topic" | "no_knowledge" | "no_commitment"; readonly partId?: string }
   | { readonly kind: "fact"; readonly factId: string }
-  | { readonly kind: "npc_fact"; readonly factId: string };
+  | { readonly kind: "npc_fact"; readonly factId: string; readonly partId?: string };
+
+/** One question part grounded in a verbatim fragment of the player replica. */
+export interface GmQuestionFragment {
+  /** Plan-local part id this fragment grounds. */
+  readonly partId: string;
+  /** Exact substring of the player replica; never model prose. */
+  readonly text: string;
+}
+
+/**
+ * Conversation-scoped question structure (P3 multi-part extension): reuses
+ * the closed QuestionPlan subjects/parts vocabulary and adds per-part
+ * replica fragments the server can verify against the actual input.
+ */
+export interface GmConversationQuestionPlan {
+  readonly subjects: readonly QuestionSubject[];
+  readonly parts: readonly QuestionPart[];
+  /** One fragment per part, in replica order. */
+  readonly fragments: readonly GmQuestionFragment[];
+}
 
 /** Structured interpretation. Plans are proposals, never executable authority. */
 export interface GmTurnDecision {
@@ -118,6 +145,13 @@ export interface GmTurnDecision {
    * question-shaped kinds (world_question, clarification, mixed).
    */
   subjectHandle?: VisibleActorKey;
+  /**
+   * P3 multi-part extension (kind conversation only): the question parts
+   * the model claims the replica asks, each grounded in a verbatim fragment.
+   * The server verifies fragment coverage and per-part answer validity;
+   * a lost question part rejects the whole decision.
+   */
+  questionPlan?: GmConversationQuestionPlan;
   clarification?: {
     question: string;
     candidateHandles?: readonly VisibleActorKey[];
@@ -167,7 +201,7 @@ export function validateGmTurnDecision(
   if (!isPlainObject(raw)) {
     return { ok: false, errors: ["decision: not an object"] };
   }
-  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "clarification", "proposal", "response"], "decision", errors);
+  collectExtraKeys(raw, ["schemaVersion", "addressee", "kind", "subjectHandle", "clarification", "proposal", "response", "questionPlan"], "decision", errors);
 
   if (raw["schemaVersion"] !== 1 && raw["schemaVersion"] !== GM_CONTRACT_VERSION) {
     errors.push(`decision: schemaVersion must be 1 (legacy classification) or ${GM_CONTRACT_VERSION}`);
@@ -248,6 +282,48 @@ export function validateGmTurnDecision(
       errors.push("proposal: kind does not agree with decision");
     }
   }
+  // The conversation question plan must be parsed BEFORE the response: its
+  // part ids are the allowlist for segment-level partId bindings.
+  let planPartIds: Set<string> | null = null;
+  if ("questionPlan" in raw) {
+    const plan = raw["questionPlan"];
+    if (kind !== "conversation") errors.push("questionPlan: only allowed for conversation");
+    if (!isPlainObject(plan)) {
+      errors.push("questionPlan: must be an object");
+    } else {
+      collectExtraKeys(plan, ["subjects", "parts", "fragments"], "questionPlan", errors);
+      const proposed = parseProposedQuestionPlan({ subjects: plan["subjects"], parts: plan["parts"] });
+      if (!proposed) {
+        errors.push("questionPlan: invalid closed subjects/parts");
+      } else {
+        planPartIds = new Set(proposed.parts.map((part) => part.id));
+        const fragments = plan["fragments"];
+        if (!Array.isArray(fragments) || fragments.length === 0 || fragments.length > proposed.parts.length) {
+          errors.push("questionPlan.fragments: expected 1..parts fragments");
+        } else {
+          const seenPartIds = new Set<string>();
+          for (const fragment of fragments) {
+            if (!isPlainObject(fragment)) { errors.push("questionPlan.fragment: not an object"); continue; }
+            collectExtraKeys(fragment, ["partId", "text"], "questionPlan.fragment", errors);
+            const partId = fragment["partId"];
+            if (typeof partId !== "string" || !planPartIds.has(partId)) {
+              errors.push("questionPlan.fragment: unknown partId");
+              continue;
+            }
+            if (seenPartIds.has(partId)) errors.push("questionPlan.fragment: duplicate partId");
+            seenPartIds.add(partId);
+            const text = fragment["text"];
+            if (typeof text !== "string" || text.trim().length === 0 || text.trim().length > 360) {
+              errors.push("questionPlan.fragment: required 1..360 char text");
+            }
+          }
+          for (const part of proposed.parts) {
+            if (!seenPartIds.has(part.id)) errors.push(`questionPlan.fragments: part "${part.id}" has no fragment`);
+          }
+        }
+      }
+    }
+  }
   if ("response" in raw) {
     const response = raw["response"];
     if (kind !== "conversation") errors.push("response: only allowed for conversation");
@@ -259,8 +335,18 @@ export function validateGmTurnDecision(
         errors.push("response.segments: expected 1..8 segments");
       } else for (const segment of segments) {
         if (!isPlainObject(segment)) { errors.push("response.segment: not an object"); continue; }
+        const hasPartId = "partId" in segment;
+        if (hasPartId) {
+          if (segment["kind"] === "fact") {
+            errors.push("response.segment: partId is not allowed on player facts");
+          } else if (!planPartIds) {
+            errors.push("response.segment: partId requires a questionPlan");
+          } else if (typeof segment["partId"] !== "string" || !planPartIds.has(segment["partId"])) {
+            errors.push("response.segment: unknown questionPlan partId");
+          }
+        }
         if (segment["kind"] === "social") {
-          collectExtraKeys(segment, ["kind", "act"], "response.segment", errors);
+          collectExtraKeys(segment, ["kind", "act", "partId"], "response.segment", errors);
           if (typeof segment["act"] !== "string" || !["greeting", "farewell", "thanks", "gratitude_acknowledgement", "acknowledge", "ask_topic", "no_knowledge", "no_commitment"].includes(segment["act"])) {
             errors.push("response.segment: unsupported social act");
           }
@@ -271,7 +357,7 @@ export function validateGmTurnDecision(
           // Knowing a player fact does not grant an NPC knowledge of it.
           if (isPlainObject(addressee) && addressee["kind"] === "npc") errors.push("response.segment: NPC disclosure requires a dossier");
         } else if (segment["kind"] === "npc_fact") {
-          collectExtraKeys(segment, ["kind", "factId"], "response.segment", errors);
+          collectExtraKeys(segment, ["kind", "factId", "partId"], "response.segment", errors);
           const fact = typeof segment["factId"] === "string"
             ? options.allowedNpcFacts?.find((entry) => entry.factId === segment["factId"])
             : undefined;

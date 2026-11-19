@@ -49,6 +49,43 @@ Repository tests do not constitute live-model, browser or human acceptance.
 The free 20–30-replica session remains an explicit release gate; P3 is not closed
 merely because the bridge compiles or scripted models pass.
 
+## Amendment 2026-11-19 — multi-part NPC questions (P3 point 4)
+
+One replica may ask an NPC several questions at once («расскажи про журнал
+и кто ещё дежурит?»). The model may now attach a `questionPlan` to a
+`conversation` decision: the closed QuestionPlan subjects/parts vocabulary
+plus `fragments` — one verbatim replica span per part. Selected
+disclosures/explicit gaps bind to parts through `partId`; a social preamble
+may precede them.
+
+The server, never the model, owns the truth:
+
+- fragments must be real, ordered, non-overlapping spans of the question
+  portion; the addressee is grounded with the same explicit-address /
+  speech-wrapper rule as the single-question bridge;
+- every question-like clause of the question portion must be covered by a
+  fragment, and tolerated discourse frames must be grounded the same way —
+  a lost asked part rejects the whole decision (no partial answer);
+- a registered world inquiry or an executable action inside the question
+  portion keeps its own path and is never re-scoped to NPC facts;
+- each bound fact must pass the per-part word+aspect check
+  (`npcFactAnswersQuestion`): topic stems must overlap AND the aspect must
+  fit — a state fact cannot stand in for a reason (почему/зачем without
+  causal content), a past-time question, or a who-about-others question
+  without a self-reference or a person token in the fact. A failing binding
+  degrades that part to the explicit closed gap sentence; the answered
+  parts survive («полезная известная часть не пропадает»);
+- the reply is composed server-side from authored fact texts and closed gap
+  phrases in replica order: zero Domain Events, zero world time, one
+  ConversationTurn, idempotent replay unchanged.
+
+No new Domain Event, Rule or persistence field is introduced. The
+ambiguous-addressee continuation (reload, «я имею в виду X») keeps the
+existing persisted clarification machinery; a part-scoped gap is re-askable
+as a new replica and is not a persisted continuation slot. Live-model,
+browser and human acceptance of the multi-part path remain open gates.
+
+
 ## Context
 
 The deterministic intent parser handles the registered grammar well, but a

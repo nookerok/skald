@@ -15,6 +15,7 @@ import {
   GM_CONTRACT_VERSION,
   classifyPlayerInput,
   classifyReplicaClauses,
+  isQuestionLikeInput,
   parseIntent,
   sameRussianStem,
   validateGmTurnDecision,
@@ -338,6 +339,32 @@ function isSafeRenderedDossierText(text: string): boolean {
     && !/(?:person|object|route|location)_[a-z0-9_-]+|contact:[a-z0-9:_-]+|\b(?:targetRef|internalId|locationId|observerRef)\b|\be[a-f0-9]{12}\b/iu.test(text);
 }
 
+/** Closed social-act phrasing for NPC/master drafts (single source). */
+const SOCIAL_PHRASES = {
+  greeting: "Здравствуй.",
+  farewell: "До встречи.",
+  thanks: "Спасибо.",
+  gratitude_acknowledgement: "Пожалуйста.",
+  acknowledge: "Я тебя слышу.",
+  ask_topic: "О чём ты хочешь поговорить?",
+  no_knowledge: "У меня нет подтверждённых сведений об этом.",
+  no_commitment: "Я не могу обещать, что это будет сделано.",
+} as const;
+
+/** Closed part-scoped gap: this question part has no eligible answer. */
+const QUESTION_PART_GAP_TEXT = "Об этом я не могу сказать ничего определённого.";
+
+/** Punctuation- and case-insensitive text normalization for containment checks. */
+function normalizeReplicaText(value: string): string {
+  return value.toLowerCase().replace(/ё/gu, "е").replace(/[^a-zа-я0-9]+/gu, " ").trim();
+}
+
+function normContains(outer: string, inner: string): boolean {
+  const normalizedOuter = normalizeReplicaText(outer);
+  const normalizedInner = normalizeReplicaText(inner);
+  return normalizedInner.length > 0 && normalizedOuter.includes(normalizedInner);
+}
+
 /**
  * A conservative necessary check, not a proof of semantic entailment: a
  * selected free-text dossier fact must retain the content words of the
@@ -346,10 +373,66 @@ function isSafeRenderedDossierText(text: string): boolean {
  */
 export function npcFactsCoverQuestion(question: string, facts: readonly string[]): boolean {
   const words = (value: string) => value.toLowerCase().replace(/ё/gu, "е").match(/[а-яa-z0-9]+/giu) ?? [];
-  const stop = new Set(["кого", "кому", "какой", "какая", "какое", "какие", "почему", "зачем", "сколько", "куда", "откуда", "когда", "есть", "этого", "этой", "этом", "этот", "вашего", "вашей"]);
+  const stop = new Set([
+    // closed question-word list
+    "кого", "кому", "какой", "какая", "какое", "какие", "почему", "зачем", "сколько", "куда", "откуда", "когда", "есть", "этого", "этой", "этом", "этот", "вашего", "вашей",
+    // closed request-frame verbs: the frame of a question is not its topic
+    "расскажи", "расскажите", "рассказать", "поведай", "поведайте", "поведать", "скажи", "скажите", "сказать", "объясни", "объясните", "объяснить", "опиши", "опишите", "описать", "покажи", "покажите", "показать", "просвети", "просветить", "спросить", "спроси", "спросите", "хочу", "хотел", "хотелбы", "узнать", "поподробнее", "подробнее",
+  ]);
   const topicWords = words(question).filter((word) => word.length >= 4 && !stop.has(word));
   const factWords = facts.flatMap(words);
   return topicWords.length > 0 && topicWords.every((word) => factWords.some((factWord) => sameRussianStem(word, factWord)));
+}
+
+/** Closed motivation markers: the fragment asks for a REASON. */
+// NOTE: JavaScript \b is ASCII-only and never matches beside Cyrillic
+// letters, so every boundary here is spelled as an explicit lookaround.
+const MOTIVATION_QUESTION_RE = /(?<![а-яё])(?:почему|зачем|отчего)(?![а-яё-])/iu;
+/** Closed causal markers an authored fact may use to state a reason. */
+const CAUSAL_FACT_RE = /(?<![а-яё])(?:потому|чтобы|ради|причин(?:а|ы|е|у|ой|ам))(?![а-яё])/iu;
+/** Closed past-time markers: the fragment asks about a PAST state/event. */
+const HISTORICAL_QUESTION_RE = /(?<![а-яё])(?:вчера|позавчера|прошл\w+|давно|раньше|когда-то|в\s+тот\s+день)(?![а-яё])/iu;
+/** A who-question about someone other than the addressee's own identity. */
+const WHO_ABOUT_OTHERS_RE = /^\s*(?:а\s+)?(?:кто|кого|кому|кем)(?![а-яё-])/iu;
+const WHO_ABOUT_ADDRESSEE_RE = /(?<![а-яё])(?:кто\s+ты|ты\s+кто|кем\s+ты|кто\s+такой)(?![а-яё])/iu;
+/** Closed self-reference markers: the fact names the addressee as the answer. */
+const SELF_REFERENCE_FACT_RE = /(?<![а-яё])(?:я|меня|мне|мною|мой|моя|моё|мои)(?![а-яё])/iu;
+
+function namesPersonToken(factText: string): boolean {
+  const tokens = factText.split(/\s+/u).slice(1);
+  return tokens.some((token) => /^[А-ЯЁ][а-яё]/u.test(token));
+}
+
+/**
+ * Aspect-level necessary check (P3 anti-substitution): matching the topic
+ * words is necessary but NOT sufficient. A public dossier fact states what
+ * IS; it cannot fabricate a REASON, recall a PAST event, or invent the PERSON
+ * a who-question asks about. The closed exceptions keep the check honest in
+ * both directions:
+ * - a motivation fragment is answerable only by an explicitly causal fact;
+ * - a past-time fragment is answerable by nothing in the current public
+ *   dossier slice (authored history facts arrive with the P5 voice work);
+ * - a who-about-others fragment is answerable only by a fact that names the
+ *   addressee itself or a proper-name token.
+ * Deterministic and pure; never a proof of full entailment (P7 remains open).
+ */
+export function npcFactAspectAllows(question: string, factText: string): boolean {
+  if (MOTIVATION_QUESTION_RE.test(question) && !CAUSAL_FACT_RE.test(factText)) return false;
+  if (HISTORICAL_QUESTION_RE.test(question)) return false;
+  if (WHO_ABOUT_OTHERS_RE.test(question.trim()) && !WHO_ABOUT_ADDRESSEE_RE.test(question)) {
+    if (!SELF_REFERENCE_FACT_RE.test(factText) && !namesPersonToken(factText)) return false;
+  }
+  return true;
+}
+
+/** Whether ONE dossier fact can be presented as an answer to the question. */
+export function npcFactAnswersQuestion(question: string, factText: string): boolean {
+  return npcFactsCoverQuestion(question, [factText]) && npcFactAspectAllows(question, factText);
+}
+
+/** Whether any of the addressee's eligible facts answers the question. */
+export function npcFactsAnswerQuestion(question: string, facts: readonly string[]): boolean {
+  return facts.some((text) => npcFactAnswersQuestion(question, text));
 }
 
 /**
@@ -382,7 +465,7 @@ export function fallbackForUnsupportedAddressedNpcQuestion(
   const availableFacts = bundle.context.npcFacts
     .filter((fact) => fact.subjectHandle === handle)
     .map((fact) => fact.text);
-  if (npcFactsCoverQuestion(question, availableFacts)) return null;
+  if (npcFactsAnswerQuestion(question, availableFacts)) return null;
 
   return applyGmDirectorDecision({
     schemaVersion: 2,
@@ -480,6 +563,133 @@ export function applyGmDirectorDecision(
       && questionClauses.unknown.length === 1;
   };
 
+  /**
+   * P3 multi-part NPC question (ADR-0028 amendment). The model proposes the
+   * question STRUCTURE (parts + verbatim replica fragments + which eligible
+   * fact or explicit gap answers which part); this adapter owns the truth:
+   * the addressee is grounded exactly like the single-question bridge; the
+   * fragments must be real, ordered, non-overlapping spans of the QUESTION
+   * PORTION of the replica; every question-like clause of that portion must
+   * be covered (a lost question part rejects the whole decision); and every
+   * fact binding must pass the per-part word+aspect meaning check or degrade
+   * to an honest part-scoped gap. One composed NPC reply, zero Domain
+   * Events, zero time. Any violation returns null (fail closed).
+   */
+  const multiPartConversationOutcome = (): MasterTurnGatewayOutcome | null => {
+    const plan = decision.questionPlan;
+    if (!plan || decision.addressee.kind !== "npc") return null;
+    // Extracted before any closure: narrowing of a union field does not
+    // survive into callbacks below.
+    const addresseeHandle: VisibleActorKey = decision.addressee.handle;
+    const speaker = resolveHandlePerson(addresseeHandle);
+    const reference = speaker ? snapshot.scene.references.get(speaker.observerRef) : null;
+    if (!speaker || !reference) return null;
+
+    // Address grounding is shared with the single-question bridge: an
+    // explicit address before a comma/dash, or a speech directive wrapper.
+    // The whole-replica classification gate mirrors that bridge too.
+    if (classification.kind !== "inquiry_candidate" && classification.kind !== "speech") return null;
+    const addressInfo = explicitQuestionAddress(input);
+    if (!addressInfo) return null;
+    if (!addressInfo.speechWrapped
+      && !(addressInfo.binding.status === "unique" && addressInfo.binding.entry.observerRef === speaker.observerRef)) return null;
+    const questionStart = input.indexOf(addressInfo.questionText);
+    if (questionStart < 0) return null;
+
+    // The question portion is analyzed on its own: an executable action or a
+    // registered world inquiry inside it keeps its own path and must not be
+    // silently re-scoped to NPC dossier facts. Unresolved discourse frames
+    // («расскажите про…», «скажи…») are tolerated only when a fragment
+    // grounds them, exactly like the fallback conversation path.
+    const questionPortion = input.slice(questionStart);
+    const portionClauses = classifyReplicaClauses(questionPortion, parseIntent);
+    const executablePortionAction = portionClauses.actions.some(({ intent }) =>
+      intent.type === "InteractionCommand"
+      || intent.type === "JourneyIntent"
+      || (intent.type === "ActionIntentCommand" && intent.operation !== "unknown" && intent.operation !== "speak" && intent.operation !== "call"));
+    if (executablePortionAction || portionClauses.inquiries.length > 0) return null;
+    const portionFrames = portionClauses.actions
+      .filter(({ intent }) => intent.type === "ActionIntentCommand"
+        && (intent.operation === "unknown" || intent.operation === "speak" || intent.operation === "call"))
+      .map(({ text }) => text);
+
+    // Fragments are verbatim, ordered, non-overlapping spans of the question
+    // portion, in replica order.
+    const spans: { readonly partId: string; readonly start: number; readonly end: number; readonly text: string }[] = [];
+    for (const fragment of plan.fragments) {
+      const start = input.indexOf(fragment.text);
+      if (start < 0 || fragment.text.trim().length === 0 || start < questionStart) return null;
+      const end = start + fragment.text.length;
+      if (spans.some((span) => start < span.end && end > span.start)) return null;
+      spans.push({ partId: fragment.partId, start, end, text: fragment.text });
+    }
+    spans.sort((left, right) => left.start - right.start);
+
+    // Coverage: every question-like clause of the portion must be covered by
+    // a fragment (nothing asked may be dropped); tolerated discourse frames
+    // must be grounded the same way; other unknown clauses are accounted for
+    // only when a fragment covers them or they sit before the first question
+    // fragment, so nothing said is silently lost.
+    const preambleEnd = spans[0]!.start;
+    for (const clause of [...portionClauses.unknown, ...portionFrames]) {
+      const covered = spans.some((span) => normContains(clause, span.text) || normContains(span.text, clause));
+      if (covered) continue;
+      if (isQuestionLikeInput(clause) || /[?？]/u.test(clause)) return null;
+      const clauseStart = questionPortion.indexOf(clause);
+      if (clauseStart < 0 || clauseStart + clause.length > preambleEnd - questionStart) return null;
+    }
+
+    // Preamble segments: social acts only, rendered before the answers.
+    const preambleSegments = decision.response!.segments.filter((segment) => !("partId" in segment));
+    if (preambleSegments.some((segment) => segment.kind !== "social")) return null;
+    const preambleTexts = preambleSegments.flatMap((segment) => segment.kind === "social" ? [SOCIAL_PHRASES[segment.act]] : []);
+
+    // Per-part answers, in replica order: a bound fact that passes the
+    // word+aspect check renders verbatim; otherwise the part degrades to an
+    // explicit gap; a part with neither a binding nor a gap is a lost
+    // question and rejects the whole decision.
+    const partTexts: string[] = [];
+    for (const span of spans) {
+      const partSegments = decision.response!.segments.filter((segment) => "partId" in segment && segment.partId === span.partId);
+      if (partSegments.length === 0) return null;
+      let explicitGap = false;
+      const factTexts: string[] = [];
+      for (const segment of partSegments) {
+        if (segment.kind === "social") {
+          if (segment.act !== "no_knowledge") return null;
+          explicitGap = true;
+          continue;
+        }
+        const fact = bundle.context.npcFacts.find((entry) => entry.factId === segment.factId
+          && entry.subjectHandle === addresseeHandle);
+        if (!fact || !isSafeRenderedDossierText(fact.text)) return null;
+        factTexts.push(fact.kind === "npc_belief" ? "Я считаю: " + fact.text : fact.text);
+      }
+      const answeringFacts = factTexts.filter((text) => npcFactAnswersQuestion(span.text, text));
+      if (answeringFacts.length > 0) {
+        partTexts.push(answeringFacts.join(" "));
+      } else if (explicitGap || factTexts.length > 0) {
+        // A bound fact that fails the per-part meaning check is a
+        // substitution attempt: degrade the part to an honest gap instead
+        // of dropping the OTHER answered parts with it.
+        partTexts.push(QUESTION_PART_GAP_TEXT);
+      } else {
+        // No binding and no explicit gap: the model dropped a question part
+        // the player asked. Never render a partial answer.
+        return null;
+      }
+    }
+
+    const text = [...preambleTexts, ...partTexts].join(" ").trim();
+    if (!text || /(?:person|object|route|location)_[a-z0-9_-]+|\be[a-f0-9]{12}\b/iu.test(text)) return null;
+    return {
+      status: "conversation",
+      text: speaker.label + ": «" + text + "»",
+      revision,
+      speaker: { observerRef: speaker.observerRef, label: speaker.label, internalId: reference.internalId },
+    };
+  };
+
   if (decision.kind === "clarification" && decision.clarification) {
     // A clarification executes nothing. Physical/unsupported action wording
     // must not discard a validated question and trigger a second parser/model
@@ -574,9 +784,11 @@ export function applyGmDirectorDecision(
         if (!fact || !isSafeRenderedDossierText(fact.text)) return null;
         disclosedFacts.push(fact.kind === "npc_belief" ? "Я считаю: " + fact.text : fact.text);
       }
-      if (!npcFactsCoverQuestion(explicitAddress.questionText, disclosedFacts)) {
-        // The NPC has no disclosed fact that answers this question. Do not
-        // turn an unrelated but valid dossier fact into an answer or send the
+      if (!npcFactsAnswerQuestion(explicitAddress.questionText, disclosedFacts)) {
+        // The NPC has no fact that answers this question — either no topic
+        // overlap, or the overlap is aspect-insufficient (a plain state fact
+        // cannot stand in for a reason, a past event or a who). Do not turn
+        // an unrelated but valid dossier fact into an answer or send the
         // player back into a generic clarification loop: fail closed as an
         // honest in-character lack of knowledge.
         return {
@@ -593,6 +805,7 @@ export function applyGmDirectorDecision(
         speaker: { observerRef: speaker.observerRef, label: speaker.label, internalId: reference.internalId },
       };
     }
+    if (decision.questionPlan) return multiPartConversationOutcome();
     if (singleInquiry) return asReadOnlyInquiry();
     const explicitSpeechAction = clauses.actions.some(({ intent }) =>
       intent.type === "ActionIntentCommand" && (intent.operation === "speak" || intent.operation === "call"));
@@ -608,19 +821,9 @@ export function applyGmDirectorDecision(
       intent.type !== "ActionIntentCommand" || (intent.operation !== "unknown" && intent.operation !== "speak" && intent.operation !== "call"))) return null;
     const speaker = decision.addressee.kind === "npc" ? resolveHandlePerson(decision.addressee.handle) : null;
     if (decision.addressee.kind === "npc" && !speaker) return null;
-    const phrases = {
-      greeting: "Здравствуй.",
-      farewell: "До встречи.",
-      thanks: "Спасибо.",
-      gratitude_acknowledgement: "Пожалуйста.",
-      acknowledge: "Я тебя слышу.",
-      ask_topic: "О чём ты хочешь поговорить?",
-      no_knowledge: "У меня нет подтверждённых сведений об этом.",
-      no_commitment: "Я не могу обещать, что это будет сделано.",
-    } as const;
     const parts: string[] = [];
     for (const segment of decision.response.segments) {
-      if (segment.kind === "social") parts.push(phrases[segment.act]);
+      if (segment.kind === "social") parts.push(SOCIAL_PHRASES[segment.act]);
       else {
         if (speaker || segment.kind === "npc_fact") return null;
         const fact = bundle.context.knownFacts.find((entry) => entry.factId === segment.factId);

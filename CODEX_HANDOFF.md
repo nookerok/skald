@@ -1,4 +1,51 @@
-# Current work (2026-11-12 - OpenCode daily discovery release)
+# Current work (2026-11-19 - P3 clean release basis + multi-part NPC questions)
+
+- Branch `p3-conversation-director` in worktree `/home/nook/workspaces/skald-p3`,
+  based on origin/main `d6ffbf1`. The original dirty workspace
+  `/home/nook/workspaces/skald` is preserved untouched (still 5edb94c + dirty).
+- Commit `6e778bf` is the clean release basis: the locally verified P3
+  conversation slice (38/38 live run
+  `docs/acceptance/gm-p3-point3-live-2026-11-19.md` in the ORIGINAL tree),
+  NPC public-fact dossier slice, grounded exactFacts narration, OpenCode v2
+  server transport and the P3 live-session runner, ported by manifest onto
+  the released discovery base. Upstream discovery/admin code, the CLI v2
+  opencode_run transport (incl. CLI_MAJOR + manifest pinning) and the
+  refreshed OpenRouter ultra fallback stay as released; `cliMajor` is
+  re-wired into the local router factory and its fingerprint test.
+  Deliberately NOT ported: discovery duplicates, experimental acceptance
+  reports, user plan files, the older local opencode_run retry-after rework.
+  Two upstream time-bomb discovery tests fixed (pinned recordDecision clock,
+  date-relative shared HTTP fixtures).
+- On top of that basis: multi-part NPC questions (ADR-0028 amendment
+  2026-11-19). `GmTurnDecision` conversation may carry `questionPlan`
+  (closed QuestionPlan subjects/parts + verbatim replica `fragments`);
+  npc_fact/no_knowledge segments bind to parts via `partId`. Server owns the
+  truth: fragment spans are verified against the question portion, every
+  question-like clause must be covered (a lost asked part rejects the whole
+  decision — no partial answer), registered inquiries/executable actions in
+  the portion keep their own paths, and every fact binding must pass the
+  new per-part word+aspect check (`npcFactAnswersQuestion`): a state fact
+  cannot stand in for a «почему/зачем» reason without causal content, a
+  past-time question, or a who-about-others question without self-reference
+  or a person token. Failing bindings degrade to the explicit closed gap
+  sentence; answered parts survive. Red-first: the aspect-substitution test
+  («почему у переправы журнал проходов?» answered with the
+  «Ведёт журнал проходов…» fact) failed on the basis commit before the fix.
+  Contract tests cover closed plan/fragment validation; the HTTP test proves
+  one composed zero-event reply, idempotent replay without a second model
+  call, and fail-closed on a dropped part.
+- Gate on this tree: `npm run validate` PASS (basis commit: typecheck, 264
+  files / 3411 tests, 1 skipped; canon, simulation, eval, adventure
+  acceptance, diff check — see the commit body for the exact re-run state).
+- NOT done (open gates): live-model multi-part runs (the two acceptance
+  classes «хочу поздороваться с архивистом» / «спрашиваю, как у него дела и
+  что он ел» still need a real-provider session on the Pi with the
+  opencode-go route and paid budget decision), browser/visual QA, human
+  acceptance. No commit/push of the original dirty workspace, no deploy,
+  no production change; production remains at `18df168` as last verified
+  2026-11-14.
+
+# Historical: OpenCode daily discovery release (2026-11-12)
 
 - Release is isolated from the original dirty Conversation Director worktree.
   It builds on production 5edb94c and uses that commit's Director corpus v5;
