@@ -95,6 +95,12 @@ function blocked(reason: string): never {
 }
 
 if (p3Mode !== "full" && !singleModelBackedTurnProbe) blocked("p3_mode_invalid");
+// A paid live session must never silently run on the 4s default Director
+// budget: observed live interpret latencies run 4-6s for multi-clause
+// replicas (point4 r01/r02 burned ~$0.25 of reservations on exactly this
+// misconfiguration before r03 passed at 20s). Block until the operator
+// raises GM_DIRECTOR_LIVE_TIMEOUT_MS to the proven floor.
+if (gmDirectorLiveTimeoutMs() < 20_000) blocked("live_director_timeout_floor_not_met");
 
 let paidBudgetBefore: ReturnType<typeof readOpenCodePaidBudgetLedger>;
 let activeRunStage = "configuration";

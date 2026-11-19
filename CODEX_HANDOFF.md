@@ -56,11 +56,32 @@
 - Gate on this tree: `npm run validate` PASS after the review fixes
   (typecheck, full suite, canon, simulation, eval, adventure acceptance,
   diff check — see the fix commit body for the exact re-run).
-- NOT done (open gates): the live V20 multi-part run on the Pi (needs the
-  opencode-go route, a paid budget decision — only ~$0.059 remains
-  authorized — and the runner's immutable ledger), browser/visual QA and
-  human acceptance. No push/deploy; production remains at `18df168` as last
-  verified 2026-11-14.
+- LIVE ACCEPTANCE (2026-11-19, operator raised the paid budget to USD 5;
+  ledger authorized 5 / reserved 1.317744 / remaining 3.682256): the V20
+  session ran on the Orange Pi against candidate `8378ad8` with the
+  pinned `opencode-go/glm-5.3-flash` and `GM_DIRECTOR_LIVE_TIMEOUT_MS=20000`.
+  `point4-20261119-r03`: **PASS, 39/39, failures []** — report
+  `docs/acceptance/gm-p3-point4-live-2026-11-19-r03.json` in the ORIGINAL
+  workspace, SHA-256
+  `f590bb07c8cf2e8851f4873b2fae21b4d7b05f40eea2bae7e7c771ded41779e1`.
+  The multi-part turn answered in one composed zero-event reply
+  («Смотритель речных ворот: «ведёт журнал проходов у ворот Об этом я
+  не могу сказать ничего определённого.»»): accepted conversation
+  decision, one interpret call (5.9 s), authored fact for part 1, honest
+  part-scoped gap for part 2, named-addressee binding held. Two earlier
+  attempts (r01 FAIL 34/35, r02 FAIL 30/35) burned $0.2496 of reservations
+  on MY misconfiguration — the 4s default Director budget cut the
+  multi-part/ruins interprets mid-flight; the server failed safe into
+  clarifications both times. The runner now blocks a paid run below the
+  proven 20s floor (`live_director_timeout_floor_not_met`).
+  Scratch roots: codex-gm-p3-session-20261119-point4-r01..r03 on the Pi;
+  production untouched (`18df168`, health ok, no scratch processes left).
+  This is live-provider scratch evidence on the candidate code: browser,
+  visual and human acceptance are still open, and no push/deploy has been
+  performed.
+- NOT done (open gates): browser/visual QA and the human playability
+  session (next gates before any push/deploy decision); production
+  remains at `18df168` as last verified 2026-11-19.
 
 # Historical: OpenCode daily discovery release (2026-11-12)
 
