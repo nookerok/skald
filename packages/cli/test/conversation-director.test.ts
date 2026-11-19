@@ -1220,7 +1220,7 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
       addressee: { kind: "npc" as const, handle: ferryHandle },
       kind: "conversation" as const,
       questionPlan: {
-        subjects: [{ id: "you", surface: ferrymanLabel, kind: "entity" as const, observerRef: "person_1" }],
+        subjects: [{ id: "you", surface: ferrymanLabel, kind: "entity" as const, observerRef: ferryHandle }],
         parts: [
           { id: "journal", subjectRefs: ["you"], aspect: "identity_role" as const, time: "current" as const, purpose: "describe" as const },
           { id: "shift", subjectRefs: ["you"], aspect: "current_activity" as const, time: "current" as const, purpose: "describe" as const },
@@ -1314,6 +1314,212 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     }, bundle, replica, snapshot)).toBeNull();
   });
 
+  it("never lets one shared word ground two question parts", () => {
+    const dossier = parseNpcDossier({
+      npcId: "contact:ferryman",
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: "contact:ferryman:public", kind: "world_truth", content: { type: "text", text: "Ведёт журнал проходов у переправы." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+      ],
+    });
+    const bundle = buildGmContext({
+      scene: sceneContext,
+      conversation: snapshot.conversation,
+      sceneReferences: references,
+      npcDossiers: new Map([["contact:ferryman", dossier!]]),
+    });
+    const ferryHandle = stableActorHandle("person_1");
+    const factId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === ferryHandle)?.factId!;
+    const replica = "Перевозчик у переправы, расскажи про журнал проходов у переправы и зачем нужен журнал?";
+    const plan = {
+      subjects: [{ id: "s", surface: ferrymanLabel, kind: "entity" as const, observerRef: ferryHandle }],
+      parts: [
+        { id: "p1", subjectRefs: ["s"], aspect: "identity_role" as const, time: "current" as const, purpose: "describe" as const },
+        { id: "p2", subjectRefs: ["s"], aspect: "known_event" as const, time: "current" as const, purpose: "explain" as const },
+      ],
+    };
+    // A bare shared word («журнал») can never ground the «зачем» part: the
+    // clause must be fully contained in its own fragment.
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      questionPlan: {
+        ...plan,
+        fragments: [
+          { partId: "p1", text: "расскажи про журнал проходов у переправы" },
+          { partId: "p2", text: "журнал" },
+        ],
+      },
+      response: { segments: [
+        { kind: "npc_fact", factId, partId: "p1" },
+        { kind: "npc_fact", factId, partId: "p2" },
+      ] },
+    }, bundle, replica, snapshot)).toBeNull();
+    // One fragment swallowing BOTH questions merges them into one part and
+    // drops the other — rejected.
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      questionPlan: {
+        ...plan,
+        fragments: [{ partId: "p1", text: "расскажи про журнал проходов у переправы и зачем нужен журнал" }],
+      },
+      response: { segments: [{ kind: "npc_fact", factId, partId: "p1" }] },
+    }, bundle, replica, snapshot)).toBeNull();
+    // Full per-clause fragments: the fact answers the first part, the
+    // motivation part degrades to an honest gap.
+    const outcome = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      questionPlan: {
+        ...plan,
+        fragments: [
+          { partId: "p1", text: "расскажи про журнал проходов у переправы" },
+          { partId: "p2", text: "зачем нужен журнал" },
+        ],
+      },
+      response: { segments: [
+        { kind: "npc_fact", factId, partId: "p1" },
+        { kind: "npc_fact", factId, partId: "p2" },
+      ] },
+    }, bundle, replica, snapshot);
+    expect(outcome).toMatchObject({
+      status: "conversation",
+      text: "Перевозчик у переправы: «Ведёт журнал проходов у переправы. Об этом я не могу сказать ничего определённого.»",
+    });
+  });
+
+  it("never lets the model choose the speaker when the player named another NPC", () => {
+    const dossier = parseNpcDossier({
+      npcId: "contact:ferryman",
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: "contact:ferryman:public", kind: "world_truth", content: { type: "text", text: "Ведёт журнал проходов у переправы." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+      ],
+    });
+    const bundle = buildGmContext({
+      scene: sceneContext,
+      conversation: snapshot.conversation,
+      sceneReferences: references,
+      npcDossiers: new Map([["contact:ferryman", dossier!]]),
+    });
+    const ferryHandle = stableActorHandle("person_1");
+    const keeperHandle = stableActorHandle("person_2");
+    const factId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === ferryHandle)?.factId!;
+    const replica = "Смотритель речных ворот, расскажи про журнал проходов у переправы и кто ещё дежурит с тобой?";
+    const plan = {
+      subjects: [{ id: "s", surface: "Смотритель речных ворот", kind: "entity" as const, observerRef: keeperHandle }],
+      parts: [
+        { id: "p1", subjectRefs: ["s"], aspect: "identity_role" as const, time: "current" as const, purpose: "describe" as const },
+        { id: "p2", subjectRefs: ["s"], aspect: "current_activity" as const, time: "current" as const, purpose: "describe" as const },
+      ],
+      fragments: [
+        { partId: "p1", text: "расскажи про журнал проходов у переправы" },
+        { partId: "p2", text: "кто ещё дежурит с тобой" },
+      ],
+    };
+    // The player named the Смотритель; a decision that answers through the
+    // Перевозчик (who owns the журнал fact) is a speaker substitution.
+    const substituted = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      questionPlan: plan,
+      response: { segments: [
+        { kind: "npc_fact", factId, partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, bundle, replica, snapshot);
+    expect(substituted).toBeNull();
+    // The named NPC answers itself — honestly, without the other's fact.
+    const honest = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: keeperHandle },
+      kind: "conversation",
+      questionPlan: plan,
+      response: { segments: [
+        { kind: "social", act: "no_knowledge", partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, bundle, replica, snapshot);
+    expect(honest).toMatchObject({
+      status: "conversation",
+      text: "Смотритель речных ворот: «Об этом я не могу сказать ничего определённого. Об этом я не могу сказать ничего определённого.»",
+      speaker: { observerRef: "person_2", label: "Смотритель речных ворот", internalId: "contact:gatekeeper" },
+    });
+    // A pronoun-only address never grants the model the speaker choice.
+    expect(applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      questionPlan: {
+        ...plan,
+        fragments: [
+          { partId: "p1", text: "как у него дела" },
+          { partId: "p2", text: "что он ел" },
+        ],
+      },
+      response: { segments: [
+        { kind: "social", act: "no_knowledge", partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, bundle, "Спрашиваю, как у него дела и что он ел?", snapshot)).toBeNull();
+  });
+
+  it("rejects a plan whose named subject handle is not a visible person", () => {
+    const dossier = parseNpcDossier({
+      npcId: "contact:ferryman",
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: "contact:ferryman:public", kind: "world_truth", content: { type: "text", text: "Ведёт журнал проходов у переправы." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+      ],
+    });
+    const bundle = buildGmContext({
+      scene: sceneContext,
+      conversation: snapshot.conversation,
+      sceneReferences: references,
+      npcDossiers: new Map([["contact:ferryman", dossier!]]),
+    });
+    const ferryHandle = stableActorHandle("person_1");
+    const factId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === ferryHandle)?.factId!;
+    const replica = "Перевозчик у переправы, расскажи про журнал проходов у переправы и кто ещё дежурит с тобой?";
+    const plan = {
+      subjects: [{ id: "s", surface: ferrymanLabel, kind: "entity" as const }],
+      parts: [
+        { id: "p1", subjectRefs: ["s"], aspect: "identity_role" as const, time: "current" as const, purpose: "describe" as const },
+        { id: "p2", subjectRefs: ["s"], aspect: "current_activity" as const, time: "current" as const, purpose: "describe" as const },
+      ],
+      fragments: [
+        { partId: "p1", text: "расскажи про журнал проходов у переправы" },
+        { partId: "p2", text: "кто ещё дежурит с тобой" },
+      ],
+    };
+    const decisionWithSubject = (observerRef: string) => ({
+      schemaVersion: 2 as const,
+      addressee: { kind: "npc" as const, handle: ferryHandle },
+      kind: "conversation" as const,
+      questionPlan: { ...plan, subjects: [{ ...plan.subjects[0]!, observerRef }] },
+      response: { segments: [
+        { kind: "npc_fact" as const, factId, partId: "p1" },
+        { kind: "social" as const, act: "no_knowledge" as const, partId: "p2" },
+      ] },
+    });
+    // A visible third-party subject is legal (the question may be about
+    // someone else); a fabricated handle is not.
+    expect(applyGmDirectorDecision(
+      decisionWithSubject(stableActorHandle("person_2")), bundle, replica, snapshot,
+    )).toMatchObject({ status: "conversation" });
+    expect(applyGmDirectorDecision(
+      decisionWithSubject("e000000000000"), bundle, replica, snapshot,
+    )).toBeNull();
+  });
+
   it("degrades an aspect-invalid part binding to an honest gap while keeping the answered part", () => {
     const dossier = parseNpcDossier({
       npcId: "contact:ferryman",
@@ -1337,7 +1543,7 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
       addressee: { kind: "npc", handle: ferryHandle },
       kind: "conversation",
       questionPlan: {
-        subjects: [{ id: "you", surface: ferrymanLabel, kind: "entity", observerRef: "person_1" }],
+        subjects: [{ id: "you", surface: ferrymanLabel, kind: "entity", observerRef: ferryHandle }],
         parts: [
           { id: "journal", subjectRefs: ["you"], aspect: "identity_role", time: "current", purpose: "describe" },
           { id: "motive", subjectRefs: ["you"], aspect: "known_event", time: "past", purpose: "explain" },

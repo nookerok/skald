@@ -56,6 +56,7 @@ async function startFakeServer(options?: {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
   readonly createSessionStatus?: number;
+  readonly sessionModel?: string;
   readonly modelUnavailableCount?: number;
   readonly modelUnavailableFromRead?: number;
   readonly errorEnvelope?: Record<string, unknown>;
@@ -125,7 +126,15 @@ async function startFakeServer(options?: {
           response.end(JSON.stringify({ error: { code: "session_create_failed" } }));
           return;
         }
-        response.end(JSON.stringify({ data: { id: body.id, title: body.title } }));
+        response.end(JSON.stringify({
+          data: {
+            id: body.id,
+            title: body.title,
+            ...(options?.sessionModel !== undefined
+              ? { model: { id: options.sessionModel, providerID: "opencode" } }
+              : {}),
+          },
+        }));
         return;
       }
       if (/^\/api\/session\/[^/]+\/generate$/u.test(path) && request.method === "POST") {
@@ -384,6 +393,42 @@ describe("OpenCode Server provider", () => {
     expect(server.requests.some((request) => request.path.includes("/experimental"))).toBe(false);
     expect(JSON.stringify(server.requests)).not.toContain("test-key");
     await instance.close();
+  });
+
+  it("fails closed when the created session reports a different model than the pin", async () => {
+    // A session that echoes another model is a drift toward an unvetted
+    // (possibly paid) route: no generation may run on it, and the transient
+    // session is still cleaned up. A matching echo changes nothing.
+    const drifted = await startFakeServer({ sessionModel: "other-model" });
+    servers.push(drifted);
+    const driftedInstance = provider(drifted.url);
+    try {
+      const failure = await driftedInstance.chatCandidate("interpret", candidate, [{ role: "user", content: "probe" }])
+        .then(() => { throw new Error("expected a provider failure"); }, (error: unknown) => error);
+      expect(failure).toMatchObject({ name: "ProviderRequestError", phase: "model_selection", retryable: false });
+      expect((failure as Error).message).toContain("session did not adopt the pinned model");
+      expect(generationRequests(drifted)).toHaveLength(0);
+      // Cleanup still ran: the session create is followed by its delete.
+      expect(drifted.requests.map((request) => request.method + " " + request.path)).toEqual([
+        "GET /api/info",
+        "GET /api/model",
+        "POST /api/session",
+        expect.stringMatching(/^DELETE \/api\/session\/ses_[a-f0-9]{32}$/u),
+      ]);
+    } finally {
+      await driftedInstance.close();
+    }
+
+    const honored = await startFakeServer({ sessionModel: "free-model" });
+    servers.push(honored);
+    const honoredInstance = provider(honored.url);
+    try {
+      const result = await honoredInstance.chatCandidate("interpret", candidate, [{ role: "user", content: "probe" }]);
+      expect(result).toMatchObject({ text: "Короткий ответ.", provider: "opencode_server" });
+      expect(generationRequests(honored)).toHaveLength(1);
+    } finally {
+      await honoredInstance.close();
+    }
   });
 
   it("selects distinct tool-free category agents for interpretation, narration and analysis", async () => {

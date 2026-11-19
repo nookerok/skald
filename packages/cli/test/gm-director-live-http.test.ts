@@ -39,6 +39,8 @@ async function fresh(
   unfamiliarContactRef?: string,
   additionalEvents: readonly DomainEvent[] = [],
   backgroundId?: string,
+  /** Simulates a world created before the dossier feature: no seeded facts. */
+  dropDossierEvents?: boolean,
 ) {
   vi.stubEnv("GM_DIRECTOR_LIVE", "1");
   vi.stubEnv("GM_DIRECTOR_SHADOW", "0");
@@ -51,11 +53,14 @@ async function fresh(
       : buildBootstrapEvents("living_region")),
     ...additionalEvents,
   ];
-  const worldBootstrapEvents = unfamiliarContactRef
+  let worldBootstrapEvents = unfamiliarContactRef
     ? bootstrapEvents.filter((event) =>
         event.type !== "RelationChanged"
         || (event.payload as { to?: string }).to !== unfamiliarContactRef)
     : bootstrapEvents;
+  if (dropDossierEvents) {
+    worldBootstrapEvents = worldBootstrapEvents.filter((event) => event.type !== "NpcDossierEstablished");
+  }
   store.createWorld({
     worldId: WORLD, idempotencyKey: "create", requestHash: "create", saveLabel: "Director live",
     characterName: "Tester", characterPresetId: "wanderer", worldTemplateId: "living_region",
@@ -423,6 +428,60 @@ describe("P3 Director production path", () => {
       expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
       expect(store.listConversationTurns(WORLD)).toHaveLength(2);
       expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(2);
+    } finally { store.close(); }
+  });
+
+  it("continues an old save without dossier facts through honest part gaps", async () => {
+    // Worlds created before the dossier feature carry no NpcDossierEstablished
+    // events; an update never retro-seeds them. The multi-part path must
+    // still answer such saves honestly: named NPC, per-part explicit gaps,
+    // zero events — and never a fact from nowhere.
+    let decision: unknown;
+    const { router, chat } = routerFor(() => decision);
+    const { store, runtime } = await fresh(router, "riverwatch_city_arrival", "contact:riverwatch-gatekeeper", [], undefined, true);
+    const world = runtime.projection.getSnapshot();
+    const scene = buildMasterTurnSceneContext(runtime.bus.query(), world);
+    const gatekeeper = scene.context.knownPeople.find((person) => person.portrait?.addressForms.includes("смотритель"));
+    expect(gatekeeper).toBeDefined();
+    const handle = stableActorHandle(gatekeeper!.observerRef);
+    const bundle = buildGmContext({
+      scene: scene.context,
+      conversation: EMPTY_MASTER_CONVERSATION,
+      sceneReferences: scene.references,
+      npcDossiers: world.npcDossiers,
+    });
+    expect(bundle.context.npcFacts).toHaveLength(0);
+    const input = "Смотритель, расскажите про журнал проходов у ворот и кто ещё дежурит с вами?";
+    decision = {
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle },
+      kind: "conversation",
+      questionPlan: {
+        subjects: [{ id: "s", surface: "смотритель", kind: "entity" }],
+        parts: [
+          { id: "p1", subjectRefs: ["s"], aspect: "identity_role", time: "current", purpose: "describe" },
+          { id: "p2", subjectRefs: ["s"], aspect: "current_activity", time: "current", purpose: "describe" },
+        ],
+        fragments: [
+          { partId: "p1", text: "расскажите про журнал проходов у ворот" },
+          { partId: "p2", text: "кто ещё дежурит с вами" },
+        ],
+      },
+      response: { segments: [
+        { kind: "social", act: "no_knowledge", partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    };
+    const beforeTime = world.time;
+    const beforeEvents = store.loadEvents(WORLD).length;
+    try {
+      const body = parse(await handleWorldCommand(runtime, { input, idempotencyKey: "old-save-multipart-gaps" }));
+      expect(body.status, JSON.stringify(body)).toBe("conversation");
+      expect(body.masterTurn.deterministicText).toContain("Об этом я не могу сказать ничего определённого.");
+      expect(body.masterTurn.deterministicText).not.toMatch(/person_|contact:|targetRef|internalId|locationId|observerRef/iu);
+      expect(body.conversationTurn.worldTimeAfter).toBe(beforeTime);
+      expect(store.loadEvents(WORLD)).toHaveLength(beforeEvents);
+      expect(chat.mock.calls.filter(([category]) => category === "interpret")).toHaveLength(1);
     } finally { store.close(); }
   });
 

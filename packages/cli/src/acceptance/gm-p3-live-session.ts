@@ -3,7 +3,8 @@
  *
  * Runs the real loopback HTTP command path and explicitly pinned OpenCode Server route
  * in a disposable SQLite world. Includes a persisted QuestionPlan, server reload, replay, refusal,
- * correction, supported mixed action/question, and injected provider failure.
+ * correction, supported mixed action/question, an addressed multi-part NPC question
+ * (questionPlan fragments + per-part fact/gap composition), and injected provider failure.
  * No production database or service is opened.
  */
 import { createHash, randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ import {
 import { applyServiceEnv } from "./service-env.js";
 import { createP3TransportTrace } from "./gm-p3-transport-trace.js";
 
-const schema = "GM_DIRECTOR_P3_LIVE_SESSION_V19";
+const schema = "GM_DIRECTOR_P3_LIVE_SESSION_V20";
 const dbValue = process.env["SKALD_P3_DB_PATH"] ?? "";
 const dbPath = resolve(dbValue);
 const scratchDir = dirname(dbPath);
@@ -61,12 +62,12 @@ const singleModelBackedTurnProbe = p3Mode === "single-interpret-probe";
 // The 22-turn script observed 18 category calls in the preceding live trace.
 // Allow a small retry-free buffer for the complete session; the independent
 // worst-case USD reservation cap remains the hard spend ceiling.
-const maxGenerationRequests = singleModelBackedTurnProbe ? 1 : 24;
+const maxGenerationRequests = singleModelBackedTurnProbe ? 1 : 25;
 // The single request must also fit a one-cent reservation at current catalogue prices.
 const singleProbeReservationCapUsd = 0.01;
-// 24 pinned GLM calls at the observed token ceilings reserve $0.1222656.
+// 25 pinned GLM calls at the observed token ceilings reserve ~$0.127.
 // The full scene also has an independent ceiling if catalogue prices change.
-const fullSceneReservationCapUsd = 0.125;
+const fullSceneReservationCapUsd = 0.13;
 const narrationSettleTimeoutMs = 20_000;
 const narrationPollIntervalMs = 100;
 const paidBudgetLedgerPath = resolve("docs/acceptance/opencode-paid-budget-2026-11-14.json");
@@ -472,6 +473,7 @@ const acceptanceScenarios: Array<{ id: string; input: string; readOnly?: boolean
   { id: "focused-question", input: "Как выглядит Архивист?", readOnly: true },
   { id: "people-list-again", input: "Кто ещё рядом?", readOnly: true },
   { id: "npc-topic", input: "Смотритель, расскажи о дороге к воротам.", readOnly: true },
+  { id: "npc-multipart-question", input: "Смотритель, расскажите про журнал проходов у ворот и кто ещё дежурит с вами?", readOnly: true },
   { id: "provider-unavailable", input: "Привет, смотритель", readOnly: true, offline: true },
   { id: "post-outage-question", input: "Кто сейчас рядом?", readOnly: true },
   { id: "open-question", input: "Что известно о ночном шуме?", readOnly: true },
@@ -966,6 +968,7 @@ const thanks = ledger.find((row) => row.id === "thanks");
 const openQuestion = ledger.find((row) => row.id === "open-question");
 const unsupportedNpcQuestion = ledger.find((row) => row.id === "npc-unsupported-detail");
 const unsupportedTwoActions = ledger.find((row) => row.id === "unsupported-two-actions");
+const multipartQuestion = ledger.find((row) => row.id === "npc-multipart-question");
 const checks: Record<string, boolean> = {
   scratchWorldCreatedThroughHttp: worldCreateStatus === 201,
   scratchHttpBoundToLoopback: scratchHttpBaseUrl !== null && new URL(scratchHttpBaseUrl).hostname === "127.0.0.1",
@@ -999,6 +1002,22 @@ const checks: Record<string, boolean> = {
     && !/ведёт журнал проходов/iu.test(unsupportedNpcQuestion.responseText)
     && unsupportedNpcQuestion.eventDelta === 0
     && unsupportedNpcQuestion.worldTimeAfter === unsupportedNpcQuestion.worldTimeBefore,
+  addressedNpcMultipartQuestion: multipartQuestion?.responseKind === "speech_reaction"
+    // The NAMED addressee answers, not a model-chosen speaker.
+    && /Смотритель/u.test(multipartQuestion.responseText)
+    // Part 1 (про журнал проходов) is answered with the authored public fact.
+    && /ведёт журнал проходов у ворот/iu.test(multipartQuestion.responseText)
+    // Part 2 (кто ещё дежурит) is an explicit per-part honest gap — the
+    // authored public dossier has no fact naming another person.
+    && /Об этом я не могу сказать ничего определённого/u.test(multipartQuestion.responseText)
+    // Exactly one Director interpretation for the composed reply.
+    && multipartQuestion.interpretCalls === 1
+    && multipartQuestion.directorDiagnostics.some((d: any) =>
+      d.provider === OPENCODE_SERVER_PROVIDER_ID && d.model === acceptanceModel
+      && d.outcome === "accepted" && d.decisionKind === "conversation"
+      && d.addresseeKind === "npc" && d.decisionAccepted === true)
+    && multipartQuestion.eventDelta === 0
+    && multipartQuestion.worldTimeAfter === multipartQuestion.worldTimeBefore,
   unsupportedTwoActionsFailClosed: unsupportedTwoActions?.responseKind === "clarification"
     && unsupportedTwoActions.eventDelta === 0
     && unsupportedTwoActions.worldTimeAfter === unsupportedTwoActions.worldTimeBefore,

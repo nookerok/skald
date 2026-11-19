@@ -16,34 +16,51 @@
   reports, user plan files, the older local opencode_run retry-after rework.
   Two upstream time-bomb discovery tests fixed (pinned recordDecision clock,
   date-relative shared HTTP fixtures).
-- On top of that basis: multi-part NPC questions (ADR-0028 amendment
-  2026-11-19). `GmTurnDecision` conversation may carry `questionPlan`
-  (closed QuestionPlan subjects/parts + verbatim replica `fragments`);
-  npc_fact/no_knowledge segments bind to parts via `partId`. Server owns the
-  truth: fragment spans are verified against the question portion, every
-  question-like clause must be covered (a lost asked part rejects the whole
-  decision — no partial answer), registered inquiries/executable actions in
-  the portion keep their own paths, and every fact binding must pass the
-  new per-part word+aspect check (`npcFactAnswersQuestion`): a state fact
-  cannot stand in for a «почему/зачем» reason without causal content, a
-  past-time question, or a who-about-others question without self-reference
-  or a person token. Failing bindings degrade to the explicit closed gap
-  sentence; answered parts survive. Red-first: the aspect-substitution test
-  («почему у переправы журнал проходов?» answered with the
-  «Ведёт журнал проходов…» fact) failed on the basis commit before the fix.
-  Contract tests cover closed plan/fragment validation; the HTTP test proves
-  one composed zero-event reply, idempotent replay without a second model
-  call, and fail-closed on a dropped part.
-- Gate on this tree: `npm run validate` PASS (basis commit: typecheck, 264
-  files / 3411 tests, 1 skipped; canon, simulation, eval, adventure
-  acceptance, diff check — see the commit body for the exact re-run state).
-- NOT done (open gates): live-model multi-part runs (the two acceptance
-  classes «хочу поздороваться с архивистом» / «спрашиваю, как у него дела и
-  что он ел» still need a real-provider session on the Pi with the
-  opencode-go route and paid budget decision), browser/visual QA, human
-  acceptance. No commit/push of the original dirty workspace, no deploy,
-  no production change; production remains at `18df168` as last verified
-  2026-11-14.
+- Commit `220e0c2` adds multi-part NPC questions (ADR-0028 amendment
+  2026-11-19): conversation `questionPlan` (closed QuestionPlan
+  subjects/parts + verbatim replica `fragments`), per-part `partId` segment
+  bindings, server-side composition with explicit per-part gaps, and the
+  per-part word+aspect meaning check. Red-first: the aspect-substitution
+  test failed on the basis commit before the fix.
+- Independent review verdict REVISE with three P1 findings — all fixed on
+  top of `220e0c2` and pinned by offline tests:
+  - P1 speaker substitution: the speechWrapped branch skipped the
+    named-addressee check («Спрашиваю у Архивиста…» could be answered by
+    the Смотритель). Now an explicit address ALWAYS binds uniquely to the
+    same NPC the decision names; absent/ambiguous bindings never grant the
+    model the speaker choice.
+  - P1 shared-word coverage: one fragment word could ground two questions
+    («журнал» covered both «про журнал» and «зачем нужен журнал»).
+    Coverage is now an EXACT assignment: each question-like clause is fully
+    contained in exactly one fragment, a fragment grounds at most one
+    clause, and the per-part meaning check runs on the player's clause,
+    not the model's span.
+  - P1 subject handles: the conversation plan parser now accepts the
+    OPAQUE actor handles the model actually receives (parameterized
+    `parseProposedQuestionPlan` ref test) and the contract validates every
+    subject observerRef against the visible-actor allowlist; the adapter
+    resolves each named subject to a visible person. The earlier HTTP test
+    had omitted observerRef and hid the mismatch.
+  - P2 fact smuggling: the single-question bridge now renders only facts
+    that INDIVIDUALLY answer the question (the role fact can no longer drag
+    a caftan description along).
+  - Live-session hardening for the next paid run: the OpenCode Server
+    adapter now fails closed when a created session reports a model other
+    than the pin (echoed drift → no generation, session still cleaned up);
+    the acceptance runner is V20 with an addressed multi-part turn
+    (named NPC + authored fact + per-part gap + one interpretation call),
+    25-generation budget and $0.13 reservation ceiling.
+  - Old saves: worlds created before the dossier feature carry no seeded
+    facts (bootstrap-time seeding, never retro-applied); the HTTP suite
+    proves such saves continue through honest per-part gaps.
+- Gate on this tree: `npm run validate` PASS after the review fixes
+  (typecheck, full suite, canon, simulation, eval, adventure acceptance,
+  diff check — see the fix commit body for the exact re-run).
+- NOT done (open gates): the live V20 multi-part run on the Pi (needs the
+  opencode-go route, a paid budget decision — only ~$0.059 remains
+  authorized — and the runner's immutable ledger), browser/visual QA and
+  human acceptance. No push/deploy; production remains at `18df168` as last
+  verified 2026-11-14.
 
 # Historical: OpenCode daily discovery release (2026-11-12)
 

@@ -237,7 +237,7 @@ describe("validateGmTurnDecision — conversation questionPlan (P3 multi-part)",
   it("accepts a multi-part question plan with per-part segment bindings", () => {
     const result = validateGmTurnDecision({
       ...npcBase,
-      questionPlan: plan,
+      questionPlan: { ...plan, subjects: [{ ...plan.subjects[0]!, observerRef: "e1" }] },
       response: { segments: [
         { kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" },
         { kind: "social", act: "no_knowledge", partId: "p2" },
@@ -301,6 +301,21 @@ describe("validateGmTurnDecision — conversation questionPlan (P3 multi-part)",
       questionPlan: { ...plan, parts: [{ ...plan.parts[0], aspect: "motivation" }, plan.parts[1]] },
       response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
     }, "invalid closed subjects/parts");
+  });
+
+  it("rejects subject handles that are not visible actors in this scene", () => {
+    // The model only ever receives opaque e-handles; a raw scene ref or a
+    // fabricated handle is not an acceptable subject reference.
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, subjects: [{ ...plan.subjects[0]!, observerRef: "person_1" }] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "questionPlan.subject.observerRef: \"person_1\" is not a visible actor");
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, subjects: [{ ...plan.subjects[0]!, observerRef: "e9" }] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, 'questionPlan.subject.observerRef: "e9" is not a visible actor');
   });
 
   it("rejects segment part bindings without a plan or with an unknown part", () => {

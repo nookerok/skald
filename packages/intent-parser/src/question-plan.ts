@@ -236,7 +236,7 @@ function hasOnlyPartKeys(candidate: Record<string, unknown>): boolean {
   return Object.keys(candidate).every((key) => known.includes(key));
 }
 
-function parseSubject(raw: unknown): QuestionSubject | null {
+function parseSubject(raw: unknown, observerRefTest: RegExp): QuestionSubject | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const candidate = raw as Record<string, unknown>;
   if (!hasOnlySubjectKeys(candidate)) return null;
@@ -247,14 +247,14 @@ function parseSubject(raw: unknown): QuestionSubject | null {
   const refAllowed = kind === "entity" || kind === "topic" || kind === "place";
   if (candidate.observerRef !== undefined) {
     if (!refAllowed) return null;
-    if (!(typeof candidate.observerRef === "string" && OBSERVER_REF_PATTERN.test(candidate.observerRef))) return null;
+    if (!(typeof candidate.observerRef === "string" && observerRefTest.test(candidate.observerRef))) return null;
   }
   if (candidate.members !== undefined) {
     if (kind !== "group") return null;
     if (!Array.isArray(candidate.members)
       || candidate.members.length === 0
       || candidate.members.length > TURN_MAX_REFERENTS) return null;
-    if (candidate.members.some((member) => !(typeof member === "string" && OBSERVER_REF_PATTERN.test(member)))) return null;
+    if (candidate.members.some((member) => !(typeof member === "string" && observerRefTest.test(member)))) return null;
   }
   if (kind === "group" && !Array.isArray(candidate.members)) return null;
   const ordinalField = candidate.listRef !== undefined || candidate.position !== undefined;
@@ -301,8 +301,17 @@ function parsePart(raw: unknown, subjectIds: ReadonlySet<string>): QuestionPart 
  * for any shape violation: unknown keys, ids outside the closed ref shape,
  * unknown aspects/times/purposes/kinds, per-kind subject requirements,
  * part/subject cross-reference breaks or limit overflow.
+ *
+ * `options.observerRefTest` narrows the accepted subject/member reference
+ * format for the calling contract: the TurnProposalV2 path keeps the
+ * transient `person_…`/`object_…` scene refs (default), while the GM
+ * conversation decision path passes the opaque actor-handle pattern, since
+ * the model only ever receives opaque `e…` handles there.
  */
-export function parseProposedQuestionPlan(raw: unknown): ProposedQuestionPlan | null {
+export function parseProposedQuestionPlan(
+  raw: unknown,
+  options: { readonly observerRefTest?: RegExp } = {},
+): ProposedQuestionPlan | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const candidate = raw as Record<string, unknown>;
   if (Object.keys(candidate).some((key) => key !== "subjects" && key !== "parts")) return null;
@@ -312,8 +321,9 @@ export function parseProposedQuestionPlan(raw: unknown): ProposedQuestionPlan | 
   if (candidate.parts.length > QUESTION_PLAN_MAX_PARTS) return null;
   const subjects: QuestionSubject[] = [];
   const subjectIds = new Set<string>();
+  const observerRefTest = options.observerRefTest ?? OBSERVER_REF_PATTERN;
   for (const entry of candidate.subjects) {
-    const subject = parseSubject(entry);
+    const subject = parseSubject(entry, observerRefTest);
     if (!subject) return null;
     if (subjectIds.has(subject.id)) return null;
     subjectIds.add(subject.id);

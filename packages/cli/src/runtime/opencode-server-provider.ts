@@ -916,6 +916,20 @@ export class OpenCodeServerProvider extends OpenCodeRunProvider {
         permissions: OPENCODE_SERVER_DENY_ALL,
       }, { signal: request.signal });
       if (session.id !== sessionID) throw new Error("OpenCode did not honor transient session identity");
+      // The pinned model, not a server default, must serve this request: a
+      // session that reports a different model is a configuration drift
+      // toward an unvetted (possibly paid) route, and no generation may
+      // proceed on it. Absence of the field is tolerated (older servers do
+      // not echo it); only an explicit mismatch fails closed.
+      if (session.model !== undefined
+        && (session.model.providerID !== model.providerID || session.model.id !== model.id)) {
+        throw new ProviderRequestError({
+          provider: OPENCODE_SERVER_PROVIDER_ID, model: `${model.providerID}/${model.id}`, category,
+          phase: "model_selection",
+          reason: "session did not adopt the pinned model",
+          retryable: false,
+        });
+      }
       generated = await client.session.generate({ sessionID, prompt: makePrompt(category, messages) }, { signal: request.signal });
     } catch (error) {
       generationError = error;

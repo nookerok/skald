@@ -283,7 +283,10 @@ export function validateGmTurnDecision(
     }
   }
   // The conversation question plan must be parsed BEFORE the response: its
-  // part ids are the allowlist for segment-level partId bindings.
+  // part ids are the allowlist for segment-level partId bindings. Subjects
+  // carry OPAQUE actor handles here (the model never sees raw scene refs),
+  // so the plan parser runs with the actor-handle pattern and every named
+  // subject handle is checked against the visible-actor allowlist.
   let planPartIds: Set<string> | null = null;
   if ("questionPlan" in raw) {
     const plan = raw["questionPlan"];
@@ -292,10 +295,18 @@ export function validateGmTurnDecision(
       errors.push("questionPlan: must be an object");
     } else {
       collectExtraKeys(plan, ["subjects", "parts", "fragments"], "questionPlan", errors);
-      const proposed = parseProposedQuestionPlan({ subjects: plan["subjects"], parts: plan["parts"] });
+      const proposed = parseProposedQuestionPlan(
+        { subjects: plan["subjects"], parts: plan["parts"] },
+        { observerRefTest: HANDLE_PATTERN },
+      );
       if (!proposed) {
         errors.push("questionPlan: invalid closed subjects/parts");
       } else {
+        for (const subject of proposed.subjects) {
+          if (subject.observerRef !== undefined && actorHandles && !actorHandles.includes(subject.observerRef)) {
+            errors.push(`questionPlan.subject.observerRef: "${subject.observerRef}" is not a visible actor in this scene`);
+          }
+        }
         planPartIds = new Set(proposed.parts.map((part) => part.id));
         const fragments = plan["fragments"];
         if (!Array.isArray(fragments) || fragments.length === 0 || fragments.length > proposed.parts.length) {

@@ -87,7 +87,7 @@ export function buildGmDecisionPrompt(input: string, context: GmContext): string
       examples.push("13) Два вопроса одному NPC в одной реплике → " + JSON.stringify({
         schemaVersion: 2, addressee: { kind: "npc", handle: handles[0] }, kind: "conversation",
         questionPlan: {
-          subjects: [{ id: "s", surface: npcLabel, kind: "entity" }],
+          subjects: [{ id: "s", surface: npcLabel, kind: "entity", observerRef: handles[0] }],
           parts: [
             { id: "p1", subjectRefs: ["s"], aspect: "identity_role", time: "current", purpose: "describe" },
             { id: "p2", subjectRefs: ["s"], aspect: "current_activity", time: "current", purpose: "describe" },

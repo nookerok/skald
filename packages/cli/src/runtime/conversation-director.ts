@@ -587,14 +587,24 @@ export function applyGmDirectorDecision(
 
     // Address grounding is shared with the single-question bridge: an
     // explicit address before a comma/dash, or a speech directive wrapper.
-    // The whole-replica classification gate mirrors that bridge too.
+    // A NAMED addressee always binds uniquely to the decision's speaker —
+    // the model can never pick the answering NPC for the player, and an
+    // absent/ambiguous binding falls back to the legacy clarification
+    // instead of granting that choice. The whole-replica classification
+    // gate mirrors that bridge too.
     if (classification.kind !== "inquiry_candidate" && classification.kind !== "speech") return null;
     const addressInfo = explicitQuestionAddress(input);
     if (!addressInfo) return null;
-    if (!addressInfo.speechWrapped
-      && !(addressInfo.binding.status === "unique" && addressInfo.binding.entry.observerRef === speaker.observerRef)) return null;
+    if (addressInfo.binding.status !== "unique" || addressInfo.binding.entry.observerRef !== speaker.observerRef) return null;
     const questionStart = input.indexOf(addressInfo.questionText);
     if (questionStart < 0) return null;
+
+    // Subject handles are opaque actor handles; every named subject must
+    // resolve to a visible person in THIS scene (a subject may be a third
+    // party, but never a fabricated or stale actor).
+    for (const subject of plan.subjects) {
+      if (subject.observerRef !== undefined && !resolveHandlePerson(subject.observerRef)) return null;
+    }
 
     // The question portion is analyzed on its own: an executable action or a
     // registered world inquiry inside it keeps its own path and must not be
@@ -625,19 +635,28 @@ export function applyGmDirectorDecision(
     }
     spans.sort((left, right) => left.start - right.start);
 
-    // Coverage: every question-like clause of the portion must be covered by
-    // a fragment (nothing asked may be dropped); tolerated discourse frames
-    // must be grounded the same way; other unknown clauses are accounted for
-    // only when a fragment covers them or they sit before the first question
-    // fragment, so nothing said is silently lost.
+    // Coverage is an EXACT ASSIGNMENT, not an overlap: every question-like
+    // clause and tolerated discourse frame of the portion must be fully
+    // contained in exactly ONE fragment, and a fragment may ground at most
+    // one such unit — a shared word can never stand in for a whole question
+    // («журнал» cannot cover both «про журнал» and «зачем нужен журнал»).
+    // Non-question unknown clauses may only sit before the first fragment.
     const preambleEnd = spans[0]!.start;
-    for (const clause of [...portionClauses.unknown, ...portionFrames]) {
-      const covered = spans.some((span) => normContains(clause, span.text) || normContains(span.text, clause));
-      if (covered) continue;
-      if (isQuestionLikeInput(clause) || /[?？]/u.test(clause)) return null;
+    const semanticUnits = [...portionClauses.unknown.filter((clause) => isQuestionLikeInput(clause) || /[?？]/u.test(clause)), ...portionFrames];
+    const clauseOfSpan = new Map<number, string>();
+    for (const clause of semanticUnits) {
+      const groundingSpans = spans.filter((span) => normContains(span.text, clause));
+      if (groundingSpans.length !== 1) return null;
+      const spanIndex = spans.indexOf(groundingSpans[0]!);
+      if (clauseOfSpan.has(spanIndex)) return null;
+      clauseOfSpan.set(spanIndex, clause);
+    }
+    for (const clause of portionClauses.unknown) {
+      if (isQuestionLikeInput(clause) || /[?？]/u.test(clause)) continue;
       const clauseStart = questionPortion.indexOf(clause);
       if (clauseStart < 0 || clauseStart + clause.length > preambleEnd - questionStart) return null;
     }
+    if (clauseOfSpan.size !== spans.length) return null;
 
     // Preamble segments: social acts only, rendered before the answers.
     const preambleSegments = decision.response!.segments.filter((segment) => !("partId" in segment));
@@ -665,7 +684,10 @@ export function applyGmDirectorDecision(
         if (!fact || !isSafeRenderedDossierText(fact.text)) return null;
         factTexts.push(fact.kind === "npc_belief" ? "Я считаю: " + fact.text : fact.text);
       }
-      const answeringFacts = factTexts.filter((text) => npcFactAnswersQuestion(span.text, text));
+      // The meaning check runs on the player's CLAUSE — the semantic unit the
+      // fragment grounds — never on the model's chosen span text.
+      const partQuestion = clauseOfSpan.get(spans.indexOf(span)) ?? span.text;
+      const answeringFacts = factTexts.filter((text) => npcFactAnswersQuestion(partQuestion, text));
       if (answeringFacts.length > 0) {
         partTexts.push(answeringFacts.join(" "));
       } else if (explicitGap || factTexts.length > 0) {
@@ -784,7 +806,11 @@ export function applyGmDirectorDecision(
         if (!fact || !isSafeRenderedDossierText(fact.text)) return null;
         disclosedFacts.push(fact.kind === "npc_belief" ? "Я считаю: " + fact.text : fact.text);
       }
-      if (!npcFactsAnswerQuestion(explicitAddress.questionText, disclosedFacts)) {
+      // EVERY rendered fact must individually answer the question: one
+      // relevant fact may never smuggle a merely-selected one into the reply
+      // («что вы ведёте у ворот?» must not drag a caftan description along).
+      const answeringFacts = disclosedFacts.filter((text) => npcFactAnswersQuestion(explicitAddress.questionText, text));
+      if (answeringFacts.length === 0) {
         // The NPC has no fact that answers this question — either no topic
         // overlap, or the overlap is aspect-insufficient (a plain state fact
         // cannot stand in for a reason, a past event or a who). Do not turn
@@ -800,7 +826,7 @@ export function applyGmDirectorDecision(
       }
       return {
         status: "conversation",
-        text: speaker.label + ": «" + disclosedFacts.join(" ") + "»",
+        text: speaker.label + ": «" + answeringFacts.join(" ") + "»",
         revision,
         speaker: { observerRef: speaker.observerRef, label: speaker.label, internalId: reference.internalId },
       };

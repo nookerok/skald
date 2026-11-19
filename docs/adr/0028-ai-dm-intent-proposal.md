@@ -61,23 +61,35 @@ may precede them.
 The server, never the model, owns the truth:
 
 - fragments must be real, ordered, non-overlapping spans of the question
-  portion; the addressee is grounded with the same explicit-address /
-  speech-wrapper rule as the single-question bridge;
-- every question-like clause of the question portion must be covered by a
-  fragment, and tolerated discourse frames must be grounded the same way —
-  a lost asked part rejects the whole decision (no partial answer);
-- a registered world inquiry or an executable action inside the question
-  portion keeps its own path and is never re-scoped to NPC facts;
+  portion; the addressee of an EXPLICIT address always binds uniquely to
+  the named NPC — the model never chooses the speaker, and an absent or
+  ambiguous binding falls back to the legacy clarification;
+- every question-like clause of the question portion must be FULLY
+  contained in exactly one fragment, a fragment grounds at most one such
+  clause, and the per-part meaning check runs on the player's CLAUSE, not
+  the model's span — a shared word can never cover two questions
+  («журнал» cannot ground both «про журнал» and «зачем нужен журнал»);
+  tolerated discourse frames must be fragment-grounded the same way, a
+  registered world inquiry or an executable action keeps its own path,
+  and a lost asked part rejects the whole decision (no partial answer);
+- plan subjects carry opaque actor handles (never raw scene refs), are
+  contract-checked against the visible-actor allowlist and adapter-bound
+  to visible people; a subject may name a third party, never a fabricated
+  actor;
 - each bound fact must pass the per-part word+aspect check
   (`npcFactAnswersQuestion`): topic stems must overlap AND the aspect must
   fit — a state fact cannot stand in for a reason (почему/зачем without
   causal content), a past-time question, or a who-about-others question
   without a self-reference or a person token in the fact. A failing binding
   degrades that part to the explicit closed gap sentence; the answered
-  parts survive («полезная известная часть не пропадает»);
+  parts survive («полезная известная часть не пропадает»), and in the
+  single-question bridge every RENDERED fact must individually answer —
+  one relevant fact can never smuggle a merely-selected one;
 - the reply is composed server-side from authored fact texts and closed gap
   phrases in replica order: zero Domain Events, zero world time, one
-  ConversationTurn, idempotent replay unchanged.
+  ConversationTurn, idempotent replay unchanged. Worlds created before
+  the dossier feature carry no seeded facts and continue through honest
+  per-part gaps (an update never retro-seeds old saves).
 
 No new Domain Event, Rule or persistence field is introduced. The
 ambiguous-addressee continuation (reload, «я имею в виду X») keeps the
