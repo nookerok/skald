@@ -170,7 +170,7 @@ provider code and sanitized trace ID are kept separate in failure diagnostics.
 OpenCode's typed gateway error may wrap an upstream 402/429 in HTTP 502;
 diagnostics retain the upstream `httpStatus` and outer `gatewayHttpStatus`
 separately. For a model that needs longer live interpretation, explicitly set
-`GM_DIRECTOR_LIVE_TIMEOUT_MS` to 1000..20000 milliseconds (default 4000).
+`GM_DIRECTOR_LIVE_TIMEOUT_MS` to 1000..30000 milliseconds (default 4000).
 This changes only the interpretation budget, not authority or game-time cost.
 
 For free discovery candidates, keep the setting disabled unless a current
@@ -189,8 +189,10 @@ The ledger is ONE operator-owned file passed explicitly through
 checkout-relative copy forks the accounting and is rejected. Missing
 prices, unverified session model identity, failed ledger writes or
 exhausted budget block the call before it reaches OpenCode. A paid live
-session also requires `GM_DIRECTOR_LIVE_TIMEOUT_MS=20000` (the 4s default
-cuts live multi-clause interpretations mid-flight). This acceptance
+session also requires the proven Director latency floor
+(`GM_DIRECTOR_LIVE_TIMEOUT_MS` >= 20000; the 4s default
+cuts live multi-clause interpretations mid-flight, and observed slow
+generations justify using the full 30000 ceiling). This acceptance
 cap is not a production billing cap; provider-side spending limits remain
 necessary for paid production use. The default route remains unchanged until
 an explicit model pin is approved and configured. The deploy env-policy also

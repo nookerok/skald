@@ -26,7 +26,8 @@ describe("live Director timeout budget", () => {
     expect(gmDirectorLiveTimeoutMs({})).toBe(4000);
     expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: "12000" })).toBe(12000);
     expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: "20000" })).toBe(20000);
-    for (const value of ["", "abc", "0", "999", "20001", "-2", "1.5", "012000"]) {
+    expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: "30000" })).toBe(30000);
+    for (const value of ["", "abc", "0", "999", "30001", "-2", "1.5", "012000"]) {
       expect(gmDirectorLiveTimeoutMs({ GM_DIRECTOR_LIVE_TIMEOUT_MS: value })).toBe(4000);
     }
   });

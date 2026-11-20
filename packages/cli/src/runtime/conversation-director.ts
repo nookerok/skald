@@ -122,12 +122,17 @@ export type GmDirectorResult =
   | { readonly status: "decision"; readonly decision: GmTurnDecision; readonly trace: GmDirectorTrace; readonly shared?: boolean }
   | { readonly status: "fallback"; readonly reason: string; readonly trace: GmDirectorTrace; readonly shared?: boolean };
 
-/** Bounded live interpretation budget; invalid configuration retains the 4s default. */
+/**
+ * Bounded live interpretation budget; invalid configuration retains the 4s
+ * default. The 30s ceiling leaves headroom for observed slow live
+ * generations (a point4 r04 multi-part interpret ran 20.1 s against the old
+ * 20s cap and failed as a transport miss while the server stayed safe).
+ */
 export function gmDirectorLiveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.GM_DIRECTOR_LIVE_TIMEOUT_MS;
   if (raw === undefined || !/^[1-9][0-9]*$/u.test(raw)) return 4_000;
   const value = Number(raw);
-  return Number.isSafeInteger(value) && value >= 1_000 && value <= 20_000 ? value : 4_000;
+  return Number.isSafeInteger(value) && value >= 1_000 && value <= 30_000 ? value : 4_000;
 }
 
 /** Best-effort JSON object extraction from a model reply (never throws). */
