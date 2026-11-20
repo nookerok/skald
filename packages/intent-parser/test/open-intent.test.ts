@@ -849,6 +849,30 @@ describe("interpretIntent — compound phrases return clarification (P0)", () =>
     expect(interpretIntent(input).type).toBe("ClarificationRequired");
   });
 
+  it.each([
+    "подхожу к старосте, приветствую",
+    "подойду к старосте, здороваюсь",
+    "подхожу к старосте, благодарю его",
+    "подхожу к архивисту, спрашиваю про записи",
+  ])("returns clarification for comma-joined action + speech tail: %j", (input) => {
+    // The comma form used to be grabbed by the deterministic fast path as
+    // ONE approach whose target swallowed the tail («старосте,
+    // приветствую»), producing a false target clarification. With the
+    // Director live, the compound now reaches the model as a mixed turn.
+    expect(interpretIntent(input).type).toBe("ClarificationRequired");
+  });
+
+  it.each([
+    "осмотрю знак, поставленный стражей",
+    "подойду к человеку в плаще, шляпе и сапогах",
+    "подхожу к старосте",
+  ])("keeps comma-joined descriptions single (no false compound): %j", (input) => {
+    // Only SPEECH verbs after a comma split a second clause; participles
+    // and garments inside a description stay part of the target.
+    const result = interpretIntent(input);
+    expect(result.type).not.toBe("ClarificationRequired");
+  });
+
   it("keeps a single travel replica executable (no false compound)", () => {
     const result = interpretIntent("Иду к Речному Стражу");
     expect(result.type).toBe("JourneyIntent");
