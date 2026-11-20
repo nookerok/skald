@@ -103,6 +103,28 @@
   session (next gates before any push/deploy decision); production
   remains at `18df168` as last verified 2026-11-19.
 
+## Deployment (2026-11-20, operator-authorized push + deploy)
+
+- Pushed: branch `p3-conversation-director` and a fast-forward of
+  `origin/main` `d6ffbf1 → a14480e`.
+- Orange Pi deployed via the installed updater as `nooker` (no sudo):
+  backup + SQLite integrity, fast-forward to `a14480e`, deps, full
+  validate on-device `[validate] PASS`, restart, health ok, AI readiness
+  `degraded but playable` (accepted per D-036), live intent/narration
+  contract PASS.
+- Post-deploy: service + both timers active, `/api/health` ok, current
+  world `world-b6856194…` scoped state 200, `GM_DIRECTOR_LIVE` NOT set in
+  the production env (the Conversation Director ships DARK by default),
+  Node v22.23.1.
+- Idempotent scratch-world smoke PASS on the deployed server: `wait`
+  200/time+1, same-key replay `replayed: true` with no second event,
+  changed body under the same key → 409 idempotency_conflict. Scratch
+  smoke worlds `world-68f7b93e…`, `world-31342f45…` (plus one earlier
+  attempt world) remain in the catalog for operator cleanup.
+- This handoff-only commit moves main ahead of the deployed runtime by
+  documentation only (established repo convention); the device runs
+  `a14480e` until the next code release.
+
 # Historical: OpenCode daily discovery release (2026-11-12)
 
 - Release is isolated from the original dirty Conversation Director worktree.
