@@ -1759,8 +1759,71 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
     expect(outcome).toBeNull();
   });
 
-  it("renders an indirect greeting intent as the addressed NPC's social reply", () => {
-    // Acceptance class «хочу поздороваться с X»: an indirect greeting is not
+  it("answers a greeting that opens a multi-part question to the named NPC", () => {
+    // Natural speech: «Привет, смотритель! расскажи про журнал и кто ещё
+    // дежурит?» — the greeting is NOT the address; the vocative after it
+    // binds, the «!» separates it from the question, and the model may
+    // render the greeting as a social preamble before the per-part answer.
+    const dossier = parseNpcDossier({
+      npcId: "contact:gatekeeper",
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: "contact:gatekeeper:public", kind: "world_truth", content: { type: "text", text: "Ведёт журнал проходов у ворот." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+      ],
+    });
+    const sceneReferencesKeeper = new Map<string, { kind: "person"; internalId: string; label: string }>([
+      ["person_2", { kind: "person", internalId: "contact:gatekeeper", label: "Смотритель речных ворот" }],
+    ]);
+    const bundle = buildGmContext({
+      scene: sceneContext,
+      conversation: snapshot.conversation,
+      sceneReferences: sceneReferencesKeeper,
+      npcDossiers: new Map([["contact:gatekeeper", dossier!]]),
+    });
+    const keeperHandle = stableActorHandle("person_2");
+    const factId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === keeperHandle)?.factId!;
+    const replica = "Привет, смотритель! расскажи про журнал проходов у ворот и кто ещё дежурит с тобой?";
+    const outcome = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: keeperHandle },
+      kind: "conversation",
+      questionPlan: {
+        subjects: [{ id: "s", surface: "смотритель", kind: "entity", observerRef: keeperHandle }],
+        parts: [
+          { id: "p1", subjectRefs: ["s"], aspect: "identity_role", time: "current", purpose: "describe" },
+          { id: "p2", subjectRefs: ["s"], aspect: "current_activity", time: "current", purpose: "describe" },
+        ],
+        fragments: [
+          { partId: "p1", text: "расскажи про журнал проходов у ворот" },
+          { partId: "p2", text: "кто ещё дежурит с тобой" },
+        ],
+      },
+      response: { segments: [
+        { kind: "social", act: "greeting" },
+        { kind: "npc_fact", factId, partId: "p1" },
+        { kind: "social", act: "no_knowledge", partId: "p2" },
+      ] },
+    }, bundle, replica, snapshot);
+    expect(outcome).toMatchObject({
+      status: "conversation",
+      text: "Смотритель речных ворот: «Здравствуй. Ведёт журнал проходов у ворот. Об этом я не могу сказать ничего определённого.»",
+      speaker: { observerRef: "person_2", label: "Смотритель речных ворот", internalId: "contact:gatekeeper" },
+    });
+    // The single-question bridge accepts the same greeting+vocative shape.
+    const single = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: keeperHandle },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId }] },
+    }, bundle, "Привет, смотритель, расскажи про журнал проходов у ворот?", snapshot);
+    expect(single).toMatchObject({ status: "conversation" });
+    if (single?.status === "conversation") {
+      expect(single.text).toContain("Ведёт журнал проходов у ворот.");
+    }
+  });
+
+  it("renders an indirect greeting intent as the addressed NPC's social reply", () => {    // Acceptance class «хочу поздороваться с X»: an indirect greeting is not
     // an executable action; the NPC answers with the closed social phrase.
     const bundle = buildGmContext({ scene: sceneContext, conversation: snapshot.conversation });
     const ferryHandle = stableActorHandle("person_1");

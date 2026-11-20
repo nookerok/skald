@@ -545,8 +545,12 @@ export function fallbackForUnsupportedAddressedNpcQuestion(
   bundle: GmContextBundle,
   snapshot: MasterTurnSnapshot,
 ): MasterTurnGatewayOutcome | null {
-  const speechQuestion = /^\s*(?:спросить|спроси|спросите|спрошу|спрашиваю|расспросить|расспрошу|поинтересоваться|поинтересуюсь)\s+(?:у\s+)?([^,!?;—:]{2,100})\s*[,—:]\s*(.+)$/iu.exec(input);
-  const addressed = speechQuestion ?? /^\s*(?:эй\b[\s,]+)?([^,!?;—:]{2,100})\s*[,—:]\s*(.+)$/iu.exec(input);
+  // A closed leading greeting is not part of the address; «!»/«?» separate
+  // a vocative from the question sentence.
+  const GREETING_RE = /^\s*(?:привет(?:ствую)?|здравствуй(?:те)?|доброе\s+утро|добрый\s+день|добрый\s+вечер|доброй\s+ночи)\s*[,!]+\s*/iu;
+  const addressable = input.replace(GREETING_RE, "");
+  const speechQuestion = /^\s*(?:спросить|спроси|спросите|спрошу|спрашиваю|расспросить|расспрошу|поинтересоваться|поинтересуюсь)\s+(?:у\s+)?([^,!?;—:]{2,100})\s*[,—:]\s*(.+)$/iu.exec(addressable);
+  const addressed = speechQuestion ?? /^\s*(?:эй\b[\s,]+)?([^,!?;—:]{2,100})\s*[,—:!?]\s*(.+)$/iu.exec(addressable);
   const target = addressed?.[1]?.trim();
   const question = addressed?.[2]?.trim();
   if (!target || !question || !/[?？]/u.test(question)) return null;
@@ -636,9 +640,20 @@ export function applyGmDirectorDecision(
     };
   };
 
+  /**
+   * Closed social greetings that may precede an explicit address
+   * («Привет, смотритель, расскажи…», «Добрый день, архивист! Кто…»).
+   * They are stripped ONLY for address extraction; the question text and
+   * fragments stay untouched.
+   */
+  const GREETING_PREFIX_RE = /^\s*(?:привет(?:ствую)?|здравствуй(?:те)?|доброе\s+утро|добрый\s+день|добрый\s+вечер|доброй\s+ночи)\s*[,!]+\s*/iu;
+
   const explicitQuestionAddress = (text: string) => {
-    const speechQuestion = /^\s*(?:спросить|спроси|спросите|спрошу|спрашиваю|расспросить|расспрошу|поинтересоваться|поинтересуюсь)\s+(?:у\s+)?([^,!?;—:]{2,100})\s*[,—:]\s*(.+)$/iu.exec(text);
-    const match = speechQuestion ?? /^\s*(?:эй\b[\s,]+)?([^,!?;—:]{2,100})\s*[,—:]\s*(.+)$/iu.exec(text);
+    const addressable = text.replace(GREETING_PREFIX_RE, "");
+    const speechQuestion = /^\s*(?:спросить|спроси|спросите|спрошу|спрашиваю|расспросить|расспрошу|поинтересоваться|поинтересуюсь)\s+(?:у\s+)?([^,!?;—:]{2,100})\s*[,—:]\s*(.+)$/iu.exec(addressable);
+    // «!»/«?» separate a vocative address from a following question sentence
+    // («Смотритель! Расскажите про журнал…»); binding still has to be unique.
+    const match = speechQuestion ?? /^\s*(?:эй\b[\s,]+)?([^,!?;—:]{2,100})\s*[,—:!?]\s*(.+)$/iu.exec(addressable);
     if (!match) return null;
     const entries = snapshot.scene.context.knownPeople.map((person) => ({
       observerRef: person.observerRef,
