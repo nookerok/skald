@@ -11,7 +11,7 @@ import {
 } from "@skald/world";
 import { validateGmTurnDecision } from "@skald/intent-parser";
 import { buildGmContext } from "../src/conversation/gm-context.js";
-import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight, gmDirectorLiveEnabled, gmDirectorLiveTimeoutMs } from "../src/runtime/conversation-director.js";
+import { applyGmDirectorDecision, interpretGmDecision, extractJsonObject, normalizeDecisionShape, createGmDirectorFlight, gmDirectorLiveEnabled, gmDirectorLiveTimeoutMs, npcFactAnswersQuestionPart, factMentionsThirdPartySubject } from "../src/runtime/conversation-director.js";
 import { stableActorHandle } from "../src/conversation/gm-context.js";
 import { scoreGmCorpus } from "../src/conversation/gm-scorecard.js";
 import { EMPTY_MASTER_CONVERSATION, type MasterConversationContext } from "../src/conversation/context-builder.js";
@@ -1391,6 +1391,147 @@ describe("applyGmDirectorDecision (P3 bridge)", () => {
       status: "conversation",
       text: "Перевозчик у переправы: «Ведёт журнал проходов у переправы. Об этом я не могу сказать ничего определённого.»",
     });
+  });
+
+  it("never publishes a state fact for a when- or how-much question", () => {
+    // Reviewer repro: «Когда вы ведёте журнал проходов у ворот?» and
+    // «Сколько журналов проходов у ворот?» both stem-match the authored role
+    // fact and say nothing about time or quantity. The requested
+    // information TYPE must gate the publication, not the topic words.
+    const dossier = parseNpcDossier({
+      npcId: "contact:ferryman",
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: "contact:ferryman:public", kind: "world_truth", content: { type: "text", text: "Ведёт журнал проходов у переправы." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+      ],
+    });
+    const bundle = buildGmContext({
+      scene: sceneContext,
+      conversation: snapshot.conversation,
+      sceneReferences: references,
+      npcDossiers: new Map([["contact:ferryman", dossier!]]),
+    });
+    const ferryHandle = stableActorHandle("person_1");
+    const factId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === ferryHandle)?.factId!;
+
+    const whenSingle = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId }] },
+    }, bundle, "Перевозчик у переправы, когда вы ведёте журнал проходов у переправы?", snapshot);
+    expect(whenSingle).toMatchObject({ status: "conversation" });
+    if (whenSingle?.status === "conversation") {
+      expect(whenSingle.text).toContain("нет подтверждённых сведений");
+      expect(whenSingle.text).not.toContain("журнал");
+    }
+
+    const howManySingle = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId }] },
+    }, bundle, "Перевозчик у переправы, сколько журналов проходов у переправы?", snapshot);
+    expect(howManySingle).toMatchObject({ status: "conversation" });
+    if (howManySingle?.status === "conversation") {
+      expect(howManySingle.text).toContain("нет подтверждённых сведений");
+      expect(howManySingle.text).not.toContain("журнал");
+    }
+
+    // The same failure inside a TWO-part replica degrades only the offending
+    // part: the answered part keeps its fact, the when-part stays an honest
+    // gap, and nothing is silently dropped.
+    const replica = "Перевозчик у переправы, расскажи про журнал проходов у переправы и когда вы ведёте журнал проходов у переправы?";
+    const multi = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      questionPlan: {
+        subjects: [{ id: "s", surface: ferrymanLabel, kind: "entity", observerRef: ferryHandle }],
+        parts: [
+          { id: "p1", subjectRefs: ["s"], aspect: "identity_role", time: "current", purpose: "describe" },
+          { id: "p2", subjectRefs: ["s"], aspect: "current_activity", time: "current", purpose: "describe" },
+        ],
+        fragments: [
+          { partId: "p1", text: "расскажи про журнал проходов у переправы" },
+          { partId: "p2", text: "когда вы ведёте журнал проходов у переправы" },
+        ],
+      },
+      response: { segments: [
+        { kind: "npc_fact", factId, partId: "p1" },
+        { kind: "npc_fact", factId, partId: "p2" },
+      ] },
+    }, bundle, replica, snapshot);
+    expect(multi).toMatchObject({
+      status: "conversation",
+      text: "Перевозчик у переправы: «Ведёт журнал проходов у переправы. Об этом я не могу сказать ничего определённого.»",
+    });
+  });
+
+  it("keeps an authored fact when it carries the requested information type", () => {
+    const dossier = parseNpcDossier({
+      npcId: "contact:ferryman",
+      dossierVersion: 1,
+      voice: { styleTags: [], toneDescription: null },
+      facts: [
+        { factId: "contact:ferryman:morning", kind: "world_truth", content: { type: "text", text: "Журнал проходов у переправы пополняется каждое утро." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+        { factId: "contact:ferryman:count", kind: "world_truth", content: { type: "text", text: "Журналов проходов у переправы два." }, disclosure: { minimumFamiliarityTier: "stranger", requiredConditions: [] } },
+      ],
+    });
+    const bundle = buildGmContext({
+      scene: sceneContext,
+      conversation: snapshot.conversation,
+      sceneReferences: references,
+      npcDossiers: new Map([["contact:ferryman", dossier!]]),
+    });
+    const ferryHandle = stableActorHandle("person_1");
+    const morningFactId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === ferryHandle && fact.text.includes("утро"))?.factId!;
+    const countFactId = bundle.context.npcFacts.find((fact) => fact.subjectHandle === ferryHandle && fact.text.includes("два"))?.factId!;
+
+    const whenAnswered = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId: morningFactId }] },
+    }, bundle, "Перевозчик у переправы, когда пополняется журнал проходов у переправы?", snapshot);
+    expect(whenAnswered).toMatchObject({ status: "conversation" });
+    if (whenAnswered?.status === "conversation") {
+      expect(whenAnswered.text).toContain("Журнал проходов у переправы пополняется каждое утро.");
+    }
+
+    const howManyAnswered = applyGmDirectorDecision({
+      schemaVersion: 2,
+      addressee: { kind: "npc", handle: ferryHandle },
+      kind: "conversation",
+      response: { segments: [{ kind: "npc_fact", factId: countFactId }] },
+    }, bundle, "Перевозчик у переправы, сколько журналов проходов у переправы?", snapshot);
+    expect(howManyAnswered).toMatchObject({ status: "conversation" });
+    if (howManyAnswered?.status === "conversation") {
+      expect(howManyAnswered.text).toContain("Журналов проходов у переправы два.");
+    }
+  });
+
+  it("holds facts against the declared part semantics and third-party subjects", () => {
+    const journalFact = "Ведёт журнал проходов у переправы.";
+    const base = "расскажи про журнал проходов у переправы";
+    // Declared time/aspect/purpose are binding: the current public slice has
+    // no authored past or event facts, and explaining requires causal or
+    // belief content rather than a bare state fact.
+    expect(npcFactAnswersQuestionPart(base, journalFact, {})).toBe(true);
+    expect(npcFactAnswersQuestionPart(base, journalFact, { time: "past" })).toBe(false);
+    expect(npcFactAnswersQuestionPart(base, journalFact, { aspect: "known_event" })).toBe(false);
+    expect(npcFactAnswersQuestionPart(base, journalFact, { purpose: "explain", factKind: "world_truth" })).toBe(false);
+    expect(npcFactAnswersQuestionPart(base, "Журнал проходов веду, чтобы помнить приходы у переправы.", { purpose: "explain", factKind: "npc_belief" })).toBe(true);
+
+    // A part about a THIRD party may only be answered by a fact that
+    // actually mentions that subject; a pronoun surface falls back to the
+    // resolved observer-safe label.
+    const keeper = { surface: "смотрителя речных ворот", label: "Смотритель речных ворот" };
+    expect(npcFactAnswersQuestionPart("расскажи про смотрителя речных ворот", journalFact, { thirdPartySubjects: [keeper] })).toBe(false);
+    expect(npcFactAnswersQuestionPart("расскажи про смотрителя речных ворот", "Подменяю Смотрителя речных ворот по утрам.", { thirdPartySubjects: [keeper] })).toBe(true);
+    expect(factMentionsThirdPartySubject(journalFact, { surface: "него", label: "Смотритель речных ворот" })).toBe(false);
+    expect(factMentionsThirdPartySubject("Подменяю Смотрителя речных ворот по утрам.", { surface: "него", label: "Смотритель речных ворот" })).toBe(true);
   });
 
   it("never lets the model choose the speaker when the player named another NPC", () => {

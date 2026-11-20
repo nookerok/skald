@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   extractP3PlayerVisibleResponse,
   evaluateP3LiveModelGate,
   evaluateP3ModelBackedTurnProbe,
   p3PaidPrimaryPermissionFlag,
+  resolveP3BudgetLedgerPath,
   summarizeP3LiveRunnerFailure,
 } from "../src/acceptance/gm-p3-live-gate.js";
 
@@ -261,5 +265,40 @@ describe("P3 runner failure evidence", () => {
     expect(summary.kind).toBe(kind);
     expect(JSON.stringify(summary)).not.toContain("private");
     expect(JSON.stringify(summary)).not.toContain("model output");
+  });
+});
+
+describe("P3 budget ledger path resolution", () => {
+  it("fails closed on a missing env value, a relative path and a missing file", () => {
+    expect(resolveP3BudgetLedgerPath({})).toEqual({ ok: false, reason: "paid_budget_ledger_env_missing" });
+    expect(resolveP3BudgetLedgerPath({ SKALD_P3_BUDGET_LEDGER: "docs/acceptance/budget.json" }))
+      .toEqual({ ok: false, reason: "paid_budget_ledger_must_be_absolute" });
+    expect(resolveP3BudgetLedgerPath({ SKALD_P3_BUDGET_LEDGER: join(tmpdir(), "skald-no-such-ledger.json") }))
+      .toEqual({ ok: false, reason: "paid_budget_ledger_missing" });
+  });
+
+  it("rejects a ledger living inside the checkout and a symlinked ledger", () => {
+    const root = mkdtempSync(join(tmpdir(), "skald-ledger-root-"));
+    const ledger = join(root, "opencode-paid-budget.json");
+    writeFileSync(ledger, "{}", "utf8");
+    try {
+      const inside = resolveP3BudgetLedgerPath(
+        { SKALD_P3_BUDGET_LEDGER: ledger, SKALD_P3_CHECKOUT_ROOT: root });
+      expect(inside).toEqual({ ok: false, reason: "paid_budget_ledger_must_live_outside_the_checkout" });
+
+      const outsideDir = mkdtempSync(join(tmpdir(), "skald-ledger-outside-"));
+      const real = join(outsideDir, "real-ledger.json");
+      writeFileSync(real, "{}", "utf8");
+      const link = join(outsideDir, "linked-ledger.json");
+      symlinkSync(real, link);
+      expect(resolveP3BudgetLedgerPath({ SKALD_P3_BUDGET_LEDGER: link }))
+        .toEqual({ ok: false, reason: "paid_budget_ledger_not_a_regular_file" });
+      const accepted = resolveP3BudgetLedgerPath({ SKALD_P3_BUDGET_LEDGER: real, SKALD_P3_CHECKOUT_ROOT: root });
+      expect(accepted.ok).toBe(true);
+      if (accepted.ok) expect(accepted.path).toBe(real);
+      rmSync(outsideDir, { recursive: true, force: true });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

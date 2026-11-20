@@ -1,9 +1,37 @@
 import type { DomainEvent } from "@skald/event-bus";
+import { isAbsolute, relative, resolve } from "node:path";
+import { lstatSync } from "node:fs";
 import { parseGmProposal } from "@skald/intent-parser";
 import {
   ANSWER_GAP_STATEMENT, buildAnswerPlan, verifyAllowedNarration,
   type AllowedNarrativeFacts, type QuestionReadingRound, type QuestionRoundSpec,
 } from "@skald/world";
+
+/**
+ * Resolve the ONE operator-owned paid-budget ledger for a live acceptance
+ * run. The ledger must be passed explicitly through
+ * `SKALD_P3_BUDGET_LEDGER` as an ABSOLUTE path OUTSIDE the checkout: a
+ * checkout-relative copy silently forks the accounting (point4 r01/r02 ran
+ * against a scratch copy that drifted from the operator ledger) and lets a
+ * fresh tree claim more budget than was actually left. Fail closed on a
+ * missing value, a relative path, a nonexistent file or a path inside the
+ * current working tree.
+ */
+export function resolveP3BudgetLedgerPath(env: NodeJS.ProcessEnv): { readonly ok: true; readonly path: string } | { readonly ok: false; readonly reason: string } {
+  const raw = env["SKALD_P3_BUDGET_LEDGER"];
+  if (typeof raw !== "string" || raw.trim().length === 0) return { ok: false, reason: "paid_budget_ledger_env_missing" };
+  if (!isAbsolute(raw)) return { ok: false, reason: "paid_budget_ledger_must_be_absolute" };
+  const path = resolve(raw);
+  let stat;
+  try { stat = lstatSync(path); } catch { return { ok: false, reason: "paid_budget_ledger_missing" }; }
+  if (!stat.isFile() || stat.isSymbolicLink()) return { ok: false, reason: "paid_budget_ledger_not_a_regular_file" };
+  const checkoutRoot = resolve(env["SKALD_P3_CHECKOUT_ROOT"] ?? process.cwd());
+  const withinCheckout = relative(checkoutRoot, path);
+  if (withinCheckout !== "" && !withinCheckout.startsWith("..") && !isAbsolute(withinCheckout)) {
+    return { ok: false, reason: "paid_budget_ledger_must_live_outside_the_checkout" };
+  }
+  return { ok: true, path };
+}
 
 /** Sanitized evidence required before a live P3 acceptance can pass. */
 export interface P3LiveModelEvidence {

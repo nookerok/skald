@@ -184,8 +184,13 @@ validates those numeric fields and returns them as usage and reportedCostUsd
 P3 acceptance runner separately reserves worst-case cost from the pinned
 model's explicit catalogue rates and configured token limits before each
 model call, and appends that reservation to the operator's budget ledger.
-Missing prices, unverified session model identity, failed ledger writes or
-exhausted budget block the call before it reaches OpenCode. This acceptance
+The ledger is ONE operator-owned file passed explicitly through
+`SKALD_P3_BUDGET_LEDGER` as an absolute path OUTSIDE any checkout; a
+checkout-relative copy forks the accounting and is rejected. Missing
+prices, unverified session model identity, failed ledger writes or
+exhausted budget block the call before it reaches OpenCode. A paid live
+session also requires `GM_DIRECTOR_LIVE_TIMEOUT_MS=20000` (the 4s default
+cuts live multi-clause interpretations mid-flight). This acceptance
 cap is not a production billing cap; provider-side spending limits remain
 necessary for paid production use. The default route remains unchanged until
 an explicit model pin is approved and configured. The deploy env-policy also

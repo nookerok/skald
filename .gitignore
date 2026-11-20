@@ -14,3 +14,6 @@ packages/cli/data/
 packages/cli/deploy/*.env.codegraph/
 docs/WORLD_BIBLE.md
 eval-out/
+# Operator-paid budget ledgers are usage artifacts: never commit them; the
+# live runner reads ONE operator-owned file via SKALD_P3_BUDGET_LEDGER.
+docs/acceptance/opencode-paid-budget-*.json

@@ -22,34 +22,37 @@
   bindings, server-side composition with explicit per-part gaps, and the
   per-part word+aspect meaning check. Red-first: the aspect-substitution
   test failed on the basis commit before the fix.
-- Independent review verdict REVISE with three P1 findings — all fixed on
-  top of `220e0c2` and pinned by offline tests:
-  - P1 speaker substitution: the speechWrapped branch skipped the
-    named-addressee check («Спрашиваю у Архивиста…» could be answered by
-    the Смотритель). Now an explicit address ALWAYS binds uniquely to the
-    same NPC the decision names; absent/ambiguous bindings never grant the
-    model the speaker choice.
-  - P1 shared-word coverage: one fragment word could ground two questions
-    («журнал» covered both «про журнал» and «зачем нужен журнал»).
-    Coverage is now an EXACT assignment: each question-like clause is fully
-    contained in exactly one fragment, a fragment grounds at most one
-    clause, and the per-part meaning check runs on the player's clause,
-    not the model's span.
-  - P1 subject handles: the conversation plan parser now accepts the
-    OPAQUE actor handles the model actually receives (parameterized
-    `parseProposedQuestionPlan` ref test) and the contract validates every
-    subject observerRef against the visible-actor allowlist; the adapter
-    resolves each named subject to a visible person. The earlier HTTP test
-    had omitted observerRef and hid the mismatch.
-  - P2 fact smuggling: the single-question bridge now renders only facts
-    that INDIVIDUALLY answer the question (the role fact can no longer drag
-    a caftan description along).
+- Independent review verdict REVISE (two rounds). Round 1 (three P1 +
+  one P2) fixed on `8378ad8`: named-addressee binding, exact clause
+  assignment, opaque subject handles with allowlist validation, per-fact
+  rendering. Round 2 findings, fixed on top of `b8c7428`:
+  - P1 stale checkout budget: `git add -A` had committed a stale ledger
+    copy into `b8c7428` ($4.06 shown vs $3.68 real). The copy is removed
+    from the tree (usage artifacts are never committed), and the runner is
+    V21: the ledger must be passed explicitly via
+    `SKALD_P3_BUDGET_LEDGER` as an absolute path OUTSIDE the checkout
+    (resolver unit-tested; checkout-internal and symlinked paths are
+    rejected), so one operator-owned file survives across scratch copies.
+  - P1 semantic fields: the publication check now binds the fact to the
+    part's DECLARED subjectRefs/aspect/time/purpose and to the requested
+    information TYPE — a WHEN part needs temporal fact content, a
+    HOW-MUCH part needs a quantity («Когда/Сколько…» no longer accept
+    «ведёт журнал проходов у ворот»), time past / known_event parts are
+    unanswerable by the current slice, purpose explain needs causal or
+    npc_belief content, and third-party-subject parts need facts that
+    mention the subject. Verb-bearing question clauses are tolerated as
+    single questions when they ask for information. Two JS pitfalls fixed
+    on the way: \w and \b are ASCII-only and never match Cyrillic — all
+    new markers use explicit [а-яё] classes/lookarounds.
+  - Report correction: point4 r01 was 38/39 (one transport miss), r02
+    34/39; reservations for the two wasted runs ~$0.25, actual charges
+    unverified.
   - Live-session hardening for the next paid run: the OpenCode Server
     adapter now fails closed when a created session reports a model other
     than the pin (echoed drift → no generation, session still cleaned up);
-    the acceptance runner is V20 with an addressed multi-part turn
+    the acceptance runner gained an addressed multi-part turn
     (named NPC + authored fact + per-part gap + one interpretation call),
-    25-generation budget and $0.13 reservation ceiling.
+    a 25-generation budget and a $0.13 reservation ceiling.
   - Old saves: worlds created before the dossier feature carry no seeded
     facts (bootstrap-time seeding, never retro-applied); the HTTP suite
     proves such saves continue through honest per-part gaps.
@@ -69,7 +72,7 @@
   не могу сказать ничего определённого.»»): accepted conversation
   decision, one interpret call (5.9 s), authored fact for part 1, honest
   part-scoped gap for part 2, named-addressee binding held. Two earlier
-  attempts (r01 FAIL 34/35, r02 FAIL 30/35) burned $0.2496 of reservations
+  attempts (r01 FAIL 38/39, r02 FAIL 34/39) burned $0.2496 of reservations
   on MY misconfiguration — the 4s default Director budget cut the
   multi-part/ruins interprets mid-flight; the server failed safe into
   clarifications both times. The runner now blocks a paid run below the

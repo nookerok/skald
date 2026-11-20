@@ -425,9 +425,102 @@ export function npcFactAspectAllows(question: string, factText: string): boolean
   return true;
 }
 
+/**
+ * Closed interrogative → REQUIRED INFORMATION TYPE. This is not a stop-list
+ * patch: the interrogative selects which TYPE OF CONTENT an answering fact
+ * must itself carry. «Когда вы ведёте журнал?» demands a temporal fact; a
+ * plain state fact («ведёт журнал проходов у ворот») says nothing about
+ * time and must never be published as that answer. Same for quantity.
+ */
+const TEMPORAL_QUESTION_RE = /(?<![а-яё])(?:когда|во\s+сколько|как\s+давно|с\s+каких\s+пор|как\s+часто|до\s+которого\s+часа)(?![а-яё-])/iu;
+const QUANTITY_QUESTION_RE = /(?<![а-яё])(?:сколько|какое\s+количество|как\s+много)(?![а-яё-])/iu;
+/** Closed temporal-content markers a fact must carry to answer a WHEN-type part. */
+// NOTE: \w is ASCII-only in JS; Cyrillic suffixes need explicit classes.
+const TEMPORAL_FACT_RE = /(?<![а-яё])(?:утром|вечером|ночью|днём|днем|сегодня|вчера|завтра|сейчас|всегда|кажд[а-яё]*|ежедневн[а-яё]*|давно|недавно|сутк[а-яё]*|недел[а-яё]*|месяц[а-яё]*|год[а-яё]*|лет|час[а-яё]*)(?![а-яё])/iu;
+/** A fact answering a QUANTITY-type part must itself carry a quantity. */
+const QUANTITY_FACT_RE = /(?<![а-яё])(?:\d+|один|одна|одно|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|двадцать|сотн[а-яё]*|десяток|полдюжины|несколько|много|немало|пара)(?![а-яё])/iu;
+
+/**
+ * The DECLARED semantics of one question part (closed vocabulary values the
+ * model chose in the plan) plus the resolved third-party subject. The
+ * publication check holds the fact against the requested information type,
+ * not only against topic words.
+ */
+export interface QuestionPartSubjectRef {
+  /** The player-given surface of a subject that is not the addressee. */
+  readonly surface: string;
+  /** The resolved observer-safe label of that subject. */
+  readonly label: string;
+}
+export interface QuestionPartSemantics {
+  /** Subjects of this part that are visible people other than the addressee. */
+  readonly thirdPartySubjects?: readonly QuestionPartSubjectRef[] | undefined;
+  /** Declared closed aspect of the part. */
+  readonly aspect?: string | undefined;
+  /** Declared closed time scope of the part. */
+  readonly time?: string | undefined;
+  /** Declared closed purpose of the part. */
+  readonly purpose?: string | undefined;
+  /** Kind of the bound dossier fact. */
+  readonly factKind?: string | undefined;
+}
+
+/** Closed pronoun surfaces that never count as subject content words. */
+const SUBJECT_PRONOUNS = new Set(["него", "нее", "них", "нему", "ему", "ей", "ими", "это", "этого", "этому", "этой", "этим", "том", "тем"]);
+
+/**
+ * A fact bound to a part about a THIRD party must actually mention that
+ * subject: at least one content word of the declared surface or of the
+ * resolved observer-safe label must stem-match the fact text.
+ */
+export function factMentionsThirdPartySubject(factText: string, subject: QuestionPartSubjectRef): boolean {
+  const words = (value: string) => normalizeReplicaText(value)
+    .split(" ")
+    .filter((word) => word.length >= 4 && !SUBJECT_PRONOUNS.has(word));
+  const needed = [...words(subject.surface), ...words(subject.label)];
+  if (needed.length === 0) return true;
+  return needed.some((word) => npcFactsCoverQuestion(word, [factText]));
+}
+
 /** Whether ONE dossier fact can be presented as an answer to the question. */
 export function npcFactAnswersQuestion(question: string, factText: string): boolean {
-  return npcFactsCoverQuestion(question, [factText]) && npcFactAspectAllows(question, factText);
+  if (!npcFactsCoverQuestion(question, [factText])) return false;
+  if (!npcFactAspectAllows(question, factText)) return false;
+  // Requested-information types derived from the question itself: whatever
+  // a plan declares, a fact must carry the kind of content the player asked
+  // for. «Когда/сколько …» against a plain state fact never publishes.
+  if (TEMPORAL_QUESTION_RE.test(question) && !TEMPORAL_FACT_RE.test(factText)) return false;
+  if (QUANTITY_QUESTION_RE.test(question) && !QUANTITY_FACT_RE.test(factText)) return false;
+  return true;
+}
+
+/**
+ * Plan-aware variant used by the multi-part path: the part's DECLARED
+ * subjectRefs/aspect/time/purpose are binding inputs. The current public
+ * dossier slice is authored current-state self-facts, so:
+ * - a part declared in the past is not answerable by it;
+ * - a part declared as known_event has no authored event facts to answer it;
+ * - a part declared to EXPLAIN needs causal or belief content, not a bare
+ *   state fact;
+ * - a part about a THIRD party may only be answered by a fact that actually
+ *   mentions that subject.
+ * All checks are necessary conditions; full entailment stays open (P7).
+ */
+export function npcFactAnswersQuestionPart(
+  question: string,
+  factText: string,
+  semantics: QuestionPartSemantics,
+): boolean {
+  if (!npcFactAnswersQuestion(question, factText)) return false;
+  if (semantics.time === "past") return false;
+  if (semantics.aspect === "known_event") return false;
+  if (semantics.purpose === "explain"
+    && semantics.factKind !== "npc_belief"
+    && !CAUSAL_FACT_RE.test(factText)) return false;
+  for (const subject of semantics.thirdPartySubjects ?? []) {
+    if (!factMentionsThirdPartySubject(factText, subject)) return false;
+  }
+  return true;
 }
 
 /** Whether any of the addressee's eligible facts answers the question. */
@@ -558,9 +651,24 @@ export function applyGmDirectorDecision(
   const isSingleUnregisteredQuestion = (text: string): boolean => {
     if (classifyPlayerInput(text, parseIntent).kind !== "inquiry_candidate") return false;
     const questionClauses = classifyReplicaClauses(text, parseIntent);
-    return questionClauses.actions.length === 0
+    // A verb-bearing question clause parses as an unresolved action attempt
+    // («когда пополняется журнал?», «когда вы ведёте журнал?»). It is still
+    // ONE unregistered question when it asks for information — the closed
+    // interrogatives count even after the clause split consumed the «?».
+    const asksForInformation = (clauseText: string) =>
+      isQuestionLikeInput(clauseText)
+      || /[?？]/u.test(clauseText)
+      || MOTIVATION_QUESTION_RE.test(clauseText)
+      || TEMPORAL_QUESTION_RE.test(clauseText)
+      || QUANTITY_QUESTION_RE.test(clauseText);
+    const toleratedQuestionFrames = questionClauses.actions
+      .filter(({ intent, text: clauseText }) => intent.type === "ActionIntentCommand"
+        && intent.operation === "unknown"
+        && asksForInformation(clauseText))
+      .map(({ text: clauseText }) => clauseText);
+    return questionClauses.actions.length === toleratedQuestionFrames.length
       && questionClauses.inquiries.length === 0
-      && questionClauses.unknown.length === 1;
+      && questionClauses.unknown.length + toleratedQuestionFrames.length === 1;
   };
 
   /**
@@ -664,15 +772,15 @@ export function applyGmDirectorDecision(
     const preambleTexts = preambleSegments.flatMap((segment) => segment.kind === "social" ? [SOCIAL_PHRASES[segment.act]] : []);
 
     // Per-part answers, in replica order: a bound fact that passes the
-    // word+aspect check renders verbatim; otherwise the part degrades to an
-    // explicit gap; a part with neither a binding nor a gap is a lost
-    // question and rejects the whole decision.
+    // word+aspect+declared-semantics check renders verbatim; otherwise the
+    // part degrades to an explicit gap; a part with neither a binding nor a
+    // gap is a lost question and rejects the whole decision.
     const partTexts: string[] = [];
     for (const span of spans) {
       const partSegments = decision.response!.segments.filter((segment) => "partId" in segment && segment.partId === span.partId);
       if (partSegments.length === 0) return null;
       let explicitGap = false;
-      const factTexts: string[] = [];
+      const factCandidates: { readonly text: string; readonly kind: string }[] = [];
       for (const segment of partSegments) {
         if (segment.kind === "social") {
           if (segment.act !== "no_knowledge") return null;
@@ -682,15 +790,32 @@ export function applyGmDirectorDecision(
         const fact = bundle.context.npcFacts.find((entry) => entry.factId === segment.factId
           && entry.subjectHandle === addresseeHandle);
         if (!fact || !isSafeRenderedDossierText(fact.text)) return null;
-        factTexts.push(fact.kind === "npc_belief" ? "Я считаю: " + fact.text : fact.text);
+        factCandidates.push({ text: fact.kind === "npc_belief" ? "Я считаю: " + fact.text : fact.text, kind: fact.kind });
       }
       // The meaning check runs on the player's CLAUSE — the semantic unit the
-      // fragment grounds — never on the model's chosen span text.
+      // fragment grounds — never on the model's chosen span text, and holds
+      // the fact against the part's DECLARED subjectRefs/aspect/time/purpose.
+      const declaredPart = plan.parts.find((entry) => entry.id === span.partId);
+      const thirdPartySubjects = (declaredPart?.subjectRefs ?? [])
+        .map((subjectId) => plan.subjects.find((entry) => entry.id === subjectId))
+        .flatMap((subject) => {
+          if (!subject?.observerRef) return [];
+          const person = resolveHandlePerson(subject.observerRef);
+          if (!person || person.observerRef === speaker.observerRef) return [];
+          return [{ surface: subject.surface, label: person.label }];
+        });
+      const semantics: QuestionPartSemantics = {
+        thirdPartySubjects,
+        aspect: declaredPart?.aspect,
+        time: declaredPart?.time,
+        purpose: declaredPart?.purpose,
+      };
       const partQuestion = clauseOfSpan.get(spans.indexOf(span)) ?? span.text;
-      const answeringFacts = factTexts.filter((text) => npcFactAnswersQuestion(partQuestion, text));
+      const answeringFacts = factCandidates.filter((candidate) =>
+        npcFactAnswersQuestionPart(partQuestion, candidate.text, { ...semantics, factKind: candidate.kind }));
       if (answeringFacts.length > 0) {
-        partTexts.push(answeringFacts.join(" "));
-      } else if (explicitGap || factTexts.length > 0) {
+        partTexts.push(answeringFacts.map((candidate) => candidate.text).join(" "));
+      } else if (explicitGap || factCandidates.length > 0) {
         // A bound fact that fails the per-part meaning check is a
         // substitution attempt: degrade the part to an honest gap instead
         // of dropping the OTHER answered parts with it.

@@ -85,6 +85,17 @@ The server, never the model, owns the truth:
   parts survive («полезная известная часть не пропадает»), and in the
   single-question bridge every RENDERED fact must individually answer —
   one relevant fact can never smuggle a merely-selected one;
+- the requested INFORMATION TYPE is binding, from the question itself and
+  from the part's DECLARED fields: a fact answering a WHEN-type part must
+  itself carry temporal content, a HOW-MUCH part needs a quantity in the
+  fact («Когда вы ведёте журнал?» and «Сколько журналов…» can no longer be
+  answered by «ведёт журнал проходов у ворот»), a part declared time past
+  or aspect known_event is not answerable by the current authored slice,
+  purpose explain requires causal or npc_belief content, and a part about
+  a THIRD party may only be answered by a fact that actually mentions that
+  subject. Verb-bearing question clauses («когда пополняется…») parse as
+  unresolved action attempts and are tolerated as single questions when
+  they ask for information;
 - the reply is composed server-side from authored fact texts and closed gap
   phrases in replica order: zero Domain Events, zero world time, one
   ConversationTurn, idempotent replay unchanged. Worlds created before

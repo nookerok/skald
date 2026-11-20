@@ -41,6 +41,7 @@ import {
   evaluateP3LiveModelGate,
   evaluateP3ModelBackedTurnProbe,
   p3PaidPrimaryPermissionFlag,
+  resolveP3BudgetLedgerPath,
   summarizeP3LiveRunnerFailure,
   P3_RUINS_INSPECTION_REPLICA,
   P3_RUINS_LOCATION,
@@ -52,7 +53,7 @@ import {
 import { applyServiceEnv } from "./service-env.js";
 import { createP3TransportTrace } from "./gm-p3-transport-trace.js";
 
-const schema = "GM_DIRECTOR_P3_LIVE_SESSION_V20";
+const schema = "GM_DIRECTOR_P3_LIVE_SESSION_V21";
 const dbValue = process.env["SKALD_P3_DB_PATH"] ?? "";
 const dbPath = resolve(dbValue);
 const scratchDir = dirname(dbPath);
@@ -62,15 +63,20 @@ const singleModelBackedTurnProbe = p3Mode === "single-interpret-probe";
 // The 22-turn script observed 18 category calls in the preceding live trace.
 // Allow a small retry-free buffer for the complete session; the independent
 // worst-case USD reservation cap remains the hard spend ceiling.
-const maxGenerationRequests = singleModelBackedTurnProbe ? 1 : 25;
+const maxGenerationRequests = singleModelBackedTurnProbe ? 1 : 26;
 // The single request must also fit a one-cent reservation at current catalogue prices.
 const singleProbeReservationCapUsd = 0.01;
-// 25 pinned GLM calls at the observed token ceilings reserve ~$0.127.
+// 26 pinned GLM calls at the observed token ceilings reserve ~$0.132.
 // The full scene also has an independent ceiling if catalogue prices change.
-const fullSceneReservationCapUsd = 0.13;
+const fullSceneReservationCapUsd = 0.14;
 const narrationSettleTimeoutMs = 20_000;
 const narrationPollIntervalMs = 100;
-const paidBudgetLedgerPath = resolve("docs/acceptance/opencode-paid-budget-2026-11-14.json");
+// The paid-budget ledger is ONE operator-owned file OUTSIDE any checkout
+// (SKALD_P3_BUDGET_LEDGER). A checkout-relative copy forked the accounting in
+// earlier runs; a fresh tree must never re-derive its own remaining budget.
+const paidBudgetLedger = resolveP3BudgetLedgerPath(process.env);
+if (!paidBudgetLedger.ok) blocked(paidBudgetLedger.reason);
+const paidBudgetLedgerPath = paidBudgetLedger.path;
 
 function findFreeLoopbackPort(): Promise<number> {
   return new Promise((resolvePort, rejectPort) => {
@@ -480,6 +486,7 @@ const acceptanceScenarios: Array<{ id: string; input: string; readOnly?: boolean
   { id: "people-list-again", input: "Кто ещё рядом?", readOnly: true },
   { id: "npc-topic", input: "Смотритель, расскажи о дороге к воротам.", readOnly: true },
   { id: "npc-multipart-question", input: "Смотритель, расскажите про журнал проходов у ворот и кто ещё дежурит с вами?", readOnly: true },
+  { id: "archivist-multipart-question", input: "Архивист, расскажите про городские записи и когда пополняется архив?", readOnly: true },
   { id: "provider-unavailable", input: "Привет, смотритель", readOnly: true, offline: true },
   { id: "post-outage-question", input: "Кто сейчас рядом?", readOnly: true },
   { id: "open-question", input: "Что известно о ночном шуме?", readOnly: true },
@@ -939,7 +946,7 @@ if (singleModelBackedTurnProbe) {
       acceptedDirectorDecisionCount: directorDiagnostic?.decisionAccepted === true ? 1 : 0,
     },
     paidBudget: {
-      ledger: "docs/acceptance/opencode-paid-budget-2026-11-14.json",
+      ledger: paidBudgetLedgerPath,
       runId: paidRunId,
       authorizedUsd: paidBudgetBefore!.authorizedUsd,
       reservedUsdBefore: paidBudgetBefore!.reservedUsd,
@@ -975,6 +982,7 @@ const openQuestion = ledger.find((row) => row.id === "open-question");
 const unsupportedNpcQuestion = ledger.find((row) => row.id === "npc-unsupported-detail");
 const unsupportedTwoActions = ledger.find((row) => row.id === "unsupported-two-actions");
 const multipartQuestion = ledger.find((row) => row.id === "npc-multipart-question");
+const archivistMultipart = ledger.find((row) => row.id === "archivist-multipart-question");
 const checks: Record<string, boolean> = {
   scratchWorldCreatedThroughHttp: worldCreateStatus === 201,
   scratchHttpBoundToLoopback: scratchHttpBaseUrl !== null && new URL(scratchHttpBaseUrl).hostname === "127.0.0.1",
@@ -1024,6 +1032,20 @@ const checks: Record<string, boolean> = {
       && d.addresseeKind === "npc" && d.decisionAccepted === true)
     && multipartQuestion.eventDelta === 0
     && multipartQuestion.worldTimeAfter === multipartQuestion.worldTimeBefore,
+  archivistMultipartQuestion: archivistMultipart?.responseKind === "speech_reaction"
+    // A SECOND visible NPC answers its own multi-part question: the named
+    // Архивист keeps his authored record-keeping fact and degrades the
+    // temporal part to an honest gap (the authored slice has no event time).
+    && /Архивист/u.test(archivistMultipart.responseText)
+    && /хранит городские записи/u.test(archivistMultipart.responseText)
+    && /Об этом я не могу сказать ничего определённого/u.test(archivistMultipart.responseText)
+    && archivistMultipart.interpretCalls === 1
+    && archivistMultipart.directorDiagnostics.some((d: any) =>
+      d.provider === OPENCODE_SERVER_PROVIDER_ID && d.model === acceptanceModel
+      && d.outcome === "accepted" && d.decisionKind === "conversation"
+      && d.addresseeKind === "npc" && d.decisionAccepted === true)
+    && archivistMultipart.eventDelta === 0
+    && archivistMultipart.worldTimeAfter === archivistMultipart.worldTimeBefore,
   unsupportedTwoActionsFailClosed: unsupportedTwoActions?.responseKind === "clarification"
     && unsupportedTwoActions.eventDelta === 0
     && unsupportedTwoActions.worldTimeAfter === unsupportedTwoActions.worldTimeBefore,
