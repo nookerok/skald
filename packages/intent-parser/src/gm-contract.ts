@@ -15,7 +15,7 @@
 import { INTENT_CAPABILITIES } from "./intent-proposal.js";
 import { TURN_LEGACY_OPERATIONS, type TurnProposalV2 } from "./turn-proposal.js";
 import { parseGmProposal } from "./gm-proposal.js";
-import { parseProposedQuestionPlan, type QuestionPart, type QuestionSubject } from "./question-plan.js";
+import { parseProposedQuestionPlan, summarizeRejectedPlan, type QuestionPart, type QuestionSubject } from "./question-plan.js";
 
 /** Contract version carried on every context and decision. */
 export const GM_CONTRACT_VERSION = 2;
@@ -300,7 +300,31 @@ export function validateGmTurnDecision(
         { observerRefTest: HANDLE_PATTERN },
       );
       if (!proposed) {
-        errors.push("questionPlan: invalid closed subjects/parts");
+        // Sanitized rule summary (counts and closed tokens only): a live
+        // model occasionally emits a malformed plan, and the operational
+        // diagnostic must name the exact violated rule instead of a coarse
+        // parse failure. No surfaces, ids or free text cross this boundary.
+        const summary = summarizeRejectedPlan({ subjects: plan["subjects"], parts: plan["parts"] }, []);
+        const declaredSubjectIds = new Set((Array.isArray(plan["subjects"]) ? plan["subjects"] as unknown[] : [])
+          .filter(isPlainObject)
+          .map((subject) => (subject as Record<string, unknown>)["id"])
+          .filter((id): id is string => typeof id === "string"));
+        const danglingSubjectRefs = (Array.isArray(plan["parts"]) ? plan["parts"] as unknown[] : [])
+          .filter(isPlainObject)
+          .flatMap((part) => Array.isArray((part as Record<string, unknown>)["subjectRefs"])
+            ? (part as Record<string, unknown>)["subjectRefs"] as unknown[]
+            : [])
+          .filter((ref) => typeof ref !== "string" || !declaredSubjectIds.has(ref)).length;
+        errors.push("questionPlan: invalid closed subjects/parts"
+          + ` (subjects=${summary.subjectCount},parts=${summary.partCount}`
+          + (summary.groupWithoutMembers > 0 ? `,groupWithoutMembers=${summary.groupWithoutMembers}` : "")
+          + (summary.ordinalWithoutList > 0 ? `,ordinalWithoutList=${summary.ordinalWithoutList}` : "")
+          + (summary.subjectsOverLimit ? ",subjectsOverLimit" : "")
+          + (summary.partsOverLimit ? ",partsOverLimit" : "")
+          + (summary.aspects.some((aspect) => aspect === "other") ? ",aspectOutsideVocabulary" : "")
+          + (summary.subjectKinds.some((kind) => kind === "other") ? ",subjectKindOutsideVocabulary" : "")
+          + (danglingSubjectRefs > 0 ? `,danglingSubjectRefs=${danglingSubjectRefs}` : "")
+          + ")");
       } else {
         for (const subject of proposed.subjects) {
           if (subject.observerRef !== undefined && actorHandles && !actorHandles.includes(subject.observerRef)) {

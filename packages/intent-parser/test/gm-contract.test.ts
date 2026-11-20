@@ -301,6 +301,23 @@ describe("validateGmTurnDecision — conversation questionPlan (P3 multi-part)",
       questionPlan: { ...plan, parts: [{ ...plan.parts[0], aspect: "motivation" }, plan.parts[1]] },
       response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
     }, "invalid closed subjects/parts");
+    // The rejection names the exact violated rule (sanitized counts/tokens).
+    rejectWith({
+      ...npcBase,
+      questionPlan: { ...plan, parts: [{ ...plan.parts[0], aspect: "motivation" }, plan.parts[1]] },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "aspectOutsideVocabulary");
+    rejectWith({
+      ...npcBase,
+      questionPlan: {
+        ...plan,
+        parts: [
+          { id: "px", subjectRefs: ["missing"], aspect: "identity_role", time: "current", purpose: "describe" },
+          plan.parts[1]!,
+        ],
+      },
+      response: { segments: [{ kind: "npc_fact", factId: "nf1234567890abcdef", partId: "p1" }] },
+    }, "danglingSubjectRefs=1");
   });
 
   it("rejects subject handles that are not visible actors in this scene", () => {

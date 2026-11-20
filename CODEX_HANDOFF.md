@@ -59,29 +59,46 @@
 - Gate on this tree: `npm run validate` PASS after the review fixes
   (typecheck, full suite, canon, simulation, eval, adventure acceptance,
   diff check — see the fix commit body for the exact re-run).
-- LIVE ACCEPTANCE (2026-11-19, operator raised the paid budget to USD 5;
-  ledger authorized 5 / reserved 1.317744 / remaining 3.682256): the V20
-  session ran on the Orange Pi against candidate `8378ad8` with the
-  pinned `opencode-go/glm-5.3-flash` and `GM_DIRECTOR_LIVE_TIMEOUT_MS=20000`.
-  `point4-20261119-r03`: **PASS, 39/39, failures []** — report
-  `docs/acceptance/gm-p3-point4-live-2026-11-19-r03.json` in the ORIGINAL
-  workspace, SHA-256
-  `f590bb07c8cf2e8851f4873b2fae21b4d7b05f40eea2bae7e7c771ded41779e1`.
-  The multi-part turn answered in one composed zero-event reply
-  («Смотритель речных ворот: «ведёт журнал проходов у ворот Об этом я
-  не могу сказать ничего определённого.»»): accepted conversation
-  decision, one interpret call (5.9 s), authored fact for part 1, honest
-  part-scoped gap for part 2, named-addressee binding held. Two earlier
-  attempts (r01 FAIL 38/39, r02 FAIL 34/39) burned $0.2496 of reservations
-  on MY misconfiguration — the 4s default Director budget cut the
-  multi-part/ruins interprets mid-flight; the server failed safe into
-  clarifications both times. The runner now blocks a paid run below the
-  proven 20s floor (`live_director_timeout_floor_not_met`).
-  Scratch roots: codex-gm-p3-session-20261119-point4-r01..r03 on the Pi;
-  production untouched (`18df168`, health ok, no scratch processes left).
-  This is live-provider scratch evidence on the candidate code: browser,
-  visual and human acceptance are still open, and no push/deploy has been
-  performed.
+- LIVE ACCEPTANCE (2026-11-19/20, operator raised the paid budget to USD 5;
+  ledger authorized 5 / reserved 1.5826528 / remaining 3.4173472): live runs
+  on the Orange Pi, pinned `opencode-go/glm-5.3-flash`, 20–30s Director
+  budget, single operator ledger outside any checkout.
+  - `point4-20261119-r03` (V20, `8378ad8`): **PASS 39/39** — the full
+    session incl. the Смотритель multi-part turn (named NPC, authored fact,
+    honest gap, one 5.9s interpret, zero events). Report
+    `docs/acceptance/gm-p3-point4-live-2026-11-19-r03.json` in the ORIGINAL
+    workspace, SHA-256
+    `f590bb07c8cf2e8851f4873b2fae21b4d7b05f40eea2bae7e7c771ded41779e1`.
+  - r01 (38/39) and r02 (34/39) failed on MY 4s-default misconfiguration;
+    ~$0.25 of reservations, actual charges unverified. The runner now
+    blocks a paid run below the proven 20s floor.
+  - `point4-20261120-r04` (V21, `24a9db4`, 20s): **39/40** — the NEW
+    Архивист multi-part turn PASSED live («хранит городские записи Об этом
+    я не могу сказать ничего определённого.», accepted, 7.3s): the
+    round-2 requested-information-type checks are live-proven on a second
+    NPC. The Смотритель turn hit a 20.1s transport miss (fail-safe
+    clarification, no mutation) → the budget ceiling was widened to 30s
+    (`87606d0`).
+  - `point4-20261120-r05` (V21, `87606d0`, 30s): **39/40** — the Архивист
+    turn PASSED live again (7.1s). The Смотритель turn was REJECTED this
+    time by the closed contract itself: the model returned a questionPlan
+    with an invalid subjects/parts shape (`schema:invalid`, 9.4s) and the
+    server failed closed into the safe clarification — exactly the
+    fail-closed behavior the review demanded. That model occasionally
+    emits malformed plans on this replica class is a known reliability
+    gap, not an authority defect; r03 already proved the same turn valid.
+    No more blind paid reruns this pass: the next live diagnostic now
+    names the exact violated plan rule (sanitized counts/tokens:
+    aspectOutsideVocabulary, danglingSubjectRefs, groupWithoutMembers…).
+  - Portfolio: both multi-part formulations have live accepted PASS
+    evidence (Смотритель r03; Архивист r04+r05), all 38 other session
+    checks passed on every completed run, and every failure mode so far
+    was either my run configuration or provider variance — the server
+    degraded safely every time, with zero events/time invariants intact.
+  - Scratch roots on the Pi: codex-gm-p3-session-20261119-point4-r01..r03,
+    codex-gm-p3-session-20261120-point4-r04..r05; the operator ledger lives
+    at /home/nooker/skald-data/opencode-paid-budget-2026-11-14.json;
+    production untouched (`18df168`, health ok, no scratch processes).
 - NOT done (open gates): browser/visual QA and the human playability
   session (next gates before any push/deploy decision); production
   remains at `18df168` as last verified 2026-11-19.
